@@ -72,3 +72,41 @@ test('optional model creation failure falls back; cancellation is preserved', as
   controller.abort();
   await assert.rejects(explainCatalog(engine, request, products, controller.signal, 'channelkb'));
 });
+
+test('the explanation call is billed to the same question, and a spent budget keeps the cards', async () => {
+  const billed: Array<{ inputTokens: number; outputTokens: number }> = [];
+  const engine = new FakeEngine();
+  engine.streamRun = async function* () {
+    yield { type: 'usage', usage: { inputTokens: 700, outputTokens: 25 } };
+    yield {
+      type: 'final',
+      text: '{"kind":"answer","text":"These headphones are wireless."}',
+      citations: [],
+    };
+  };
+  const result = await explainCatalog(
+    engine,
+    request,
+    products,
+    AbortSignal.timeout(1000),
+    'channelkb',
+    async (usage) => {
+      billed.push(usage);
+    },
+  );
+  assert.equal(result?.text, 'These headphones are wireless.');
+  assert.deepEqual(billed, [{ inputTokens: 700, outputTokens: 25 }]);
+  const spent = new FakeEngine();
+  spent.streamRun = async function* () {
+    yield {
+      type: 'error',
+      category: 'quota',
+      retriable: false,
+      safeDetail: 'question_budget_exhausted',
+    };
+  };
+  assert.equal(
+    await explainCatalog(spent, request, products, AbortSignal.timeout(1000), 'channelkb'),
+    null,
+  );
+});

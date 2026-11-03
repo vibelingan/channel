@@ -24,6 +24,7 @@ export const MIGRATIONS = [
   '003_git_config_provenance',
   '004_catalog_action',
   '005_tool_progress',
+  '006_need_state_usage',
 ] as const;
 
 async function withMigrationLock(

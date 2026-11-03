@@ -114,3 +114,41 @@ export function isInquirySuggestion(value: unknown): value is InquirySuggestion 
       (typeof value.productId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value.productId)))
   );
 }
+/**
+ * A follow-up the visitor can send with one click. It is only ever sent as
+ * the visitor's own visible message: never a tool, an action or a submission.
+ * "Show more options" is not one of these; it comes from the batch itself.
+ */
+export interface AnswerSuggestion {
+  id: string;
+  label: string;
+  utterance: string;
+  kind: 'ask' | 'refine';
+  /** The requirement summary version the suggestion was written against. */
+  baseCriteriaVersion: number;
+}
+export const MAX_SUGGESTIONS = 3;
+export function isAnswerSuggestions(v: unknown): v is AnswerSuggestion[] {
+  return (
+    Array.isArray(v) &&
+    v.length >= 1 &&
+    v.length <= MAX_SUGGESTIONS &&
+    v.every(
+      (s) =>
+        record(s) &&
+        Object.keys(s).length === 5 &&
+        typeof s.id === 'string' &&
+        /^s[1-3]$/.test(s.id) &&
+        typeof s.label === 'string' &&
+        s.label.trim().length > 0 &&
+        s.label.length <= 40 &&
+        typeof s.utterance === 'string' &&
+        s.utterance.trim().length > 0 &&
+        s.utterance.length <= 160 &&
+        (s.kind === 'ask' || s.kind === 'refine') &&
+        Number.isSafeInteger(s.baseCriteriaVersion) &&
+        (s.baseCriteriaVersion as number) >= 0,
+    ) &&
+    new Set(v.map((s) => (s as AnswerSuggestion).id)).size === v.length
+  );
+}

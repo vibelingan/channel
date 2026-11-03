@@ -171,6 +171,7 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
             ...(event.inquirySuggestion ? { inquirySuggestion: event.inquirySuggestion } : {}),
             ...(event.products ? { products: event.products } : {}),
             ...(event.products && event.resultSet ? { resultSet: event.resultSet } : {}),
+            ...(event.suggestions ? { suggestions: event.suggestions } : {}),
             ...(event.unavailableProductIds
               ? { unavailableProductIds: event.unavailableProductIds }
               : {}),

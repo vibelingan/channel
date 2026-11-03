@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react';
+import { type Ref, useId, useRef } from 'react';
 
 /** The assistant server refuses longer questions (MAX_QUESTION_CHARS in ai-bff). */
 export const MAX_QUESTION_CHARS = 2000;
@@ -11,6 +11,7 @@ export function ChatComposer({
   working,
   stopping,
   disabled = false,
+  textareaRef,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -19,6 +20,7 @@ export function ChatComposer({
   working: boolean;
   stopping: boolean;
   disabled?: boolean;
+  textareaRef?: Ref<HTMLTextAreaElement>;
 }) {
   const id = useId();
   const composing = useRef(false);
@@ -35,6 +37,7 @@ export function ChatComposer({
         Your question
       </label>
       <textarea
+        ref={textareaRef}
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}

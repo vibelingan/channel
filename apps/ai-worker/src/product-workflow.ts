@@ -64,6 +64,15 @@ export function featureShown(feature: string, facts: string): boolean {
   const plain = (text: string) => text.toLowerCase().replace(/[\s_-]+/g, ' ');
   return plain(facts).includes(plain(feature.trim()));
 }
+/** One catalog answer. `catalogCursor` stays worker-only (see CatalogCursor). */
+export interface CatalogResult {
+  products: PublicProductCard[];
+  unavailableProductIds: string[];
+  kind: 'answer' | 'no_match' | 'product_updated';
+  text: string;
+  resultSet?: ProductResultSet;
+  catalogCursor?: CatalogCursor;
+}
 export type ProductPlan =
   | (Exclude<CatalogAction, { kind: 'more' }> & { fallbackQuery?: string; must?: string[] })
   | { kind: 'clarify'; question: string }
@@ -73,7 +82,14 @@ export type ProductPlan =
 
 export function parseProductPlan(text: string): ProductPlan {
   if (text.length > 6000) throw new Error('invalid_product_plan');
-  const v: unknown = JSON.parse(text);
+  const parsed: unknown = JSON.parse(text);
+  // A requirement update and follow-ups may ride along with any plan. They are
+  // checked on their own (planExtras in worker.ts) and never decide the plan.
+  const v: unknown = record(parsed)
+    ? Object.fromEntries(
+        Object.entries(parsed).filter(([key]) => key !== 'need' && key !== 'suggestions'),
+      )
+    : parsed;
   // Only a visitor's click asks for the next batch; the model never picks a cursor.
   if (isCatalogAction(v) && v.kind !== 'more') return v;
   if (
@@ -319,7 +335,11 @@ export class PublicCatalog {
       throw new Error('invalid_public_catalog');
     return products.filter((p) => !seen.has(p.id));
   }
-  async execute(action: CatalogPlan, signal: AbortSignal, after?: CatalogCursor) {
+  async execute(
+    action: CatalogPlan,
+    signal: AbortSignal,
+    after?: CatalogCursor,
+  ): Promise<CatalogResult> {
     const { fallbackQuery, must, ...base } = action;
     if (
       !isCatalogAction(base) ||

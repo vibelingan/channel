@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { EngineRunRequest } from '@vibelingan-channel/ai-engine/port';
+import { estimateMessages } from '@vibelingan-channel/ai-engine/budget';
+import {
+  type EngineEvent,
+  type EngineRunRequest,
+  QUESTION_BUDGET_EXHAUSTED,
+} from '@vibelingan-channel/ai-engine/port';
 import { boundedFetch } from './http.ts';
 import { PublicKnowledge, VibeKbEngine } from './index.ts';
 
@@ -20,6 +25,8 @@ function setup(
     delay?: boolean;
     finishReason?: string;
     thinkingMode?: 'enabled' | 'disabled';
+    usage?: Array<{ prompt_tokens: number; completion_tokens: number } | undefined>;
+    documentText?: string;
   } = {},
 ) {
   const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
@@ -39,10 +46,12 @@ function setup(
             once: true,
           }),
         );
+      const usage = options.usage?.shift();
       return Response.json({
         choices: [
           { finish_reason: options.finishReason ?? 'stop', message: { content: plans.shift() } },
         ],
+        ...(usage ? { usage } : {}),
       });
     }
     const params = body.params as
@@ -66,7 +75,7 @@ function setup(
         title: 'Public company',
         tags: ['对外公开'],
         workspace_id: options.foreign ? 99 : 2,
-        content: 'We are a manufacturing partner.',
+        content: options.documentText ?? 'We are a manufacturing partner.',
       };
       const unapproved = {
         id: 13,
@@ -125,7 +134,7 @@ test('official MCP client performs real handshake and fixed scoped tools; model 
   const handle = await f.engine.createRun(request, new AbortController().signal);
   const events = [];
   for await (const e of f.engine.streamRun(handle, new AbortController().signal))
-    if (e.type !== 'activity') events.push(e);
+    if (e.type !== 'activity' && e.type !== 'usage') events.push(e);
   assert.equal(events[0]?.type, 'final');
   if (events[0]?.type !== 'final') throw new Error('missing final');
   assert.equal(events[0].citations[0]?.sourceId, 'channelkb/vibekb/12');
@@ -231,4 +240,93 @@ test('website thinking mode is server-configured per request; omitted modes rema
     for (const call of f.calls.filter((c) => c.url.includes('model.invalid')))
       assert.deepEqual(call.body.thinking, thinkingMode ? { type: 'disabled' } : undefined);
   }
+});
+
+async function drain(engine: VibeKbEngine, run: EngineRunRequest) {
+  const handle = await engine.createRun(run, new AbortController().signal);
+  const events: EngineEvent[] = [];
+  for await (const e of engine.streamRun(handle, new AbortController().signal))
+    if (e.type !== 'activity') events.push(e);
+  return events;
+}
+
+test('every model call reports its usage, from the provider when it says', async () => {
+  const f = setup({ usage: [{ prompt_tokens: 900, completion_tokens: 20 }, undefined] });
+  const events = await drain(f.engine, request);
+  const usage = events.flatMap((e) => (e.type === 'usage' ? [e.usage] : []));
+  assert.equal(usage.length, 2);
+  assert.deepEqual(usage[0], { inputTokens: 900, outputTokens: 20 });
+  assert.equal(usage[1]?.estimated, true);
+  const second = f.calls.filter((c) => c.url.includes('model.invalid'))[1];
+  assert.equal(
+    usage[1]?.inputTokens,
+    estimateMessages((second?.body.messages ?? []) as Array<{ content: string }>),
+  );
+  assert.equal(events.at(-1)?.type, 'final');
+});
+
+test('the requirement summary is sent as data ahead of the dialogue', async () => {
+  const f = setup({ plans: ['{"kind":"answer","text":"Noted."}'] });
+  await drain(f.engine, { ...request, memory: 'Requirements DATA: {"quantity":"700"}' });
+  const messages = f.calls[0]?.body.messages as Array<{ role: string; content: string }>;
+  assert.equal(messages[0]?.role, 'system');
+  assert.deepEqual(messages[1], { role: 'user', content: 'Requirements DATA: {"quantity":"700"}' });
+  assert.equal(messages.at(-1)?.content, 'Who is Diversity?');
+});
+
+test('long retrieved documents are cut so a call stays under its input ceiling', async () => {
+  const f = setup({
+    documentText: `Manufacturing partner. ${'Long public detail. '.repeat(1500)}`,
+  });
+  const question = `Tell me about your factory ${'please '.repeat(200)}`;
+  await drain(f.engine, {
+    ...request,
+    turns: [{ role: 'visitor', text: question }],
+    memory: 'Requirements DATA: {"quantity":"700"}',
+    limits: { ...request.limits, maxInputTokens: 3_000 },
+  });
+  const model = f.calls.filter((c) => c.url.includes('model.invalid'));
+  const answer = model[1]?.body.messages as Array<{ role: string; content: string }>;
+  assert.ok(estimateMessages(answer) <= 3_000);
+  assert.ok(
+    answer.some((m) => m.content === question),
+    'the current message is whole',
+  );
+  assert.ok(answer.some((m) => m.content.includes('"quantity":"700"')));
+  assert.ok(
+    answer.at(-1)?.content.includes('Manufacturing partner.'),
+    'evidence was cut, not dropped',
+  );
+});
+
+test('a question that has spent its input budget stops before the next call', async () => {
+  const f = setup({ usage: [{ prompt_tokens: 2_000, completion_tokens: 10 }] });
+  const events = await drain(f.engine, {
+    ...request,
+    limits: { ...request.limits, questionInputTokens: 2_300 },
+  });
+  assert.equal(f.calls.filter((c) => c.url.includes('model.invalid')).length, 1);
+  assert.deepEqual(events.at(-1), {
+    type: 'error',
+    category: 'quota',
+    retriable: false,
+    safeDetail: QUESTION_BUDGET_EXHAUSTED,
+  });
+});
+
+test('a requirement update sent with a knowledge step reaches the final plan', async () => {
+  const f = setup({
+    plans: [
+      '{"kind":"knowledge","query":"Diversity","need":{"quantity":"700"}}',
+      '{"kind":"answer","text":"We are a manufacturing partner."}',
+    ],
+  });
+  const final = (await drain(f.engine, request)).at(-1);
+  assert.equal(final?.type, 'final');
+  if (final?.type !== 'final') return;
+  assert.deepEqual(JSON.parse(final.text), {
+    kind: 'answer',
+    text: 'We are a manufacturing partner.',
+    need: { quantity: '700' },
+  });
 });

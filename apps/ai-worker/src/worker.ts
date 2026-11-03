@@ -10,12 +10,26 @@ import {
 } from '@vibelingan-channel/ai-engine/capabilities';
 import { EngineError } from '@vibelingan-channel/ai-engine/errors';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
-import { PRODUCT_PROFILE_ID } from '@vibelingan-channel/ai-engine/port';
-import type { ConversationEngine, EngineEvent } from '@vibelingan-channel/ai-engine/port';
+import { PRODUCT_PROFILE_ID, QUESTION_BUDGET_EXHAUSTED } from '@vibelingan-channel/ai-engine/port';
+import type {
+  ConversationEngine,
+  EngineEvent,
+  EngineUsage,
+} from '@vibelingan-channel/ai-engine/port';
 import {
+  EMPTY_NEED,
+  type NeedState,
+  type RawSuggestion,
+  buildContext,
   enforceGroundedFinal,
+  isNeedState,
+  mergeNeed,
+  needRequirement,
   normalizeCitations,
+  parseNeedUpdate,
+  parseSuggestions,
   preparePublicTurns,
+  publicSuggestions,
 } from '@vibelingan-channel/ai-policy';
 import {
   AiStore,
@@ -31,7 +45,7 @@ import {
   isCatalogCursor,
   parseProductPlan,
 } from './product-workflow.ts';
-import { FIXED_REPLIES, fixedReply, screenVisitorMessage } from './screen.ts';
+import { FIXED_REPLIES, fixedReply, screenVisitorMessage, smallTalkStreak } from './screen.ts';
 
 export interface WorkerConfig {
   catalog?: PublicCatalog;
@@ -44,7 +58,25 @@ export interface WorkerConfig {
   maxToolCalls: number;
   approvedSourcePrefix: string;
   citationSiteOrigin: string;
+  /** Estimated tokens of recent dialogue sent with each request (ROUND2-DESIGN §7.2). */
+  historyTokens?: number;
+  /** Estimated input ceiling of any one model call. */
+  maxInputTokensPerCall?: number;
+  /** Input available to one visitor question across all its calls and attempts. */
+  maxInputTokensPerQuestion?: number;
 }
+
+export const DEFAULT_INPUT_BUDGET = Object.freeze({
+  historyTokens: 6_000,
+  perCall: 16_000,
+  perQuestion: 32_000,
+});
+
+/** The reply when a question has used its whole input budget: a way to continue, not an error. */
+export const BUDGET_REPLY = {
+  en: 'This needs more than I can check in one answer. Ask about one part at a time, or review an inquiry and our team will answer it.',
+  zh: '这个问题一次回答需要查的内容太多。你可以一次问一部分，或核对询盘后交给团队解答。',
+};
 
 export function validateWorkerConfig(config: WorkerConfig): WorkerConfig {
   if (config.leaseSeconds * 1_000 <= config.maxStreamDurationMs + 5_000) {
@@ -340,15 +372,68 @@ async function startRun(
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), config.maxStreamDurationMs);
   const stopWatching = watchRunFence(store, context, controller);
+  const fenced = {
+    conversationId: context.conversationId,
+    runId: context.runId,
+    expectedControlVersion: context.controlVersion,
+    claimEpoch: context.claimEpoch,
+  };
+  const need: NeedState = isNeedState(context.needState) ? context.needState : EMPTY_NEED;
+  const latestVisitorText =
+    context.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text ?? '';
+  const chinese = /[㐀-鿿]/.test(latestVisitorText);
+  const perQuestion = config.maxInputTokensPerQuestion ?? DEFAULT_INPUT_BUDGET.perQuestion;
+  // Whatever this run already recorded counts too (a replayed run is
+  // terminalized before this point, so normally nothing has been).
+  let questionLeft = Math.max(0, perQuestion - context.usage.inputTokens);
+  const recordUsage = async (usage: EngineUsage) => {
+    questionLeft = Math.max(0, questionLeft - usage.inputTokens);
+    await workerStage('record_usage', () => store.addRunUsage(context.runId, usage));
+  };
+  const built = buildContext({
+    turns: context.turns,
+    need,
+    historyTokens: config.historyTokens ?? DEFAULT_INPUT_BUDGET.historyTokens,
+  });
+  const limits = () => ({
+    maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+    maxStreamDurationMs: config.maxStreamDurationMs,
+    maxToolCalls: config.maxToolCalls,
+    maxInputTokens: config.maxInputTokensPerCall ?? DEFAULT_INPUT_BUDGET.perCall,
+    questionInputTokens: questionLeft,
+  });
+  /** The summary and follow-ups proposed with this answer's plan, checked. */
+  let nextNeed = need;
+  let proposed: RawSuggestion[] = [];
+  const suggestionsFor = (raw: readonly RawSuggestion[]) => {
+    const shown = publicSuggestions(raw, nextNeed);
+    return shown.length ? { suggestions: shown } : {};
+  };
+  const needChange = () => (nextNeed.version !== need.version ? { needState: nextNeed } : {});
+  const finishBudgetSpent = () =>
+    store.finishRunFenced({
+      ...fenced,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: BUDGET_REPLY[chinese ? 'zh' : 'en'],
+            kind: 'team_followup',
+            ...(needRequirement(nextNeed)
+              ? { inquirySuggestion: { requirement: needRequirement(nextNeed) } }
+              : {}),
+          },
+        },
+      ],
+      ...needChange(),
+    });
   const finishProduct = async (action: Parameters<PublicCatalog['execute']>[0]) => {
     const catalog = config.catalog;
     if (!catalog) throw new WorkerFailure('invalid_request', 'catalog_not_configured');
     if (engine instanceof VibeKbEngine)
       await store.appendEventFenced({
-        conversationId: context.conversationId,
-        runId: context.runId,
-        expectedControlVersion: context.controlVersion,
-        claimEpoch: context.claimEpoch,
+        ...fenced,
         type: 'tool.progress',
         payload: { action: 'product_search' },
       });
@@ -360,10 +445,7 @@ async function startRun(
       // An answer with nothing more to show (or an old one) has no cursor.
       if (!isCatalogCursor(cursor)) {
         await store.finishRunFenced({
-          conversationId: context.conversationId,
-          runId: context.runId,
-          expectedControlVersion: context.controlVersion,
-          claimEpoch: context.claimEpoch,
+          ...fenced,
           status: 'completed',
           events: [
             {
@@ -389,25 +471,20 @@ async function startRun(
             {
               operationId: context.operationId,
               conversationRef: context.conversationId,
-              turns: preparePublicTurns(context.turns),
+              turns: preparePublicTurns(built.turns),
+              ...(built.memory ? { memory: built.memory } : {}),
               profileId: PRODUCT_PROFILE_ID,
               locale: context.locale,
-              limits: {
-                maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
-                maxStreamDurationMs: config.maxStreamDurationMs,
-                maxToolCalls: 0,
-              },
+              limits: { ...limits(), maxToolCalls: 0 },
             },
             result.products,
             controller.signal,
             config.approvedSourcePrefix,
+            recordUsage,
           )
         : null;
     await store.finishRunFenced({
-      conversationId: context.conversationId,
-      runId: context.runId,
-      expectedControlVersion: context.controlVersion,
-      claimEpoch: context.claimEpoch,
+      ...fenced,
       status: 'completed',
       events: [
         ...(explanation
@@ -417,9 +494,14 @@ async function startRun(
           : []),
         {
           type: 'final',
-          payload: { ...result, ...(explanation ? { text: explanation.text } : {}) },
+          payload: {
+            ...result,
+            ...(explanation ? { text: explanation.text } : {}),
+            ...(result.products.length ? suggestionsFor(proposed) : {}),
+          },
         },
       ],
+      ...needChange(),
     });
   };
   try {
@@ -435,21 +517,35 @@ async function startRun(
       console.info(
         JSON.stringify({ level: 'info', event: 'message_screened', runId, topic: screened }),
       );
+      const reply = fixedReply(
+        screened,
+        latestVisitorText,
+        context.locale,
+        smallTalkStreak(context.turns),
+      );
       await workerStage('finish_screened', () =>
         store.finishRunFenced({
-          conversationId: context.conversationId,
-          runId: context.runId,
-          expectedControlVersion: context.controlVersion,
-          claimEpoch: context.claimEpoch,
+          ...fenced,
           status: 'completed',
           events: [
             {
               type: 'final',
-              payload: fixedReply(screened, context.turns.at(-1)?.text ?? '', context.locale),
+              payload: {
+                text: reply.text,
+                kind: reply.kind,
+                // Worker-only: marks a fixed reply for context and for the BFF.
+                screened,
+                ...suggestionsFor(reply.suggestions),
+              },
             },
           ],
         }),
       );
+      return;
+    }
+    const useBudget = config.catalog !== undefined;
+    if (useBudget && questionLeft === 0) {
+      await workerStage('finish_budget_spent', finishBudgetSpent);
       return;
     }
     const handle = await workerStage('create_engine_run', () =>
@@ -457,14 +553,17 @@ async function startRun(
         {
           operationId: context.operationId,
           conversationRef: context.conversationId,
-          turns: preparePublicTurns(context.turns),
+          turns: preparePublicTurns(useBudget ? built.turns : context.turns),
+          ...(useBudget && built.memory ? { memory: built.memory } : {}),
           profileId: config.catalog ? PRODUCT_PROFILE_ID : config.profileId,
           locale: context.locale,
-          limits: {
-            maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
-            maxStreamDurationMs: config.maxStreamDurationMs,
-            maxToolCalls: config.maxToolCalls,
-          },
+          limits: useBudget
+            ? limits()
+            : {
+                maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+                maxStreamDurationMs: config.maxStreamDurationMs,
+                maxToolCalls: config.maxToolCalls,
+              },
         },
         controller.signal,
       ),
@@ -483,12 +582,13 @@ async function startRun(
         controller.abort();
         return;
       }
+      if (rawEvent.type === 'usage') {
+        await recordUsage(rawEvent.usage);
+        continue;
+      }
       if (rawEvent.type === 'activity') {
         const committed = await store.appendEventFenced({
-          conversationId: context.conversationId,
-          runId: context.runId,
-          expectedControlVersion: context.controlVersion,
-          claimEpoch: context.claimEpoch,
+          ...fenced,
           type: 'tool.progress',
           payload: { action: rawEvent.action },
         });
@@ -506,12 +606,13 @@ async function startRun(
       }
 
       if (rawEvent.type === 'error') {
+        if (rawEvent.safeDetail === QUESTION_BUDGET_EXHAUSTED) {
+          await workerStage('finish_budget_spent', finishBudgetSpent);
+          return;
+        }
         const committed = await workerStage('finish_engine_error', () =>
           store.finishRunFenced({
-            conversationId: context.conversationId,
-            runId: context.runId,
-            expectedControlVersion: context.controlVersion,
-            claimEpoch: context.claimEpoch,
+            ...fenced,
             status: 'failed',
             events: [storeEvent(rawEvent)],
           }),
@@ -531,25 +632,36 @@ async function startRun(
         } catch {
           throw new WorkerFailure('invalid_request', 'invalid_product_plan');
         }
+        const extras = planExtras(rawEvent.text);
+        proposed = extras.suggestions;
+        nextNeed = mergeNeed(need, extras.need, {
+          latestVisitorText,
+          turn: context.visitorTurn,
+          shown: shownProducts(context.turns),
+        });
         if (plan.kind === 'search' || plan.kind === 'lookup') {
           await finishProduct(plan);
           return;
         }
         if (plan.kind === 'clarify') {
           await store.finishRunFenced({
-            conversationId: context.conversationId,
-            runId: context.runId,
-            expectedControlVersion: context.controlVersion,
-            claimEpoch: context.claimEpoch,
+            ...fenced,
             status: 'completed',
-            events: [{ type: 'final', payload: { text: plan.question, kind: 'clarification' } }],
+            events: [
+              {
+                type: 'final',
+                payload: {
+                  text: plan.question,
+                  kind: 'clarification',
+                  ...suggestionsFor(proposed),
+                },
+              },
+            ],
+            ...needChange(),
           });
           return;
         }
         if (plan.kind === 'inquiry' || plan.kind === 'help') {
-          const chinese = /[\u3400-\u9fff]/.test(
-            context.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text ?? '',
-          );
           if (plan.kind === 'inquiry' && plan.productId) {
             const latestProducts = new Map<string, unknown>();
             for (const turn of context.turns) {
@@ -567,7 +679,7 @@ async function startRun(
                 ? '我已整理采购需求。请核对需求、填写邮箱，并确认是否交给团队跟进；确认前不会提交。'
                 : 'Your purchase requirements are ready to review. Check the details and add your email before confirming. Nothing is submitted yet.'
               : plan.topic === 'greeting'
-                ? FIXED_REPLIES.greeting[chinese ? 'zh' : 'en']
+                ? (FIXED_REPLIES.greeting.replies[0][chinese ? 'zh' : 'en'] as string)
                 : plan.topic === 'unsupported'
                   ? chinese
                     ? '这件事超出我目前能处理的范围。我可以帮你查产品、了解服务，或者整理需求交给团队。'
@@ -576,10 +688,7 @@ async function startRun(
                     ? '这部分需要团队进一步确认。你可以继续说明需求，或核对询盘后交给团队跟进。'
                     : 'Our team needs to confirm that detail. You can describe your needs or review an inquiry for follow-up.';
           await store.finishRunFenced({
-            conversationId: context.conversationId,
-            runId: context.runId,
-            expectedControlVersion: context.controlVersion,
-            claimEpoch: context.claimEpoch,
+            ...fenced,
             status: 'completed',
             events: [
               {
@@ -599,10 +708,11 @@ async function startRun(
                           ...(plan.productId ? { productId: plan.productId } : {}),
                         },
                       }
-                    : {}),
+                    : suggestionsFor(proposed)),
                 },
               },
             ],
+            ...needChange(),
           });
           return;
         }
@@ -620,16 +730,18 @@ async function startRun(
               }),
             }
           : policyResult;
-      const safeEvents = approvedEvents(approved);
+      const safeEvents = approvedEvents(approved).map(storeEvent);
       const status = approved.type === 'final' ? 'completed' : 'failed';
+      if (status === 'completed' && config.catalog) {
+        const final = safeEvents.find((event) => event.type === 'final');
+        if (final) Object.assign(final.payload, suggestionsFor(proposed));
+      }
       const committed = await workerStage(`finish_${status}`, () =>
         store.finishRunFenced({
-          conversationId: context.conversationId,
-          runId: context.runId,
-          expectedControlVersion: context.controlVersion,
-          claimEpoch: context.claimEpoch,
+          ...fenced,
           status,
-          events: safeEvents.map(storeEvent),
+          events: safeEvents,
+          ...(status === 'completed' ? needChange() : {}),
         }),
       );
       if (!committed) {
@@ -645,6 +757,25 @@ async function startRun(
     await stopWatching();
     controller.abort();
   }
+}
+
+/** The requirement update and follow-ups a plan proposed; invalid parts are dropped. */
+function planExtras(text: string): {
+  need: ReturnType<typeof parseNeedUpdate>;
+  suggestions: RawSuggestion[];
+} {
+  const plan: unknown = JSON.parse(text);
+  return isRecord(plan)
+    ? { need: parseNeedUpdate(plan.need), suggestions: parseSuggestions(plan.suggestions) }
+    : { need: undefined, suggestions: [] };
+}
+
+/** Every product card the model saw in this request's turns, by id. */
+function shownProducts(turns: RunExecutionContext['turns']): Map<string, string> {
+  const shown = new Map<string, string>();
+  for (const turn of turns)
+    for (const product of turn.publicCatalog?.products ?? []) shown.set(product.id, product.name);
+  return shown;
 }
 
 /** Check cancellation even when a provider is not sending any frames. */
@@ -990,6 +1121,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     maxToolCalls: envNonNegativeNumber('AI_MAX_TOOL_CALLS', engine instanceof VibeKbEngine ? 8 : 0),
     approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
     citationSiteOrigin: process.env.AI_SITE_ORIGIN ?? 'http://localhost:4321',
+    historyTokens: envNumber('AI_HISTORY_TOKENS', DEFAULT_INPUT_BUDGET.historyTokens),
+    maxInputTokensPerCall: envNumber('AI_MAX_INPUT_TOKENS_PER_CALL', DEFAULT_INPUT_BUDGET.perCall),
+    maxInputTokensPerQuestion: envNumber(
+      'AI_MAX_INPUT_TOKENS_PER_QUESTION',
+      DEFAULT_INPUT_BUDGET.perQuestion,
+    ),
   });
   const store = new AiStore(databaseUrl);
 

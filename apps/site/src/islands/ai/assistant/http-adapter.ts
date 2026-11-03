@@ -236,6 +236,7 @@ export function createHttpAssistantAdapter(
             ...(event.kind ? { kind: event.kind } : {}),
             ...(event.inquirySuggestion ? { inquirySuggestion: event.inquirySuggestion } : {}),
             ...(event.resultSet ? { resultSet: event.resultSet } : {}),
+            ...(event.suggestions ? { suggestions: event.suggestions } : {}),
             ...(event.unavailableProductIds
               ? { unavailableProductIds: event.unavailableProductIds }
               : {}),

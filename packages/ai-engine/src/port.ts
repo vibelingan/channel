@@ -44,6 +44,12 @@ export interface EngineRunRequest {
   profileId: string;
   locale: string;
   limits: EngineRunLimits;
+  /**
+   * Server-built summary of the requirements stated so far, as DATA. Built from
+   * earlier turns, so it survives when those turns no longer fit; never holds
+   * contact details, consent or submission state.
+   */
+  memory?: string;
 }
 
 export interface EngineRunLimits {
@@ -67,7 +73,18 @@ export interface EngineRunLimits {
   maxDeliveredOutputUnits: number;
   maxStreamDurationMs: number;
   maxToolCalls: number;
+  /** Estimated input ceiling for any single model call in this run. */
+  maxInputTokens?: number;
+  /**
+   * Input still available to the whole visitor question, which may take
+   * several calls. An engine that cannot fit the next call stops with
+   * `QUESTION_BUDGET_EXHAUSTED` instead of sending it.
+   */
+  questionInputTokens?: number;
 }
+
+/** `safeDetail` of the error an engine yields when the question budget is spent. */
+export const QUESTION_BUDGET_EXHAUSTED = 'question_budget_exhausted';
 
 export interface EngineRunHandle {
   operationId: string;
@@ -88,6 +105,8 @@ export interface EngineCitation {
 export interface EngineUsage {
   inputTokens: number;
   outputTokens: number;
+  /** True when the provider reported no usage and these are the estimates. */
+  estimated?: boolean;
 }
 
 /**
@@ -101,6 +120,8 @@ export type EngineEvent =
   | { type: 'token'; text: string }
   | { type: 'citation'; citation: EngineCitation }
   | { type: 'final'; text: string; citations: EngineCitation[]; usage?: EngineUsage }
+  /** One model call finished; sent after each call so a later failure keeps the record. */
+  | { type: 'usage'; usage: EngineUsage }
   | {
       type: 'error';
       category: EngineErrorCategory;

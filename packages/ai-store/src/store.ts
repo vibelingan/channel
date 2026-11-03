@@ -59,6 +59,14 @@ export interface OutboxItem {
   claimEpoch: number;
 }
 
+export interface RunUsage {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Calls whose provider reported no usage, so the numbers are estimates. */
+  estimatedCalls: number;
+}
+
 export interface RunExecutionContext {
   conversationId: string;
   runId: string;
@@ -67,7 +75,26 @@ export interface RunExecutionContext {
   claimEpoch: number;
   locale: string;
   catalogAction?: unknown;
-  turns: EngineTurn[];
+  /** `screened` marks a fixed small-talk reply, which later requests can skip. */
+  turns: Array<EngineTurn & { screened?: boolean }>;
+  /** The conversation's requirement summary, unvalidated; the worker checks it. */
+  needState?: unknown;
+  /** Ordinal of the visitor message this run answers, 1-based. */
+  visitorTurn: number;
+  /** Usage already spent on this question by earlier attempts. */
+  usage: RunUsage;
+}
+
+function runUsage(value: unknown): RunUsage {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const count = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 0);
+  return {
+    calls: count(record.calls),
+    inputTokens: count(record.inputTokens),
+    outputTokens: count(record.outputTokens),
+    estimatedCalls: count(record.estimatedCalls),
+  };
 }
 
 export interface FencedTerminalEvent {
@@ -504,9 +531,11 @@ export class AiStore {
       control_version: string;
       claim_epoch: string;
       locale: string;
+      usage: unknown;
+      need_state: unknown;
     }>(
       `SELECT r.conversation_id, r.id, r.operation_id, r.control_version,
-              r.claim_epoch, c.locale
+              r.claim_epoch, c.locale, r.usage, c.need_state
        FROM ai_runs r JOIN conversations c ON c.id = r.conversation_id
        WHERE r.id = $1 AND r.status = 'running'`,
       [runId],
@@ -528,9 +557,12 @@ export class AiStore {
        ORDER BY recent.created_at ASC, recent.id ASC`,
       [row.conversation_id],
     );
-    const contextual: EngineTurn[] = turns.rows.map((turn) => ({
+    const contextual: RunExecutionContext['turns'] = turns.rows.map((turn) => ({
       role: turn.role,
       text: turn.content,
+      ...(turn.role === 'assistant' && turn.payload?.screened !== undefined
+        ? { screened: true }
+        : {}),
     }));
     for (let i = turns.rows.length - 1; i >= 0; i--) {
       const payload = turns.rows[i]?.payload;
@@ -561,12 +593,18 @@ export class AiStore {
         };
       break;
     }
-    const action = await this.pool.query<{ catalog_action: unknown }>(
-      `SELECT catalog_action FROM conversation_messages WHERE conversation_id=$1 AND answered_by_run=$2 AND role='visitor'`,
+    const action = await this.pool.query<{ catalog_action: unknown; ordinal: string }>(
+      `SELECT m.catalog_action,
+              (SELECT count(*) FROM conversation_messages v
+               WHERE v.conversation_id = m.conversation_id AND v.role = 'visitor'
+                 AND (v.created_at, v.id) <= (m.created_at, m.id)) AS ordinal
+       FROM conversation_messages m
+       WHERE m.conversation_id=$1 AND m.answered_by_run=$2 AND m.role='visitor'`,
       [row.conversation_id, row.id],
     );
     return {
       ...(action.rows[0]?.catalog_action ? { catalogAction: action.rows[0].catalog_action } : {}),
+      ...(row.need_state ? { needState: row.need_state } : {}),
       conversationId: row.conversation_id,
       runId: row.id,
       operationId: row.operation_id,
@@ -574,7 +612,46 @@ export class AiStore {
       claimEpoch: Number(row.claim_epoch),
       locale: row.locale,
       turns: contextual,
+      visitorTurn: Number(action.rows[0]?.ordinal ?? 0),
+      usage: runUsage(row.usage),
     };
+  }
+
+  /**
+   * Adds one model call to the question's usage. Not fenced: the provider
+   * has already billed the call, whether or not this run still owns the reply.
+   */
+  async addRunUsage(
+    runId: string,
+    usage: { inputTokens: number; outputTokens: number; estimated?: boolean },
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE ai_runs SET usage = jsonb_build_object(
+         'calls', COALESCE((usage->>'calls')::bigint, 0) + 1,
+         'inputTokens', COALESCE((usage->>'inputTokens')::bigint, 0) + $2,
+         'outputTokens', COALESCE((usage->>'outputTokens')::bigint, 0) + $3,
+         'estimatedCalls', COALESCE((usage->>'estimatedCalls')::bigint, 0) + $4)
+       WHERE id = $1`,
+      [runId, usage.inputTokens, usage.outputTokens, usage.estimated ? 1 : 0],
+    );
+  }
+
+  /**
+   * How many of the latest answers in a row were idle: fixed small-talk
+   * replies or out-of-scope refusals. Looks back at most `limit` answers.
+   */
+  async idleAnswerStreak(conversationId: string, limit: number): Promise<number> {
+    const result = await this.pool.query<{ idle: boolean }>(
+      `SELECT (e.payload ? 'screened' OR e.payload->>'kind' = 'unsupported') AS idle
+       FROM conversation_messages m
+       JOIN conversation_events e ON e.conversation_id = m.conversation_id
+         AND e.sequence = m.event_sequence AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.role = 'assistant'
+       ORDER BY m.created_at DESC, m.id DESC LIMIT $2`,
+      [conversationId, limit],
+    );
+    const streak = result.rows.findIndex((row) => !row.idle);
+    return streak === -1 ? result.rows.length : streak;
   }
 
   /**
@@ -925,6 +1002,8 @@ export class AiStore {
     claimEpoch: number;
     status: 'completed' | 'failed';
     events: FencedTerminalEvent[];
+    /** The conversation's requirement summary after this answer. */
+    needState?: Record<string, unknown>;
   }): Promise<boolean> {
     const finalCount = input.events.filter((event) => event.type === 'final').length;
     if (input.events.length === 0) throw new Error('terminal_event_set_empty');
@@ -964,6 +1043,11 @@ export class AiStore {
       );
       const control = fence.rows[0];
       if (!control) return false;
+      if (input.needState)
+        await client.query('UPDATE conversations SET need_state = $2::jsonb WHERE id = $1', [
+          input.conversationId,
+          JSON.stringify(input.needState),
+        ]);
 
       const firstSequence = Number(control.first_sequence);
       for (const [offset, event] of input.events.entries()) {

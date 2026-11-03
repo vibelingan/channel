@@ -13,4 +13,5 @@ export {
   type NewRun,
   type OutboxItem,
   type RunExecutionContext,
+  type RunUsage,
 } from './store.ts';

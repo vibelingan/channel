@@ -687,7 +687,8 @@ test(
     assert.equal(await processOne(store, silent, { ...config, catalog }), 'processed');
     const final = (await store.listEvents(greeting.id)).at(-1);
     assert.equal(final?.type, 'final');
-    assert.match(String(final.payload.text), /^Hello\. I can help find products/);
+    assert.match(String(final.payload.text), /^Hello! I can find products/);
+    assert.equal(final.payload.screened, 'greeting');
     assert.equal(final.payload.kind, 'answer');
     assert.equal((await store.getConversation(greeting.id))?.activeRunId, null);
 

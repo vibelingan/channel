@@ -1,6 +1,9 @@
 import type { EngineCitation, EngineEvent, EngineTurn } from '@vibelingan-channel/ai-engine/port';
 import { templateFor } from './commitments.ts';
 import { topicForCommitments, ungroundedCommitments } from './grounding.ts';
+import { redactContactData } from './redact.ts';
+
+export { redactContactData } from './redact.ts';
 
 export const CHANNEL_PUBLIC_PROFILE = Object.freeze({
   id: 'channel-public-v1',
@@ -15,9 +18,6 @@ export const CHANNEL_PUBLIC_PROFILE = Object.freeze({
     contactDataToModel: false,
   }),
 });
-
-const EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const PHONE = /(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)/g;
 
 export function preparePublicTurns(turns: EngineTurn[]): EngineTurn[] {
   return turns.slice(-CHANNEL_PUBLIC_PROFILE.maxContextTurns).map((turn) => ({
@@ -36,10 +36,6 @@ export function preparePublicTurns(turns: EngineTurn[]): EngineTurn[] {
         }
       : {}),
   }));
-}
-
-export function redactContactData(text: string): string {
-  return text.replace(EMAIL, '[email redacted]').replace(PHONE, '[phone redacted]');
 }
 
 /**
@@ -197,3 +193,34 @@ export {
   type CommitmentPolicy,
   type CommitmentTopic,
 } from './commitments.ts';
+export {
+  buildContext,
+  estimateTokens,
+  DEFAULT_HISTORY_TOKENS,
+  MAX_CONTEXT_TURNS,
+  type ContextTurn,
+} from './context.ts';
+export {
+  EMPTY_NEED,
+  NEED_FIELDS,
+  NEED_LISTS,
+  NEED_TOPICS,
+  hasNeeds,
+  isNeedState,
+  mergeNeed,
+  missingNeeds,
+  needMemory,
+  needRequirement,
+  parseNeedUpdate,
+  parseSuggestions,
+  publicSuggestions,
+  statedIn,
+  type NeedFact,
+  type NeedField,
+  type NeedList,
+  type NeedState,
+  type NeedTopic,
+  type NeedUpdate,
+  type RawSuggestion,
+  type SelectedProduct,
+} from './need.ts';

@@ -118,4 +118,7 @@ export {
   isFeatureList,
   type InquirySuggestion,
   isInquirySuggestion,
+  type AnswerSuggestion,
+  isAnswerSuggestions,
+  MAX_SUGGESTIONS,
 } from './products.ts';

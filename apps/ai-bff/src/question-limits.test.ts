@@ -20,10 +20,14 @@ const limits = (overrides: Partial<QuestionLimits> = {}): QuestionLimits => ({
 });
 
 /** Buckets that never roll over, so a test cannot straddle a window edge. */
-function bucketStore() {
+function bucketStore(idle = { streak: 0 }) {
   const hits = new Map<string, number>();
   return {
     hits,
+    idle,
+    async idleAnswerStreak(_conversationId: string, limit: number) {
+      return Math.min(idle.streak, limit);
+    },
     async reserveRateLimit(input: { bucketKey: string; windowSeconds: number; limit: number }) {
       const now = hits.get(input.bucketKey) ?? 0;
       if (now >= input.limit) return { allowed: false, remaining: 0 };
@@ -46,6 +50,27 @@ test('a conversation may ask a few questions a minute, then waits for the minute
   assert.ok(wait && wait.seconds >= 1 && wait.seconds <= 60);
   // Another conversation is counted on its own.
   assert.equal(await questionWait(store, rules, 'c2', 'ip'), null);
+});
+
+test('after a run of idle answers, questions share a small hourly allowance until one is not idle', async () => {
+  const idle = { streak: 4 };
+  const store = bucketStore(idle);
+  const rules = limits({ idleRepliesBeforeSlowdown: 5, idleQuestionsPerHour: 2 });
+  // Four small-talk replies in a row change nothing.
+  for (let i = 0; i < 5; i++) assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
+  assert.equal(store.hits.get('questions:c1:idle-hour'), undefined);
+  idle.streak = 5;
+  assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
+  assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
+  const wait = await questionWait(store, rules, 'c1', 'ip');
+  assert.equal(wait?.rule, 'idle_hour');
+  assert.ok(wait && wait.seconds >= 1 && wait.seconds <= 3_600);
+  // A real answer ends the streak, and with it the allowance.
+  idle.streak = 0;
+  assert.equal(await questionWait(store, rules, 'c1', 'ip'), null);
+  // Not configured: no allowance at all.
+  idle.streak = 50;
+  assert.equal(await questionWait(store, limits(), 'c2', 'ip'), null);
 });
 
 test('daily limits apply per conversation and per visitor address', async () => {

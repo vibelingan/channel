@@ -181,27 +181,52 @@ engine.streamRun = async function* (handle, signal) {
     yield { type: 'error', category: 'transient', retriable: true };
     return;
   }
+  // Follow-ups as the planner proposes them; the worker drops the known ones.
+  const followUps = [
+    {
+      label: 'Quantity',
+      utterance: 'What is the minimum order quantity?',
+      kind: 'ask',
+      about: 'quantity',
+    },
+    {
+      label: 'Logo',
+      utterance: 'Can you print our logo on them?',
+      kind: 'ask',
+      about: 'customization',
+    },
+    { label: 'Quote', utterance: 'Please send me a quote', kind: 'ask' },
+  ];
   const plan = question.includes('those again')
     ? { kind: 'lookup', ids: earlier?.products.slice(0, 2).map((p) => p.id) ?? [] }
-    : question.includes('earbuds')
-      ? { kind: 'search', query: 'earbuds', fallbackQuery: 'earbuds', must: ['ANC'] }
-      : question.includes('headphones')
-        ? { kind: 'search', query: 'headphones' }
-        : question.includes('no matching')
-          ? { kind: 'search', query: 'unknown' }
-          : question.includes('catalog failure')
-            ? { kind: 'search', query: 'failure' }
-            : question.includes('catalog slow')
-              ? { kind: 'search', query: 'slowcatalog' }
-              : question.includes('not sure')
-                ? {
-                    kind: 'clarify',
-                    question: 'What type of product do you need, and what will it be used for?',
-                  }
-                : {
-                    kind: 'answer',
-                    text: 'This local test answer confirms that the website, API, database and worker are connected.',
-                  };
+    : question.includes('send me a quote')
+      ? { kind: 'inquiry', summary: 'Quote request for promotional headphones' }
+      : question.includes('earbuds')
+        ? { kind: 'search', query: 'earbuds', fallbackQuery: 'earbuds', must: ['ANC'] }
+        : question.includes('headphones')
+          ? {
+              kind: 'search',
+              query: 'headphones',
+              ...(question.includes('700')
+                ? { need: { product: 'headphones', quantity: '700' } }
+                : {}),
+              suggestions: followUps,
+            }
+          : question.includes('no matching')
+            ? { kind: 'search', query: 'unknown' }
+            : question.includes('catalog failure')
+              ? { kind: 'search', query: 'failure' }
+              : question.includes('catalog slow')
+                ? { kind: 'search', query: 'slowcatalog' }
+                : question.includes('not sure')
+                  ? {
+                      kind: 'clarify',
+                      question: 'What type of product do you need, and what will it be used for?',
+                    }
+                  : {
+                      kind: 'answer',
+                      text: 'This local test answer confirms that the website, API, database and worker are connected.',
+                    };
   yield {
     type: 'final',
     text: JSON.stringify(plan),

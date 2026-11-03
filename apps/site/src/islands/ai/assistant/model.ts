@@ -1,4 +1,5 @@
 import type {
+  AnswerSuggestion,
   CatalogAction,
   InquirySuggestion,
   ProductResultSet,
@@ -20,6 +21,7 @@ export type AnswerKind =
   | 'team_followup'
   | 'product_updated';
 export type PublicProduct = PublicProductCard;
+export type { AnswerSuggestion };
 import type { AssistantAnchor, PersistedInquiry } from './persistence';
 export interface ChatMessage {
   id: string;
@@ -32,6 +34,8 @@ export interface ChatMessage {
   inquirySuggestion?: InquirySuggestion;
   /** Which batch of a product search these cards are, and whether more exist. */
   resultSet?: ProductResultSet;
+  /** Up to three follow-ups, offered under the newest answer only. */
+  suggestions?: AnswerSuggestion[];
   /** A saved inquiry, shown in the conversation where the review card was. */
   receipt?: InquiryReceiptSummary;
 }
@@ -84,6 +88,7 @@ export type TurnEvent = EventIdentity &
         unavailableProductIds?: string[];
         inquirySuggestion?: InquirySuggestion;
         resultSet?: ProductResultSet;
+        suggestions?: AnswerSuggestion[];
       }
     | { type: 'failed'; message: string }
     | { type: 'rate_limited'; retryAt?: number }

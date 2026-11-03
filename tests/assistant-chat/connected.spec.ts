@@ -676,3 +676,105 @@ test('five_cards_fit_phone_widths, swipe_moves_dots and the chat still scrolls v
   await page.mouse.wheel(0, -400);
   await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBeLessThan(before);
 });
+
+test('suggestion_uses_current_missing_need and only the newest answer offers follow-ups', async ({
+  page,
+}) => {
+  await send(page, 'We want headphones for our team');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const first = page.locator('[data-message-role="assistant"]').last();
+  await expect(
+    first.getByRole('button', { name: 'What is the minimum order quantity?' }),
+  ).toBeVisible();
+  await send(page, 'We need 700 headphones');
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(2);
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const latest = page.locator('[data-message-role="assistant"]').last();
+  // The quantity is known now, so it is not asked again.
+  await expect(
+    latest.getByRole('button', { name: 'Can you print our logo on them?' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'What is the minimum order quantity?' }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Suggested next messages' })).toHaveCount(1);
+});
+
+test('suggestion_click_has_one_turn, sent as the visitor’s own visible message', async ({
+  page,
+}) => {
+  await send(page, 'We want headphones for our team');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const posts = messagePosts(page);
+  await page.getByRole('button', { name: 'Can you print our logo on them?' }).click();
+  await expect(page.locator('[data-message-role="visitor"]').last()).toHaveText(
+    'Can you print our logo on them?',
+  );
+  // No follow-ups can be clicked while that answer is on its way.
+  await expect(page.getByRole('list', { name: 'Suggested next messages' })).toHaveCount(0);
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  expect(posts).toHaveLength(1);
+  expect(JSON.parse(posts[0] ?? '{}').message).toBe('Can you print our logo on them?');
+});
+
+test('existing_composer_is_not_overwritten: a follow-up joins the draft and nothing is sent', async ({
+  page,
+}) => {
+  await send(page, 'We want headphones for our team');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const posts = messagePosts(page);
+  const box = page.getByRole('textbox', { name: 'Your question' });
+  await box.fill('Our own words');
+  await page.getByRole('button', { name: 'Can you print our logo on them?' }).click();
+  await expect(box).toHaveValue('Our own words\nCan you print our logo on them?');
+  await expect(box).toBeFocused();
+  await page.waitForTimeout(300);
+  expect(posts).toHaveLength(0);
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(1);
+});
+
+test('quote_suggestion_never_submits: it opens the inquiry for review only', async ({ page }) => {
+  let inquiryPosts = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/inquiries')) inquiryPosts += 1;
+  });
+  await send(page, 'We want headphones for our team');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await page.getByRole('button', { name: 'Please send me a quote' }).click();
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'Nothing is submitted yet',
+  );
+  // The answer only invites a review; the card opens when the visitor asks.
+  await expect(page.getByRole('button', { name: 'Confirm & submit' })).toHaveCount(0);
+  await page
+    .locator('[data-message-role="assistant"]')
+    .last()
+    .getByRole('button', { name: 'Review inquiry' })
+    .click();
+  await expect(page.getByRole('textbox', { name: 'Your requirement' })).toHaveValue(
+    'Quote request for promotional headphones',
+  );
+  // Even pressing confirm sends nothing until contact and consent are given.
+  await page.getByRole('button', { name: 'Confirm & submit' }).click();
+  await expect(page.getByText('Please agree to be contacted')).toBeVisible();
+  expect(inquiryPosts).toBe(0);
+});
+
+test('a bare hello gets a warm reply with ways to start, and a starter reaches the model', async ({
+  page,
+}) => {
+  const posts = messagePosts(page);
+  await send(page, 'hi');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  const reply = page.locator('[data-message-role="assistant"]').last();
+  await expect(reply).toContainText('Hello! I can find products');
+  await expect(reply.getByRole('listitem')).toHaveCount(3);
+  await send(page, 'hello?');
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText('Hi again');
+  await page.getByRole('button', { name: 'What products do you offer?' }).click();
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(3);
+  await expect(page.locator('[data-message-role="assistant"]').last()).toContainText(
+    'database and worker',
+  );
+  expect(posts).toHaveLength(3);
+});

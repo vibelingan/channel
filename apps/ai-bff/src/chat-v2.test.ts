@@ -486,18 +486,41 @@ test(
               seen: ['p1'],
               batch: 2,
             },
+            screened: 'greeting',
+            suggestions: [
+              {
+                id: 's1',
+                label: 'Add a logo',
+                utterance: 'Can you print our logo?',
+                kind: 'ask',
+                baseCriteriaVersion: 3,
+              },
+            ],
           },
         },
       ],
+      needState: { version: 3, quantity: { value: 'SECRET-700', turn: 1, basis: 'stated' } },
     });
     const raw = await (await request(c, 'snapshot')).text();
     assert.equal(raw.includes('catalogCursor'), false);
     assert.equal(raw.includes('SECRET-QUERY'), false);
+    // The requirement summary and the fixed-reply marker stay server-side.
+    assert.equal(raw.includes('SECRET-700'), false);
+    assert.equal(raw.includes('screened'), false);
     const answer = (JSON.parse(raw) as { messages: Array<Record<string, unknown>> }).messages.at(
       -1,
     );
     assert.deepEqual(answer?.resultSet, { batch: 1, hasMore: true });
     assert.deepEqual((answer?.products as Array<{ toConfirm?: string[] }>)[0]?.toConfirm, ['ANC']);
+    assert.deepEqual(answer?.suggestions, [
+      {
+        id: 's1',
+        label: 'Add a logo',
+        utterance: 'Can you print our logo?',
+        kind: 'ask',
+        baseCriteriaVersion: 3,
+      },
+    ]);
     // The visitor may ask for the next batch only by naming their own question.
     assert.equal(
       (

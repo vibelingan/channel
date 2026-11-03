@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChatComposer } from '../../../components/chat/ChatComposer';
 import { ChatPanel } from '../../../components/chat/ChatPanel';
 import { useChatViewport } from '../../../components/chat/useChatViewport';
@@ -54,6 +54,7 @@ export function AssistantExperience({
   const session = useAssistantSession(adapter, seed);
   const { state, inquiry } = session;
   const [confirmRegenerate, setConfirmRegenerate] = useState(seed.confirmRegenerate ?? false);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const messageRevision = state.messages
     .map(
       (message) =>
@@ -190,6 +191,17 @@ export function AssistantExperience({
             const after = messageId.replace(/^answer:/, '');
             setConfirmRegenerate(false);
             session.send('Show more options', false, { kind: 'more', after });
+          }}
+          {...(!working && !blocked && session.retrySeconds === 0
+            ? { suggestionsFor: state.messages.at(-1)?.id }
+            : {})}
+          onSuggestion={(suggestion) => {
+            setConfirmRegenerate(false);
+            // A visitor's unsent words are never replaced or sent for them.
+            if (session.draft.trim()) {
+              session.setDraft(`${session.draft.trimEnd()}\n${suggestion.utterance}`);
+              composer.current?.focus();
+            } else session.send(suggestion.utterance);
           }}
         />
         {anchorMissing && (
@@ -330,6 +342,7 @@ export function AssistantExperience({
               working={working}
               stopping={state.turn?.phase === 'stopping'}
               disabled={blocked || session.retrySeconds > 0}
+              textareaRef={composer}
             />
             {!blocked && capabilities.inquiries && (
               <button

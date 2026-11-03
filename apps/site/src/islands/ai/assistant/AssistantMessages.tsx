@@ -2,7 +2,7 @@ import { safePublicChatLink } from '../../../components/chat/public-link';
 import { InquiryReceipt } from './InquiryCard';
 import { ProductCarousel } from './ProductCarousel';
 import { ProductThumbnail } from './ProductThumbnail';
-import type { ChatMessage, PublicProduct } from './model';
+import type { AnswerSuggestion, ChatMessage, PublicProduct } from './model';
 
 export function AssistantMessages({
   messages,
@@ -10,6 +10,8 @@ export function AssistantMessages({
   onViewProduct,
   onShowMore,
   showMoreFor,
+  onSuggestion,
+  suggestionsFor,
   currentProducts,
   inquiriesEnabled = true,
 }: {
@@ -23,6 +25,10 @@ export function AssistantMessages({
   onShowMore?: (messageId: string) => void;
   /** The one answer whose batch can be continued now: the latest, when idle. */
   showMoreFor?: string;
+  /** Sends a follow-up as the visitor's own message, or puts it in the draft. */
+  onSuggestion?: (suggestion: AnswerSuggestion) => void;
+  /** The one answer whose follow-ups are offered: the latest, when idle. */
+  suggestionsFor?: string;
 }) {
   const origin = typeof window === 'undefined' ? 'https://preview.invalid' : window.location.origin;
   return (
@@ -110,15 +116,40 @@ export function AssistantMessages({
               )}
             />
           ) : null}
-          {message.id === showMoreFor && message.resultSet?.hasMore && onShowMore && (
-            <button
-              type="button"
-              onClick={() => onShowMore(message.id)}
-              className="mt-3 min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
-            >
-              Show more options
-            </button>
-          )}
+          {(() => {
+            const more = message.id === showMoreFor && message.resultSet?.hasMore && onShowMore;
+            const follow =
+              message.id === suggestionsFor && onSuggestion ? (message.suggestions ?? []) : [];
+            if (!more && !follow.length) return null;
+            return (
+              <ul aria-label="Suggested next messages" className="mt-3 flex flex-wrap gap-2">
+                {more && (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => onShowMore(message.id)}
+                      className="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold"
+                    >
+                      Show more options
+                    </button>
+                  </li>
+                )}
+                {follow.map((suggestion) => (
+                  <li key={suggestion.id}>
+                    {/* The chip shows exactly what will be sent as the visitor's message. */}
+                    <button
+                      type="button"
+                      data-suggestion-kind={suggestion.kind}
+                      onClick={() => onSuggestion?.(suggestion)}
+                      className="min-h-11 rounded-full border border-brand-200 bg-brand-50 px-3 py-2 text-left text-xs font-medium text-brand-800"
+                    >
+                      {suggestion.utterance}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
           {message.citations?.length ? (
             <ul className="mt-3 border-t border-slate-100 pt-2 text-xs text-ink-muted">
               {message.citations.map((citation, index) => {

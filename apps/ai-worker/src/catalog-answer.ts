@@ -3,6 +3,7 @@ import type {
   ConversationEngine,
   EngineCitation,
   EngineRunRequest,
+  EngineUsage,
 } from '@vibelingan-channel/ai-engine/port';
 import { PRODUCT_ANSWER_PROFILE_ID } from '@vibelingan-channel/ai-engine/port';
 import { enforceGroundedFinal } from '@vibelingan-channel/ai-policy';
@@ -15,6 +16,7 @@ export async function explainCatalog(
   products: PublicProductCard[],
   signal: AbortSignal,
   prefix: string,
+  onUsage?: (usage: EngineUsage) => Promise<void>,
 ) {
   if (!products.length) return null;
   const citations: EngineCitation[] = products.map((product) => ({
@@ -53,6 +55,11 @@ export async function explainCatalog(
       signal,
     );
     for await (const event of engine.streamRun(handle, signal)) {
+      if (event.type === 'usage') {
+        await onUsage?.(event.usage);
+        continue;
+      }
+      // Includes a spent question budget: the cards still show, without prose.
       if (event.type === 'error') return null;
       if (event.type !== 'final') continue;
       const plan = parseProductPlan(event.text);

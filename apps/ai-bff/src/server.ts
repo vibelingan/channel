@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
 import {
   PRODUCT_KINDS,
+  isAnswerSuggestions,
   isInquirySuggestion,
   isProductCards,
   isProductResultSet,
@@ -64,6 +65,13 @@ export interface QuestionLimits {
   /** Refusals in one cooldown window before the conversation waits out the window. */
   refusalsBeforeCooldown: number;
   cooldownSeconds: number;
+  /**
+   * After this many idle answers in a row (fixed small-talk replies or
+   * out-of-scope refusals), further questions also share `idleQuestionsPerHour`.
+   * The first answer that is not idle ends it. Both unset: no idle allowance.
+   */
+  idleRepliesBeforeSlowdown?: number;
+  idleQuestionsPerHour?: number;
 }
 
 /** The composer allows this much; a longer question is refused, not cut. */
@@ -417,7 +425,7 @@ export function createAiBffServer(
  * by itself, so a visitor who was refused earlier is never blocked for good.
  */
 export async function questionWait(
-  store: Pick<AiStore, 'reserveRateLimit' | 'rateLimitHits'>,
+  store: Pick<AiStore, 'reserveRateLimit' | 'rateLimitHits' | 'idleAnswerStreak'>,
   limits: QuestionLimits,
   conversationId: string,
   sourceKey: string,
@@ -438,7 +446,14 @@ export async function questionWait(
     ],
     ['conversation_day', `questions:${conversationId}:day`, 86_400, limits.perConversationPerDay],
     ['ip_day', `questions:ip:${sourceKey}:day`, 86_400, limits.perIpPerDay],
-  ] as const;
+  ] as Array<readonly [string, string, number, number]>;
+  const { idleRepliesBeforeSlowdown: idleAfter, idleQuestionsPerHour: idlePerHour } = limits;
+  if (
+    idleAfter !== undefined &&
+    idlePerHour !== undefined &&
+    (await store.idleAnswerStreak(conversationId, idleAfter)) >= idleAfter
+  )
+    windows.push(['idle_hour', `questions:${conversationId}:idle-hour`, 3_600, idlePerHour]);
   for (const [rule, bucketKey, windowSeconds, limit] of windows) {
     if ((await store.reserveRateLimit({ bucketKey, windowSeconds, limit })).allowed) continue;
     await store.reserveRateLimit({
@@ -716,6 +731,8 @@ function configFromEnvironment(): AiBffConfig {
       perIpPerDay: numberEnv('AI_IP_QUESTIONS_PER_DAY', 200),
       refusalsBeforeCooldown: numberEnv('AI_QUESTION_REFUSALS_BEFORE_COOLDOWN', 5),
       cooldownSeconds: numberEnv('AI_QUESTION_COOLDOWN_SECONDS', 600),
+      idleRepliesBeforeSlowdown: numberEnv('AI_IDLE_REPLIES_BEFORE_SLOWDOWN', 5),
+      idleQuestionsPerHour: numberEnv('AI_IDLE_QUESTIONS_PER_HOUR', 10),
     },
     ipHashSecret: requiredSecretEnv('AI_IP_HASH_SECRET'),
     trustProxy: process.env.AI_TRUST_PROXY === '1',
@@ -837,9 +854,19 @@ function productFields(payload: Record<string, unknown>): AnswerExtrasV2 {
     )
       ? payload.unavailableProductIds
       : undefined;
+  const suggestions = isAnswerSuggestions(payload.suggestions)
+    ? payload.suggestions.map((s) => ({
+        id: s.id,
+        label: s.label,
+        utterance: s.utterance,
+        kind: s.kind,
+        baseCriteriaVersion: s.baseCriteriaVersion,
+      }))
+    : undefined;
   return {
     ...(products ? { products } : {}),
     ...(products && resultSet ? { resultSet } : {}),
+    ...(suggestions ? { suggestions } : {}),
     ...(kind ? { kind } : {}),
     ...(unavailableProductIds ? { unavailableProductIds } : {}),
     ...(payload.kind === 'team_followup' && isInquirySuggestion(payload.inquirySuggestion)

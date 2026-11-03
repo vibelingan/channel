@@ -83,3 +83,25 @@ test('inquiry suggestion carries only editable need and public product identity,
   assert.ok(isChatEventV2({ ...event, type: 'tool.progress', action: 'knowledge_search' }));
   assert.equal(isChatEventV2({ ...event, type: 'tool.progress', action: 'run_shell' }), false);
 });
+test('follow-up suggestions are at most three plain messages, never an action', () => {
+  const suggestion = {
+    id: 's1',
+    label: 'Add a logo',
+    utterance: 'Can you print our logo?',
+    kind: 'ask',
+    baseCriteriaVersion: 2,
+  };
+  assert.ok(isChatEventV2({ ...event, suggestions: [suggestion] }));
+  for (const suggestions of [
+    [],
+    [1, 2, 3, 4].map((n) => ({ ...suggestion, id: `s${n}` })),
+    [suggestion, suggestion],
+    [{ ...suggestion, kind: 'more' }],
+    [{ ...suggestion, kind: 'submit' }],
+    [{ ...suggestion, action: 'send_email' }],
+    [{ ...suggestion, utterance: 'x'.repeat(161) }],
+    [{ ...suggestion, label: '' }],
+    [{ ...suggestion, baseCriteriaVersion: -1 }],
+  ])
+    assert.equal(isChatEventV2({ ...event, suggestions }), false, JSON.stringify(suggestions));
+});

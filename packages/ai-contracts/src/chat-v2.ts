@@ -1,9 +1,11 @@
 import type { PublicSseEvent } from './index.ts';
 import {
+  type AnswerSuggestion,
   type InquirySuggestion,
   PRODUCT_KINDS,
   type ProductResultSet,
   type PublicProductCard,
+  isAnswerSuggestions,
   isInquirySuggestion,
   isProductCards,
   isProductResultSet,
@@ -24,6 +26,7 @@ export type ChatEventV2 = PublicSseEvent & {
   unavailableProductIds?: string[];
   inquirySuggestion?: InquirySuggestion;
   resultSet?: ProductResultSet;
+  suggestions?: AnswerSuggestion[];
   protocolVersion: 2;
   conversationId: string;
   messageId: string;
@@ -37,6 +40,7 @@ export interface AnswerExtrasV2 {
   unavailableProductIds?: string[];
   inquirySuggestion?: InquirySuggestion;
   resultSet?: ProductResultSet;
+  suggestions?: AnswerSuggestion[];
 }
 /** Restores one conversation in the tab that holds its credential. */
 export interface ConversationSnapshotV2 {
@@ -127,6 +131,7 @@ function answerExtras(value: Record<string, unknown>): boolean {
   return (
     (value.products === undefined || isProductCards(value.products)) &&
     (value.resultSet === undefined || isProductResultSet(value.resultSet)) &&
+    (value.suggestions === undefined || isAnswerSuggestions(value.suggestions)) &&
     (value.inquirySuggestion === undefined ||
       (value.kind === 'team_followup' && isInquirySuggestion(value.inquirySuggestion))) &&
     (value.kind === undefined || PRODUCT_KINDS.some((kind) => kind === value.kind)) &&
