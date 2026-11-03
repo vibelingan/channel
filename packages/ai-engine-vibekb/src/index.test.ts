@@ -265,6 +265,68 @@ test('every model call reports its usage, from the provider when it says', async
   assert.equal(events.at(-1)?.type, 'final');
 });
 
+test('an unusable answer still records what the provider billed, then fails', async () => {
+  for (const finishReason of ['length', 'content_filter']) {
+    const f = setup({
+      plans: ['{"kind":"answer","text":"Trunc'],
+      finishReason,
+      usage: [{ prompt_tokens: 1000, completion_tokens: 1200 }],
+    });
+    const handle = await f.engine.createRun(request, new AbortController().signal);
+    const usage: unknown[] = [];
+    await assert.rejects(
+      async () => {
+        for await (const e of f.engine.streamRun(handle, new AbortController().signal))
+          if (e.type === 'usage') usage.push(e.usage);
+          else assert.notEqual(e.type, 'final');
+      },
+      { name: 'EngineError', category: 'invalid_request' },
+    );
+    assert.deepEqual(usage, [{ inputTokens: 1000, outputTokens: 1200 }], finishReason);
+  }
+});
+
+test('an unusable answer without provider usage is estimated from what was sent', async () => {
+  const f = setup({ plans: ['{"kind":"answer","text":"Trunc'], finishReason: 'length' });
+  const handle = await f.engine.createRun(request, new AbortController().signal);
+  const usage: Array<{ inputTokens: number; estimated?: boolean }> = [];
+  await assert.rejects(async () => {
+    for await (const e of f.engine.streamRun(handle, new AbortController().signal))
+      if (e.type === 'usage') usage.push(e.usage);
+  });
+  const sent = f.calls.find((c) => c.url.includes('model.invalid'));
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0]?.estimated, true);
+  assert.equal(
+    usage[0]?.inputTokens,
+    estimateMessages((sent?.body.messages ?? []) as Array<{ content: string }>),
+  );
+});
+
+test('a provider body with no answer choice records no invented usage', async () => {
+  const f = setup();
+  const engine = new VibeKbEngine({
+    modelBaseUrl: 'https://model.invalid/v1',
+    model: 'model',
+    modelApiKey: 'dummy',
+    knowledge: f.knowledge,
+    fetch: async () => Response.json({ error: { message: 'overloaded' } }),
+    provenance: {
+      kind: 'git',
+      commit: 'a'.repeat(40),
+      repository: 'local-test',
+      configDigest: `sha256:${'b'.repeat(64)}`,
+    },
+  });
+  const handle = await engine.createRun(request, new AbortController().signal);
+  const usage: unknown[] = [];
+  await assert.rejects(async () => {
+    for await (const e of engine.streamRun(handle, new AbortController().signal))
+      if (e.type === 'usage') usage.push(e.usage);
+  });
+  assert.deepEqual(usage, []);
+});
+
 test('the requirement summary is sent as data ahead of the dialogue', async () => {
   const f = setup({ plans: ['{"kind":"answer","text":"Noted."}'] });
   await drain(f.engine, { ...request, memory: 'Requirements DATA: {"quantity":"700"}' });

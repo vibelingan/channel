@@ -132,8 +132,11 @@ export class VibeKbEngine implements ConversationEngine {
         yield { type: 'activity', action: 'model_answer' };
         bounded.throwIfAborted();
         const { text, usage } = await this.call(messages, bounded);
-        questionLeft -= usage.inputTokens;
-        yield { type: 'usage', usage };
+        if (usage) {
+          questionLeft -= usage.inputTokens;
+          yield { type: 'usage', usage };
+        }
+        if (text === undefined) throw new EngineError('invalid_request');
         if (text.length > Math.min(16000, run.request.limits.maxDeliveredOutputUnits * 4))
           throw new EngineError('invalid_request', { safeDetail: 'model_output_too_large' });
         let plan: unknown;
@@ -273,7 +276,7 @@ export class VibeKbEngine implements ConversationEngine {
   private async call(
     messages: ChatMessage[],
     signal: AbortSignal,
-  ): Promise<{ text: string; usage: EngineUsage }> {
+  ): Promise<{ text: string | undefined; usage: EngineUsage | undefined }> {
     const response = await boundedFetch(this.target, this.config.fetch ?? fetch)(this.target, {
       method: 'POST',
       signal,
@@ -292,18 +295,21 @@ export class VibeKbEngine implements ConversationEngine {
       }),
     });
     const body: unknown = await response.json();
-    if (
-      !record(body) ||
-      !Array.isArray(body.choices) ||
-      body.choices.length !== 1 ||
-      !record(body.choices[0]) ||
-      !record(body.choices[0].message) ||
-      typeof body.choices[0].message.content !== 'string' ||
-      body.choices[0].finish_reason !== 'stop'
-    )
-      throw new EngineError('invalid_request');
-    const text = body.choices[0].message.content;
-    return { text, usage: providerUsage(body.usage) ?? estimatedUsage(messages, text) };
+    const choice =
+      record(body) && Array.isArray(body.choices) && body.choices.length === 1
+        ? body.choices[0]
+        : undefined;
+    const content =
+      record(choice) && record(choice.message) && typeof choice.message.content === 'string'
+        ? choice.message.content
+        : undefined;
+    // A completion the answer cannot use (truncated, filtered) was still
+    // billed: its usage is returned before the answer is judged.
+    const usage =
+      (record(body) ? providerUsage(body.usage) : undefined) ??
+      (record(choice) ? estimatedUsage(messages, content ?? '') : undefined);
+    const text = record(choice) && choice.finish_reason === 'stop' ? content : undefined;
+    return { text, usage };
   }
 }
 
