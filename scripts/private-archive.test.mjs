@@ -229,7 +229,7 @@ test('a large interrupted upload resumes once only after the exact object is con
   x.read = async (_sdk, id, options) => {
     if (!x.objects.has(id)) {
       assert.equal(writes, 1);
-      assert.equal(options.timeoutMs, 120000);
+      assert.equal(options.timeoutMs, 300000);
       clock += 500;
       throw Object.assign(Error('private URL must not escape'), {
         statusCode: 404,
@@ -252,7 +252,7 @@ test('a large interrupted upload resumes once only after the exact object is con
   }).put(bytes);
   assert.equal(writes, 2);
   assert.equal(attempts[0].options.uploadTimeoutMs, 300000);
-  assert.equal(attempts[1].options.uploadTimeoutMs, 119500);
+  assert.equal(attempts[1].options.uploadTimeoutMs, 239500);
   assert.equal(attempts[0].credential, attempts[1].credential);
   assert.equal(attempts[0].input, attempts[1].input);
   assert.deepEqual(x.objects.get(ref.fileID), bytes);
@@ -366,7 +366,7 @@ test('continuation budget includes readback and renewed ACL checks', async () =>
     throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
   };
   x.read = async () => {
-    clock = 120001;
+    clock = 300001;
     throw Object.assign(Error('absent'), { statusCode: 404, code: 'ARCHIVE_OBJECT_NOT_FOUND' });
   };
   await assert.rejects(
@@ -421,7 +421,7 @@ test('late permission checks cannot outlive the continuation budget or start ano
     throw Object.assign(Error('deadline'), { code: 'ETIMEDOUT' });
   };
   x.read = async () => {
-    clock = 119995;
+    clock = 299995;
     throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
   };
   await assert.rejects(
@@ -514,3 +514,107 @@ for (const changedPolicy of ['permission', 'lifecycle'])
       'The new policy must be checked after the exact missing-object confirmation',
     );
   });
+
+test('a progressing large continuation has time beyond two minutes and reserves exact readback', async () => {
+  const x = setup();
+  let clock = 0;
+  let writes = 0;
+  const send = x.put;
+  x.put = async (credential, bytes, options) => {
+    if (++writes === 1) throw Object.assign(Error('socket timeout'), { code: 'ESOCKETTIMEDOUT' });
+    assert.equal(options.uploadTimeoutMs, 240000);
+    clock = 180000;
+    await send(credential, bytes);
+  };
+  x.read = async (_sdk, id, options) => {
+    if (!x.objects.has(id))
+      throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+    assert.equal(options.timeoutMs, 120000);
+    return Buffer.from(x.objects.get(id));
+  };
+  const ref = await createPrivateArchive({ ...x, policy, now: () => clock }).put(
+    Buffer.alloc(9 * 1024 * 1024, 3),
+  );
+  assert.equal(writes, 2);
+  assert.equal(x.objects.get(ref.fileID).length, ref.bytes);
+});
+
+test('a stalled continuation cannot consume the time reserved for verifying its lost reply', async () => {
+  const x = setup();
+  let clock = 0;
+  let writes = 0;
+  let finishUpload;
+  const send = x.put;
+  x.put = async (credential, bytes, options) => {
+    if (++writes === 1) throw Object.assign(Error('socket timeout'), { code: 'ESOCKETTIMEDOUT' });
+    assert.equal(options.uploadTimeoutMs, 5);
+    await send(credential, bytes);
+    await new Promise((resolve) => {
+      finishUpload = resolve;
+    });
+  };
+  x.read = async (_sdk, id, options) => {
+    if (!x.objects.has(id)) {
+      clock = 239995;
+      throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+    }
+    assert.equal(options.timeoutMs, 60005);
+    return Buffer.from(x.objects.get(id));
+  };
+  const ref = await createPrivateArchive({ ...x, policy, now: () => clock }).put(
+    Buffer.alloc(9 * 1024 * 1024, 4),
+  );
+  finishUpload();
+  assert.equal(writes, 2);
+  assert.equal(x.objects.get(ref.fileID).length, ref.bytes);
+});
+
+test('insufficient continuation time never starts another upload', async () => {
+  const x = setup();
+  let clock = 0;
+  let writes = 0;
+  x.put = async () => {
+    writes++;
+    throw Object.assign(Error('socket timeout'), { code: 'ESOCKETTIMEDOUT' });
+  };
+  x.read = async () => {
+    clock = 240001;
+    throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+  };
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy, now: () => clock }).put(Buffer.alloc(9 * 1024 * 1024)),
+    /needs readback/,
+  );
+  assert.equal(writes, 1);
+});
+
+test('successful continuation readback is still bounded and verifies every byte', async () => {
+  for (const failure of ['late', 'length', 'hash']) {
+    const x = setup();
+    let clock = 0;
+    let writes = 0;
+    let finalReadBudget;
+    const send = x.put;
+    x.put = async (...args) => {
+      if (++writes === 1) throw Object.assign(Error('socket timeout'), { code: 'ESOCKETTIMEDOUT' });
+      await send(...args);
+      clock = 180000;
+    };
+    x.read = async (_sdk, id, options) => {
+      if (!x.objects.has(id))
+        throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+      finalReadBudget = options.timeoutMs;
+      const value = Buffer.from(x.objects.get(id));
+      if (failure === 'late') clock = 300001;
+      if (failure === 'length') return value.subarray(1);
+      if (failure === 'hash') value[0] ^= 1;
+      return value;
+    };
+    await assert.rejects(
+      createPrivateArchive({ ...x, policy, now: () => clock }).put(Buffer.alloc(9 * 1024 * 1024)),
+      /needs readback/,
+    );
+    assert.equal(writes, 2);
+    assert.equal(finalReadBudget, 120000);
+  }
+});

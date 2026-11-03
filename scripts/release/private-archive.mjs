@@ -153,10 +153,12 @@ export function createPrivateArchive({
           put(credential, bytes, { uploadTimeoutMs: timeout(bytes.length) }),
         );
       } catch (uploadError) {
-        // One short continuation window covers readback, renewed policy checks and
-        // the resumed upload. The transport creates a new local path on each call,
+        // One bounded window covers readback, renewed policy checks and the resumed
+        // upload, with the last minute reserved for verifying a lost upload reply.
+        // The transport creates a new local path on each call,
         // forcing COS 2.15.4 to check remote part MD5/size instead of its path cache.
-        const deadline = now() + 120000;
+        const deadline = now() + timeout(bytes.length);
+        const uploadDeadline = deadline - 60000;
         // Only a complete read of the exact immutable bytes can resolve a lost upload reply.
         try {
           await get(ref, deadline);
@@ -173,18 +175,15 @@ export function createPrivateArchive({
           await withinDeadline(deadline, () => target(ref));
           if (sha256(bytes) !== digest)
             throw Error('Private archive bytes changed before continuation');
-          const uploadTimeoutMs = Math.min(120000, remaining(deadline));
-          await observe('resume', ref, () => put(credential, bytes, { uploadTimeoutMs }));
+          const uploadTimeoutMs = remaining(uploadDeadline);
+          await observe('resume', ref, () =>
+            withinDeadline(uploadDeadline, () => put(credential, bytes, { uploadTimeoutMs })),
+          );
         } catch {
-          try {
-            await get(ref, deadline);
-            return ref;
-          } catch {
-            throw Error('Private archive upload needs readback; website was not changed');
-          }
+          // A timeout or lost reply is resolved only by reading the exact object.
         }
         try {
-          await get(ref);
+          await get(ref, deadline);
           return ref;
         } catch {
           throw Error('Private archive upload needs readback; website was not changed');
