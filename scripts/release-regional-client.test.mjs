@@ -19,7 +19,7 @@ async function fixture(t) {
   t.after(() => rm(directory, { recursive: true, force: true }));
   const functions = new Map();
   const calls = [];
-  const f = { ...wire, directory, functions, calls, deleted: [], created: [] };
+  const f = { ...wire, directory, functions, calls, requests: [], deleted: [], created: [] };
   const manager = {
     getManagerConfig: () => ({ envId: policy.envId, region: policy.region }),
     functions: {
@@ -67,6 +67,7 @@ async function fixture(t) {
       },
       async invokeFunction(name, request) {
         calls.push(request.method);
+        f.requests.push(structuredClone(request));
         if (f.failBeforeInvoke === request.method)
           throw Object.assign(Error('secret timeout'), { code: 'ETIMEDOUT' });
         const result = await f.handler(request);
@@ -141,6 +142,16 @@ function completeInventory(f) {
   };
 }
 
+function failTransactionStarts(f, method, count = 1, code = 'DATABASE_TRANSACTION_FAIL') {
+  const transact = f.db.runTransaction.bind(f.db);
+  let remaining = count;
+  f.db.runTransaction = async (callback) => {
+    if (f.requests.at(-1)?.method === method && remaining-- > 0)
+      throw Object.assign(Error('PRIVATE_TRANSACTION_START_FAILURE'), { code });
+    return transact(callback);
+  };
+}
+
 test('lost reply is resolved from the atomic receipt without resubmitting the lease write', async (t) => {
   const f = await fixture(t);
   const client = await f.start();
@@ -153,6 +164,217 @@ test('lost reply is resolved from the atomic receipt without resubmitting the le
   await client.close();
   assert.deepEqual(f.deleted, ['seo-release-region-41313740695-1']);
   assert.equal(client.unconfirmed, false);
+});
+
+test('a renewal whose transaction never started retries once after an absent receipt using the identical request', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+  const before = await client.coordinator.status();
+  failTransactionStarts(f, 'renew');
+
+  assert.deepEqual(await client.coordinator.renew(guard), guard);
+  const requests = f.requests.filter((request) => request.method === 'renew');
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], requests[0]);
+  assert.equal(f.calls.filter((method) => method === 'operation.get').length, 1);
+  const after = await client.coordinator.status();
+  assert.equal(after.target.version, before.target.version + 1);
+  assert.equal(client.unconfirmed, false);
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.equal(receipt.calls.filter((row) => row.method === 'renew').length, 1);
+  assert.doesNotMatch(JSON.stringify(receipt), /PRIVATE_TRANSACTION_START_FAILURE|"token"/);
+  await client.coordinator.release(guard);
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+});
+
+test('a completed renewal receipt resolves the first lost reply without another write', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+  const before = await client.coordinator.status();
+  const invoke = f.manager.functions.invokeFunction;
+  let lost = false;
+  f.manager.functions.invokeFunction = async (name, request) => {
+    const result = await invoke(name, request);
+    if (request.method === 'renew' && !lost) {
+      lost = true;
+      throw Object.assign(Error('PRIVATE_LOST_RENEWAL_REPLY'), {
+        code: 'DATABASE_TRANSACTION_FAIL',
+        ledgerStage: 'awaiting-sdk-transaction',
+      });
+    }
+    return result;
+  };
+  assert.deepEqual(await client.coordinator.renew(guard), guard);
+  assert.equal(f.calls.filter((method) => method === 'renew').length, 1);
+  assert.equal(f.calls.filter((method) => method === 'operation.get').length, 1);
+  assert.equal((await client.coordinator.status()).target.version, before.target.version + 1);
+  await client.coordinator.release(guard);
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+});
+
+test('caller changes during readback cannot change the renewal request being retried', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+  const original = structuredClone(guard);
+  failTransactionStarts(f, 'renew');
+  const invoke = f.manager.functions.invokeFunction;
+  let attempts = 0;
+  f.manager.functions.invokeFunction = async (name, request) => {
+    const response = await invoke(name, request);
+    if (request.method === 'renew' && ++attempts === 1) guard.fence = 999;
+    return response;
+  };
+  assert.deepEqual(await client.coordinator.renew(guard), original);
+  const requests = f.requests.filter((request) => request.method === 'renew');
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], requests[0]);
+  await client.coordinator.release(original);
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+});
+
+test('a lost retry reply is resolved by one final readback of the original renewal', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+  const before = await client.coordinator.status();
+  failTransactionStarts(f, 'renew');
+  const invoke = f.manager.functions.invokeFunction;
+  let attempts = 0;
+  f.manager.functions.invokeFunction = async (name, request) => {
+    if (request.method === 'renew' && ++attempts === 2) f.loseReply = 'renew';
+    return invoke(name, request);
+  };
+  assert.deepEqual(await client.coordinator.renew(guard), guard);
+  const renewals = f.requests.filter((request) => request.method === 'renew');
+  const reads = f.requests.filter((request) => request.method === 'operation.get');
+  assert.equal(renewals.length, 2);
+  assert.deepEqual(renewals[1], renewals[0]);
+  assert.equal(reads.length, 2);
+  assert.deepEqual(reads[1], reads[0]);
+  assert.equal((await client.coordinator.status()).target.version, before.target.version + 1);
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.equal(receipt.calls.find((row) => row.method === 'renew').state, 'readback-confirmed');
+  await client.coordinator.release(guard);
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+});
+
+test('a second absent renewal receipt stops after two attempts and retains the worker', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+  failTransactionStarts(f, 'renew', 2);
+  await assert.rejects(client.coordinator.renew(guard), { code: 'RELEASE_REGIONAL_UNCONFIRMED' });
+  assert.equal(f.calls.filter((method) => method === 'renew').length, 2);
+  assert.equal(f.calls.filter((method) => method === 'operation.get').length, 2);
+  const count = f.calls.length;
+  await assert.rejects(client.coordinator.renew(guard), /Unconfirmed release operation/);
+  assert.equal(f.calls.length, count);
+  assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true });
+  assert.equal(f.deleted.length, 0);
+});
+
+test('transaction-start absence never permits retrying another mutation or another diagnostic', async (t) => {
+  for (const variant of ['acquire', 'release', 'wrong-code', 'wrong-stage', 'missing-stage']) {
+    const f = await fixture(t);
+    const client = await f.start();
+    const guard =
+      variant === 'acquire' ? null : await client.coordinator.acquire({ ownerRunId, runnerRef });
+    const method = ['acquire', 'release'].includes(variant) ? variant : 'renew';
+    const before = f.calls.filter((value) => value === method).length;
+    failTransactionStarts(
+      f,
+      method,
+      1,
+      variant === 'wrong-code' ? 'DATABASE_TRANSACTION_CONFLICT' : undefined,
+    );
+    if (['wrong-stage', 'missing-stage'].includes(variant)) {
+      const invoke = f.manager.functions.invokeFunction;
+      f.manager.functions.invokeFunction = async (name, request) => {
+        const response = await invoke(name, request);
+        if (request.method === 'renew') {
+          const result = JSON.parse(response.RetMsg);
+          if (variant === 'wrong-stage') result.error.diagnostic.ledgerStage = 'callback-completed';
+          else result.error.diagnostic.ledgerStage = undefined;
+          response.RetMsg = JSON.stringify(result);
+        }
+        return response;
+      };
+    }
+    const operation =
+      method === 'acquire'
+        ? client.coordinator.acquire({ ownerRunId, runnerRef })
+        : client.coordinator[method](guard);
+    await assert.rejects(operation, { code: 'RELEASE_REGIONAL_UNCONFIRMED' }, variant);
+    assert.equal(f.calls.filter((value) => value === method).length - before, 1, variant);
+    assert.equal(f.calls.filter((value) => value === 'operation.get').length, 1, variant);
+    assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true }, variant);
+  }
+});
+
+test('unreadable or malformed first readback cannot authorize a renewal retry', async (t) => {
+  for (const variant of ['transport', 'malformed-absence', 'wrong-source']) {
+    const f = await fixture(t);
+    const client = await f.start();
+    const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+    failTransactionStarts(f, 'renew');
+    const invoke = f.manager.functions.invokeFunction;
+    f.manager.functions.invokeFunction = async (name, request) => {
+      if (request.method === 'operation.get' && variant === 'transport') f.loseReadback = true;
+      const response = await invoke(name, request);
+      if (request.method === 'operation.get') {
+        const result = JSON.parse(response.RetMsg);
+        if (variant === 'malformed-absence') result.result.method = 'renew';
+        if (variant === 'wrong-source') result.codeSha = 'c'.repeat(40);
+        response.RetMsg = JSON.stringify(result);
+      }
+      return response;
+    };
+    await assert.rejects(
+      client.coordinator.renew(guard),
+      { code: 'RELEASE_REGIONAL_UNCONFIRMED' },
+      variant,
+    );
+    assert.equal(f.calls.filter((value) => value === 'renew').length, 1, variant);
+    assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true }, variant);
+  }
+});
+
+test('a failed or invalid final retry readback retains the worker without a third write', async (t) => {
+  for (const variant of ['transport', 'wrong-guard', 'wrong-operation']) {
+    const f = await fixture(t);
+    const client = await f.start();
+    const guard = await client.coordinator.acquire({ ownerRunId, runnerRef });
+    failTransactionStarts(f, 'renew');
+    const invoke = f.manager.functions.invokeFunction;
+    let attempts = 0;
+    let reads = 0;
+    f.manager.functions.invokeFunction = async (name, request) => {
+      if (request.method === 'renew' && ++attempts === 2) f.loseReply = 'renew';
+      if (request.method === 'operation.get' && ++reads === 2) {
+        if (variant === 'transport') f.loseReadback = true;
+        if (variant === 'wrong-guard') f.badReadbackResult = true;
+      }
+      const response = await invoke(name, request);
+      if (request.method === 'operation.get' && reads === 2 && variant === 'wrong-operation') {
+        const result = JSON.parse(response.RetMsg);
+        result.result.operationId = 'another-operation';
+        response.RetMsg = JSON.stringify(result);
+      }
+      return response;
+    };
+    await assert.rejects(
+      client.coordinator.renew(guard),
+      { code: 'RELEASE_REGIONAL_UNCONFIRMED' },
+      variant,
+    );
+    assert.equal(attempts, 2, variant);
+    assert.equal(reads, 2, variant);
+    assert.deepEqual(await client.close(), { cleaned: false, unconfirmed: true }, variant);
+    assert.equal(f.deleted.length, 0, variant);
+  }
 });
 
 test('unconfirmed mutation retains the function and rejects every following coordinator command', async (t) => {

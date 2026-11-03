@@ -161,7 +161,7 @@ export async function createReleaseRegionalClient({
   const invoke = async (method, args) => {
     assert.equal(closed, false, 'Release regional client is closed');
     assert.equal(unknown, false, 'Unconfirmed release operation needs readback');
-    const request = requestFor(method, args);
+    const request = requestFor(method, method === 'renew' ? structuredClone(args) : args);
     const started = Date.now();
     let value;
     let state = 'completed';
@@ -173,6 +173,7 @@ export async function createReleaseRegionalClient({
         throw Error('Completion needs receipt');
     } catch (cause) {
       diagnostic = { ...releaseRegionalDiagnostic(cause), ...diagnostic };
+      let retryCompleted = false;
       try {
         if (releaseRegionalReads.has(method)) {
           value = terminal(await manager.functions.invokeFunction(name, request), request);
@@ -180,19 +181,41 @@ export async function createReleaseRegionalClient({
           const readback = requestFor('operation.get', [
             { operationId: request.operationId, inputHash: request.inputHash, method },
           ]);
-          const observed = terminal(
-            await manager.functions.invokeFunction(name, readback),
-            readback,
-          );
+          let observed = terminal(await manager.functions.invokeFunction(name, readback), readback);
           assert.equal(observed.ok, true);
-          assert.equal(observed.result.state, 'completed');
-          for (const key of ['operationId', 'inputHash', 'method'])
-            assert.equal(observed.result[key], request[key]);
-          validateResult(request, observed.result.result);
-          value = { ok: true, result: observed.result.result };
+          if (
+            method === 'renew' &&
+            diagnostic.sdkCode === 'DATABASE_TRANSACTION_FAIL' &&
+            diagnostic.ledgerStage === 'awaiting-sdk-transaction' &&
+            observed.result?.state === 'absent'
+          ) {
+            assert.deepEqual(observed.result, { state: 'absent' });
+            // Retry this exact renewal once; its ledger update and receipt commit atomically.
+            try {
+              value = terminal(await manager.functions.invokeFunction(name, request), request);
+              if (!value.ok)
+                diagnostic = {
+                  ...diagnostic,
+                  ...releaseRegionalDiagnostic(value.error?.diagnostic),
+                };
+              assert.equal(value.ok, true);
+              retryCompleted = true;
+            } catch (retryError) {
+              diagnostic = { ...diagnostic, ...releaseRegionalDiagnostic(retryError) };
+              observed = terminal(await manager.functions.invokeFunction(name, readback), readback);
+              assert.equal(observed.ok, true);
+            }
+          }
+          if (!retryCompleted) {
+            assert.equal(observed.result.state, 'completed');
+            for (const key of ['operationId', 'inputHash', 'method'])
+              assert.equal(observed.result[key], request[key]);
+            validateResult(request, observed.result.result);
+            value = { ok: true, result: observed.result.result };
+          }
         }
         assert.equal(value.ok, true);
-        state = 'readback-confirmed';
+        state = retryCompleted ? 'completed' : 'readback-confirmed';
       } catch {
         receipt.calls.push({
           operationId: request.operationId,
