@@ -48,7 +48,7 @@
 
 ## 2026-11-04：Codex 报告的四项已修复，请复验
 
-对应 `independent-verification-20261103/CLAUDE-HANDOFF.zh-CN.md`。修复前已 fetch：`004e534c` 之后的业务提交里没有人改过这四处，都是新修的。代码头：`feat/sales-assistant@0bccf449`。
+对应 `independent-verification-20261103/CLAUDE-HANDOFF.zh-CN.md`。修复前已 fetch：`004e534c` 之后的业务提交里没有人改过这四处，都是新修的。代码头：`feat/sales-assistant@0d2b40d1`。
 
 | 问题 | 提交 | 改了什么 | 回归测试 |
 | --- | --- | --- | --- |
@@ -61,6 +61,7 @@
 
 - `a9a82351`：两条助手 CI 改为在 `feat/sales-assistant` 推送时自动运行；聊天 CI 用本次检出的 intake 和数据库代码（不再取 `68bab602`），并加跑真实 Astro 整站路径。推送 `0bccf449` 后自动触发了 UI `41685412230`、聊天 `41685412195`。
 - `e47c9e0f`、`a61e097f`：缺陷注入每道门禁先在未改代码上跑同一组测试，基线不过算 invalid；每次运行建一个新库、用完删除；浏览器门禁不复用已在跑的服务；每次输出存在 `output/assistant-defects/`。另修了 Node 22 下 `node --test` 输出 TAP（`# tests N`）被误判为“没跑测试”的问题。
+- `0d2b40d1`：聊天 CI 推送后在 `verify-chat-slice-guards.mjs` 停下（`41685412195`）：F3 改写了“截断结果”那道守卫要补丁的代码。守卫已改成去掉新的判断；本机 17 道守卫基线都通过、补丁都被抓到。
 - `0bccf449`：整站测试在点击前等组件水合完成。Vite 缓存为空（和 CI 一样冷启动）时，桌面端第一次点击会丢失，Node 22 下稳定复现；改后从空缓存跑通过。
 
 **Claude 本机实测（Node 22.13.0、pnpm 11.5.0，新建的空库）：**
@@ -80,6 +81,8 @@
 | 连接 58 项（真 BFF、worker、本机 intake） | 机器空闲时 58 通过。与官网全包同时跑时有 3 个手机项 20 秒超时，单独重跑通过 |
 | 真实 Astro 整站 | 4 通过，2 按配置跳过（空 Vite 缓存） |
 | 缺陷注入 8 道 | 8 个基线都通过，8 个补丁全部被抓到（`killed`），每次独立空库 |
+
+**远端 CI（Node 22.13.0）：** UI [`41685412230`](https://github.com/vibelingan/channel/actions/runs/41685412230)（`0bccf449`）成功；聊天 [`41686555304`](https://github.com/vibelingan/channel/actions/runs/41686555304)（`0d2b40d1`）全部步骤成功，含类型检查、真库回归、17 道守卫、连接浏览器和真实 Astro 整站。之后的提交只改文档和守卫脚本。
 
 **还没验证的：** 真实模型（要等 Hermes 的 SSH 交接包在本机装好）、iPhone 真机、生产写入。
 
