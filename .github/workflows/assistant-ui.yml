@@ -3,7 +3,7 @@ name: Assistant UI foundation
 on:
   workflow_dispatch:
   push:
-    branches: [main, feat/website-assistant-ui-foundation]
+    branches: [main, feat/sales-assistant]
     paths:
       - 'apps/site/**'
       - 'docs/ai-platform/assistant-ui/screens.json'

@@ -2,10 +2,10 @@ name: Assistant chat integration
 on:
   workflow_dispatch:
   push:
-    branches: [main, feat/website-assistant-ui-foundation]
-    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'apps/site/assistant-*.html', 'apps/site/assistant-preview.vite.ts', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
+    branches: [main, feat/sales-assistant]
+    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'apps/site/assistant-*.html', 'apps/site/assistant-preview.vite.ts', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'packages/sales-contracts/**', 'packages/db/**', 'apps/functions/sales-integration/**', 'tests/assistant-site/**', 'playwright.assistant-site.config.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
   pull_request:
-    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
+    paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'packages/sales-contracts/**', 'packages/db/**', 'apps/functions/sales-integration/**', 'tests/assistant-site/**', 'playwright.assistant-site.config.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
 permissions:
   contents: read
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   chat:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -30,16 +30,10 @@ jobs:
       CI: 'true'
       DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
       CHAT_TEST_DATABASE_URL: postgres://ai:ai@127.0.0.1:5432/chat_test
-      ASSISTANT_SALES_SOURCE_ROOT: ${{ github.workspace }}/.assistant-sales-source
+      # The intake and database code under test are this checkout's own.
+      ASSISTANT_SALES_SOURCE_ROOT: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
-      - name: Read the reviewed Channel inquiry implementation
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository }}
-          ref: 68bab6024488f58a29dd7d0eb0ceaeed103290c9
-          path: .assistant-sales-source
-          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 11.5.0
@@ -49,8 +43,6 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install the pinned intake and database implementation
-        run: pnpm --dir .assistant-sales-source --filter @vibelingan-channel/fn-sales-integration... install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Validate contracts and service types
         run: |
@@ -76,9 +68,13 @@ jobs:
           node --test scripts/resend-secret-handoff.test.mjs scripts/assistant-sales-browser.test.mjs
           node scripts/verify-chat-slice-guards.mjs
           pnpm exec playwright test --config playwright.assistant-chat.config.ts
+      - name: Walk the real Astro site to a saved inquiry
+        run: pnpm exec playwright test --config playwright.assistant-site.config.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: assistant-chat-${{ github.sha }}
-          path: output/assistant-chat/
+          path: |
+            output/assistant-chat/
+            output/assistant-site/
           if-no-files-found: error
