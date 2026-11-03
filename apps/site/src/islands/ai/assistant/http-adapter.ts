@@ -397,7 +397,9 @@ export function createHttpAssistantAdapter(
         name: draft.name.trim(),
         email: draft.email.trim(),
         company: draft.company.trim(),
-        consent: draft.consent,
+        // Pressing "Confirm & submit" is the visitor asking to be contacted
+        // about this inquiry, as on the homepage form; there is no extra box.
+        consent: true,
         consentVersion: INQUIRY_CONSENT_VERSION,
         ...(draft.product ? { productId: draft.product.id } : {}),
       };

@@ -25,10 +25,15 @@ const ctx = {
   appEnv: 'test',
   vpc: { vpcId: 'vpc-fixture', subnetId: 'subnet-fixture' },
   siteOrigins: 'https://site.example',
+  engineId: 'anythingllm',
   engineProvenanceKind: 'oci',
   requireEnv: (name) => `secret://${name}`,
+  optionalEnv: () => undefined,
 };
 const defs = buildCloudRunServiceDefs(ctx);
+const vibekb = (optional = {}) =>
+  buildCloudRunServiceDefs({ ...ctx, engineId: 'vibekb', optionalEnv: (name) => optional[name] });
+const byName = (list, name) => list.find((d) => d.name === name);
 
 test('each service is built by CloudRun from its own Dockerfile, not from a pre-built image', () => {
   // Deploys upload a clean copy of the tested commit and CloudRun runs the
@@ -261,4 +266,70 @@ test('an unknown provenance kind is refused rather than defaulted', () => {
     () => buildCloudRunServiceDefs({ ...ctx, engineProvenanceKind: undefined }),
     /must be/,
   );
+});
+
+test('a vibekb worker gets the model, the MCP knowledge scope and the catalog, not the AnythingLLM settings', () => {
+  const worker = byName(vibekb(), 'ai-worker');
+  for (const key of [
+    'AI_MODEL_BASE_URL',
+    'AI_MODEL_ID',
+    'AI_MODEL_API_KEY',
+    'VIBEKB_MCP_URL',
+    'VIBEKB_MCP_API_KEY',
+    'VIBEKB_PUBLIC_WORKSPACE_ID',
+    'VIBEKB_PUBLIC_DOCUMENT_IDS',
+    'AI_PUBLIC_CATALOG_ORIGIN',
+  ]) {
+    assert.notEqual(worker.envVariables[key], undefined, `ai-worker is missing ${key}`);
+  }
+  for (const key of ['KB_BASE_URL', 'KB_API_KEY', 'AI_KB_EVIDENCE_JSON', 'KB_WORKSPACE_ID']) {
+    assert.equal(worker.envVariables[key], undefined, `a vibekb worker must not carry ${key}`);
+  }
+  assert.equal(worker.envVariables.AI_ENGINE_ID, 'vibekb');
+  assert.equal(byName(vibekb(), 'ai-bff').envVariables.AI_ENGINE_ID, 'vibekb');
+  // Optional settings are left out when unset, and passed through when set.
+  assert.equal('AI_MODEL_THINKING_MODE' in worker.envVariables, false);
+  const tuned = byName(vibekb({ AI_MODEL_THINKING_MODE: 'disabled' }), 'ai-worker');
+  assert.equal(tuned.envVariables.AI_MODEL_THINKING_MODE, 'disabled');
+});
+
+test('the model and MCP keys are secrets, never literals', () => {
+  for (const key of ['AI_MODEL_API_KEY', 'VIBEKB_MCP_API_KEY', 'AI_INQUIRY_TOKEN']) {
+    assert.ok(SECRET_ENV_KEYS.includes(key), `${key} must be a secret`);
+  }
+  for (const def of vibekb({ AI_INQUIRY_ENABLED: '1' })) {
+    for (const key of SECRET_ENV_KEYS) {
+      const value = def.envVariables[key];
+      if (value !== undefined) assert.ok(value.startsWith('secret://'), `${def.name}.${key}`);
+    }
+  }
+});
+
+test('the BFF reaches the sales intake only when inquiries are switched on', () => {
+  const off = byName(vibekb(), 'ai-bff');
+  for (const key of ['AI_INQUIRY_ENABLED', 'AI_INQUIRY_BASE_URL', 'AI_INQUIRY_TOKEN']) {
+    assert.equal(off.envVariables[key], undefined, `${key} is set while inquiries are off`);
+  }
+  const on = byName(vibekb({ AI_INQUIRY_ENABLED: '1' }), 'ai-bff');
+  assert.equal(on.envVariables.AI_INQUIRY_ENABLED, '1');
+  assert.equal(on.envVariables.AI_INQUIRY_BASE_URL, 'secret://AI_INQUIRY_BASE_URL');
+  assert.equal(on.envVariables.AI_INQUIRY_TOKEN, 'secret://AI_INQUIRY_TOKEN');
+  // The worker never holds the intake token.
+  assert.equal(
+    byName(vibekb({ AI_INQUIRY_ENABLED: '1' }), 'ai-worker').envVariables.AI_INQUIRY_TOKEN,
+    undefined,
+  );
+});
+
+test('an unknown engine is refused rather than deployed with half its settings', () => {
+  assert.throws(
+    () => buildCloudRunServiceDefs({ ...ctx, engineId: 'fake' }),
+    /AI_ENGINE_ID must be one of anythingllm, vibekb/,
+  );
+});
+
+test('the developer-only plain-HTTP MCP switch can never be deployed', () => {
+  assert.ok(FORBIDDEN_ENV_KEYS.includes('VIBEKB_MCP_ALLOW_LOOPBACK_HTTP'));
+  for (const def of vibekb())
+    assert.equal(def.envVariables.VIBEKB_MCP_ALLOW_LOOPBACK_HTTP, undefined);
 });

@@ -40,7 +40,6 @@ async function fillInquiry(page: Page) {
     .getByLabel('Your requirement')
     .fill('500 gifts; model not decided. Please suggest options.');
   await form.getByRole('textbox', { name: /^Email/ }).fill('buyer@example.invalid');
-  await form.getByRole('checkbox').check();
   return form;
 }
 
@@ -258,12 +257,12 @@ test('server cooldown disables retry only until its supplied time', async ({ pag
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
 });
 
-test('inquiry requires explicit consent and keeps values after validation errors', async ({
+test('inquiry has no consent box, needs an email and keeps values after validation errors', async ({
   page,
 }) => {
   await page.getByRole('button', { name: 'Prepare inquiry', exact: true }).click();
   const form = page.getByRole('form', { name: 'Review your inquiry' });
-  await expect(form.getByRole('checkbox')).not.toBeChecked();
+  await expect(form.getByRole('checkbox')).toHaveCount(0);
   await form.getByLabel('Company').fill('Keep my company');
   await form.getByRole('button', { name: 'Confirm & submit' }).click();
   await expect(form.getByLabel('Your requirement')).toBeFocused();
@@ -271,7 +270,6 @@ test('inquiry requires explicit consent and keeps values after validation errors
   expect((await ledger(page)).submissions).toHaveLength(0);
   await form.getByLabel('Your requirement').fill('500 gifts without a chosen model.');
   await form.getByRole('textbox', { name: /^Email/ }).fill('buyer@example.invalid');
-  await form.getByRole('checkbox').check();
   await form.getByRole('button', { name: 'Hide inquiry' }).click();
   await expect(page.getByLabel('Your inquiry', { exact: true })).toContainText('not submitted');
   await page.getByRole('button', { name: 'Review your inquiry' }).click();
@@ -351,7 +349,7 @@ test('two_products_do_not_silently_swap_draft', async ({ page }) => {
   await expect(form.locator('p', { hasText: 'Product:' })).toHaveText(first);
 });
 
-test('model_update_shows_change_summary, manual_edit_not_overwritten_silently and changed_need_preserves_contact_and_clears_consent', async ({
+test('model_update_shows_change_summary, manual_edit_not_overwritten_silently and changed_need_preserves_contact', async ({
   page,
 }, info) => {
   await select(page, 'handoff', true);
@@ -362,7 +360,6 @@ test('model_update_shows_change_summary, manual_edit_not_overwritten_silently an
   await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones for company gifts');
   await form.getByLabel('Your requirement').fill('500 headphones, my wording');
   await form.getByRole('textbox', { name: /^Email/ }).fill('buyer@example.invalid');
-  await form.getByRole('checkbox').check();
 
   await send(page, 'Add custom packaging too');
   await expect(page.getByLabel('Your inquiry', { exact: true })).toContainText('Update suggested');
@@ -378,7 +375,6 @@ test('model_update_shows_change_summary, manual_edit_not_overwritten_silently an
   await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones, my wording');
   await update.getByRole('button', { name: 'Keep current' }).click();
   await expect(form.getByLabel('Your requirement')).toHaveValue('500 headphones, my wording');
-  await expect(form.getByRole('checkbox')).toBeChecked();
 
   await send(page, '700 headphones with custom packaging');
   await page.getByRole('button', { name: 'Show inquiry' }).click();
@@ -387,7 +383,6 @@ test('model_update_shows_change_summary, manual_edit_not_overwritten_silently an
     '700 headphones with custom packaging',
   );
   await expect(form.getByRole('textbox', { name: /^Email/ })).toHaveValue('buyer@example.invalid');
-  await expect(form.getByRole('checkbox')).not.toBeChecked();
   expect((await ledger(page)).submissions).toHaveLength(0);
 });
 

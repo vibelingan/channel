@@ -83,7 +83,6 @@ test('real_site_path: hello, products, follow-up, product page, inquiry and Sale
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Mia Weber');
   // An ordinary company name, with no "test" in it, must save in the test scope.
   await page.getByRole('textbox', { name: 'Company', exact: true }).fill('Weber Audio GmbH');
-  await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Confirm & submit' }).click();
   await expect(page.getByLabel('Inquiry receipt')).toContainText('Your inquiry is recorded');
 

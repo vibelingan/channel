@@ -111,12 +111,13 @@ const text = (v: unknown, max: number, required = false): v is string =>
 function isDraft(v: unknown): v is InquiryDraft {
   return (
     record(v) &&
+    // Drafts saved before the consent box was removed still carry `consent`.
     only(v, ['requirement', 'name', 'email', 'company', 'consent', 'product']) &&
     text(v.requirement, 4000) &&
     text(v.name, 120) &&
     text(v.email, 254) &&
     text(v.company, 200) &&
-    typeof v.consent === 'boolean' &&
+    (v.consent === undefined || typeof v.consent === 'boolean') &&
     (v.product === undefined || isPublicProductCard(v.product))
   );
 }

@@ -186,7 +186,6 @@ async function fillInquiry(page: Page) {
     .fill('We need 500 promotional headphones. Please recommend options.');
   await page.getByRole('textbox', { name: 'Email *', exact: true }).fill('buyer@example.invalid');
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Local Buyer');
-  await page.getByRole('checkbox').check();
 }
 test('confirmed category inquiry saves once through the actual Channel intake and recovers a lost receipt', async ({
   page,
@@ -194,7 +193,8 @@ test('confirmed category inquiry saves once through the actual Channel intake an
 }) => {
   await page.getByRole('button', { name: 'Prepare inquiry', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm & submit' }).click();
-  await expect(page.getByText('Please agree to be contacted')).toBeVisible();
+  await expect(page.getByText('Please enter a valid email address.')).toBeVisible();
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
   await fillInquiry(page);
   const before = (await (
     await request.get('http://127.0.0.1:62384/__fixture/state')
@@ -746,9 +746,9 @@ test('quote_suggestion_never_submits: it opens the inquiry for review only', asy
   await expect(page.getByRole('textbox', { name: 'Your requirement' })).toHaveValue(
     'Quote request for promotional headphones',
   );
-  // Even pressing confirm sends nothing until contact and consent are given.
+  // Even pressing confirm sends nothing until an email is given.
   await page.getByRole('button', { name: 'Confirm & submit' }).click();
-  await expect(page.getByText('Please agree to be contacted')).toBeVisible();
+  await expect(page.getByText('Please enter a valid email address.')).toBeVisible();
   expect(inquiryPosts).toBe(0);
 });
 

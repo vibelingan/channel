@@ -97,15 +97,16 @@ const GATES = [
   },
   {
     id: '4b',
-    title: 'A changed requirement keeps the earlier consent',
+    title: 'A changed requirement is sent under the earlier submission key',
     file: 'apps/site/src/islands/ai/assistant/inquiry.ts',
-    find: '      ...(product ? { product } : {}),\n      consent: false,\n',
-    replace: '      ...(product ? { product } : {}),\n',
+    find: "    phase: 'editing',\n    key: key(),\n    errors: {},\n    draft: {\n      ...view.draft,\n",
+    replace:
+      "    phase: 'editing',\n    key: view.key,\n    errors: {},\n    draft: {\n      ...view.draft,\n",
     tests: [
       tsxTest(
         '@vibelingan-channel/site',
         'src/islands/ai/assistant/inquiry.test.ts',
-        'changed_need_preserves_contact_and_clears_consent',
+        'changed_need_preserves_contact',
       ),
     ],
   },

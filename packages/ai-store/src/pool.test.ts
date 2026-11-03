@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { type Socket, createServer } from 'node:net';
 import test from 'node:test';
 import { createAiPool, withTransaction } from './pool.ts';
 
@@ -119,5 +120,33 @@ test('an idle connection the database cuts off is dropped and replaced, not thro
     assert.notEqual(replacement, cut, 'the pool must open a new connection');
   } finally {
     await Promise.allSettled([pool.end(), admin.end()]);
+  }
+});
+
+test('a database that accepts the connection but never answers fails fast instead of hanging', async () => {
+  const defaults = createAiPool({ connectionString: URL });
+  try {
+    assert.equal(defaults.options.connectionTimeoutMillis, 10_000);
+    assert.equal(defaults.options.keepAlive, true);
+  } finally {
+    await defaults.end();
+  }
+  // A listener that never speaks PostgreSQL: the shape of a silently cut path.
+  const sockets = new Set<Socket>();
+  const silent = createServer((socket) => sockets.add(socket));
+  await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+  const { port } = silent.address() as { port: number };
+  const pool = createAiPool({
+    connectionString: `postgres://ai:ai@127.0.0.1:${port}/none`,
+    connectionTimeoutMillis: 300,
+  });
+  try {
+    const started = Date.now();
+    await assert.rejects(pool.query('select 1'), /timeout/i);
+    assert.ok(Date.now() - started < 5_000);
+  } finally {
+    await pool.end();
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((resolve) => silent.close(() => resolve()));
   }
 });

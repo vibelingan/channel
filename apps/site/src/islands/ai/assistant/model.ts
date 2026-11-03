@@ -110,7 +110,6 @@ export interface InquiryDraft {
   name: string;
   email: string;
   company: string;
-  consent: boolean;
   product?: PublicProduct;
 }
 export interface InquiryReceipt {

@@ -174,9 +174,7 @@ function InquiryForm({
               </div>
             ))}
           </dl>
-          <p className="mt-2">
-            Using it clears your consent so you can check again. Your contact details stay.
-          </p>
+          <p className="mt-2">Your contact details stay.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button type="button" onClick={onApply} className={smallButton}>
               Use update
@@ -239,24 +237,6 @@ function InquiryForm({
           </div>
         );
       })}
-      <label className="flex min-h-11 items-start gap-2 text-xs leading-relaxed">
-        <input
-          className="mt-1 h-4 w-4 shrink-0"
-          type="checkbox"
-          checked={view.draft.consent}
-          disabled={!editing}
-          onChange={(event) => onEdit({ consent: event.target.checked })}
-          aria-invalid={Boolean(errors.consent)}
-          aria-describedby={errors.consent ? `${id}-consent-error` : undefined}
-        />
-        I agree that your team may contact me about this inquiry. This does not subscribe me to
-        marketing emails.
-      </label>
-      {errors.consent && (
-        <p id={`${id}-consent-error`} className="text-xs text-red-700">
-          {errors.consent}
-        </p>
-      )}
       <p className="text-xs text-ink-muted">
         Nothing is submitted until you confirm; chatting alone does not create an inquiry. Model,
         price and delivery terms will be confirmed separately. How we use your details:{' '}

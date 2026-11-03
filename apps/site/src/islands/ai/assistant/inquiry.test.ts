@@ -21,16 +21,15 @@ const draft = {
   email: 'buyer@example.invalid',
   name: '',
   company: '',
-  consent: false,
 };
-test('a vague purchase without a SKU is valid only after explicit contact consent', () => {
-  assert.ok(validateInquiry(draft).consent);
-  assert.deepEqual(validateInquiry({ ...draft, consent: true }), {});
+test('a vague purchase without a SKU is valid with a requirement and an email, and no consent box', () => {
+  assert.deepEqual(validateInquiry(draft), {});
+  assert.ok(validateInquiry({ ...draft, email: '' }).email);
 });
 test('invalid fields have specific errors without changing the input', () => {
   const input = { ...draft, email: 'bad', requirement: '' };
   const before = structuredClone(input);
-  assert.deepEqual(Object.keys(validateInquiry(input)).sort(), ['consent', 'email', 'requirement']);
+  assert.deepEqual(Object.keys(validateInquiry(input)).sort(), ['email', 'requirement']);
   assert.deepEqual(input, before);
 });
 
@@ -43,7 +42,6 @@ const editing = (patch: Partial<InquiryDraft> = {}) => ({
     name: 'Buyer',
     email: 'buyer@example.invalid',
     company: 'BuyerCo',
-    consent: true,
     ...patch,
   },
 });
@@ -73,7 +71,7 @@ test('model_update_shows_change_summary: a conversation suggestion waits on the 
     current,
   );
 });
-test('changed_need_preserves_contact_and_clears_consent: using an update keeps contact, needs consent again and changes the unsent key', () => {
+test('changed_need_preserves_contact: using an update keeps contact and changes the unsent key', () => {
   const proposed = proposeInquiry(
     editing(),
     { origin: 'conversation', requirement: '700 headphones with logo' },
@@ -85,11 +83,10 @@ test('changed_need_preserves_contact_and_clears_consent: using an update keeps c
   assert.equal(next.draft.requirement, '700 headphones with logo');
   assert.equal(next.draft.email, 'buyer@example.invalid');
   assert.equal(next.draft.company, 'BuyerCo');
-  assert.equal(next.draft.consent, false);
   assert.equal(next.key, 'new');
   assert.equal(next.pending, undefined);
 });
-test('manual_edit_not_overwritten_silently: keeping the current draft drops the suggestion and keeps the visitor text and consent', () => {
+test('manual_edit_not_overwritten_silently: keeping the current draft drops the suggestion and keeps the visitor text', () => {
   const mine = editing({ requirement: '500 headphones, my own wording' });
   const proposed = proposeInquiry(
     mine,
@@ -111,7 +108,6 @@ test('two_products_do_not_silently_swap_draft: a second product card asks first,
   const filled = proposeInquiry(editing(), { origin: 'visitor', product: productA }, () => 'k2');
   assert.ok(filled.phase === 'editing' && !filled.pending);
   assert.equal(filled.phase === 'editing' && filled.draft.product?.id, 'pa');
-  assert.equal(filled.phase === 'editing' && filled.draft.consent, false);
   const refreshed = { ...productA, revision: 'r2' };
   const changed = proposeInquiry(withA, { origin: 'conversation', product: refreshed }, () => 'x');
   assert.deepEqual(
@@ -140,7 +136,6 @@ test('only the visitor opens a draft; a frozen submission is never changed', () 
       email: '',
       company: '',
       requirement: '700 gifts',
-      consent: false,
       product: productA,
     },
   });
@@ -170,7 +165,6 @@ test('saved_receipt_does_not_resubmit: after saving, the conversation cannot sta
   assert.ok(next.phase === 'editing');
   assert.equal(next.phase === 'editing' && next.key, 'new');
   assert.equal(next.phase === 'editing' && next.draft.email, 'buyer@example.invalid');
-  assert.equal(next.phase === 'editing' && next.draft.consent, false);
   assert.deepEqual(inquiryReceipt(saved), {
     reference: 'ai_saved',
     requirement: '500 headphones',
@@ -183,7 +177,6 @@ const contact = {
   name: 'Nina',
   email: 'nina@vibelingan.com',
   company: 'VibeLingan',
-  consent: true,
 };
 test('known_rejection_stays_editable: a refusal on a first attempt reopens the same draft with a reason', () => {
   const next = inquiryAfterFailure(

@@ -26,7 +26,6 @@ export const sampleInquiry: InquiryDraft = {
   name: 'Alex (sample)',
   email: 'buyer@example.invalid',
   company: 'Sample company',
-  consent: false,
 };
 export function sampleHistory(): ChatMessage[] {
   return Array.from({ length: 40 }, (_, index) => ({
@@ -130,7 +129,6 @@ export function seedFor(id: string): AssistantSeed {
   if (id.startsWith('inquiry_')) {
     const draft = {
       ...sampleInquiry,
-      consent: !['inquiry_review', 'inquiry_validation'].includes(id),
       ...(id === 'inquiry_validation' ? { email: 'invalid', requirement: '' } : {}),
     };
     const base = { key: 'preview-inquiry-key', draft };
@@ -155,7 +153,6 @@ export function seedFor(id: string): AssistantSeed {
                     ? {
                         requirement: 'Please describe your requirement.',
                         email: 'Please enter a valid email address.',
-                        consent: 'Please agree to be contacted about this inquiry.',
                       }
                     : {},
               };

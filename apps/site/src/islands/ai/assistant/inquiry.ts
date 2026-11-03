@@ -72,7 +72,6 @@ export function proposeInquiry(
         email: current.phase === 'saved' ? current.draft.email : '',
         company: current.phase === 'saved' ? current.draft.company : '',
         requirement: proposal.requirement?.trim() ?? '',
-        consent: false,
         ...(proposal.product ? { product: proposal.product } : {}),
       },
     };
@@ -89,7 +88,7 @@ export function proposeInquiry(
     ? applyInquiryUpdate(next, key)
     : next;
 }
-/** Use the pending change: contact details stay, consent must be given again. */
+/** Use the pending change: contact details stay and the unsent key changes. */
 export function applyInquiryUpdate(view: InquiryView, key: () => string): InquiryView {
   if (view.phase !== 'editing' || !view.pending) return view;
   const { requirement, product } = view.pending;
@@ -101,7 +100,6 @@ export function applyInquiryUpdate(view: InquiryView, key: () => string): Inquir
       ...view.draft,
       ...(requirement ? { requirement } : {}),
       ...(product ? { product } : {}),
-      consent: false,
     },
   };
 }
@@ -126,7 +124,6 @@ export function validateInquiry(draft: InquiryDraft): Partial<Record<keyof Inqui
     errors.requirement = 'Please describe your requirement (up to 4,000 characters).';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()) || draft.email.length > 254)
     errors.email = 'Please enter a valid email address.';
-  if (!draft.consent) errors.consent = 'Please agree to be contacted about this inquiry.';
   if (draft.name.length > 120) errors.name = 'Please use up to 120 characters.';
   if (draft.company.length > 200) errors.company = 'Please use up to 200 characters.';
   return errors;

@@ -87,6 +87,10 @@ jobs:
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
       # The AI assistant API that the website's chat widget calls from the browser.
       PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}
+      # '1' builds the new assistant (vibekb engine) instead of the old widget,
+      # and lets it send inquiries. Both stay off until the AI runtime serves it.
+      PUBLIC_AI_CHAT_V2: ${{ vars.PUBLIC_AI_CHAT_V2 || '0' }}
+      PUBLIC_AI_INQUIRIES: ${{ vars.PUBLIC_AI_INQUIRIES || '0' }}
       SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
       LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}

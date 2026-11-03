@@ -109,7 +109,6 @@ test('inquiry retries freeze the form and bind receipt to the original conversat
     name: '',
     email: 'buyer@example.invalid',
     company: '',
-    consent: true,
   };
   const api: typeof fetch = async (url, init) => {
     if (String(url).endsWith('/conversations')) {
@@ -141,6 +140,8 @@ test('inquiry retries freeze the form and bind receipt to the original conversat
   });
   assert.equal(auths, 1);
   assert.equal(new Set(sent).size, 1);
+  // No consent box: confirming the inquiry is the visitor asking to be contacted.
+  assert.equal(JSON.parse(sent[0] ?? '{}').consent, true);
   const before = posts;
   await assert.rejects(adapter.submitInquiry({ ...draft, requirement: 'changed' }, key, signal));
   assert.equal(posts, before);
@@ -203,7 +204,6 @@ test('known_rejection_stays_editable: a refusal before saving frees the key; an 
     name: 'Nina',
     email: 'nina@vibelingan.com',
     company: 'VibeLingan',
-    consent: true,
   };
   let reply: () => Response = () => new Response('', { status: 500 });
   const api: typeof fetch = async (url) => {
@@ -481,7 +481,6 @@ test('expired_session_is_not_silently_resubmitted and unknown_submission_survive
     name: 'Nina',
     email: 'nina@vibelingan.com',
     company: 'VibeLingan',
-    consent: true,
   };
   const before = createHttpAssistantAdapter('', bff.api, sessionAssistantPersistence('s', storage));
   await assert.rejects(before.submitInquiry(draft, 'inquiry_key_1', signal));
