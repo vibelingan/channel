@@ -1,0 +1,45 @@
+{
+  "observedOn": "2026-11-04",
+  "source": "Existing authenticated Chrome; pages refreshed",
+  "google": {
+    "sitemap": {
+      "status": "Success",
+      "discovered": 539,
+      "lastRead": "2026-11-01"
+    },
+    "coverage": {
+      "lastUpdate": "2026-10-23",
+      "indexed": 3,
+      "notIndexed": 7,
+      "reasons": {
+        "redirect": 1,
+        "alternateCanonical": 1,
+        "discoveredNotIndexed": 5
+      },
+      "stale": true
+    },
+    "product": {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "indexed": true,
+      "fetch": "Successful",
+      "crawlAllowed": true,
+      "indexingAllowed": true,
+      "lastCrawlUi": "Nov 4, 2026, 3:51:59 AM",
+      "crawler": "Googlebot smartphone",
+      "googleCanonical": "Inspected URL",
+      "sitemapInspection": "Temporary processing error",
+      "productSnippetsInvalid": 1,
+      "breadcrumbsValid": 1
+    }
+  },
+  "bing": {
+    "sitemap": {
+      "status": "Success",
+      "discovered": 539,
+      "errors": 0,
+      "warnings": 0,
+      "lastCrawl": "2026-10-30"
+    }
+  },
+  "note": "Map discovery is not indexed count. Remaining URL checks recorded separately."
+}
