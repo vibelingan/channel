@@ -72,7 +72,7 @@ function fixture(t, overrides = {}) {
         assert.equal(args.cloudPath, objectKey);
         assert.equal(args.isDirectory, false);
         assert.equal(settings.maxAttempts, 1);
-        assert.equal(settings.timeoutMs, 300_000);
+        assert.equal(settings.timeoutMs, 600_000);
         assert.deepEqual(
           execFileSync('unzip', ['-p', args.localPath, 'vendor/decoder.node'], {
             maxBuffer: binary.length + 65536,
@@ -215,7 +215,10 @@ for (const nativeError of [
     assert.throws(
       () => deployFunctionCode(client.options),
       (error) => {
-        assert.match(error.message, /Private function ZIP upload failed/);
+        assert.match(
+          error.message,
+          /Private function ZIP upload failed \(storage SDK after \d+s of 600s\)/,
+        );
         assert.doesNotMatch(error.message, /private-signature|private-token/);
         return true;
       },

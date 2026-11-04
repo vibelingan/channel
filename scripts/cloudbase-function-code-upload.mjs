@@ -7,6 +7,9 @@ import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 
 // Keep base64 overhead below the API's 1.5 MB inline limit.
 const INLINE_ZIP_BYTES = 1024 * 1024;
+// The ~9 MB native-decoder ZIP takes 4-5 minutes from GitHub runners to
+// ap-shanghai; a 300 s limit timed out on 2026-11-04 (run 41850270700).
+const STORAGE_UPLOAD_TIMEOUT_MS = 600_000;
 const cliDeployment = () => ({ method: 'cloudbase-cli-primary', cleanup() {} });
 
 export async function confirmFunctionCode({
@@ -146,6 +149,7 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
     )
   )
     throw new Error(`${functionName}: SDK upload requires verified private storage`);
+  const started = Date.now();
   try {
     const result = callTool(
       'cloudbase.manageStorage',
@@ -155,7 +159,7 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
         cloudPath: upload.cosObjectName,
         isDirectory: false,
       },
-      { timeoutMs: 300_000, maxAttempts: 1 },
+      { timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS, maxAttempts: 1 },
     );
     if (
       result?.success !== true ||
@@ -165,8 +169,12 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
     )
       throw new Error('Storage SDK did not acknowledge the requested upload');
   } catch {
-    // Upload results can include temporary URLs. Do not expose them in errors.
-    throw new Error('Private function ZIP upload failed (storage SDK)');
+    // Upload results can include temporary URLs. Do not expose them in errors;
+    // elapsed time alone tells a timeout apart from a fast rejection.
+    const seconds = Math.round((Date.now() - started) / 1000);
+    throw new Error(
+      `Private function ZIP upload failed (storage SDK after ${seconds}s of ${STORAGE_UPLOAD_TIMEOUT_MS / 1000}s)`,
+    );
   }
 }
 
