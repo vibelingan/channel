@@ -1,7 +1,7 @@
 /**
  * Blue Ocean concept-product data.
  *
- * Each entry represents an original product concept that Diversity Technology
+ * Each entry represents an original product concept that Diversity Innovations Limited
  * has incubated to fill an underserved market gap — combining frontier
  * components (xMEMS, mmWave radar, edge-AI NPUs) with proven manufacturing
  * partnerships. The data powers the listing page (`/blue-ocean`) and the
