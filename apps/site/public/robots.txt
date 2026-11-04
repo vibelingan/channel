@@ -1,4 +1,4 @@
-# Diversity Technology Limited — supplychainsai.com
+# Diversity Innovations Limited — supplychainsai.com
 # Auth, admin, and form-result pages are private: keep them out of the index.
 User-agent: *
 Allow: /

@@ -4,7 +4,7 @@ label: English (US)
 dir: ltr
 
 brand:
-  name: Diversity Technology Limited
+  name: Diversity Innovations Limited
   logo: /media/logo-channel.svg
   logoInitials: DT
   minOrder: 'Minimum Order Amount: $500'
@@ -110,7 +110,7 @@ factory:
   eyebrow: Our Capability
   heading: Factory & Team Strength
   body: >-
-    Founded in 2004, Diversity Technology Limited combines over 20 years of OEM
+    Diversity Innovations Limited combines our team’s 20+ years of OEM
     manufacturing experience with AI-powered product development. By integrating
     market intelligence, material big data, and intelligent cost prediction into
     our engineering process, we help global brands launch smarter products
@@ -233,7 +233,7 @@ footer:
         - { label: 'Email: sales@supplychainsai.com', href: 'mailto:sales@supplychainsai.com' }
         - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
-  legal: © 2004–2026 Diversity Technology Limited. All rights reserved.
+  legal: © 2026 Diversity Innovations Limited. All rights reserved.
   filingNumber: 粤ICP备2026092477号-1
   filingUrl: 'https://beian.miit.gov.cn/'
 ---

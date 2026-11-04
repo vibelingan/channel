@@ -227,7 +227,7 @@ export function AssistantWidget() {
         <dialog
           open
           aria-modal="false"
-          aria-label="Diversity Technology AI assistant"
+          aria-label="Diversity Innovations Limited AI assistant"
           className="relative mb-3 ml-0 flex h-[min(38rem,calc(100svh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white p-0 shadow-2xl"
         >
           <header className="flex items-center justify-between bg-brand-950 px-4 py-3 text-white">
