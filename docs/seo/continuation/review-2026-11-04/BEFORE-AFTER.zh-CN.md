@@ -35,10 +35,12 @@
 
 ## 本机观察的适用范围
 
-另有54次Mac当前网络出口观察，手机为设备模拟、没有网络/CPU限速。原始baseline.json包含FP/FCP、LCP元素、CLS观察窗、请求时序、实际收到字节及未完成资源。它与美国Lighthouse条件不同，不作前后对比。未做真实交互，INP为未测；TBT为0也不代表INP为0。
+另有54次Mac当前网络出口观察，手机为设备模拟、没有网络/CPU限速。原始baseline.json.gz包含FP/FCP、LCP元素、CLS观察窗、请求时序、实际收到字节及未完成资源。它与美国Lighthouse条件不同，不作前后对比。未做真实交互，INP为未测；TBT为0也不代表INP为0。
 
 ## 后续比较规则
 
 优化后复用同版本工具、同页面、同缓存策略和网络/CPU条件，记录新网页/资源版本；美国出口需再次验证，地点变更时说明差异。报告三次中位数与范围，失败样本保留。CrUX按真实用户数据另跟进，不能用实验室数据替代。
 
 原始Lighthouse JSON用gzip无损保存，原始与压缩SHA-256列在summary.json；可用Python gzip或gzip -dc读取。GitHub原始任务：https://github.com/vibelingan/channel/actions/runs/41763932713 。没有运行网站部署步骤。
+
+分类页加载后现有客户端把地址补为/headphones/?page=1；6份分类样本都如此。requestedUrl与finalDisplayedUrl分别保留；未来对照需保持相同首屏/分页状态。54份报告压缩/解压摘要已逐份复算，版本与运行错误检查通过。

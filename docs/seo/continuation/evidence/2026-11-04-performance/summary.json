@@ -997,5 +997,285 @@
       "originalBytes": 468064
     }
   ],
-  "localSamples": 54
+  "localSamples": 54,
+  "navigationStates": [
+    {
+      "report": "us-mobile/mobile/3-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-mobile/mobile/4-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-mobile/mobile/8-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    },
+    {
+      "report": "us-mobile/mobile/1-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-mobile/mobile/1-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-mobile/mobile/3-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-mobile/mobile/6-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-mobile/mobile/2-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-mobile/mobile/7-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-mobile/mobile/5-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-mobile/mobile/5-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-mobile/mobile/0-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-mobile/mobile/7-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-mobile/mobile/5-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-mobile/mobile/0-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-mobile/mobile/2-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-mobile/mobile/2-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-mobile/mobile/7-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-mobile/mobile/0-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-mobile/mobile/8-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    },
+    {
+      "report": "us-mobile/mobile/4-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-mobile/mobile/3-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-mobile/mobile/6-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-mobile/mobile/6-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-mobile/mobile/4-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-mobile/mobile/1-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-mobile/mobile/8-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    },
+    {
+      "report": "us-desktop/desktop/3-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-desktop/desktop/4-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-desktop/desktop/8-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    },
+    {
+      "report": "us-desktop/desktop/1-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-desktop/desktop/1-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-desktop/desktop/3-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-desktop/desktop/6-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-desktop/desktop/2-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-desktop/desktop/7-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-desktop/desktop/5-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-desktop/desktop/5-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-desktop/desktop/0-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-desktop/desktop/7-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-desktop/desktop/5-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+    },
+    {
+      "report": "us-desktop/desktop/0-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-desktop/desktop/2-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-desktop/desktop/2-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/oem/",
+      "finalDisplayedUrl": "https://supplychainsai.com/oem/"
+    },
+    {
+      "report": "us-desktop/desktop/7-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/"
+    },
+    {
+      "report": "us-desktop/desktop/0-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/",
+      "finalDisplayedUrl": "https://supplychainsai.com/"
+    },
+    {
+      "report": "us-desktop/desktop/8-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    },
+    {
+      "report": "us-desktop/desktop/4-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-desktop/desktop/3-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/portfolio/",
+      "finalDisplayedUrl": "https://supplychainsai.com/portfolio/"
+    },
+    {
+      "report": "us-desktop/desktop/6-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-desktop/desktop/6-3.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    {
+      "report": "us-desktop/desktop/4-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "finalDisplayedUrl": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+    },
+    {
+      "report": "us-desktop/desktop/1-1.json.gz",
+      "requestedUrl": "https://supplychainsai.com/headphones/",
+      "finalDisplayedUrl": "https://supplychainsai.com/headphones/?page=1"
+    },
+    {
+      "report": "us-desktop/desktop/8-2.json.gz",
+      "requestedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "finalDisplayedUrl": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    }
+  ],
+  "localRawEvidence": {
+    "path": "baseline.json.gz",
+    "originalSha256": "4502fea1318919a0eda071b5e9460a42eb11f7be0602df685e2c81bf182ccf33",
+    "gzipSha256": "92000405ea8a8af75f9132b9b905f1b086891798a158fcc0772fbddaaacfd115",
+    "originalBytes": 3240337,
+    "compressedBytes": 248969,
+    "losslessVerified": true
+  }
 }

@@ -693,3 +693,20 @@ UTC17:27:42根会话独立读回：旧writing占用已为0，恢复progress.next
 复查 private-archive.mjs、cos-archive-transfer.mjs、site-retention.mjs，以及已安装 COS 2.15.4 的 downloadFile 源码：RetryTimes 是尝试总数，现有值1不提供额外尝试，也不覆盖前后 HEAD。仅在私有归档 get 层补一次完整读取重试；两次共享原总时限，每次重新核对权限和生命周期，403/404、未知错误、长度或 SHA-256 不符立即失败。保留解压和清单核对，不缓存旧读取结果、不增大超时、不改 SDK 方法或并发。旧实现红例已复现；相关55项通过，根会话独立运行其中48项通过，脚本类型、指定文件Biome、SDK契约和diff检查通过。
 
 表达核对读取 humanizer/SKILL.md 与 plain-technical-writing.md；将“恢复已完成”明确为“归档上传与续期已通过，正式网页切换尚未完成”，核对依据为本轮实际日志、小型证据及上述现场读回。尚需这版远端检查、A2/B2真实切换和内容保持验收；不新增报告文档。
+
+
+### 2026-11-04：跳转现场验收、收录复查与优化前测量
+
+沿用原SEO分支和外盘执行副本，未改其他会话工作区。新增固定主域HTTP重定向函数，www根前缀路由已生效：32项真实GET/HEAD检查通过。共享维护41766367497成功结束；本轮网站文件与业务数据写入均0，临时探测路由删除并读回0条，原有7个函数保留，另保留正式301函数。
+
+主域Protocol试改为HTTP_TO_HTTPS后，真实两个IP均返回307，与301目标不符。严格读回预期配置后恢复HTTP_AND_HTTPS，16项公网检查确认主域状态码和正文hash与改前一致，www仍301。主域301未完成，未建立虚假的新协议接受记录。具体请求编号、反向步骤和腾讯核实问题见review-2026-11-04/REDIRECT.zh-CN.md。
+
+自动更新仍等待专用GitHub App创建与安装，现场定时触发器0条，不用个人gh令牌替代。EdgeOne站点查询0；可购套餐接口被TCB_QcsRole的CAM权限拒绝，未购买、改DNS或补全局权限。两项账号操作分别写在AUTHORIZATION.zh-CN.md，不混成“部署好了”。
+
+Google sitemap539且成功；代表商品已索引，文章历史noindex与实时可收录分开记。Bing sitemap539、实时可收录，代表商品请求收录收到回执。Google手动文章重抓因reCAPTCHA连接失败未成功，视频原因确认是首页不属于观看页，CWV真实数据仍不足。详见SEARCH-STATUS.zh-CN.md。
+
+性能没有优化。Mac匿名浏览器54样本及核实US出口的Lighthouse54样本全部完成；固定工具、CPU/网络配置、中位数/范围、原始JSON及摘要均归档。文章手机LCP约17.08秒、抽查商品6.38至8.50秒；图片、请求来源、公开JS导入和压缩列入设计，未用推算结果填After。原始本机JSON超过格式检查文件限制，已无损gzip并校验原始/压缩SHA，未放宽项目限制。
+
+本地重定向及恢复配置38项通过；原后台创建浏览器22项通过。1853271b远端首次后台恢复用例失败，重跑该组通过，随后在本轮大证据JSON上触发1MiB格式限制；本次通过无损压缩修复。最终提交的远端CI结果以Actions实际回执为准，未删除或放宽原用例。
+
+文字复核实际读取humanizer/SKILL.md、plain-technical-writing.md、Gateway合同、HTTP函数、hosting-checkpoint、Engineering Craft部署规则及CloudBase代码审查矩阵，并核对平台UI和原始Lighthouse结果。具体纠正“当前www尚未改”为“www已实测301，主域HTTP301未完成且试改已撤回”；避免把配置成功、提交请求和搜索收录混为一谈。

@@ -70,5 +70,16 @@
       "request": "Indexing requested; accepted by Bing"
     }
   },
-  "note": "Map discovery is not indexed count. Remaining URL checks recorded separately."
+  "note": "Map discovery is not indexed count. Remaining URL checks recorded separately.",
+  "videoRecheck": {
+    "checkedAt": "2026-11-04T03:33:49.731Z",
+    "reportDate": "2026-11-02",
+    "indexed": 0,
+    "notIndexed": 1,
+    "reason": "Video isn't on a watch page",
+    "page": "https://supplychainsai.com/",
+    "videoUrl": "https://supplychainsai.com/media/oem/factory-video.mp4",
+    "lastCrawled": "2026-10-31",
+    "source": "Existing authenticated Google Search Console UI; reason detail row"
+  }
 }

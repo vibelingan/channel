@@ -139,6 +139,6 @@
     }
   },
   "expectedActivationId": "206e3ba2-f325-4bf8-aade-7437e9359a52",
-  "scope": "Only apex Protocol HTTP_AND_HTTPS to HTTP_TO_HTTPS; preserve routes, certificate, cache and bytes",
-  "rollback": "Read exact current protocol and all retained settings before restoring HTTP_AND_HTTPS"
+  "scope": "www two owned static routes to tested fixed-host redirect HTTP function; apex Protocol HTTP_AND_HTTPS to HTTP_TO_HTTPS only; retain all unrelated settings and business bytes",
+  "rollback": "restore exact www STATIC_STORE routes and prior apex Protocol only after exact-current verification; do not delete functions until routes restored"
 }
