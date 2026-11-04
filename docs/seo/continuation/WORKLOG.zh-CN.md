@@ -732,3 +732,15 @@ e45b753c 修复清单中关闭 webhook 时仍须提供 URL 的问题：hook_attr
 新增回归在旧代码下4项失败（请求仍为per_page=100等），修后相关51项通过；脚本tsconfig类型检查、3文件Biome和diff检查通过。真实App只读试查成功：当前CI结果12420字节；五类空闲状态各36字节，合计180字节。没有修改页面性能、业务数据或其他app。原始回执在evidence/2026-11-04-clock/，下一步须用本次修复提交重新部署并启用，等待真实timer处理同一条待办和HTML验收。
 
 本段实际读取diagnose、TypeScript规则、simplify、GitHub官方API及通知器源码。将“启用成功”明确为“开关读回成功，但真实待办遇到响应上限，已关闭待修复”，核对依据为真实timer错误、关闭回执和本机同一App的只读HTTP测量。
+
+### 2026-11-04：商品自动更新正式启用，完整自动交付验收通过
+
+7a025b86完整远端检查41777116234通过，关闭状态部署41778498332、启用41778728674通过。真实timer请求1483dab6-0ada-4521-9911-acaee72b90a5发出唯一通知，GitHub运行41778917828由channel-catalog-html-delivery[bot]启动，代码为7a025b86，网页程序仍沿用已验收ea3f2e2c。后续timer实际返回busy，没有重复派发；收尾后返回idle。未人工启动这次网页发布，也未重新创建任务或更换编号。
+
+完整运行05:23:09Z开始、05:41:56Z成功结束，18分47秒。site-41778917828-1状态SUCCEEDED，网站接受回执05:36:26.578Z、528商品、productSource=refresh、programRestore=false。浏览器initialHtml/latestApi/categoryRefresh/quoteOpened均true，pageErrors为空、业务写入0。区域catalog辅助函数315次、release辅助函数67次调用全部completed，两者created=true、cleaned=true、unconfirmed=false。完整函数目录8/8，与演练前一致；除clock外原有函数ID、命名空间、修改时间不变，包括sales函数与此前存在的seo-blog-dummy，未误删其他app资源。
+
+根会话独立做前后各19项公开GET/HEAD，528商品清单和抽查商品初始HTML的hash一致，API修订相同；两篇Blog正文hash、渲染正文、图片资料、修订、发布时间、修改时间及服务版本全部保持。catalogSeoBuilders/active现已指向本次接受版本，executorSha为7a025b86；528页面ready，原重查记录同一token已checked，pending requests/tasks均0，currentRunId/dirtyRunId/lease/unresolvedOperation均null。最终health请求31f9c99c-a31c-468b-9b82-67051248d44b确认代码7a025b86和enabled=true；唯一每分钟timer保留，空闲timer请求55ff0df4-3bf5-4b94-9160-9e338286c701返回idle。
+
+回执、38项公开请求、单次自动运行清单、两辅助函数清理、GitHub和CloudBase读回均存evidence/2026-11-04-clock；完整浏览器截图与运行明细也保留在Actions artifact。主域301仍未完成，7项只读复核确认www301、主域HTTP200、HTTPS200及缺失404。控制台读取空白，未改配置或购买边缘套餐。18分47秒不满足8分钟目标；本轮按用户要求未做性能调优。
+
+表达复核实际对照两份humanizer规则、完整Actions回执、公开内容前后JSON、CloudBase最终状态和函数目录。将“构建已启动”与“完整验收通过”分开；将“商品未回退”写成可检查的清单hash、代表HTML及API修订，把本次未修改客户商品的验证范围写明。所有后续文档与证据仍提交原SEO分支，不修改main/test分支。

@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-11-04T05:09:33.412Z",
+  "websiteWrites": 0,
+  "rows": [
+    {
+      "url": "http://www.supplychainsai.com/",
+      "status": 301,
+      "location": "https://supplychainsai.com/",
+      "bytes": 0,
+      "expected": 301,
+      "passed": true
+    },
+    {
+      "url": "https://www.supplychainsai.com/blog/",
+      "status": 301,
+      "location": "https://supplychainsai.com/blog/",
+      "bytes": 0,
+      "expected": 301,
+      "passed": true
+    },
+    {
+      "url": "http://www.supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/?source=check",
+      "status": 301,
+      "location": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/?source=check",
+      "bytes": 0,
+      "expected": 301,
+      "passed": true
+    },
+    {
+      "url": "https://www.supplychainsai.com/__seo-clock-redirect-check__?a=1",
+      "status": 301,
+      "location": "https://supplychainsai.com/__seo-clock-redirect-check__?a=1",
+      "bytes": 0,
+      "expected": 301,
+      "passed": true
+    },
+    {
+      "url": "http://supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "bytes": 102743,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://supplychainsai.com/",
+      "status": 200,
+      "location": null,
+      "bytes": 102743,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://supplychainsai.com/__seo-clock-redirect-check__",
+      "status": 404,
+      "location": null,
+      "bytes": 26059,
+      "expected": 404,
+      "passed": true
+    }
+  ]
+}

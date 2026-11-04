@@ -30,6 +30,8 @@
 
 不为得到301把所有HTTPS业务经自建代理绕一圈，也不修改响应头假装状态码改变。现有原生入口仍可正常访问。
 
+商品自动更新启用期间另做7项只读公网复核：HTTP/HTTPS的www入口仍返回301，并保留商品路径和查询；主域HTTP仍为原配置下的200，主域HTTPS为200、缺失路径404。结果见`../evidence/2026-11-04-clock/redirect-readback.json`。再次核对公开API，路由参数不支持按请求协议选择不同上游，也未找到可指定301的字段。尝试读取本站CloudBase控制台时页面保持空白，未取得额外UI设置证据，不能据此断言控制台绝无其他能力；未作保存或配置变更。本项仍须腾讯确认原生DIRECT网关能力，或另行批准边缘接入的套餐与DNS方案。
+
 ## 恢复与停止条件
 
 www若异常，只在实际配置仍为本次预期时，将/恢复为STATIC_STORE staticstore、SafeDomain=true、Auth=false、PathTransmission=false，保留PathRewrite前缀/；先读回和实际GET，再考虑删除函数。该反向配置已在维护归档保存，本轮没有再次切回www。

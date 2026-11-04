@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-11-04T05:20:21.044Z",
+  "active": [
+    {
+      "id": 41778498332,
+      "status": "in_progress",
+      "path": ".github/workflows/seo-static-canary.yml",
+      "branch": "feat/seo-foundation"
+    }
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.github.com/app/installations/178433222",
+      "status": 200,
+      "bytes": 1655
+    },
+    {
+      "method": "POST",
+      "url": "https://api.github.com/app/installations/178433222/access_tokens",
+      "status": 201,
+      "bytes": 5535
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/vibelingan/channel/actions/workflows/seo-static-canary.yml/runs?branch=feat%2Fseo-foundation&status=waiting&per_page=1&exclude_pull_requests=true",
+      "status": 200,
+      "bytes": 36
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/vibelingan/channel/actions/workflows/seo-static-canary.yml/runs?branch=feat%2Fseo-foundation&status=queued&per_page=1&exclude_pull_requests=true",
+      "status": 200,
+      "bytes": 36
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/vibelingan/channel/actions/workflows/seo-static-canary.yml/runs?branch=feat%2Fseo-foundation&status=requested&per_page=1&exclude_pull_requests=true",
+      "status": 200,
+      "bytes": 36
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/vibelingan/channel/actions/workflows/seo-static-canary.yml/runs?branch=feat%2Fseo-foundation&status=in_progress&per_page=1&exclude_pull_requests=true",
+      "status": 200,
+      "bytes": 15044
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/vibelingan/channel/actions/workflows/seo-static-canary.yml/runs?branch=feat%2Fseo-foundation&status=pending&per_page=1&exclude_pull_requests=true",
+      "status": 200,
+      "bytes": 36
+    }
+  ]
+}

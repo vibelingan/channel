@@ -1,0 +1,125 @@
+{
+  "checkedAt": "2026-11-04T05:24:58.691Z",
+  "health": {
+    "requestId": "0fb0d3a6-1fa0-46c9-9827-4b8a0c0cc0b2",
+    "service": "catalog-seo-clock",
+    "codeSha": "7a025b8633ae84553db5d4d01559c6f86c12e7e8",
+    "enabled": true
+  },
+  "function": {
+    "name": "catalog-seo-clock",
+    "status": "Active",
+    "type": "Event",
+    "runtime": "Nodejs20.19",
+    "description": "channel-catalog-seo-clock-v1",
+    "triggers": [
+      {
+        "AddTime": "2026-11-04 12:56:41",
+        "ModTime": "2026-11-04 12:56:41",
+        "TriggerDesc": "{\"cron\":\"0 * * * * * *\"}",
+        "TriggerName": "catalog-seo-minute",
+        "Type": "timer"
+      }
+    ]
+  },
+  "logs": [
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "Report RequestId: c34bcf79-3ac9-4762-a0ed-32039e2c0434 Duration: 4901ms Memory: 256MB MemUsage: 31.089844MB",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:05.952"
+    },
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "END RequestId: c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:05.952"
+    },
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "Response RequestId: c34bcf79-3ac9-4762-a0ed-32039e2c0434 RetMsg: {\"status\":\"busy\"}",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:05.952"
+    },
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "{\"status\":\"busy\"}",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:05.948"
+    },
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "Event RequestId: c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:01.044"
+    },
+    {
+      "requestId": "c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "log": "START RequestId: c34bcf79-3ac9-4762-a0ed-32039e2c0434",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:24:01.044"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "Report RequestId: 1483dab6-0ada-4521-9911-acaee72b90a5 Duration: 8951ms Memory: 256MB MemUsage: 30.550781MB",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:09.920"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "END RequestId: 1483dab6-0ada-4521-9911-acaee72b90a5",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:09.920"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "Response RequestId: 1483dab6-0ada-4521-9911-acaee72b90a5 RetMsg: {\"status\":\"sent\",\"reason\":\"catalog-wakeup-3ccf5af0-e39f-4d63-b26f-3114d069fa61\"}",
+      "statusCode": "200",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:09.920"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "{\"status\":\"sent\",\"reason\":\"catalog-wakeup-3ccf5af0-e39f-4d63-b26f-3114d069fa61\"}",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:09.919"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "Event RequestId: 1483dab6-0ada-4521-9911-acaee72b90a5",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:00.966"
+    },
+    {
+      "requestId": "1483dab6-0ada-4521-9911-acaee72b90a5",
+      "log": "START RequestId: 1483dab6-0ada-4521-9911-acaee72b90a5",
+      "statusCode": "202",
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:23:00.966"
+    }
+  ],
+  "wakeup": {
+    "requestId": "121035d0-8d16-4147-a203-f4616bf9887c",
+    "data": [
+      {
+        "_id": "supplychainsai-com",
+        "checkedAt": 1793769780968,
+        "owner": "3ccf5af0-e39f-4d63-b26f-3114d069fa61",
+        "reason": "catalog-wakeup-3ccf5af0-e39f-4d63-b26f-3114d069fa61",
+        "siteOrigin": "https://supplychainsai.com",
+        "state": "sent",
+        "until": 1793769960968
+      }
+    ]
+  }
+}

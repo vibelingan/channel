@@ -1,0 +1,16 @@
+{
+  "actor": "channel-catalog-html-delivery[bot]",
+  "conclusion": "success",
+  "created_at": "2026-11-04T05:23:09Z",
+  "display_title": "catalog-wakeup-3ccf5af0-e39f-4d63-b26f-3114d069fa61",
+  "event": "workflow_dispatch",
+  "head_branch": "feat/seo-foundation",
+  "head_sha": "7a025b8633ae84553db5d4d01559c6f86c12e7e8",
+  "html_url": "https://github.com/vibelingan/channel/actions/runs/41778917828",
+  "id": 41778917828,
+  "path": ".github/workflows/seo-static-canary.yml",
+  "run_attempt": 1,
+  "status": "completed",
+  "triggering_actor": "channel-catalog-html-delivery[bot]",
+  "updated_at": "2026-11-04T05:41:56Z"
+}

@@ -1,0 +1,8 @@
+{
+  "action": "enable",
+  "name": "catalog-seo-clock",
+  "enabled": true,
+  "rendererSha": "ea3f2e2c6ad0bc1a35fc23a02cb3cd1f250fefa0",
+  "timer": "0 * * * * * *",
+  "websiteWrites": 0
+}
