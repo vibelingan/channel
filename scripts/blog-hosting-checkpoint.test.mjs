@@ -20,6 +20,36 @@ function setup() {
   });
   return { saved, current };
 }
+test('explicit HTTPS checkpoint accepts only an upgrade and preserves input snapshots', () => {
+  const f = setup();
+  f.saved.gateway.Domains[0].Protocol = 'HTTP_AND_HTTPS';
+  f.current.gateway.Domains[0].Protocol = 'HTTP_TO_HTTPS';
+  const before = structuredClone(f);
+  assert.throws(() =>
+    assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com'),
+  );
+  assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com', {
+    allowHttpsUpgrade: true,
+  });
+  assert.deepEqual(f, before);
+  f.current.gateway.Domains[0].CertId = 'unexpected';
+  assert.throws(() =>
+    assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com', {
+      allowHttpsUpgrade: true,
+    }),
+  );
+});
+for (const protocol of ['HTTP', 'HTTPS_TO_HTTP', 'HTTPS', 'unknown'])
+  test(`HTTPS checkpoint rejects ${protocol}`, () => {
+    const f = setup();
+    f.saved.gateway.Domains[0].Protocol = 'HTTP_AND_HTTPS';
+    f.current.gateway.Domains[0].Protocol = protocol;
+    assert.throws(() =>
+      assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com', {
+        allowHttpsUpgrade: true,
+      }),
+    );
+  });
 test('only the approved Blog prefix can be recorded while the archived configuration stays immutable', () => {
   const f = setup();
   const original = structuredClone(f.saved);
@@ -85,6 +115,11 @@ for (const [name, change] of [
     change(f);
     assert.throws(() =>
       assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com'),
+    );
+    assert.throws(() =>
+      assertBlogConfigurationCheckpoint(f.saved, f.current, 'https://supplychainsai.com', {
+        allowHttpsUpgrade: true,
+      }),
     );
   });
 
