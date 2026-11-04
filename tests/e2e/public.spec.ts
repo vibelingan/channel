@@ -656,7 +656,7 @@ test.describe('public browser smoke', () => {
     ]) {
       await page.setViewportSize(viewport);
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Innovations Limited');
       await expect(page.locator('[data-company-name]')).toBeVisible();
       await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
       await expect(page.locator('[data-primary-nav]')).toBeVisible();
@@ -682,7 +682,7 @@ test.describe('public browser smoke', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-company-name]')).toBeVisible();
-    await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+    await expect(page.locator('[data-company-name]')).toHaveText('Diversity Innovations Limited');
     await expect(page.locator('[data-site-header] img')).toBeVisible();
     const toggle = page.locator('[data-menu-toggle]');
     await expect(toggle).toBeVisible();
@@ -742,7 +742,7 @@ test.describe('public browser smoke', () => {
       await page.setViewportSize(viewport);
       await page.goto('/', { waitUntil: 'domcontentloaded' });
       await expect(page.locator('[data-company-name]')).toBeVisible();
-      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Innovations Limited');
       await expect(page.locator('[data-site-header] img')).toBeVisible();
       await expect(page.locator('[data-menu-toggle]')).toBeHidden();
       await expect(page.locator('[data-primary-nav]')).toBeVisible();

@@ -330,7 +330,7 @@ test('FactorySection accepts an optional OEM media override while keeping homepa
 test('Factory and Our People use the exact confirmed client copy', () => {
   const normalizedContent = enUS.replace(/\s+/g, ' ');
   const requiredCopy = [
-    'Founded in 2004, Diversity Technology Limited combines over 20 years of OEM manufacturing experience with AI-powered product development. By integrating market intelligence, material big data, and intelligent cost prediction into our engineering process, we help global brands launch smarter products faster—from concept to global delivery.',
+    'Diversity Innovations Limited combines our team’s 20+ years of OEM manufacturing experience with AI-powered product development. By integrating market intelligence, material big data, and intelligent cost prediction into our engineering process, we help global brands launch smarter products faster—from concept to global delivery.',
     'Our People',
     'Global Trade Experts Behind Your Business',
     'With over 20 years of international trade experience, our multilingual sales, sourcing, and engineering teams have successfully supported brands, importers, distributors, and retailers across North America, Europe, the Middle East, Africa, and Asia.',

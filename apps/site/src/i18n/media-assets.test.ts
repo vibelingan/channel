@@ -530,7 +530,7 @@ test('team gallery images expose reviewed intrinsic dimensions to the renderer',
   assert.deepEqual(items, [
     {
       img: '/media/oem/team/t01.jpg',
-      alt: 'The Diversity Technology team',
+      alt: 'The Diversity Innovations Limited team',
       width: 1100,
       height: 749,
     },
