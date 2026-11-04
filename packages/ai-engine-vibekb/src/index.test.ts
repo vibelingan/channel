@@ -4,6 +4,7 @@ import { estimateMessages } from '@vibelingan-channel/ai-engine/budget';
 import {
   type EngineEvent,
   type EngineRunRequest,
+  PRODUCT_ANSWER_PROFILE_ID,
   QUESTION_BUDGET_EXHAUSTED,
 } from '@vibelingan-channel/ai-engine/port';
 import { boundedFetch } from './http.ts';
@@ -359,6 +360,47 @@ test('long retrieved documents are cut so a call stays under its input ceiling',
     answer.at(-1)?.content.includes('Manufacturing partner.'),
     'evidence was cut, not dropped',
   );
+});
+
+test('the answer after the documents is asked for in the visitor’s language', async () => {
+  const lastSent = async (text: string) => {
+    const f = setup();
+    await drain(f.engine, { ...request, turns: [{ role: 'visitor', text }] });
+    const model = f.calls.filter((c) => c.url.includes('model.invalid'));
+    const sent = model[1]?.body.messages as Array<{ content: string }>;
+    return sent.at(-1)?.content ?? '';
+  };
+  const english = await lastSent('What does your OEM process look like?');
+  assert.match(english, /knowledge DATA/);
+  assert.match(english, /It is not Chinese, so do not write Chinese/);
+  assert.match(await lastSent('你们的 OEM 流程是怎样的？'), /Answer the visitor in Chinese\./);
+});
+
+test('the catalog answer is asked for after the catalog DATA, in the visitor’s language', async () => {
+  const f = setup({ plans: ['{"kind":"answer","text":"两款可选。"}'] });
+  await drain(f.engine, {
+    ...request,
+    profileId: PRODUCT_ANSWER_PROFILE_ID,
+    turns: [
+      { role: 'visitor', text: '有什么无线耳机推荐？' },
+      {
+        role: 'assistant',
+        text: 'Current published catalog DATA.',
+        publicCatalog: { products: [], unavailableProductIds: [] },
+      },
+    ],
+    limits: { ...request.limits, maxToolCalls: 0 },
+  });
+  const sent = f.calls.find((c) => c.url.includes('model.invalid'))?.body.messages as Array<{
+    role: string;
+    content: string;
+  }>;
+  assert.equal(sent.at(-2)?.role, 'assistant', 'the catalog DATA comes first');
+  assert.deepEqual(sent.at(-1), {
+    role: 'user',
+    content:
+      'Return only {"kind":"answer","text":"..."} from the catalog DATA above. Answer the visitor in Chinese.',
+  });
 });
 
 test('a question that has spent its input budget stops before the next call', async () => {

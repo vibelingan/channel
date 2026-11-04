@@ -180,7 +180,7 @@ test('suggestions skip what is known, keep three, and carry the summary version'
     raw.some((s) => s.label === 'Submit now'),
     false,
   );
-  const shown = publicSuggestions(raw, state);
+  const shown = publicSuggestions(raw, state, '700 please');
   assert.deepEqual(
     shown.map((s) => [s.id, s.label, s.baseCriteriaVersion]),
     [
@@ -188,6 +188,37 @@ test('suggestions skip what is known, keep three, and carry the summary version'
       ['s2', 'Ship to', 1],
       ['s3', 'Lighter ones', 1],
     ],
+  );
+});
+
+test('suggestions in another language than the visitor wrote are not shown', () => {
+  const raw = parseSuggestions([
+    { label: '预算范围', utterance: '有不同预算的选择吗？', kind: 'ask' },
+    { label: 'Logo options', utterance: 'What logo printing do you offer?', kind: 'ask' },
+    { label: 'ANC 降噪', utterance: '有 ANC 降噪的款吗？', kind: 'refine' },
+    { label: '印 logo', utterance: 'Logo printing?', kind: 'ask' },
+  ]);
+  const labels = (latest: string) => publicSuggestions(raw, EMPTY_NEED, latest).map((s) => s.label);
+  assert.deepEqual(labels('We need wireless headphones for 500 employee gifts.'), ['Logo options']);
+  assert.deepEqual(labels('Necesitamos auriculares'), ['Logo options']);
+  assert.deepEqual(labels('我们要500个无线耳机'), ['预算范围', 'ANC 降噪']);
+  assert.deepEqual(labels('500'), ['预算范围', 'Logo options', 'ANC 降噪']);
+});
+
+test('suggestions are never about the budget, which only the visitor can give', () => {
+  const raw = parseSuggestions([
+    { label: 'Budget', utterance: 'What is the budget?', kind: 'ask', about: 'budget' },
+    { label: '预算', utterance: '我们的预算大概是多少？', kind: 'ask', about: 'budget' },
+    {
+      label: 'Minimum order',
+      utterance: 'What is your minimum order quantity?',
+      kind: 'ask',
+      about: 'quantity',
+    },
+  ]);
+  assert.deepEqual(
+    publicSuggestions(raw, EMPTY_NEED, 'We need speakers').map((s) => s.label),
+    ['Minimum order'],
   );
 });
 
