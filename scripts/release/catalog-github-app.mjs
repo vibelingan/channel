@@ -59,6 +59,21 @@ export function createCatalogGithubApp({
     cached = { token: value.token, expires: Date.parse(value.expires_at) };
     return cached.token;
   };
+  // Callers need proof that a matching run exists, not an unbounded history.
+  const matchingRun = async (file, filters, access) => {
+    const query = new URLSearchParams({ ...filters, per_page: '1', exclude_pull_requests: 'true' });
+    const result = await call('GET', `${repo}/actions/workflows/${file}/runs?${query}`, access);
+    if (
+      !Number.isSafeInteger(result.total_count) ||
+      result.total_count < 0 ||
+      !Array.isArray(result.workflow_runs) ||
+      result.workflow_runs.length !== Math.min(result.total_count, 1) ||
+      (result.total_count > 0 &&
+        (!result.workflow_runs[0] || typeof result.workflow_runs[0] !== 'object'))
+    )
+      throw Error('Missing matching workflow run evidence');
+    return result.workflow_runs[0] ?? null;
+  };
   return {
     async head(branch) {
       if (!['feat/seo-foundation', 'test'].includes(branch))
@@ -72,33 +87,47 @@ export function createCatalogGithubApp({
       if (!/^[a-f0-9]{40}$/.test(sha) || !['feat/seo-foundation', 'test'].includes(branch))
         throw Error('Invalid CI source');
       const file = branch === 'test' ? 'deploy-test.yml' : 'seo-module-1.yml';
-      const result = await call(
-        'GET',
-        `${repo}/actions/workflows/${file}/runs?head_sha=${sha}&status=completed&per_page=100`,
-        await token(),
-      );
-      if (!Array.isArray(result.workflow_runs)) throw Error('Missing CI source inventory');
-      return result.workflow_runs.some(
-        (r) =>
+      const access = await token();
+      for (const event of branch === 'test' ? ['push', 'workflow_dispatch'] : ['push']) {
+        const r = await matchingRun(
+          file,
+          { head_sha: sha, status: 'success', branch, event },
+          access,
+        );
+        if (!r) continue;
+        if (
           r.head_sha === sha &&
           r.head_branch === branch &&
           r.path === `.github/workflows/${file}` &&
           r.status === 'completed' &&
           r.conclusion === 'success' &&
-          (r.event === 'push' || (branch === 'test' && r.event === 'workflow_dispatch')) &&
+          r.event === event &&
           r.repository?.full_name === 'vibelingan/channel' &&
-          r.head_repository?.full_name === 'vibelingan/channel',
-      );
+          r.head_repository?.full_name === 'vibelingan/channel'
+        )
+          return true;
+        throw Error('Matching CI source differs');
+      }
+      return false;
     },
-    async runs(workflow) {
-      if (workflow !== 'seo-static-canary.yml') throw Error('Unapproved delivery workflow');
-      const result = await call(
-        'GET',
-        `${repo}/actions/workflows/${workflow}/runs?per_page=100`,
-        await token(),
+    async runs(workflow, branch) {
+      if (workflow !== 'seo-static-canary.yml' || !['feat/seo-foundation', 'test'].includes(branch))
+        throw Error('Unapproved delivery workflow or branch');
+      const access = await token();
+      const matches = await Promise.all(
+        ['queued', 'in_progress', 'waiting', 'pending', 'requested'].map(async (status) => {
+          const r = await matchingRun(workflow, { branch, status }, access);
+          if (
+            r &&
+            (r.head_branch !== branch ||
+              r.status !== status ||
+              r.path !== `.github/workflows/${workflow}`)
+          )
+            throw Error('Matching active workflow differs');
+          return r;
+        }),
       );
-      if (!Array.isArray(result.workflow_runs)) throw Error('Missing delivery inventory');
-      return result.workflow_runs;
+      return matches.filter(Boolean);
     },
     async dispatch(workflow, body) {
       if (

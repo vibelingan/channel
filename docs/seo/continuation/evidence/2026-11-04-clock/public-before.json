@@ -1,0 +1,294 @@
+{
+  "blog": {
+    "passed": true,
+    "phase": "clock-before",
+    "startedAt": "2026-11-04T04:48:17.766Z",
+    "businessWrites": 0,
+    "imageReadback": "HEAD availability and metadata; no image-body download in this run",
+    "requests": [
+      {
+        "url": "https://supplychainsai.com/blog/health.json",
+        "method": "GET",
+        "at": "2026-11-04T04:48:22.383Z",
+        "status": 200,
+        "bytes": 284,
+        "sha256": "cc1cc8fb0a3ce9398e09b6fd352b694570c4fb3e45219d47425baa0ff8fa4af9"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/",
+        "method": "GET",
+        "at": "2026-11-04T04:48:24.868Z",
+        "status": 200,
+        "bytes": 30345,
+        "sha256": "ac8142e7995673b9a7c4981df3d389fe3051ff3f5a1d9def8bfb3e6a5f43d9c7"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/sitemap.xml",
+        "method": "GET",
+        "at": "2026-11-04T04:48:25.516Z",
+        "status": 200,
+        "bytes": 443,
+        "sha256": "012556fa226ac2d81cd7b7c71b69092d55f924d2050cc4ed8b0cb943147ae165"
+      },
+      {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/articles/slug/oem-project-brief-acceptance-40249243887",
+        "method": "GET",
+        "at": "2026-11-04T04:48:29.798Z",
+        "status": 200,
+        "bytes": 1888,
+        "sha256": "1128d93558f2f65041db6ca7060dde2a8528ec6feadff276a52dbde4004070b4"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "method": "GET",
+        "at": "2026-11-04T04:48:32.692Z",
+        "status": 200,
+        "bytes": 32003,
+        "sha256": "6f71c2c55e988d3151cf325c6b7fb83cb7784b9e44a855612824ca70a9bb00f4"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/media/articles/article-media-a8bd74b89e0bf83ae236eaea2f48389732958970077ca4514a1284283d3dc119/831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67.webp",
+        "method": "HEAD",
+        "at": "2026-11-04T04:48:36.258Z",
+        "status": 200,
+        "bytes": 0
+      },
+      {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/articles/slug/oem-project-brief-acceptance-40249243887",
+        "method": "GET",
+        "at": "2026-11-04T04:48:39.895Z",
+        "status": 200,
+        "bytes": 1888,
+        "sha256": "1128d93558f2f65041db6ca7060dde2a8528ec6feadff276a52dbde4004070b4"
+      },
+      {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/articles/slug/oem-headphone-sample-inspection-wecom-20261027",
+        "method": "GET",
+        "at": "2026-11-04T04:48:43.922Z",
+        "status": 200,
+        "bytes": 8709,
+        "sha256": "e40a269c4ecc13e8abab5081824b4520c64f848c5b05edafe71f2c6d9304b6ba"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "method": "GET",
+        "at": "2026-11-04T04:48:46.021Z",
+        "status": 200,
+        "bytes": 36207,
+        "sha256": "c0d0c0534592154b8047da1c43502cba1d16a36d482e80aacad5d5faaa9d2778"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e.png",
+        "method": "HEAD",
+        "at": "2026-11-04T04:48:48.577Z",
+        "status": 200,
+        "bytes": 0
+      },
+      {
+        "url": "https://supplychainsai.com/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/307bd1f4b8396740c3ee78653a69b7ced41f671beaa7e8310ac4fc38263a25b0.png",
+        "method": "HEAD",
+        "at": "2026-11-04T04:48:50.525Z",
+        "status": 200,
+        "bytes": 0
+      },
+      {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/articles/slug/oem-headphone-sample-inspection-wecom-20261027",
+        "method": "GET",
+        "at": "2026-11-04T04:48:54.048Z",
+        "status": 200,
+        "bytes": 8709,
+        "sha256": "e40a269c4ecc13e8abab5081824b4520c64f848c5b05edafe71f2c6d9304b6ba"
+      }
+    ],
+    "articles": [
+      {
+        "slug": "oem-project-brief-acceptance-40249243887",
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+        "revision": 3,
+        "contentHash": "81db466452951f525e873bca6dcf954d3ebbbc3886ab9dd4d4f63a39721bd4d3",
+        "title": "Preparing an OEM headphone project brief",
+        "publishedAt": "2026-10-26T00:26:21.072Z",
+        "modifiedAt": "2026-10-26T02:32:42.672Z",
+        "bodyHtmlSha256": "33e3915a71f473722a4e1018eecd9deee1580812f93f098930562a88339ab062",
+        "images": [
+          {
+            "id": "article-media-a8bd74b89e0bf83ae236eaea2f48389732958970077ca4514a1284283d3dc119",
+            "src": "/blog/media/articles/article-media-a8bd74b89e0bf83ae236eaea2f48389732958970077ca4514a1284283d3dc119/831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67.webp",
+            "sha256": "831595e0851dce0bb727df1297e11c0f700bc575c5b5ee3a18ba7c098008fa67",
+            "bytes": 96776,
+            "width": 1228,
+            "height": 718,
+            "alt": "Factory exterior",
+            "status": 200
+          }
+        ],
+        "currentApiMatchesSsr": true,
+        "canonical": true,
+        "indexingAllowed": true,
+        "inIndex": true,
+        "inSitemap": true
+      },
+      {
+        "slug": "oem-headphone-sample-inspection-wecom-20261027",
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "articleId": "article-96a06754c53e0eae9613a1ebf36cfb79492dc3bfde08891dc4471ff14841fff3",
+        "revision": 2,
+        "contentHash": "0cc026cc6bd9be0e72bfff2454499528ee5076a4b0a736139b6792a9fc27f09c",
+        "title": "How to Inspect Your First OEM Headphone Sample",
+        "publishedAt": "2026-10-28T01:16:02.607Z",
+        "modifiedAt": "2026-10-28T01:16:02.607Z",
+        "bodyHtmlSha256": "d338140344ad49dd6dae094d1ebb4d63b886c2c4692454e8be778418c65fada5",
+        "images": [
+          {
+            "id": "article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8",
+            "src": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e.png",
+            "sha256": "f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e",
+            "bytes": 2209843,
+            "width": 1536,
+            "height": 1024,
+            "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+            "status": 200
+          },
+          {
+            "id": "article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb",
+            "src": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/307bd1f4b8396740c3ee78653a69b7ced41f671beaa7e8310ac4fc38263a25b0.png",
+            "sha256": "307bd1f4b8396740c3ee78653a69b7ced41f671beaa7e8310ac4fc38263a25b0",
+            "bytes": 714791,
+            "width": 1536,
+            "height": 1024,
+            "alt": "Infographic listing six things to check on an OEM headphone sample: appearance and build, comfort, connection and functions, sound and microphone, packaging, and reporting issues clearly",
+            "status": 200
+          }
+        ],
+        "currentApiMatchesSsr": true,
+        "canonical": true,
+        "indexingAllowed": true,
+        "inIndex": true,
+        "inSitemap": true
+      }
+    ],
+    "blogVersion": "71fb996b6252931756f50941697d057a268208b4",
+    "technicalChecksPassed": true,
+    "status": "baseline-captured",
+    "at": "2026-11-04T04:48:54.078Z",
+    "elapsedMs": 36312
+  },
+  "catalog": {
+    "passed": true,
+    "phase": "clock-before",
+    "expectedHomepage": "any",
+    "startedAt": "2026-11-04T04:48:17.817Z",
+    "businessWrites": 0,
+    "requests": [
+      {
+        "url": "https://supplychainsai.com/products/manifest.json",
+        "at": "2026-11-04T04:48:25.406Z",
+        "status": 200,
+        "bytes": 58697,
+        "sha256": "73938488f2f51f9c2cd256e0e972490e7620bf3fbab65c467704fba1459ea62c",
+        "cacheControl": "no-cache"
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "at": "2026-11-04T04:48:29.176Z",
+        "status": 200,
+        "bytes": 111214,
+        "sha256": "ad4548900b2936678388034f56677c20224a2749cd5766cf14d8a545f9d62914",
+        "cacheControl": "no-cache"
+      },
+      {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail?page=1&pageSize=50&view=sections-media&pagination=byte-budget-v1",
+        "at": "2026-11-04T04:48:34.016Z",
+        "status": 200,
+        "bytes": 11450,
+        "sha256": "b9c0bf5db0f711413b34f13c39c0d06bbc3e921ab2245211839ff65e92b35ee8",
+        "cacheControl": "no-store, no-cache, must-revalidate, max-age=0"
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-index.xml",
+        "at": "2026-11-04T04:48:34.654Z",
+        "status": 200,
+        "bytes": 262,
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+        "cacheControl": "no-cache"
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-0.xml",
+        "at": "2026-11-04T04:48:38.451Z",
+        "status": 200,
+        "bytes": 51989,
+        "sha256": "c0322b651f1f7b9c331f5906ff2bec676de15c4946237d716ed1c284f34373be",
+        "cacheControl": "no-cache"
+      },
+      {
+        "url": "https://supplychainsai.com/",
+        "at": "2026-11-04T04:48:40.546Z",
+        "status": 200,
+        "bytes": 102743,
+        "sha256": "d26d91651c351ebd480234621b59fea909862ca60a16a8983845e9ac2f9d6ca3",
+        "cacheControl": "no-cache"
+      },
+      {
+        "url": "https://supplychainsai.com/__channel_seo_missing__/",
+        "at": "2026-11-04T04:48:44.107Z",
+        "status": 404,
+        "bytes": 26059,
+        "sha256": "04db3a79f231ff5c87ce644eb4fe4843cfc5e507b16ddec1ae1b7827e88f8440",
+        "cacheControl": "no-cache"
+      }
+    ],
+    "manifest": {
+      "url": "https://supplychainsai.com/products/manifest.json",
+      "sha256": "73938488f2f51f9c2cd256e0e972490e7620bf3fbab65c467704fba1459ea62c",
+      "total": 528,
+      "first": {
+        "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd"
+      }
+    },
+    "product": {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "sha256": "ad4548900b2936678388034f56677c20224a2749cd5766cf14d8a545f9d62914",
+      "id": "003a6310-5244-4766-adfa-eb1002ad0fb4",
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+      "freshness": "snapshot",
+      "name": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone",
+      "canonical": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "indexingAllowed": true,
+      "productJsonLd": true
+    },
+    "api": {
+      "revision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+      "name": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone",
+      "revisionMatchesHtml": true,
+      "nameMatchesHtml": true,
+      "comparison": "same-revision"
+    },
+    "sitemap": {
+      "indexUrl": "https://supplychainsai.com/sitemap-index.xml",
+      "productSitemapUrl": "https://supplychainsai.com/sitemap-0.xml",
+      "productPresent": true
+    },
+    "homepage": {
+      "url": "https://supplychainsai.com/",
+      "sha256": "d26d91651c351ebd480234621b59fea909862ca60a16a8983845e9ac2f9d6ca3",
+      "oldVideo": false,
+      "displayVideo": true,
+      "src": "/media/oem/factory-video-display-015f0629.mp4",
+      "preload": "none",
+      "autoplay": false,
+      "controls": true,
+      "viewportPlayback": true,
+      "poster": "/media/oem/factory-video-poster.jpg"
+    },
+    "missing": {
+      "url": "https://supplychainsai.com/__channel_seo_missing__/",
+      "status": 404,
+      "dedicatedPage": true,
+      "indexingAllowed": false
+    },
+    "at": "2026-11-04T04:48:44.108Z",
+    "elapsedMs": 26291
+  }
+}

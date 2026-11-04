@@ -718,3 +718,17 @@ Google sitemap539且成功；代表商品已索引，文章历史noindex与实�
 e45b753c 修复清单中关闭 webhook 时仍须提供 URL 的问题：hook_attributes.active=false，URL 为仓库主页，无事件订阅；权限仍仅 Actions 写、Contents 读。相关41项本地测试通过，独立 Blog HTTP 与 dummy 远端检查已通过，完整 SEO 检查在本段记录时尚剩站点测试组。未开启定时器，未更改现有网站或其他应用。
 
 实际复读 GitHub App 设置脚本、manifest、短期令牌适配器、定时函数和通知逻辑、run-catalog-clock.ts、共享队列 workflow，以及 humanizer 两份写作文件。补充安装的三个位置和流程图，明确区分 GitHub App、GitHub test 环境密钥、腾讯云定时函数。将“这几步必须由账号持有人操作”改为“需要账号所有者授权，可由获授权 agent 代办；密码和二次验证由用户完成”，避免让人误以为又必须全程手工安装。腾讯主域公开 API 本轮复核仍未提供跳转状态码参数，没有重复修改主域配置。
+
+### 2026-11-04：App 安装、首次真实定时检查与查询修复
+
+用户确认创建并安装后，GitHub 显示应用已创建；在 vibelingan 账号安装时明确选择 Only select repositories，唯一仓库 channel。App ID 5606220，安装 ID 178433222。通过签名 App JWT 和短期安装令牌独立读回，所有者、唯一仓库和 Actions 写 / Contents 读 / Metadata 读完全匹配。私钥文件0600，密钥经标准输入交给 gh，保存到 test 环境加密密钥；另两项环境变量逐项读回，不在仓库、聊天或日志保存密钥。临时本机创建服务器已关闭。
+
+83a85c83 完整远端检查41774724332通过；关闭状态部署41775931503和启用41776141217均成功。实际health返回当前提交、enabled=true，唯一timer为catalog-seo-minute，cron为0 * * * * * *。上线前公开核对528商品、两篇文章及图片资料；发布锁空闲。给现有商品安排了一次公开内容重查，只条件更新已完成的SEO待办，未修改商品或文章。写入请求a8cd4778-246e-49f9-b0e0-7d96b446c84f，matchedCount=modifiedCount=1。
+
+真实timer执行5e0f27bd-cae1-41d1-8b3c-96b62a14b4d8在读取GitHub最近100个workflow runs时超过1MiB响应上限，尚未发通知或写网页。立即通过原共享队列关闭：41776582884成功，health请求6db2a396-358d-4cff-919a-a5d831c7b945读回enabled=false；原重查待办保留，不能把首次启用写成自动交付已通过。
+
+修复只涉及GitHub查询：按固定分支及五个未结束状态查询是否存在匹配项，每个状态只取1条，5类并发且共用一次短期授权。历史已完成构建再多也不进入响应；没有简单缩短历史列表而漏掉旧的活动任务。当前提交的CI也按成功、事件、分支和SHA做存在性查询。total_count、实际条数、状态、分支、工作流不符时拒绝，网络错误不当作空闲。保留1MiB正文上限。官方依据为GitHub Workflow Runs REST文档的branch/status/event/head_sha/per_page过滤参数。
+
+新增回归在旧代码下4项失败（请求仍为per_page=100等），修后相关51项通过；脚本tsconfig类型检查、3文件Biome和diff检查通过。真实App只读试查成功：当前CI结果12420字节；五类空闲状态各36字节，合计180字节。没有修改页面性能、业务数据或其他app。原始回执在evidence/2026-11-04-clock/，下一步须用本次修复提交重新部署并启用，等待真实timer处理同一条待办和HTML验收。
+
+本段实际读取diagnose、TypeScript规则、simplify、GitHub官方API及通知器源码。将“启用成功”明确为“开关读回成功，但真实待办遇到响应上限，已关闭待修复”，核对依据为真实timer错误、关闭回执和本机同一App的只读HTTP测量。

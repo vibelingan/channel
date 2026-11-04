@@ -22,7 +22,7 @@ export async function wakeCatalog({ store, github, now = Date.now(), nonce = ran
   const head = await github.head(branch);
   if (head !== active.executorSha && !(await github.passedCI(head, branch)))
     return { status: 'waiting-ci' };
-  const runs = await github.runs(workflow);
+  const runs = await github.runs(workflow, branch);
   if (
     !Array.isArray(runs) ||
     runs.some(
