@@ -31,6 +31,7 @@ async function setup(t) {
   const files = new Map();
   const times = new Map();
   const writes = [];
+  const batchUploads = [];
   let clock = 0;
   let unknown = false;
   let unknownRemove = false;
@@ -72,6 +73,11 @@ async function setup(t) {
       times.set(path, stamp());
       if (unknown === true || unknown === path) throw Error('lost upload acknowledgement');
       return { terminal: true };
+    },
+    uploadBatch: async (members, { parallel }) => {
+      batchUploads.push({ paths: members.map((m) => m.path), parallel });
+      await Promise.all(members.map(({ path, body }) => provider.upload(path, body)));
+      return { terminal: true, files: members.map(({ path }) => ({ path })) };
     },
     remove: async (path) => {
       writes.push(['remove', path]);
@@ -184,6 +190,7 @@ async function setup(t) {
     },
     deliver,
     writes,
+    batchUploads,
     files,
     request: http.request,
     coordinator,
@@ -400,6 +407,11 @@ test('every batched upload has its exact path and hash in the persisted intent b
   });
   assert.equal((await f.deliver(b.input)).status, 'accepted');
   assert(checked >= 3);
+  // Each journaled batch is one provider call carrying all of its members at once.
+  const puts = f.writes.filter(([kind]) => kind === 'put').map(([, path]) => path);
+  assert.deepEqual(f.batchUploads.flatMap((batch) => batch.paths).sort(), [...puts].sort());
+  for (const batch of f.batchUploads)
+    assert.equal(batch.parallel, Math.min(12, batch.paths.length));
 });
 
 test('final full-site acceptance has a bounded whole-site budget and still reads every ordinary URL', async (t) => {

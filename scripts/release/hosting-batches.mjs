@@ -43,7 +43,12 @@ export function assertHostingBatchMembers(members) {
 }
 export function siteUploadBatches(plan) {
   if (!plan.delivery) return null;
-  if (plan.scope.kind !== 'site' || plan.delivery.batchSize !== 12 || plan.delivery.parallel !== 4)
+  if (
+    plan.scope.kind !== 'site' ||
+    plan.delivery.batchSize !== 12 ||
+    plan.delivery.parallel !== 4 ||
+    ![undefined, 12].includes(plan.delivery.uploadParallel)
+  )
     throw Error('Unreviewed hosting batch settings');
   const batches = [];
   for (const entry of plan.uploads) {
@@ -78,7 +83,11 @@ export function withSiteUploadBatches(plan) {
   const { planSha256, ...body } = plan;
   if (identity(body) !== planSha256 || plan.delivery || plan.scope.kind !== 'site')
     throw Error('Invalid unbatched site plan');
-  const next = { ...body, delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4 } };
+  // One SDK call writes a whole journaled batch; journal steps and HTTP readback are unchanged.
+  const next = {
+    ...body,
+    delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4, uploadParallel: 12 },
+  };
   return freeze({ ...next, planSha256: identity(next) });
 }
 /** Stop scheduling after failure; wait for all already started work before rejecting. */
