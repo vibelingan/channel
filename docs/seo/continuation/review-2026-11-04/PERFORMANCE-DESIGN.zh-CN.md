@@ -1,0 +1,35 @@
+# 性能优化设计，尚未实施
+
+## 方法与来源
+
+应用并实际阅读固定版本：Vercel React Best Practices（vercel-labs/agent-skills，1a2c79d4）、Addy Osmani Performance/Core Web Vitals及MEASUREMENT（addyosmani/web-quality-skills，afa8da94）。它们是审查清单，不代替实测。本站为Astro/React，不照搬Next.js专用API。Node侧采用官方诊断方法 https://nodejs.org/learn/diagnostics/poor-performance ，先分离网络、数据库与CPU，再决定是否取profile；不为本站引入无关Watt框架。
+
+本机：独立匿名Chromium上下文、禁缓存、无CPU/网络限速；DOMContentLoaded后观察12秒，每页手机和桌面各3次。它是实验室诊断，CLS只覆盖观察窗；没有真实交互时INP为未测，不是0。保留未完成资源和失败请求，浏览器本地缓存关闭不等于CDN冷缓存。美国：固定Lighthouse13.0.1，Node22>=22.19，实际出口验证，默认mobile及desktop配置写在每份JSON里；TBT是诊断指标，不能充当INP。未来同条件测优化后，不能把Mac与美国、Lighthouse与CrUX直接相减。
+
+覆盖首页、耳机分类、OEM、案例、三件商品、Blog列表、图文文章，共9个代表URL。商品暂按清单首/中/尾取样，不能声称覆盖全部变体复杂度；再补按图片/规格/变体数量分层的样本。后台私有编辑不纳入公开SEO评分，作为操作回归单独验收。
+
+## 已测到的瓶颈与待证实原因
+
+1. 首轮首页LCP为h1，FCP约4.86秒、LCP约4.91秒。主CSS约126KB、React运行脚本约183KB；它们的网络时序比单纯“HTML有没有正文”更值得检查。需美国Lighthouse的渲染阻塞、压缩与字体诊断确认，不能把全部延迟归因于React。
+2. 分类页LCP为商品图，首轮约8秒；图片经上海公开API交付。网络中还加载了约262KB的catalog-variant-state及约106KB的alibaba-sync-workflow。需跟踪实际导入链和coverage，确认是否把后台同步能力带进公开页面，再设计业务模块拆分。保留所有现有选择/询盘/价格权限功能。
+3. 三个商品首轮LCP都指向主图，约7至8秒；描述图部分约14秒完成，单张PNG接近1MB。先检查主图优先级、响应式尺寸、编码、图片API耗时及是否过早下载非首屏图；禁止把所有图片预加载。
+4. 文章首轮LCP指向2,209,843字节PNG，图片读取约8秒，页面LCP约11.7秒。优先设计发布时生成WebP/AVIF尺寸变体，保留原图；不能替换成模糊图、丢alt或绕过已发布引用检查。缩略图必须作为文章资源版本的一部分，可撤回、可重试。
+5. 多页有重复catalog-taxonomy请求；Blog请求https://supplychainsai.com/api/catalog-taxonomy，独立GET确认400。需核查Blog构建的公开API来源和导航组件数据边界。此为真实失败请求，尚未修复；不把空响应当成功。组件请求合并须考虑Astro多个React岛是否各自有QueryClient，不能仅在一处加缓存便宣布全站消重。
+6. BaseLayout含Google字体外域连接，字体是否阻塞LCP仍需trace确认。候选方案为自托管字重子集或现有加载策略调整，须对字体授权、视觉差异、CSS体积和冷访问一起验收。
+7. Blog当前服务常驻，不能把所有首字节延迟都说成冷启动。分别测常驻首次请求/连续请求/空闲后请求，结合服务日志区分平台启动、文章API读取、数据库和渲染。禁止对真实后台跑压力测试或写入假商品。
+
+## 分模块落地与验收
+
+P1：修正公开请求来源与重复请求，确认返回形状、错误、并发取消和权限；记录请求数前后差。
+P2：公开JS/CSS拆分，只延后非首屏功能，图库、变体、分类、询盘、登录及后台同步分别回归。
+P3：图片变体与优先级，按原图/公开派生图/私有预览分别控制；正文布局尺寸、alt、撤回和失败重试不丢。
+P4：静态CDN对照试验，不缓存登录、询盘、会员价格或AI；文章HTML仍实时回上海。
+P5：测完网络瓶颈后，才按日志考虑Node/数据库查询优化。先验证缓存失效及版本，不用缓存旧文章换跑分。
+
+每模块独立提交、灰度验收；完整前后记录页面/版本、地点、浏览器、工具、网络CPU、缓存、样本数，中位数及最小/最大、TTFB/FCP/LCP/CLS/TBT、请求数、按类型字节、失败、LCP元素及资源链。暂无真实INP，需另做固定交互场景并以web-vitals采集；上线真实用户监测需明确收集字段、保存期限，不记录输入内容、账号或token。
+
+目标：LCP<=2.5秒、CLS<=0.1、真实INP<=200ms；FCP<=1.8秒、TTFB<=800ms作为诊断目标。实验室三次中位数不能冒充CrUX p75。优化后列暂写未实施，不填推算改善百分比。
+
+## 美国基准补充结论
+
+美国54次Lighthouse均完成，出口country为US（桌面LAX、手机DFW），原始配置和报告已保存。手机文章LCP中位数17.08秒，商品约6.38–8.50秒，首页约3.68秒。桌面文章约4.62秒，商品约3.43–3.76秒，首页约1.42秒。优先排图片与加载网络，不以低TBT为理由宣布真实INP通过。Lighthouse对文章指出约2760KiB图片优化空间及渲染阻塞；这些是工具估计，不是已实现节省量。静态CSS/JS的HEAD接受br/gzip仍未返回Content-Encoding，Blog脚本返回gzip；需与GET及Lighthouse压缩诊断一起核对，不能仅凭HEAD断言全部资源未压缩。完整中位数与范围见BEFORE-AFTER.zh-CN.md。

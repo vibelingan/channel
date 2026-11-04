@@ -1,0 +1,36 @@
+[
+  {
+    "path": "/_astro/BaseLayout.DlaTgGjt.css",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-cache",
+      "content-length": "125394",
+      "content-type": "text/css",
+      "etag": "\"ac7b9bacff0eb63980c2a8d97abe643d\"",
+      "server": "tcbgw"
+    }
+  },
+  {
+    "path": "/_astro/client.CR28Oxrx.js",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-cache",
+      "content-length": "182291",
+      "content-type": "application/javascript",
+      "etag": "\"45dbe59ef79030d74f65c55518bc7ff6\"",
+      "server": "tcbgw"
+    }
+  },
+  {
+    "path": "/blog/_astro/client.DuwkX3wC.js",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-cache",
+      "content-encoding": "gzip",
+      "content-type": "text/javascript; charset=utf-8",
+      "etag": "W/\"2d650-1a1841541a0\"",
+      "server": "tcbgw",
+      "vary": "Accept-Encoding"
+    }
+  }
+]

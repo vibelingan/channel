@@ -30,6 +30,21 @@
       "sitemapInspection": "Temporary processing error",
       "productSnippetsInvalid": 1,
       "breadcrumbsValid": 1
+    },
+    "article": {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "index": "historical noindex exclusion",
+      "lastCrawlUi": "Oct 29, 2026, 1:02:43 AM",
+      "liveTestUi": "Nov 4, 2026, 11:57 AM",
+      "liveResult": "URL is available to Google; Page can be indexed",
+      "breadcrumbsValid": 1,
+      "request": "Failed twice: could not connect to reCAPTCHA service, no accepted acknowledgement"
+    },
+    "coreWebVitals": {
+      "lastUpdated": "2026-11-02",
+      "mobile": "Not enough usage data in the last 90 days",
+      "desktop": "Not enough usage data in the last 90 days",
+      "verdict": "unavailable, not passed"
     }
   },
   "bing": {
@@ -39,6 +54,20 @@
       "errors": 0,
       "warnings": 0,
       "lastCrawl": "2026-10-30"
+    },
+    "product": {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "index": "Discovered but not crawled",
+      "discoveredOn": "2026-10-26",
+      "liveTestUi": "Today at 11:58",
+      "liveResult": "URL can be indexed by Bing",
+      "issues": {
+        "titleTooLong": 1,
+        "descriptionLength": 1,
+        "imageAltNotice": 6
+      },
+      "markup": "Failed to load insights",
+      "request": "Indexing requested; accepted by Bing"
     }
   },
   "note": "Map discovery is not indexed count. Remaining URL checks recorded separately."
