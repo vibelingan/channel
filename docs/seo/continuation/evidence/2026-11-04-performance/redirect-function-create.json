@@ -1,0 +1,45 @@
+{
+  "success": true,
+  "data": {
+    "action": "createFunction",
+    "functionName": "seo-canonical-redirect",
+    "raw": {
+      "RequestId": "523bf91e-12f5-468d-aefb-fc3e14ec9275",
+      "SCFErrorCode": "",
+      "SCFErrorMsg": ""
+    }
+  },
+  "message": "已创建 HTTP 函数 seo-canonical-redirect。如果后续需要通过 URL 访问，请显式调用 manageGateway(action=\"createRoute\")，并把 upstreamResourceType=\"WEB_SCF\" 一起传入，再按实际路径和鉴权需求创建访问入口。评测或其他外部调用方可能会以匿名身份访问，而且失败后不一定会把 EXCEED_AUTHORITY 再反馈给 AI；交付前请主动确认访问路径和函数安全规则，若已出现 EXCEED_AUTHORITY，请先调用 queryPermissions(action=\"getResourcePermission\", resourceType=\"function\", resourceId=\"seo-canonical-redirect\") 查看当前规则，再按需要使用 managePermissions(action=\"updateResourcePermission\") 调整权限。",
+  "nextActions": [
+    {
+      "tool": "queryFunctions",
+      "action": "getFunctionDetail",
+      "reason": "确认函数配置"
+    },
+    {
+      "tool": "queryFunctions",
+      "action": "listFunctionTriggers",
+      "reason": "检查函数触发器"
+    },
+    {
+      "tool": "manageGateway",
+      "action": "createRoute",
+      "reason": "如果需要通过 URL 访问 HTTP 函数，请调用 manageGateway(action=\"createRoute\") 并显式传 upstreamResourceType=\"WEB_SCF\"，再按实际路径和鉴权需求创建访问入口，不要默认假设 /函数名 已存在"
+    },
+    {
+      "tool": "queryGateway",
+      "action": "getRoute",
+      "reason": "交付前确认 HTTP 访问路径是否已存在并已生效"
+    },
+    {
+      "tool": "queryPermissions",
+      "action": "getResourcePermission",
+      "reason": "评测、浏览器或其他外部调用方可能以匿名身份访问；若直接报 EXCEED_AUTHORITY，应先读取当前函数安全规则"
+    },
+    {
+      "tool": "managePermissions",
+      "action": "updateResourcePermission",
+      "reason": "只有在确认需要匿名访问时，才按实际安全要求调整函数安全规则，例如处理 EXCEED_AUTHORITY"
+    }
+  ]
+}

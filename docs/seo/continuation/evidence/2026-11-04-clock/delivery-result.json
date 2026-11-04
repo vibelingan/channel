@@ -1,0 +1,19 @@
+{
+  "status": "accepted",
+  "receipt": {
+    "deliveryId": "site-41778917828-1",
+    "artifactHash": "36a8ff05f1010c2368e18feb359a16e954d215a16669209499f2519ca97ac699",
+    "acceptedAt": "2026-11-04T05:36:26.578Z"
+  },
+  "articleTaskId": null,
+  "products": 528,
+  "productSource": "refresh",
+  "renderer": {
+    "codeSha": "ea3f2e2c6ad0bc1a35fc23a02cb3cd1f250fefa0",
+    "manifestSha256": "c2ef1baf97f3fe09cdbe9c0f5a9299ba5327094e85d734c34e2952c531339cdc",
+    "archiveSha256": "6cfad7faf0ea16f5cf5b70d1262c96f709b5b53e9baf1d1cd735769b7d9ea3a2",
+    "archiveFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/seo-recovery/objects/6cfad7faf0ea16f5cf5b70d1262c96f709b5b53e9baf1d1cd735769b7d9ea3a2.bin",
+    "inputSchema": 1
+  },
+  "programRestore": false
+}

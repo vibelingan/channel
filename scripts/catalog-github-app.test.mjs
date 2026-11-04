@@ -80,3 +80,137 @@ test('unapproved workflow or code-writing operation is rejected before HTTP', as
   await assert.rejects(api.dispatch('deploy-test.yml', { ref: 'test', inputs: {} }), /Unapproved/);
   assert.equal(x.calls.length, 0);
 });
+
+function runApi(respond, branch = 'feat/seo-foundation') {
+  const x = fixture();
+  const urls = [];
+  const api = createCatalogGithubApp({
+    appId: 1,
+    installationId: 2,
+    privateKey: pem,
+    now: () => now,
+    request: async (method, url, options) => {
+      if (!url.includes('/runs?')) return x.request(method, url, options);
+      const query = new URL(url).searchParams;
+      urls.push(query);
+      assert.equal(query.get('per_page'), '1', 'Only an existence check is needed');
+      assert.equal(query.get('exclude_pull_requests'), 'true');
+      assert.equal(query.get('branch'), branch);
+      return json(respond(query));
+    },
+  });
+  return { api, urls, calls: x.calls };
+}
+const run = (status) => ({
+  status,
+  head_branch: 'feat/seo-foundation',
+  path: '.github/workflows/seo-static-canary.yml',
+  repository: { full_name: 'vibelingan/channel' },
+  head_repository: { full_name: 'vibelingan/channel' },
+});
+
+test('active work is found independently of completed history or the number of queued runs', async () => {
+  const x = runApi((query) =>
+    query.get('status') === 'queued'
+      ? { total_count: 237, workflow_runs: [run('queued')] }
+      : { total_count: 0, workflow_runs: [] },
+  );
+  assert.deepEqual(await x.api.runs('seo-static-canary.yml', 'feat/seo-foundation'), [
+    run('queued'),
+  ]);
+  assert.deepEqual(x.urls.map((q) => q.get('status')).sort(), [
+    'in_progress',
+    'pending',
+    'queued',
+    'requested',
+    'waiting',
+  ]);
+  assert.equal(x.calls.filter((c) => c.url.endsWith('/access_tokens')).length, 1);
+});
+
+test('an idle result requires an empty result for every active status', async () => {
+  const x = runApi(() => ({ total_count: 0, workflow_runs: [] }));
+  assert.deepEqual(await x.api.runs('seo-static-canary.yml', 'feat/seo-foundation'), []);
+  assert.equal(x.urls.length, 5);
+});
+
+for (const [label, response] of [
+  ['missing count', { workflow_runs: [] }],
+  ['missing witness', { total_count: 1, workflow_runs: [] }],
+  ['null witness', { total_count: 1, workflow_runs: [null] }],
+  ['unexpected row', { total_count: 0, workflow_runs: [run('queued')] }],
+  ['wrong branch', { total_count: 1, workflow_runs: [{ ...run('queued'), head_branch: 'main' }] }],
+  ['wrong status', { total_count: 1, workflow_runs: [run('completed')] }],
+]) {
+  test(`an incomplete or mismatched active response is rejected: ${label}`, async () => {
+    const x = runApi(() => response);
+    await assert.rejects(x.api.runs('seo-static-canary.yml', 'feat/seo-foundation'));
+  });
+}
+
+test('active queries reject another workflow or branch before any HTTP call', async () => {
+  const x = runApi(() => ({ total_count: 0, workflow_runs: [] }));
+  await assert.rejects(x.api.runs('deploy-test.yml', 'feat/seo-foundation'));
+  await assert.rejects(x.api.runs('seo-static-canary.yml', 'main'));
+  assert.equal(x.calls.length, 0);
+  assert.equal(x.urls.length, 0);
+});
+
+test('passed CI is an exact successful push existence query, even with many historical reruns', async () => {
+  const x = runApi((query) => {
+    assert.equal(query.get('head_sha'), 'a'.repeat(40));
+    assert.equal(query.get('event'), 'push');
+    assert.equal(query.get('status'), 'success');
+    return {
+      total_count: 200,
+      workflow_runs: [
+        {
+          ...run('completed'),
+          path: '.github/workflows/seo-module-1.yml',
+          head_sha: 'a'.repeat(40),
+          conclusion: 'success',
+          event: 'push',
+        },
+      ],
+    };
+  });
+  assert.equal(await x.api.passedCI('a'.repeat(40), 'feat/seo-foundation'), true);
+});
+
+test('test branch accepts its successful manual CI without hiding it behind failed or push history', async () => {
+  const x = runApi(
+    (query) =>
+      query.get('event') === 'push'
+        ? { total_count: 0, workflow_runs: [] }
+        : {
+            total_count: 10,
+            workflow_runs: [
+              {
+                ...run('completed'),
+                head_branch: 'test',
+                path: '.github/workflows/deploy-test.yml',
+                head_sha: 'a'.repeat(40),
+                conclusion: 'success',
+                event: 'workflow_dispatch',
+              },
+            ],
+          },
+    'test',
+  );
+  assert.equal(await x.api.passedCI('a'.repeat(40), 'test'), true);
+  assert.deepEqual(
+    x.urls.map((q) => q.get('event')),
+    ['push', 'workflow_dispatch'],
+  );
+});
+
+test('a failed status query cannot be treated as an empty queue', async () => {
+  const x = runApi((query) => {
+    if (query.get('status') === 'waiting') throw Error('HTTP read failed');
+    return { total_count: 0, workflow_runs: [] };
+  });
+  await assert.rejects(
+    x.api.runs('seo-static-canary.yml', 'feat/seo-foundation'),
+    /HTTP read failed/,
+  );
+});

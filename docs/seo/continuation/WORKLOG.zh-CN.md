@@ -693,3 +693,54 @@ UTC17:27:42根会话独立读回：旧writing占用已为0，恢复progress.next
 复查 private-archive.mjs、cos-archive-transfer.mjs、site-retention.mjs，以及已安装 COS 2.15.4 的 downloadFile 源码：RetryTimes 是尝试总数，现有值1不提供额外尝试，也不覆盖前后 HEAD。仅在私有归档 get 层补一次完整读取重试；两次共享原总时限，每次重新核对权限和生命周期，403/404、未知错误、长度或 SHA-256 不符立即失败。保留解压和清单核对，不缓存旧读取结果、不增大超时、不改 SDK 方法或并发。旧实现红例已复现；相关55项通过，根会话独立运行其中48项通过，脚本类型、指定文件Biome、SDK契约和diff检查通过。
 
 表达核对读取 humanizer/SKILL.md 与 plain-technical-writing.md；将“恢复已完成”明确为“归档上传与续期已通过，正式网页切换尚未完成”，核对依据为本轮实际日志、小型证据及上述现场读回。尚需这版远端检查、A2/B2真实切换和内容保持验收；不新增报告文档。
+
+
+### 2026-11-04：跳转现场验收、收录复查与优化前测量
+
+沿用原SEO分支和外盘执行副本，未改其他会话工作区。新增固定主域HTTP重定向函数，www根前缀路由已生效：32项真实GET/HEAD检查通过。共享维护41766367497成功结束；本轮网站文件与业务数据写入均0，临时探测路由删除并读回0条，原有7个函数保留，另保留正式301函数。
+
+主域Protocol试改为HTTP_TO_HTTPS后，真实两个IP均返回307，与301目标不符。严格读回预期配置后恢复HTTP_AND_HTTPS，16项公网检查确认主域状态码和正文hash与改前一致，www仍301。主域301未完成，未建立虚假的新协议接受记录。具体请求编号、反向步骤和腾讯核实问题见review-2026-11-04/REDIRECT.zh-CN.md。
+
+自动更新仍等待专用GitHub App创建与安装，现场定时触发器0条，不用个人gh令牌替代。EdgeOne站点查询0；可购套餐接口被TCB_QcsRole的CAM权限拒绝，未购买、改DNS或补全局权限。两项账号操作分别写在AUTHORIZATION.zh-CN.md，不混成“部署好了”。
+
+Google sitemap539且成功；代表商品已索引，文章历史noindex与实时可收录分开记。Bing sitemap539、实时可收录，代表商品请求收录收到回执。Google手动文章重抓因reCAPTCHA连接失败未成功，视频原因确认是首页不属于观看页，CWV真实数据仍不足。详见SEARCH-STATUS.zh-CN.md。
+
+性能没有优化。Mac匿名浏览器54样本及核实US出口的Lighthouse54样本全部完成；固定工具、CPU/网络配置、中位数/范围、原始JSON及摘要均归档。文章手机LCP约17.08秒、抽查商品6.38至8.50秒；图片、请求来源、公开JS导入和压缩列入设计，未用推算结果填After。原始本机JSON超过格式检查文件限制，已无损gzip并校验原始/压缩SHA，未放宽项目限制。
+
+本地重定向及恢复配置38项通过；原后台创建浏览器22项通过。1853271b远端首次后台恢复用例失败，重跑该组通过，随后在本轮大证据JSON上触发1MiB格式限制；本次通过无损压缩修复。最终提交的远端CI结果以Actions实际回执为准，未删除或放宽原用例。
+
+文字复核实际读取humanizer/SKILL.md、plain-technical-writing.md、Gateway合同、HTTP函数、hosting-checkpoint、Engineering Craft部署规则及CloudBase代码审查矩阵，并核对平台UI和原始Lighthouse结果。具体纠正“当前www尚未改”为“www已实测301，主域HTTP301未完成且试改已撤回”；避免把配置成功、提交请求和搜索收录混为一谈。
+
+### 2026-11-04：GitHub App 创建表单与安装说明
+
+用户已授权为 channel 创建并安装专用 App，并完成 GitHub 密码确认。密码确认后，GitHub 未保留最初提交的 App 清单；从仍在运行的本机入口重新提交后，已进入“Create GitHub App for vibelingan”页面，名称为 Channel Catalog HTML Delivery，尚未点击创建。浏览器要求实际授予长期权限前确认，本轮保留该页并发出明确范围的确认请求；不能把用户密码确认写成 App 已安装。
+
+e45b753c 修复清单中关闭 webhook 时仍须提供 URL 的问题：hook_attributes.active=false，URL 为仓库主页，无事件订阅；权限仍仅 Actions 写、Contents 读。相关41项本地测试通过，独立 Blog HTTP 与 dummy 远端检查已通过，完整 SEO 检查在本段记录时尚剩站点测试组。未开启定时器，未更改现有网站或其他应用。
+
+实际复读 GitHub App 设置脚本、manifest、短期令牌适配器、定时函数和通知逻辑、run-catalog-clock.ts、共享队列 workflow，以及 humanizer 两份写作文件。补充安装的三个位置和流程图，明确区分 GitHub App、GitHub test 环境密钥、腾讯云定时函数。将“这几步必须由账号持有人操作”改为“需要账号所有者授权，可由获授权 agent 代办；密码和二次验证由用户完成”，避免让人误以为又必须全程手工安装。腾讯主域公开 API 本轮复核仍未提供跳转状态码参数，没有重复修改主域配置。
+
+### 2026-11-04：App 安装、首次真实定时检查与查询修复
+
+用户确认创建并安装后，GitHub 显示应用已创建；在 vibelingan 账号安装时明确选择 Only select repositories，唯一仓库 channel。App ID 5606220，安装 ID 178433222。通过签名 App JWT 和短期安装令牌独立读回，所有者、唯一仓库和 Actions 写 / Contents 读 / Metadata 读完全匹配。私钥文件0600，密钥经标准输入交给 gh，保存到 test 环境加密密钥；另两项环境变量逐项读回，不在仓库、聊天或日志保存密钥。临时本机创建服务器已关闭。
+
+83a85c83 完整远端检查41774724332通过；关闭状态部署41775931503和启用41776141217均成功。实际health返回当前提交、enabled=true，唯一timer为catalog-seo-minute，cron为0 * * * * * *。上线前公开核对528商品、两篇文章及图片资料；发布锁空闲。给现有商品安排了一次公开内容重查，只条件更新已完成的SEO待办，未修改商品或文章。写入请求a8cd4778-246e-49f9-b0e0-7d96b446c84f，matchedCount=modifiedCount=1。
+
+真实timer执行5e0f27bd-cae1-41d1-8b3c-96b62a14b4d8在读取GitHub最近100个workflow runs时超过1MiB响应上限，尚未发通知或写网页。立即通过原共享队列关闭：41776582884成功，health请求6db2a396-358d-4cff-919a-a5d831c7b945读回enabled=false；原重查待办保留，不能把首次启用写成自动交付已通过。
+
+修复只涉及GitHub查询：按固定分支及五个未结束状态查询是否存在匹配项，每个状态只取1条，5类并发且共用一次短期授权。历史已完成构建再多也不进入响应；没有简单缩短历史列表而漏掉旧的活动任务。当前提交的CI也按成功、事件、分支和SHA做存在性查询。total_count、实际条数、状态、分支、工作流不符时拒绝，网络错误不当作空闲。保留1MiB正文上限。官方依据为GitHub Workflow Runs REST文档的branch/status/event/head_sha/per_page过滤参数。
+
+新增回归在旧代码下4项失败（请求仍为per_page=100等），修后相关51项通过；脚本tsconfig类型检查、3文件Biome和diff检查通过。真实App只读试查成功：当前CI结果12420字节；五类空闲状态各36字节，合计180字节。没有修改页面性能、业务数据或其他app。原始回执在evidence/2026-11-04-clock/，下一步须用本次修复提交重新部署并启用，等待真实timer处理同一条待办和HTML验收。
+
+本段实际读取diagnose、TypeScript规则、simplify、GitHub官方API及通知器源码。将“启用成功”明确为“开关读回成功，但真实待办遇到响应上限，已关闭待修复”，核对依据为真实timer错误、关闭回执和本机同一App的只读HTTP测量。
+
+### 2026-11-04：商品自动更新正式启用，完整自动交付验收通过
+
+7a025b86完整远端检查41777116234通过，关闭状态部署41778498332、启用41778728674通过。真实timer请求1483dab6-0ada-4521-9911-acaee72b90a5发出唯一通知，GitHub运行41778917828由channel-catalog-html-delivery[bot]启动，代码为7a025b86，网页程序仍沿用已验收ea3f2e2c。后续timer实际返回busy，没有重复派发；收尾后返回idle。未人工启动这次网页发布，也未重新创建任务或更换编号。
+
+完整运行05:23:09Z开始、05:41:56Z成功结束，18分47秒。site-41778917828-1状态SUCCEEDED，网站接受回执05:36:26.578Z、528商品、productSource=refresh、programRestore=false。浏览器initialHtml/latestApi/categoryRefresh/quoteOpened均true，pageErrors为空、业务写入0。区域catalog辅助函数315次、release辅助函数67次调用全部completed，两者created=true、cleaned=true、unconfirmed=false。完整函数目录8/8，与演练前一致；除clock外原有函数ID、命名空间、修改时间不变，包括sales函数与此前存在的seo-blog-dummy，未误删其他app资源。
+
+根会话独立做前后各19项公开GET/HEAD，528商品清单和抽查商品初始HTML的hash一致，API修订相同；两篇Blog正文hash、渲染正文、图片资料、修订、发布时间、修改时间及服务版本全部保持。catalogSeoBuilders/active现已指向本次接受版本，executorSha为7a025b86；528页面ready，原重查记录同一token已checked，pending requests/tasks均0，currentRunId/dirtyRunId/lease/unresolvedOperation均null。最终health请求31f9c99c-a31c-468b-9b82-67051248d44b确认代码7a025b86和enabled=true；唯一每分钟timer保留，空闲timer请求55ff0df4-3bf5-4b94-9160-9e338286c701返回idle。
+
+回执、38项公开请求、单次自动运行清单、两辅助函数清理、GitHub和CloudBase读回均存evidence/2026-11-04-clock；完整浏览器截图与运行明细也保留在Actions artifact。主域301仍未完成，7项只读复核确认www301、主域HTTP200、HTTPS200及缺失404。控制台读取空白，未改配置或购买边缘套餐。18分47秒不满足8分钟目标；本轮按用户要求未做性能调优。
+
+表达复核实际对照两份humanizer规则、完整Actions回执、公开内容前后JSON、CloudBase最终状态和函数目录。将“构建已启动”与“完整验收通过”分开；将“商品未回退”写成可检查的清单hash、代表HTML及API修订，把本次未修改客户商品的验证范围写明。所有后续文档与证据仍提交原SEO分支，不修改main/test分支。

@@ -1,0 +1,12 @@
+{
+  "phase": "before",
+  "checkedAt": "2026-11-04T02:56:44.661Z",
+  "profile": "mobile",
+  "egressCountry": "US",
+  "colo": "DFW",
+  "locationEvidence": "Cloudflare trace loc for hosted runner; not GPS simulation",
+  "node": "v22.23.4",
+  "lighthouse": "13.0.1",
+  "repeats": 3,
+  "fieldInp": null
+}

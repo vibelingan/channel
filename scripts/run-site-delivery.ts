@@ -608,6 +608,7 @@ try {
       baseline.staticManifest.configuration,
       configuration,
       policy.siteOrigin,
+      { allowHttpsUpgrade: true },
     );
     const payload = join(directory, 'checkpoint');
     createSitePayload({

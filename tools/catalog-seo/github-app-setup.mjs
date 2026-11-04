@@ -3,6 +3,7 @@ import { lstat, mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { catalogGithubAppManifest } from './github-app-manifest.mjs';
 
 const state = randomBytes(32).toString('hex');
 const directory = join(homedir(), '.config/channel-catalog-seo');
@@ -28,15 +29,7 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === `/setup/${state}` && req.method === 'GET') {
     const origin = `http://127.0.0.1:${server.address().port}`;
-    const manifest = {
-      name: 'Channel Catalog HTML Delivery',
-      url: 'https://github.com/vibelingan/channel',
-      redirect_url: `${origin}/callback`,
-      public: false,
-      hook_attributes: { active: false },
-      default_permissions: { actions: 'write', contents: 'read' },
-      default_events: [],
-    };
+    const manifest = catalogGithubAppManifest(origin);
     const value = JSON.stringify(manifest)
       .replaceAll('&', '&amp;')
       .replaceAll('"', '&quot;')

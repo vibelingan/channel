@@ -1,0 +1,94 @@
+{
+  "health": {
+    "requestId": "31f9c99c-a31c-468b-9b82-67051248d44b",
+    "service": "catalog-seo-clock",
+    "codeSha": "7a025b8633ae84553db5d4d01559c6f86c12e7e8",
+    "enabled": true
+  },
+  "logs": [
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "system",
+      "log": "Report RequestId: 55ff0df4-3bf5-4b94-9160-9e338286c701 Duration: 175ms Memory: 256MB MemUsage: 17.203125MB",
+      "statusCode": "200",
+      "retCode": "0",
+      "durationMs": 175,
+      "memoryMb": 256,
+      "memUsageBytes": 18038784,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.699"
+    },
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "system",
+      "log": "END RequestId: 55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "statusCode": "200",
+      "retCode": "0",
+      "durationMs": 175,
+      "memoryMb": 256,
+      "memUsageBytes": 18038784,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.699"
+    },
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "system",
+      "log": "Response RequestId: 55ff0df4-3bf5-4b94-9160-9e338286c701 RetMsg: {\"status\":\"idle\"}",
+      "statusCode": "200",
+      "retCode": "0",
+      "durationMs": 175,
+      "memoryMb": 256,
+      "memUsageBytes": 18038784,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.699"
+    },
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "app",
+      "log": "{\"status\":\"idle\"}",
+      "statusCode": "202",
+      "retCode": "2",
+      "durationMs": 0,
+      "memoryMb": 256,
+      "memUsageBytes": 0,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.694"
+    },
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "system",
+      "log": "Event RequestId: 55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "statusCode": "202",
+      "retCode": "2",
+      "durationMs": 0,
+      "memoryMb": 256,
+      "memUsageBytes": 0,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.516"
+    },
+    {
+      "requestId": "55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "functionName": "catalog-seo-clock",
+      "qualifier": "$LATEST",
+      "source": "system",
+      "log": "START RequestId: 55ff0df4-3bf5-4b94-9160-9e338286c701",
+      "statusCode": "202",
+      "retCode": "2",
+      "durationMs": 0,
+      "memoryMb": 256,
+      "memUsageBytes": 0,
+      "requestSource": "TRIGGER_TIMER",
+      "timestamp": "2026-11-04 13:43:00.516"
+    }
+  ]
+}
