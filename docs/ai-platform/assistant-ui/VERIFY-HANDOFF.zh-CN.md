@@ -84,6 +84,37 @@
 
 **远端 CI（Node 22.13.0）：** UI [`41685412230`](https://github.com/vibelingan/channel/actions/runs/41685412230)（`0bccf449`）成功；聊天 [`41686555304`](https://github.com/vibelingan/channel/actions/runs/41686555304)（`0d2b40d1`）全部步骤成功，含类型检查、真库回归、17 道守卫、连接浏览器和真实 Astro 整站。之后的提交只改文档和守卫脚本。
 
-**还没验证的：** 真实模型（要等 Hermes 的 SSH 交接包在本机装好）、iPhone 真机、生产写入。
+**还没验证的：** iPhone 真机、生产写入。真实模型见下一节。
 
 **SEO 整合：** 按 Codex 的建议，没有把两个功能分支互相合并，而是建了发布分支 `release/assistant-seo-20261104`：从 `feat/seo-foundation@ba2a480d`（包含线上的 `dc3af64b`）出发，合入本分支。两处冲突两边都保留（public-api 入口：SEO 的页面读取＋助手的 salesCapture；db 导出：两类都留）。`pnpm install --frozen-lockfile` 通过。它的全量检查结果写在 ROADMAP §7.1。
+
+## 2026-11-04 下午：知识库入口和真实模型
+
+**nginx `/mcp`（生产，负责人同意后做）：** Hermes 上已有 `kb-mcp.vibelingan.com/mcp` 在用，转发到同一个 MCP 服务（`kb_server.py`，9021 端口，外网连不到）。Claude 照它的写法，在 `kb.supplychainsai.com` 的站点里加了 `location = /mcp`。只匹配这一个路径，网站其他地址不受影响。
+
+- 改前：`/mcp` 返回网站首页（200 HTML），`nginx -t` 通过，配置文件哈希 `506e14a4…`。
+- 改动：先备份到 `/var/backups/nginx-kb-supplychainsai.20261104-claude.conf`，加上 15 行，`nginx -t` 通过后 reload。nginx 正常运行。
+- 改后：不带密钥、密钥错误都返回 401 `{"error":"unauthorized"}`；`/`、`/mcp/`、`/mcpx` 和改前一样。带密钥时 `verifyKnowledge` 返回工作区 2、`channelkb/vibekb/12`，3 秒内完成。
+- 部署用的 `VIBEKB_MCP_URL` 本来就是 `https://kb.supplychainsai.com/mcp`，不用改。
+
+**真实模型（TokenHub `deepseek/deepseek-v4-pro`，`thinking=disabled`）：** 从本机直接调用，配置和 `apps/ai-worker` 生产路径（`AI_ENGINE_ID=vibekb`）一样，密钥由程序从交接文件读取，没有打印。
+
+- TokenHub 每次都返回 `usage`（`prompt_tokens`、`completion_tokens`），所以记录的是服务商给的数字，不是估算。一次普通提问约 1200 输入、20–220 输出 token。
+- `need`、`must`、`kind` 的格式都正确：500 个耳机做员工礼品，给出 `product`、`quantity`、`use`；中文定制问题给出 `customization: ["印logo"]`。查知识库的回答带引用。
+
+**真实模型发现的三个问题，已修：**
+
+| 问题 | 提交 | 改了什么 | 实测（改后） |
+| --- | --- | --- | --- |
+| 英文问题查完知识库后用中文回答（3／3）：公开文档是中文，最后一条消息只写了 “Answer the visitor” | `343b1308` | 最后一条消息写明用访客最新一句的语言作答 | 英文 5／5 是英文，中文 2／2 是中文 |
+| 产品目录作答返回的是又一个搜索计划（2／3）：卡片下面就没有说明文字 | `343b1308` | 产品目录资料之后再补一句“现在只返回 answer”，带语言要求 | 12／12 是 answer，中英文都对，ANC 和 ENC 没混 |
+| 追问建议：英文问题给出中文建议；中文建议在问访客（“预算大概是多少？”），点了就当成访客自己发出 | `a08a47cd` | worker 只显示和访客同语言的建议，不显示关于预算的建议；提示词写明访客是说话的人，示例只用英文（中文示例会被原样抄进英文回答） | 中文都是访客口吻（“你们的最小起订量是多少？”“可以定制logo吗？”），英文回答下的建议是英文 |
+
+单元测试：`need.test.ts` 加 2 条（语言、预算），`memory.test.ts` 加一条中文建议、断言不显示，`index.test.ts` 加 2 条（资料后的语言要求、产品目录作答）。本机 Node 22.13.0：`test:ai` 415 通过、2 跳过、0 失败；类型检查、`build:ai`、17 道守卫、连接 58 项通过。
+
+**还要知道的：**
+
+- 英文的产品搜索常常不带追问建议，改前也是这样（4 次里 2 次没有，1 次是中文）。建议本来就是可选的。
+- 产品目录作答失败时的默认说明只有英文（`product-workflow.ts`），聊天界面本身也是英文，所以没有改。现在作答几乎都会成功，很少走到默认说明。
+- 一次中文作答说两款耳机都带降噪，其实只有一款写了通话降噪。产品卡片上的“待确认”标记还在，但这句说明不对。这是模型的准确度问题，上线后看真实对话再决定要不要加限制。
+- 这次是直接调引擎，没有经过 BFF、worker 和线上目录走完整一轮。完整一轮要等数据库到位、AI 服务部署后，按 ROADMAP §7.1 的顺序问。
