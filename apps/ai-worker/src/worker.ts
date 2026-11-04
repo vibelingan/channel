@@ -406,7 +406,7 @@ async function startRun(
   let nextNeed = need;
   let proposed: RawSuggestion[] = [];
   const suggestionsFor = (raw: readonly RawSuggestion[]) => {
-    const shown = publicSuggestions(raw, nextNeed);
+    const shown = publicSuggestions(raw, nextNeed, latestVisitorText);
     return shown.length ? { suggestions: shown } : {};
   };
   const needChange = () => (nextNeed.version !== need.version ? { needState: nextNeed } : {});

@@ -243,6 +243,7 @@ test(
             kind: 'refine',
             about: 'destination',
           },
+          { label: '目标市场', utterance: '你们发哪些国家？', kind: 'ask' },
           { label: 'Get a quote', utterance: 'Please send me a quote', kind: 'ask' },
           { label: 'Order now', utterance: 'Place the order', kind: 'submit' },
         ],

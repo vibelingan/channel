@@ -327,14 +327,37 @@ export function parseSuggestions(value: unknown): RawSuggestion[] {
   });
 }
 
+const HAN = /[㐀-鿿]/;
+
 /**
- * At most three, none about something already known, no duplicates. Each is
- * stamped with the summary version it was written against.
+ * A suggestion is sent as the visitor's own message, so it has to be in the
+ * language they wrote. The live model gave an English visitor Chinese ones.
+ * A message without letters (a bare quantity) does not decide.
  */
-export function publicSuggestions(raw: readonly RawSuggestion[], state: NeedState) {
+function inVisitorLanguage(suggestion: RawSuggestion, latestVisitorText: string) {
+  if (HAN.test(latestVisitorText)) return HAN.test(suggestion.utterance);
+  if (!/\p{L}/u.test(latestVisitorText)) return true;
+  return !HAN.test(suggestion.label) && !HAN.test(suggestion.utterance);
+}
+
+/**
+ * At most three, in the visitor's language, none about something already
+ * known or about the budget, no duplicates. Each is stamped with the summary version it was
+ * written against.
+ */
+export function publicSuggestions(
+  raw: readonly RawSuggestion[],
+  state: NeedState,
+  latestVisitorText: string,
+) {
   const kept: RawSuggestion[] = [];
   for (const suggestion of raw) {
     if (suggestion.about && state[suggestion.about] !== undefined) continue;
+    // Sent as the visitor's message, a budget suggestion can only make one up
+    // or ask them for theirs (the live model kept writing "What is the
+    // budget?"), and price is not discussed in chat.
+    if (suggestion.about === 'budget') continue;
+    if (!inVisitorLanguage(suggestion, latestVisitorText)) continue;
     if (
       kept.some((k) => same(k.utterance, suggestion.utterance) || same(k.label, suggestion.label))
     )
