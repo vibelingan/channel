@@ -117,7 +117,8 @@ export interface EngineUsage {
  */
 export type EngineEvent =
   | { type: 'activity'; action: 'knowledge_search' | 'model_answer' }
-  | { type: 'token'; text: string }
+  /** Optional server-owned evidence for a complete answer sentence. Raw vendor tokens lack it. */
+  | { type: 'token'; text: string; citations?: EngineCitation[] }
   | { type: 'citation'; citation: EngineCitation }
   | { type: 'final'; text: string; citations: EngineCitation[]; usage?: EngineUsage }
   /** One model call finished; sent after each call so a later failure keeps the record. */

@@ -38,6 +38,7 @@ import {
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import { GroundedAnswerStream } from './answer-stream.ts';
 import { explainCatalog } from './catalog-answer.ts';
 import {
   type CatalogCursor,
@@ -378,6 +379,19 @@ async function startRun(
     expectedControlVersion: context.controlVersion,
     claimEpoch: context.claimEpoch,
   };
+  const answerStream = new GroundedAnswerStream(config.approvedSourcePrefix);
+  const publishSentence = async (
+    text: string,
+    citations: import('@vibelingan-channel/ai-engine/port').EngineCitation[],
+  ) => {
+    controller.signal.throwIfAborted();
+    const delta = answerStream.accept(text, citations);
+    if (delta === undefined) return;
+    if (!(await store.appendEventFenced({ ...fenced, type: 'token', payload: { text: delta } }))) {
+      controller.abort();
+      controller.signal.throwIfAborted();
+    }
+  };
   const need: NeedState = isNeedState(context.needState) ? context.needState : EMPTY_NEED;
   const latestVisitorText =
     context.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text ?? '';
@@ -481,6 +495,7 @@ async function startRun(
             controller.signal,
             config.approvedSourcePrefix,
             recordUsage,
+            publishSentence,
           )
         : null;
     await store.finishRunFenced({
@@ -488,7 +503,7 @@ async function startRun(
       status: 'completed',
       events: [
         ...(explanation
-          ? approvedEvents(explanation)
+          ? approvedEvents(explanation, answerStream.delivered)
               .map(storeEvent)
               .filter((event) => event.type !== 'final')
           : []),
@@ -600,8 +615,10 @@ async function startRun(
       }
 
       if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
-        // Citations arrive at the end on the hosted KB. Until the final evidence
-        // set passes policy, neither its prose nor its source names are public.
+        // Only evidence-bound, complete answer sentences take the early path.
+        // Legacy vendor tokens and late vendor citations remain withheld.
+        if (rawEvent.type === 'token' && rawEvent.citations)
+          await publishSentence(rawEvent.text, rawEvent.citations);
         continue;
       }
 
@@ -730,7 +747,7 @@ async function startRun(
               }),
             }
           : policyResult;
-      const safeEvents = approvedEvents(approved).map(storeEvent);
+      const safeEvents = approvedEvents(approved, answerStream.delivered).map(storeEvent);
       const status = approved.type === 'final' ? 'completed' : 'failed';
       if (status === 'completed' && config.catalog) {
         const final = safeEvents.find((event) => event.type === 'final');
@@ -819,13 +836,14 @@ async function workerStage<T>(stage: string, operation: () => Promise<T>): Promi
   }
 }
 
-function approvedEvents(terminal: EngineEvent): EngineEvent[] {
+function approvedEvents(terminal: EngineEvent, delivered = ''): EngineEvent[] {
   if (terminal.type !== 'final') return [terminal];
-  // Vendor chunks were deliberately withheld until the final evidence set
-  // passed. Replaying hundreds of now-approved chunks would add hundreds of DB
-  // transactions without restoring real-time streaming, so publish the exact
-  // approved final text once.
-  const tokens: EngineEvent[] = [{ type: 'token', text: terminal.text }];
+  // Already delivered sentences must not be appended twice. A policy replacement
+  // is published by the final event, which replaces the visible partial answer.
+  const remaining = terminal.text.startsWith(delivered)
+    ? terminal.text.slice(delivered.length)
+    : '';
+  const tokens: EngineEvent[] = remaining ? [{ type: 'token', text: remaining }] : [];
   const citations: EngineEvent[] = terminal.citations.map((citation) => ({
     type: 'citation',
     citation,

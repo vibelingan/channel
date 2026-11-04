@@ -18,6 +18,8 @@ import {
   PRODUCT_ANSWER_PROFILE_ID,
   QUESTION_BUDGET_EXHAUSTED,
 } from '@vibelingan-channel/ai-engine/port';
+import { completeAnswerPrefix } from './answer-prefix.ts';
+import { completionFrames } from './completion-stream.ts';
 import { boundedFetch, endpoint, record } from './http.ts';
 import { type KnowledgeConfig, PublicKnowledge } from './knowledge.ts';
 import { WEBSITE_SALES_PROMPT } from './prompt.ts';
@@ -131,7 +133,27 @@ export class VibeKbEngine implements ConversationEngine {
         }
         yield { type: 'activity', action: 'model_answer' };
         bounded.throwIfAborted();
-        const { text, usage } = await this.call(messages, bounded);
+        let text: string | undefined;
+        let usage: EngineUsage | undefined;
+        let delivered = '';
+        for await (const part of this.call(messages, bounded)) {
+          bounded.throwIfAborted();
+          if ('partial' in part) {
+            if (
+              part.partial.length > Math.min(16000, run.request.limits.maxDeliveredOutputUnits * 4)
+            )
+              throw new EngineError('invalid_request', { safeDetail: 'model_output_too_large' });
+            const prefix = completeAnswerPrefix(part.partial);
+            if (prefix.length > delivered.length && prefix.startsWith(delivered)) {
+              yield {
+                type: 'token',
+                text: prefix.slice(delivered.length),
+                citations: [...citations],
+              };
+              delivered = prefix;
+            }
+          } else ({ text, usage } = part);
+        }
         if (usage) {
           questionLeft -= usage.inputTokens;
           yield { type: 'usage', usage };
@@ -290,10 +312,12 @@ export class VibeKbEngine implements ConversationEngine {
     }
   }
 
-  private async call(
+  private async *call(
     messages: ChatMessage[],
     signal: AbortSignal,
-  ): Promise<{ text: string | undefined; usage: EngineUsage | undefined }> {
+  ): AsyncGenerator<
+    { partial: string } | { text: string | undefined; usage: EngineUsage | undefined }
+  > {
     const response = await boundedFetch(this.target, this.config.fetch ?? fetch)(this.target, {
       method: 'POST',
       signal,
@@ -304,29 +328,52 @@ export class VibeKbEngine implements ConversationEngine {
       body: JSON.stringify({
         model: this.config.model,
         messages,
-        stream: false,
+        stream: true,
+        stream_options: { include_usage: true },
         max_tokens: this.config.maxOutputTokens ?? 1200,
         temperature: 0.2,
         response_format: { type: 'json_object' },
         ...(this.config.thinkingMode ? { thinking: { type: this.config.thinkingMode } } : {}),
       }),
     });
-    const body: unknown = await response.json();
-    const choice =
-      record(body) && Array.isArray(body.choices) && body.choices.length === 1
-        ? body.choices[0]
-        : undefined;
-    const content =
-      record(choice) && record(choice.message) && typeof choice.message.content === 'string'
-        ? choice.message.content
-        : undefined;
-    // A completion the answer cannot use (truncated, filtered) was still
-    // billed: its usage is returned before the answer is judged.
-    const usage =
-      (record(body) ? providerUsage(body.usage) : undefined) ??
-      (record(choice) ? estimatedUsage(messages, content ?? '') : undefined);
-    const text = record(choice) && choice.finish_reason === 'stop' ? content : undefined;
-    return { text, usage };
+    let streamed = '';
+    let finish: unknown;
+    let streamedUsage: EngineUsage | undefined;
+    for await (const body of completionFrames(response)) {
+      if (record(body) && response.headers.get('content-type')?.includes('text/event-stream')) {
+        streamedUsage = providerUsage(body.usage) ?? streamedUsage;
+        const choice =
+          Array.isArray(body.choices) && body.choices.length === 1 ? body.choices[0] : undefined;
+        if (record(choice)) {
+          if (record(choice.delta) && typeof choice.delta.content === 'string') {
+            streamed += choice.delta.content;
+            yield { partial: streamed };
+          }
+          if (choice.finish_reason != null) finish = choice.finish_reason;
+        }
+        continue;
+      }
+      const choice =
+        record(body) && Array.isArray(body.choices) && body.choices.length === 1
+          ? body.choices[0]
+          : undefined;
+      const content =
+        record(choice) && record(choice.message) && typeof choice.message.content === 'string'
+          ? choice.message.content
+          : undefined;
+      // A completion the answer cannot use (truncated, filtered) was still
+      // billed: its usage is returned before the answer is judged.
+      const usage =
+        (record(body) ? providerUsage(body.usage) : undefined) ??
+        (record(choice) ? estimatedUsage(messages, content ?? '') : undefined);
+      const text = record(choice) && choice.finish_reason === 'stop' ? content : undefined;
+      yield { text, usage };
+      return;
+    }
+    yield {
+      text: finish === 'stop' ? streamed : undefined,
+      usage: streamedUsage ?? estimatedUsage(messages, streamed),
+    };
   }
 }
 

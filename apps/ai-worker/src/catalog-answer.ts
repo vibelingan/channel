@@ -17,6 +17,7 @@ export async function explainCatalog(
   signal: AbortSignal,
   prefix: string,
   onUsage?: (usage: EngineUsage) => Promise<void>,
+  onSentence?: (text: string, citations: EngineCitation[]) => Promise<void>,
 ) {
   if (!products.length) return null;
   const citations: EngineCitation[] = products.map((product) => ({
@@ -57,6 +58,11 @@ export async function explainCatalog(
     for await (const event of engine.streamRun(handle, signal)) {
       if (event.type === 'usage') {
         await onUsage?.(event.usage);
+        continue;
+      }
+      // Evidence is the current server-read catalog, never model-supplied fields.
+      if (event.type === 'token' && event.citations !== undefined) {
+        await onSentence?.(event.text, citations);
         continue;
       }
       // Includes a spent question budget: the cards still show, without prose.

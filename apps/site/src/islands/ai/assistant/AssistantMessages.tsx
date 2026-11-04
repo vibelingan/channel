@@ -31,9 +31,16 @@ export function AssistantMessages({
   suggestionsFor?: string;
 }) {
   const origin = typeof window === 'undefined' ? 'https://preview.invalid' : window.location.origin;
+  const visibleMessages = messages.filter(
+    (message) =>
+      message.role === 'visitor' ||
+      message.text.trim() ||
+      message.receipt ||
+      message.products?.length,
+  );
   return (
     <>
-      {messages.map((message) => (
+      {visibleMessages.map((message) => (
         <article
           key={message.id}
           data-message-id={message.id}

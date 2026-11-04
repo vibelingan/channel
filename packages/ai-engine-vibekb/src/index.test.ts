@@ -148,6 +148,64 @@ test('official MCP client performs real handshake and fixed scoped tools; model 
   assert.ok(!JSON.stringify(model).includes('UNAPPROVED CANARY'));
   assert.equal(await f.engine.cancelRun(handle), 'unknown_run');
 });
+
+test('provider deltas expose complete answer sentences before the completion ends, with server evidence', async () => {
+  const f = setup();
+  const provenance = f.engine.capabilities.provenance;
+  assert.ok(provenance);
+  const engine = new VibeKbEngine({
+    modelBaseUrl: 'https://model.invalid/v1',
+    model: 'model',
+    modelApiKey: 'dummy',
+    knowledge: f.knowledge,
+    provenance,
+    fetch: async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.stream, true);
+      const chunks = [
+        { choices: [{ delta: { content: '{"kind":"answer","text":"First sentence. ' } }] },
+        { choices: [{ delta: { content: 'Second sentence."}' } }] },
+        { choices: [{ delta: {}, finish_reason: 'stop' }] },
+        { choices: [], usage: { prompt_tokens: 30, completion_tokens: 12 } },
+      ];
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            const chunk = chunks.shift();
+            if (chunk)
+              controller.enqueue(
+                new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\r\n\r\n`),
+              );
+            else {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+              controller.close();
+            }
+          },
+        }),
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+  const h = await engine.createRun(request, AbortSignal.timeout(3000));
+  const iterator = engine.streamRun(h, AbortSignal.timeout(3000))[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value?.type, 'activity');
+  const first = (await iterator.next()).value;
+  assert.equal(first?.type, 'token');
+  if (first?.type === 'token') assert.equal(first.text, 'First sentence.');
+  const second = (await iterator.next()).value;
+  assert.equal(second?.type, 'token');
+  if (second?.type === 'token') assert.equal(second.text, ' Second sentence.');
+  const rest = [];
+  for (;;) {
+    const r = await iterator.next();
+    if (r.done) break;
+    rest.push(r.value);
+  }
+  assert.deepEqual(
+    rest.map((e) => e.type),
+    ['usage', 'final'],
+  );
+});
 test('changed document workspace never reaches the model, even when an approved ID was returned', async () => {
   const f = setup({ foreign: true });
   const h = await f.engine.createRun(request, new AbortController().signal);

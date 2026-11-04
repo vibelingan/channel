@@ -287,6 +287,50 @@ test(
 );
 
 test(
+  'evidence-bound sentences are committed while the model is still running; final does not duplicate them',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'live-preview',
+      content: 'Company?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const citations = [
+      {
+        sourceId: 'channelkb/public',
+        title: 'Company',
+        snippet: 'We make gifts. We support OEM.',
+        retrievedAt: new Date().toISOString(),
+      },
+    ];
+    const engine = new FakeEngine();
+    const db = store;
+    engine.streamRun = async function* () {
+      yield { type: 'token', text: 'We make gifts.', citations };
+      const early = await db.listEvents(conversation.id);
+      assert.equal(early.at(-1)?.payload.text, 'We make gifts.');
+      assert.ok((await db.getConversation(conversation.id))?.activeRunId);
+      yield { type: 'token', text: ' We support OEM.', citations };
+      yield { type: 'final', text: 'We make gifts. We support OEM.', citations };
+    };
+    await processOne(store, engine, config);
+    const events = await store.listEvents(conversation.id);
+    assert.equal(
+      events
+        .filter((e) => e.type === 'token')
+        .map((e) => e.payload.text)
+        .join(''),
+      'We make gifts. We support OEM.',
+    );
+    assert.equal(events.at(-1)?.type, 'final');
+  },
+);
+
+test(
   'worker drops an off-site citation link before the approved event batch commits',
   { skip },
   async () => {
