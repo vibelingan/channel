@@ -710,3 +710,11 @@ Google sitemap539且成功；代表商品已索引，文章历史noindex与实�
 本地重定向及恢复配置38项通过；原后台创建浏览器22项通过。1853271b远端首次后台恢复用例失败，重跑该组通过，随后在本轮大证据JSON上触发1MiB格式限制；本次通过无损压缩修复。最终提交的远端CI结果以Actions实际回执为准，未删除或放宽原用例。
 
 文字复核实际读取humanizer/SKILL.md、plain-technical-writing.md、Gateway合同、HTTP函数、hosting-checkpoint、Engineering Craft部署规则及CloudBase代码审查矩阵，并核对平台UI和原始Lighthouse结果。具体纠正“当前www尚未改”为“www已实测301，主域HTTP301未完成且试改已撤回”；避免把配置成功、提交请求和搜索收录混为一谈。
+
+### 2026-11-04：GitHub App 创建表单与安装说明
+
+用户已授权为 channel 创建并安装专用 App，并完成 GitHub 密码确认。密码确认后，GitHub 未保留最初提交的 App 清单；从仍在运行的本机入口重新提交后，已进入“Create GitHub App for vibelingan”页面，名称为 Channel Catalog HTML Delivery，尚未点击创建。浏览器要求实际授予长期权限前确认，本轮保留该页并发出明确范围的确认请求；不能把用户密码确认写成 App 已安装。
+
+e45b753c 修复清单中关闭 webhook 时仍须提供 URL 的问题：hook_attributes.active=false，URL 为仓库主页，无事件订阅；权限仍仅 Actions 写、Contents 读。相关41项本地测试通过，独立 Blog HTTP 与 dummy 远端检查已通过，完整 SEO 检查在本段记录时尚剩站点测试组。未开启定时器，未更改现有网站或其他应用。
+
+实际复读 GitHub App 设置脚本、manifest、短期令牌适配器、定时函数和通知逻辑、run-catalog-clock.ts、共享队列 workflow，以及 humanizer 两份写作文件。补充安装的三个位置和流程图，明确区分 GitHub App、GitHub test 环境密钥、腾讯云定时函数。将“这几步必须由账号持有人操作”改为“需要账号所有者授权，可由获授权 agent 代办；密码和二次验证由用户完成”，避免让人误以为又必须全程手工安装。腾讯主域公开 API 本轮复核仍未提供跳转状态码参数，没有重复修改主域配置。
