@@ -36,7 +36,7 @@ OEM 耳机询价文章已经生成，VibeKB 文档201位于 diversity（ID=2）�
 
 凭证有效90天，30天开始自动轮换，并非永久密钥；发布机或网站持续不可用直到过期时，需要管理员重新授权。正常使用不要求客户十四天续一次，也没有单篇限制。旧试跑钥匙已经停用，真实请求返回401；正式钥匙仍能查询原草稿。已有其他平台发布流程保持原样。
 
-[脱敏现场回执](evidence/formal-live-acceptance.json)。程序联测和真实群任务分别验收；本轮没有向群发消息、调用模型、公开文章或代替用户审核。
+[脱敏现场回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-27/wecom/evidence/formal-live-acceptance.json)。程序联测和真实群任务分别验收；本轮没有向群发消息、调用模型、公开文章或代替用户审核。
 
 ## 现在怎样群测
 

@@ -14,7 +14,7 @@
 
 ## 已验证与未验证的边界
 
-11月4日新增的[自动交付验收](../evidence/2026-11-04-clock/README.zh-CN.md)证明定时器、专用App、GitHub构建、网页验收、商品登记与清理已连通。本次为现有商品内容重查，没有修改客户商品或公开状态，也没有再次执行程序A/B恢复。App与定时器已正式保留，不依赖Mac运行。
+11月4日新增的[自动交付验收](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/2026-11-04-clock/README.zh-CN.md)证明定时器、专用App、GitHub构建、网页验收、商品登记与清理已连通。本次为现有商品内容重查，没有修改客户商品或公开状态，也没有再次执行程序A/B恢复。App与定时器已正式保留，不依赖Mac运行。
 
 本次完整工作流18分47秒，网站接受记录时间为05:36:26.578Z，最后登记与清理于05:41:56Z完成。8分钟交付目标尚未达到。用户要求性能先不改，本轮未调优页面、归档或逐商品登记，也未把本次时长写成优化成果。
 
@@ -30,7 +30,7 @@
 - [跳转执行范围与停止条件](REDIRECT.zh-CN.md)
 - [收录复查与视频原因](SEARCH-STATUS.zh-CN.md)
 - [账号操作与权限缺口](AUTHORIZATION.zh-CN.md)
-- [平台实际观察](../evidence/2026-11-04-performance/platform-observation.json)
+- [平台实际观察](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/2026-11-04-performance/platform-observation.json)
 
 ## 文字与事实复核
 

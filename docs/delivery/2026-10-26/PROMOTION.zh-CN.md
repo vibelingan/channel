@@ -37,7 +37,7 @@
 
 文章容器及article-import未重发。网站业务源码相对原已验收51b33151无差异；本次修正了正常构建的完整后台开关和接入方式。生产助手工具单独发包，不需要为安装这个文件重新部署网站。主分支合入后，其他会话从新main继续，不能用旧分支全量发布覆盖新入口。
 
-证据：[静态接受回执](evidence/normal-deploy-40317622122.json)、[浏览器结果](evidence/normal-deploy-browser.json)、[三函数运行版本](evidence/normal-deploy-health.json)。
+证据：[静态接受回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/normal-deploy-40317622122.json)、[浏览器结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/normal-deploy-browser.json)、[三函数运行版本](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/normal-deploy-health.json)。
 
 ## 分支和组件的版本关系
 

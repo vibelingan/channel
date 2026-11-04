@@ -6,7 +6,7 @@
 
 ## 10月30日补查：入口跳转还没有完成
 
-原来的539页检查针对地图中的正式HTTPS地址，不包含HTTP和www入口，不能据此说所有重定向都已完成。10月30日用不跟随跳转的GET检查：HTTP首页、HTTP Blog、HTTP/HTTPS的www首页均返回200；主域和www域的网关协议仍是`HTTP_AND_HTTPS`。首页与Blog的canonical指向正确HTTPS主域，正式HTTPS页面仍正常。[独立Node与curl证据](evidence/redirect-live-20261030.json)。
+原来的539页检查针对地图中的正式HTTPS地址，不包含HTTP和www入口，不能据此说所有重定向都已完成。10月30日用不跟随跳转的GET检查：HTTP首页、HTTP Blog、HTTP/HTTPS的www首页均返回200；主域和www域的网关协议仍是`HTTP_AND_HTTPS`。首页与Blog的canonical指向正确HTTPS主域，正式HTTPS页面仍正常。[独立Node与curl证据](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/redirect-live-20261030.json)。
 
 CloudBase官方支持`HTTP_TO_HTTPS`，由网关返回301，适合补HTTP入口。www到主域还需要另外处理，不能用canonical或DNS CNAME冒充301。当前没有改DNS、域名、证书或网关。正式修复须保留现有`/blog`、静态路由、API和缓存设置，并将新协议纳入已接受的恢复点；不能一边改域名配置、一边仍把不兼容的旧配置当直接恢复来源。实施后检查路径和查询参数保留、无循环、HTTPS正文不变及错误页状态。
 
@@ -16,7 +16,7 @@ CloudBase官方支持`HTTP_TO_HTTPS`，由网关返回301，适合补HTTP入口�
 
 Blog程序已更新为`71fb996b`，正式收录开关经受控入口`40819158070`打开并验收；临时地址、健康检查和404仍noindex。网站`40819519497`已完成发布并接受为`site-40819519497-1`，源代码`08923537`；公开图片robots例外已在线上读回，其他API仍禁止抓取。未修改两篇文章、价格、询盘业务或Cloud Functions。
 
-Google对列表及两篇文章的实时测试均允许收录，三个重新收录请求已被接受；不能写成已经索引。最后对地图中539个公开页面逐一复测，全部通过技术收录条件，528商品与公开API清单一致。[真实交付回执](evidence/live-indexing-acceptance.json)。
+Google对列表及两篇文章的实时测试均允许收录，三个重新收录请求已被接受；不能写成已经索引。最后对地图中539个公开页面逐一复测，全部通过技术收录条件，528商品与公开API清单一致。[真实交付回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-indexing-acceptance.json)。
 
 已有文章程序更新入口只在首次创建时设预览限制；更新时不替换serverConfig，保留本次收录配置。常规静态前端发布也不更新文章服务器，本次已实际验证。
 

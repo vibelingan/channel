@@ -11,7 +11,7 @@
 
 商品独立网址、首次打开就有正文、浏览器继续请求实时API，以及Blog后台、配图、私有预览和人工发布，之前均已部署并实际验收。Blog按请求返回当前文章HTML，日常发文章不用GitHub构建。
 
-Blog正式域名已开放收录，临时地址、草稿、健康检查和错误页继续排除。两篇现有公开文章按用户确认保留；公开商品图片的robots规则也已修复并上线。10月30日再次读取全部539个公开网址，全部通过技术规则、与528个当前公开商品清单一致；[本次完整结果](evidence/live-all-pages-20261030.json)。10月30日重新读取 Google 单网址检查：Blog 列表已进入索引，Google 选定 canonical 与正式地址一致；一篇文章也已进入 Google 索引；另一篇历史抓取仍显示旧 noindex，但本次实时抓取已确认允许收录，等待重抓。Bing 地图成功、发现 519 个网址；Blog 实时检查允许收录，尚未进入索引。[平台逐项结果](evidence/platform-observation-20261030.json)。
+Blog正式域名已开放收录，临时地址、草稿、健康检查和错误页继续排除。两篇现有公开文章按用户确认保留；公开商品图片的robots规则也已修复并上线。10月30日再次读取全部539个公开网址，全部通过技术规则、与528个当前公开商品清单一致；[本次完整结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-20261030.json)。10月30日重新读取 Google 单网址检查：Blog 列表已进入索引，Google 选定 canonical 与正式地址一致；一篇文章也已进入 Google 索引；另一篇历史抓取仍显示旧 noindex，但本次实时抓取已确认允许收录，等待重抓。Bing 地图成功、发现 519 个网址；Blog 实时检查允许收录，尚未进入索引。[平台逐项结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation-20261030.json)。
 
 **商品修改后自动更新初始HTML尚未开启。**本轮已把保存记录、完整内容比较、增量快照和上传保护接起来，并开始真实CloudBase验证；固定程序归档、定时检查和当前内容配旧程序恢复的代码及本地测试本轮已补；真实归档、定时器接入和正式HTML交付验收继续执行；商品变化记录已开，页面就绪和自动交付仍关闭。以前用“SEO全部好了”概括这些不同步骤不准确，以本页逐项状态为准。
 
@@ -38,10 +38,10 @@ Blog正式域名已开放收录，临时地址、草稿、健康检查和错误�
 - 使用2件合成商品实际构建Astro，19份HTML通过SEO规则检查，8项浏览器检查通过，包含初始正文、API刷新、图库、变体、分类、日期与询盘。询盘只发往本地stub，没有写线上业务。这不是528件商品全站耗时证明。
 - 修复已知失败后的接手：确认没有未决云调用，才释放原执行者和任务；下一轮按当前内容重新交付。未知上传继续占用并等待读回，不因过期就放行，不用旧内容覆盖新商品。
 - 修复并发请求的时间边界：较早请求可能较晚提交，公开日期不倒退，真实内容变化仍推进版本；首次纳入跟踪但历史日期未知时省略lastmod。
-- [首轮真实CloudBase运行40910382710](https://github.com/vibelingan/channel/actions/runs/40910382710)：8项业务检查通过，工作流因删除临时表返回超时而失败。实际目录证明第一张表已删除；其余7张表已逐项补清理，临时函数也确认不存在。失败运行与补清理证据均保留，见[实际记录](evidence/catalog-seo-live-20261030.json)。
-- [第二轮真实运行40920976437](https://github.com/vibelingan/channel/actions/runs/40920976437)整体成功：9个临时私有集合、137个批准变体、10项检查全部通过，自动清理完成；独立查询确认临时函数和全部临时集合不存在，6个正式SEO集合仍为空。[完整结果](evidence/catalog-seo-live-expanded-20261030.json)。函数删除成功后目录会短暂保留；清理器再补有上限的等待读回，成功回执不再触发重复删除，25项关联操作测试通过。[最后确认40924050633](https://github.com/vibelingan/channel/actions/runs/40924050633)再次10项通过，函数一次删除、三次读回，无重复删除及清理错误；[最终回执](evidence/catalog-seo-live-final-20261030.json)。
+- [首轮真实CloudBase运行40910382710](https://github.com/vibelingan/channel/actions/runs/40910382710)：8项业务检查通过，工作流因删除临时表返回超时而失败。实际目录证明第一张表已删除；其余7张表已逐项补清理，临时函数也确认不存在。失败运行与补清理证据均保留，见[实际记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-20261030.json)。
+- [第二轮真实运行40920976437](https://github.com/vibelingan/channel/actions/runs/40920976437)整体成功：9个临时私有集合、137个批准变体、10项检查全部通过，自动清理完成；独立查询确认临时函数和全部临时集合不存在，6个正式SEO集合仍为空。[完整结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-expanded-20261030.json)。函数删除成功后目录会短暂保留；清理器再补有上限的等待读回，成功回执不再触发重复删除，25项关联操作测试通过。[最后确认40924050633](https://github.com/vibelingan/channel/actions/runs/40924050633)再次10项通过，函数一次删除、三次读回，无重复删除及清理错误；[最终回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-final-20261030.json)。
 
-文档提交4d8578e6的原后台回归在20件假商品用例连续两次超时；轨迹显示20个任务已完成，但最后分类核对只剩约0.6秒。没有改客户商品或线上功能。新鲜本地数据下两条重批量用例均通过；现将完整发布流程与分类文件分到独立假数据库，保留原数量、断言和90秒时限，全部原用例仍必须通过。隔离后的完整分类文件本地12项全过，其中20件用例约44秒；远端结果以本次提交Actions为准，不拿本地耗时代替Linux结果。[CI隔离说明](evidence/catalog-ci-isolation-20261030.json)。
+文档提交4d8578e6的原后台回归在20件假商品用例连续两次超时；轨迹显示20个任务已完成，但最后分类核对只剩约0.6秒。没有改客户商品或线上功能。新鲜本地数据下两条重批量用例均通过；现将完整发布流程与分类文件分到独立假数据库，保留原数量、断言和90秒时限，全部原用例仍必须通过。隔离后的完整分类文件本地12项全过，其中20件用例约44秒；远端结果以本次提交Actions为准，不拿本地耗时代替Linux结果。[CI隔离说明](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-ci-isolation-20261030.json)。
 
 [线上验收步骤](05-live-validation.zh-CN.md)列出每段的写入范围、恢复和停止条件。隔离函数只读写本次前缀，未访问真实商品或文章，未上传网站；不能据此称实际HTML自动交付已经验收。
 
@@ -51,7 +51,7 @@ Blog正式域名已开放收录，临时地址、草稿、健康检查和错误�
 
 Blog程序由[40814822583](https://github.com/vibelingan/channel/actions/runs/40814822583)更新为`71fb996b`；正式收录开放由[40819158070](https://github.com/vibelingan/channel/actions/runs/40819158070)验收。首次开放失败[40815882150](https://github.com/vibelingan/channel/actions/runs/40815882150)及恢复记录保留，没有用后来的成功覆盖。
 
-10月29日Google地图成功、发现539个网址，Bing原地图成功、发现517个网址，重新提交后Processing；这些是带日期的观察，不当作今天的索引总数。首页和耳机分类页的独立报告已收录；此处是 10 月 29 日的旧观察；10 月 30 日 Blog 列表和一篇文章已确认在 Google 索引中，最新逐项结果见上方记录。[平台记录](evidence/platform-observation.json)、[当次全量页面结果](evidence/live-all-pages-after.json)。
+10月29日Google地图成功、发现539个网址，Bing原地图成功、发现517个网址，重新提交后Processing；这些是带日期的观察，不当作今天的索引总数。首页和耳机分类页的独立报告已收录；此处是 10 月 29 日的旧观察；10 月 30 日 Blog 列表和一篇文章已确认在 Google 索引中，最新逐项结果见上方记录。[平台记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation.json)、[当次全量页面结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-after.json)。
 
 ## 后续按这个顺序交付
 
@@ -62,6 +62,6 @@ Blog程序由[40814822583](https://github.com/vibelingan/channel/actions/runs/40
 
 本轮尚未合并回main/test。商品变化记录已在41292508820开启并读回；自动交付仍关闭。原main/test在本轮开始时已包含于SEO分支；之后仍按实际远端提交核对，不影响其他工作流。
 
-[完整流程大图](diagrams/search-continuity.html) · [商品更新时序](diagrams/product-refresh.html) · [图验收记录](evidence/catalog-seo-diagrams.json) · [工作记录](WORKLOG.zh-CN.md)
+[完整流程大图](diagrams/search-continuity.html) · [商品更新时序](diagrams/product-refresh.html) · [图验收记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-diagrams.json) · [工作记录](WORKLOG.zh-CN.md)
 
 本轮实现入口：[固定程序与自动更新设计](06-renderer-and-wakeup.zh-CN.md) · [一次性 GitHub 授权步骤](07-github-app-setup.zh-CN.md) · [程序与当前内容时序图](diagrams/renderer-delivery.html)。授权待客户安排，不新增 SSH 密钥，不把 SSH 当成 Actions API 权限。

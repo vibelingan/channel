@@ -23,10 +23,10 @@
 | 新增标识 | — | 头部 & 页脚新增 **"Minimum Order Amount: $500"** |
 
 **Before ⤵**
-![before hero](screenshots/01-homepage-BEFORE-hero-annotated.png)
+[before hero（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/oem-refresh/review/screenshots/01-homepage-BEFORE-hero-annotated.png)
 
 **After ⤵**
-![after hero](screenshots/02-homepage-AFTER-hero-annotated.png)
+[after hero（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/oem-refresh/review/screenshots/02-homepage-AFTER-hero-annotated.png)
 
 ---
 

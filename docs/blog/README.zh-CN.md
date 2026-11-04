@@ -4,7 +4,7 @@
 
 2026-10-26。文章核心、现有后台内的编辑器、图片、私有预览与直接发布已经实现，并完成真实网站的发布、更新、撤回检查。日常文章由 Astro 按需返回 HTML，不等待 GitHub 内容构建。验收文章暂时禁止收录。准确版本、结果和未完成项见上面的共同记录。
 
-本地原生 Hermes 已通过独立草稿接口完成真实生成、保存、管理员编辑预览、发布和撤回联测，重放不会覆盖人工第 3 版，测试凭证已停用。管理员仍负责发布。生产 HermesInfra 和企业微信未修改，正式安装配置另行交付；[实际证据](../delivery/2026-10-26/evidence/assistant-acceptance.json)区分这两种范围。
+本地原生 Hermes 已通过独立草稿接口完成真实生成、保存、管理员编辑预览、发布和撤回联测，重放不会覆盖人工第 3 版，测试凭证已停用。管理员仍负责发布。生产 HermesInfra 和企业微信未修改，正式安装配置另行交付；[实际证据](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)区分这两种范围。
 
 下面按功能列出五个模块；准确进度只在共同记录更新。后台沿用现有 DashboardShell 和请求层，文章图片放在独立内部集合，不改变商品、价格、询盘或同步流程。
 

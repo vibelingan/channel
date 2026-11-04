@@ -49,7 +49,7 @@
 
 SSG-01增加明确要求：服务器初始表单输出稳定，浏览器负责设置访问者当前日期，提交时与后端的日期校验继续保留。不能简单删除日期校验、手工改HTML里的uid或对所有DOM差异做模糊比较。需测试同一数据跨构建日期输出一致、浏览器初次接管无日期不一致、不同日期/时区及跨午夜后的日期限制；保留现有询盘与变体流程回归。
 
-这项已通过本地时钟、跨日服务端HTML和真实浏览器检查；用2件合成商品实际完成Astro构建、19份HTML规则检查和8项浏览器验收。线上528件商品的新模板交付仍未执行，不能把本地构建耗时当作全站发布耗时。它说明自动更新应只响应真实公开内容变化，不能把无关的构建日期误当作528个商品都更新了。[只读产物比较](evidence/product-html-date-diff.json)。
+这项已通过本地时钟、跨日服务端HTML和真实浏览器检查；用2件合成商品实际完成Astro构建、19份HTML规则检查和8项浏览器验收。线上528件商品的新模板交付仍未执行，不能把本地构建耗时当作全站发布耗时。它说明自动更新应只响应真实公开内容变化，不能把无关的构建日期误当作528个商品都更新了。[只读产物比较](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/product-html-date-diff.json)。
 
 ## 接口已经变了、HTML还没交付的过渡期
 
@@ -94,7 +94,7 @@ SSG-01：`apps/site/src/lib/seo/product-refresh.test.ts`，使用现有site工�
 
 ### 10月30日：真实程序归档尚未通过
 
-61a7d508 已通过完整远端 CI；归档运行 40994923963 中小文件上传及读回成功，约46.7 MB程序分片上传仍在五分钟超时，补读404。没有批准程序或替换网站；暂不开启商品记录、自动通知或历史程序恢复。新增真实COS客户端加本地HTTP服务的分片/Range验证，并增加不含凭证、签名地址和multipart编号的阶段日志；云端结果仍需实测。详见[实际失败回执](evidence/renderer-native-failure-20261030.json)。
+61a7d508 已通过完整远端 CI；归档运行 40994923963 中小文件上传及读回成功，约46.7 MB程序分片上传仍在五分钟超时，补读404。没有批准程序或替换网站；暂不开启商品记录、自动通知或历史程序恢复。新增真实COS客户端加本地HTTP服务的分片/Range验证，并增加不含凭证、签名地址和multipart编号的阶段日志；云端结果仍需实测。详见[实际失败回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/renderer-native-failure-20261030.json)。
 ## 上传已结束、验收或登记中断时怎样继续
 
 仍从GitHub Actions的`SEO static canary (manual)`进入，选择`mode=site-readback`，`restore_run_id`填写原交付的完整编号，例如`site-123-1`。这里的编号是要继续验收哪次交付，不是把商品内容退回那一天。执行前会确认原GitHub任务已经结束，且所有上传、删除都有确认完成的回执。
