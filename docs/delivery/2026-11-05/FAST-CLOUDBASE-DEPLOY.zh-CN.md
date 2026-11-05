@@ -114,3 +114,12 @@ A+B 预计让集合检查从 11.5 分降到约 1.5–2.5 分，部署步骤从 1
 `alibaba-catalog-sync` 源码很少变化，每次可省约 2–5 分钟（ZIP 上传加代码导入激活）；admin 和 public-api 各约半分钟。
 
 第一次部署这项改动时，`packages/shared` 的 health 代码变了，三个函数都会正常上传。从第二次起，没有改动的函数才会跳过上传。
+
+### 6.5 实测（f2226549）
+
+| 运行 | 函数代码 | 三个函数阶段 | Deploy to CloudBase test |
+| --- | --- | --- | --- |
+| 42016602373（上线，health 代码变化） | 全部上传 | 约 4 分 | 7.3 分 |
+| 42022832703（同一 commit 手动重跑） | 三个都“code upload skipped” | 1.6 分（12:24:34–12:26:09） | 4.4 分 |
+
+重跑时冒烟确认三个函数都报告 `releaseId` 与 `deployedReleaseId` f2226549。集合检查本次 2.1 分，波动来自链路。下一步见 [NEXT-DEPLOY-SPEEDUPS](NEXT-DEPLOY-SPEEDUPS.zh-CN.md)。
