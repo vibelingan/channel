@@ -4,9 +4,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { callMcporter, parseMcporterResult } from './mcporter-call.mjs';
+import { callMcporter, callMcporterAsync, parseMcporterResult } from './mcporter-call.mjs';
 
-import { ensureArticleNoSqlResources } from './blog-article-resources.mjs';
+import { ARTICLE_NOSQL_RESOURCES } from './blog-article-resources.mjs';
 import {
   assertToolSucceeded,
   ensureGateway,
@@ -18,7 +18,10 @@ import {
 import { confirmFunctionCode, deployFunctionCode } from './cloudbase-function-code-upload.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { waitForFunctionActive } from './cloudbase-function-state.mjs';
-import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+import {
+  REQUIRED_NOSQL_RESOURCES,
+  ensureNoSqlResourceSetConcurrently,
+} from './cloudbase-nosql-resources.mjs';
 import {
   WEBSITE_DOCUMENTS,
   auditHostingContract,
@@ -110,6 +113,23 @@ function callTool(selector, args, options = {}) {
       return parseMcporterResult(text, selector);
     } catch {
       return { success: false, message: `mcporter call failed for ${selector}` };
+    }
+  }
+  throw new Error(`mcporter call failed for ${selector}: ${redactToolError(lastError)}`);
+}
+
+/** callTool's retries and redaction, for checks that may run side by side. */
+async function callToolAsync(selector, args, options = {}) {
+  const maxAttempts = options.maxAttempts ?? 3;
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await callMcporterAsync(selector, args, {
+        cwd: root,
+        timeoutMs: options.timeoutMs ?? 180_000,
+      });
+    } catch (error) {
+      lastError = error;
     }
   }
   throw new Error(`mcporter call failed for ${selector}: ${redactToolError(lastError)}`);
@@ -540,9 +560,12 @@ if (!hostingBefore.passed) {
   );
 }
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
+// set_env runs first and alone, so the shared npx cache is warm before concurrent checks.
 callTool('cloudbase.auth', { action: 'set_env', envId });
-ensureNoSqlResources(callTool);
-ensureArticleNoSqlResources(callTool);
+await ensureNoSqlResourceSetConcurrently(callToolAsync, [
+  ...REQUIRED_NOSQL_RESOURCES,
+  ...ARTICLE_NOSQL_RESOURCES,
+]);
 
 for (const def of functionDefs) {
   await deployFunction(def);

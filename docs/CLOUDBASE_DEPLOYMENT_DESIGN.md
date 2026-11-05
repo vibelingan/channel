@@ -400,10 +400,13 @@ Database rules:
   server-managed token/source hashes.
 
 Post-baseline runtime resources are declared in
-`scripts/cloudbase-nosql-resources.mjs`, provisioned before either function is
-deployed, and re-read for exact index/ACL verification. Missing resources are
-created additively; a same-name index with a different key order, direction, or
-uniqueness blocks deployment rather than being dropped or replaced implicitly.
+`scripts/cloudbase-nosql-resources.mjs` and provisioned before either function is
+deployed. Every collection's existence, exact indexes, and ACL are read on each
+deploy; a collection that needed any write is read again for exact index/ACL
+verification. The normal deploy checks up to four collections at once. Missing
+resources are created additively; a same-name index with a different key order,
+direction, or uniqueness blocks deployment rather than being dropped or replaced
+implicitly.
 
 ### 5.5 Storage
 

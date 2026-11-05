@@ -352,84 +352,137 @@ export function ensureNoSqlResources(callTool, log = console.log) {
 /** Explicit resource sets allow separate preparation without changing the deploy manifest. */
 export function ensureNoSqlResourceSet(callTool, resources, log = console.log) {
   for (const resource of resources) {
-    const { collectionName, indexes, permission: requiredPermission } = resource;
-    const collection = assertSucceeded(
-      callTool('cloudbase.readNoSqlDatabaseStructure', {
-        action: 'checkCollection',
-        collectionName,
-      }),
-      `${collectionName}: check collection`,
-    );
+    const steps = collectionSteps(resource);
+    let step = steps.next();
+    while (!step.done) step = steps.next(callTool(...step.value));
+    log(step.value);
+  }
+}
 
-    if (!exists(collection)) {
-      assertSucceeded(
-        callTool('cloudbase.writeNoSqlDatabaseStructure', {
-          action: 'createCollection',
-          collectionName,
-        }),
-        `${collectionName}: create collection`,
+/**
+ * Collections are independent, so a bounded number are checked at once. After a failure no
+ * further collection starts; checks already running finish before the first error is thrown.
+ */
+export async function ensureNoSqlResourceSetConcurrently(
+  callTool,
+  resources,
+  log = console.log,
+  { concurrency = 4 } = {},
+) {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8)
+    throw new Error('Invalid NoSQL resource concurrency');
+  const names = resources.map((resource) => resource.collectionName);
+  if (new Set(names).size !== names.length)
+    throw new Error('A collection cannot be provisioned twice at once');
+  let next = 0;
+  let failed = false;
+  let failure;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, resources.length) }, async () => {
+      while (!failed && next < resources.length) {
+        const steps = collectionSteps(resources[next++]);
+        try {
+          let step = steps.next();
+          while (!step.done) step = steps.next(await callTool(...step.value));
+          log(step.value);
+        } catch (error) {
+          if (!failed) failure = error;
+          failed = true;
+        }
+      }
+    }),
+  );
+  if (failed) throw failure;
+}
+
+/**
+ * Yields each tool request as [selector, args] and receives its result. The first reads
+ * prove an unchanged collection ready; the structure is read again only after a write.
+ */
+function* collectionSteps({ collectionName, indexes, permission: requiredPermission }) {
+  let changed = false;
+  const collection = assertSucceeded(
+    yield ['cloudbase.readNoSqlDatabaseStructure', { action: 'checkCollection', collectionName }],
+    `${collectionName}: check collection`,
+  );
+
+  if (!exists(collection)) {
+    assertSucceeded(
+      yield [
+        'cloudbase.writeNoSqlDatabaseStructure',
+        { action: 'createCollection', collectionName },
+      ],
+      `${collectionName}: create collection`,
+    );
+    changed = true;
+  }
+
+  const currentIndexes = assertSucceeded(
+    yield ['cloudbase.readNoSqlDatabaseStructure', { action: 'listIndexes', collectionName }],
+    `${collectionName}: list indexes`,
+  );
+  const existingIndexNames = indexNames(currentIndexes);
+  const missingIndexes = [];
+  for (const requiredIndex of indexes) {
+    const actualSignature = existingIndexNames.get(requiredIndex.IndexName);
+    if (actualSignature === undefined) {
+      missingIndexes.push(requiredIndex);
+      continue;
+    }
+    const expectedSignature = indexSignature(requiredIndex);
+    if (actualSignature !== expectedSignature) {
+      throw new Error(
+        `${collectionName}: index ${requiredIndex.IndexName} definition drift; expected ${expectedSignature}, got ${actualSignature}. Refusing to replace an existing index automatically.`,
       );
     }
+  }
 
-    const currentIndexes = assertSucceeded(
-      callTool('cloudbase.readNoSqlDatabaseStructure', {
-        action: 'listIndexes',
-        collectionName,
-      }),
-      `${collectionName}: list indexes`,
-    );
-    const existingIndexNames = indexNames(currentIndexes);
-    const missingIndexes = [];
-    for (const requiredIndex of indexes) {
-      const actualSignature = existingIndexNames.get(requiredIndex.IndexName);
-      if (actualSignature === undefined) {
-        missingIndexes.push(requiredIndex);
-        continue;
-      }
-      const expectedSignature = indexSignature(requiredIndex);
-      if (actualSignature !== expectedSignature) {
-        throw new Error(
-          `${collectionName}: index ${requiredIndex.IndexName} definition drift; expected ${expectedSignature}, got ${actualSignature}. Refusing to replace an existing index automatically.`,
-        );
-      }
-    }
-
-    if (missingIndexes.length > 0) {
-      assertSucceeded(
-        callTool('cloudbase.writeNoSqlDatabaseStructure', {
+  if (missingIndexes.length > 0) {
+    assertSucceeded(
+      yield [
+        'cloudbase.writeNoSqlDatabaseStructure',
+        {
           action: 'updateCollection',
           collectionName,
           updateOptions: { CreateIndexes: missingIndexes },
-        }),
-        `${collectionName}: create indexes`,
-      );
-    }
-
-    const currentPermission = assertSucceeded(
-      callTool('cloudbase.queryPermissions', {
-        action: 'getResourcePermission',
-        resourceType: 'noSqlDatabase',
-        resourceId: collectionName,
-      }),
-      `${collectionName}: query permission`,
+        },
+      ],
+      `${collectionName}: create indexes`,
     );
-    if (permission(currentPermission) !== requiredPermission) {
-      assertSucceeded(
-        callTool('cloudbase.managePermissions', {
+    changed = true;
+  }
+
+  const permissionRequest = [
+    'cloudbase.queryPermissions',
+    {
+      action: 'getResourcePermission',
+      resourceType: 'noSqlDatabase',
+      resourceId: collectionName,
+    },
+  ];
+  const currentPermission = assertSucceeded(
+    yield permissionRequest,
+    `${collectionName}: query permission`,
+  );
+  if (permission(currentPermission) !== requiredPermission) {
+    assertSucceeded(
+      yield [
+        'cloudbase.managePermissions',
+        {
           action: 'updateResourcePermission',
           resourceType: 'noSqlDatabase',
           resourceId: collectionName,
           permission: requiredPermission,
-        }),
-        `${collectionName}: set ${requiredPermission} permission`,
-      );
-    }
+        },
+      ],
+      `${collectionName}: set ${requiredPermission} permission`,
+    );
+    changed = true;
+  }
 
+  if (changed) {
     const verifiedCollection = assertSucceeded(
-      callTool('cloudbase.readNoSqlDatabaseStructure', {
-        action: 'checkCollection',
-        collectionName,
-      }),
+      yield ['cloudbase.readNoSqlDatabaseStructure', { action: 'checkCollection', collectionName }],
       `${collectionName}: verify collection`,
     );
     if (!exists(verifiedCollection)) {
@@ -437,10 +490,7 @@ export function ensureNoSqlResourceSet(callTool, resources, log = console.log) {
     }
 
     const verifiedIndexes = assertSucceeded(
-      callTool('cloudbase.readNoSqlDatabaseStructure', {
-        action: 'listIndexes',
-        collectionName,
-      }),
+      yield ['cloudbase.readNoSqlDatabaseStructure', { action: 'listIndexes', collectionName }],
       `${collectionName}: verify indexes`,
     );
     const verifiedIndexNames = indexNames(verifiedIndexes);
@@ -453,11 +503,7 @@ export function ensureNoSqlResourceSet(callTool, resources, log = console.log) {
     }
 
     const verifiedPermission = assertSucceeded(
-      callTool('cloudbase.queryPermissions', {
-        action: 'getResourcePermission',
-        resourceType: 'noSqlDatabase',
-        resourceId: collectionName,
-      }),
+      yield permissionRequest,
       `${collectionName}: verify permission`,
     );
     if (permission(verifiedPermission) !== requiredPermission) {
@@ -465,7 +511,7 @@ export function ensureNoSqlResourceSet(callTool, resources, log = console.log) {
         `${collectionName}: expected ${requiredPermission} permission after provisioning`,
       );
     }
-
-    log(`${collectionName}: ready (${indexes.length} indexes, ${requiredPermission})`);
   }
+
+  return `${collectionName}: ready (${indexes.length} indexes, ${requiredPermission})`;
 }

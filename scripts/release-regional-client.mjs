@@ -4,7 +4,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { buildReleaseRegional } from './release-regional-build.mjs';
-import { readCompleteFunctionInventory } from './release/function-inventory.mjs';
+import {
+  readCompleteFunctionInventory,
+  waitForFunctionAbsence,
+} from './release/function-inventory.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import {
   releaseRegionalDiagnostic,
@@ -257,15 +260,7 @@ export async function createReleaseRegionalClient({
         try {
           await manager.functions.deleteFunction(name);
         } catch {}
-        let absent = false;
-        for (let n = 0; n < 6; n++) {
-          if (n) await wait(250 * 2 ** (n - 1));
-          if (!(await inventory()).includes(name)) {
-            absent = true;
-            break;
-          }
-        }
-        assert.ok(absent);
+        assert.ok(await waitForFunctionAbsence(inventory, name, wait));
         receipt.cleaned = true;
       }
       closed = true;

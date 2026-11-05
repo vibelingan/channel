@@ -25,7 +25,11 @@ async function fixture(t) {
     functions: {
       getFunctionList: async (limit, offset) => {
         assert.deepEqual([limit, offset], [100, 0]);
-        return completeInventory(f);
+        const listed = completeInventory(f);
+        // A deleted function can stay listed for several reads before it disappears.
+        if (f.listedAfterDelete > 0 && f.deleted.length && --f.listedAfterDelete === 0)
+          functions.delete(f.deleted.at(-1));
+        return listed;
       },
       async createFunction({ func, force }) {
         f.created.push(func.name);
@@ -62,7 +66,7 @@ async function fixture(t) {
       getFunctionDetail: async (name) => functions.get(name),
       async deleteFunction(name) {
         f.deleted.push(name);
-        if (!f.keepFunction) functions.delete(name);
+        if (!f.keepFunction && !f.listedAfterDelete) functions.delete(name);
         if (f.lostDelete) throw Error('secret delete response');
       },
       async invokeFunction(name, request) {
@@ -448,6 +452,32 @@ test('an occupied or foreign function is never replaced or deleted', async (t) =
   await assert.rejects(f.start(), { code: 'RELEASE_REGIONAL_PREPARATION_FAILED' });
   assert.equal(f.functions.get(name).Description, 'another app');
   assert.deepEqual(f.deleted, []);
+});
+
+test('a deleted function that stays listed for a while is still confirmed absent within a minute', async (t) => {
+  const f = await fixture(t);
+  const waits = [];
+  const client = await f.start({ wait: async (ms) => waits.push(ms) });
+  // Run 41878896329 stopped because six checks over ~8 s still listed the deleted function.
+  f.listedAfterDelete = 10;
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+  assert.equal(f.functions.size, 0);
+  assert.ok(waits.length >= 6);
+  assert.ok(waits.reduce((total, ms) => total + ms, 0) < 60_000);
+});
+
+test('a function still listed after every absence check stays unconfirmed after about a minute', async (t) => {
+  const f = await fixture(t);
+  const waits = [];
+  const client = await f.start({ wait: async (ms) => waits.push(ms) });
+  f.keepFunction = true;
+  await assert.rejects(client.close(), { code: 'RELEASE_REGIONAL_UNCONFIRMED' });
+  assert.equal(waits.length, 15);
+  assert.equal(
+    waits.reduce((total, ms) => total + ms, 0),
+    57_750,
+  );
+  assert.equal(f.functions.size, 1);
 });
 
 test('cleanup uncertainty is explicit and retains the original function', async (t) => {
