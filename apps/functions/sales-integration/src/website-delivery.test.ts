@@ -178,6 +178,9 @@ test('invalid owner, incomplete source, changed facts, terminal state and disabl
 test('multiple active pages and a late lower key are eventually visited; bad registration does not starve others', async () => {
   const f = await prepared();
   for (let i = 0; i < 5; i++) assert.equal((await f.submitProduct()).statusCode, 200);
+  // Registrations carry real submit time; a slow runner can cross a second after the
+  // clock was frozen, and delivery rightly refuses a registration from the future.
+  f.setNow(Math.floor(Date.now() / 1000));
   const keys = f.registrations().map(registrationKey).sort();
   const low = keys[0];
   const bad = keys[1];

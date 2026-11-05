@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TurnEvent, TurnRequest } from './model';
-import { initialAssistantState, reduceAssistant } from './state';
+import { initialAssistantState, reduceAssistant, resumableRequest } from './state';
 const request: TurnRequest = {
   conversationKey: 'conversation-a',
   turnKey: 'turn-a',
@@ -190,4 +190,27 @@ test('a restored in-flight question keeps its message and waits to resume from c
       ['answer:turn_700', ''],
     ],
   );
+});
+
+test('a refresh keeps every turn the visitor could still resume, not one that needs a new answer', () => {
+  const streaming = reduceAssistant(started(), { type: 'event', event: event(1) });
+  // The message POST succeeded, then opening its event stream failed (e.g. 503): the run lives on.
+  const streamFailed = reduceAssistant(streaming, { type: 'transport_error', message: 'busy' });
+  assert.equal(streamFailed.turn?.phase, 'failed');
+  assert.deepEqual(resumableRequest(streamFailed.turn), request);
+  const limited = reduceAssistant(streaming, {
+    type: 'transport_error',
+    message: 'slow down',
+    retryAt: Date.now() + 5_000,
+  });
+  assert.deepEqual(resumableRequest(limited.turn), request);
+  assert.deepEqual(resumableRequest(streaming.turn), request);
+  // A run that itself failed is retried as a new answer, so nothing is left to reattach.
+  const runFailed = reduceAssistant(streaming, {
+    type: 'event',
+    event: event(2, { type: 'failed', message: 'engine down' } as Partial<TurnEvent>),
+  });
+  assert.equal(runFailed.turn?.retryMode, 'new_answer');
+  assert.equal(resumableRequest(runFailed.turn), undefined);
+  assert.equal(resumableRequest(null), undefined);
 });

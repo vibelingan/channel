@@ -286,6 +286,32 @@ test(
   },
 );
 
+test('a run the worker itself times out is terminalized, not left running', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: 'worker-deadline',
+    content: 'Tell me everything.',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  const engine = new FakeEngine();
+  // Like the AnythingLLM adapter: a caller abort ends the stream without an error event.
+  engine.streamRun = async function* (_handle, signal) {
+    await new Promise<void>((resolve) =>
+      signal.addEventListener('abort', () => resolve(), { once: true }),
+    );
+  };
+  const outcome = await processOne(store, engine, {
+    ...config,
+    maxAttempts: 1,
+    maxStreamDurationMs: 50,
+  });
+  assert.equal(outcome, 'dead_letter');
+  assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+});
+
 test(
   'evidence-bound sentences are committed while the model is still running; final does not duplicate them',
   { skip },

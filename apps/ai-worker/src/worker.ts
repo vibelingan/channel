@@ -371,7 +371,13 @@ async function startRun(
   const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
-  const deadline = setTimeout(() => controller.abort(), config.maxStreamDurationMs);
+  // Our own deadline is a failure to terminalize; other aborts mean the run was
+  // cancelled or fenced off, and its owner has already terminalized it.
+  let timedOut = false;
+  const deadline = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, config.maxStreamDurationMs);
   const stopWatching = watchRunFence(store, context, controller);
   const fenced = {
     conversationId: context.conversationId,
@@ -767,6 +773,7 @@ async function startRun(
       }
       return;
     }
+    if (timedOut) throw new WorkerFailure('timeout', 'stream_deadline_exceeded');
     if (!controller.signal.aborted)
       throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
   } finally {

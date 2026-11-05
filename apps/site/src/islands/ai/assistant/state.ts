@@ -6,6 +6,7 @@ import type {
   TurnEvent,
   TurnPhase,
   TurnRequest,
+  TurnView,
 } from './model';
 
 export type AssistantAction =
@@ -36,6 +37,19 @@ export function isTurnWorking(phase: TurnPhase | undefined): boolean {
     phase !== undefined &&
     ['queued', 'reading', 'streaming', 'stopping', 'stop_unknown'].includes(phase)
   );
+}
+/**
+ * The request a refresh must reattach: any turn retry() would resume. A failed
+ * transport (stream open 503, a 429) leaves the server run going; only a run
+ * that itself failed is retried as a new answer and has nothing to reattach.
+ */
+export function resumableRequest(turn: TurnView | null): TurnRequest | undefined {
+  if (!turn) return undefined;
+  const resumable =
+    isTurnWorking(turn.phase) ||
+    turn.phase === 'reconnecting' ||
+    ((turn.phase === 'failed' || turn.phase === 'rate_limited') && turn.retryMode !== 'new_answer');
+  return resumable ? turn.request : undefined;
 }
 function terminal(phase: TurnPhase): boolean {
   return phase === 'complete' || phase === 'stopped';
