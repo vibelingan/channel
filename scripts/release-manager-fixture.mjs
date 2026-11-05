@@ -64,7 +64,12 @@ export function managerFixture({ request, initialConfiguration = configuration()
     },
   });
   const storage = manager.currentEnvironment().getStorageService();
-  storage.getCos = () => ({
+  state.cosClients = [];
+  storage.getCos = (parallel) => {
+    state.cosClients.push({ parallel });
+    return cosFixture();
+  };
+  const cosFixture = () => ({
     getBucket(options, callback) {
       state.calls.push({ action: 'cos-list', marker: options.Marker });
       const all = [...state.files.keys()].sort().filter((key) => key > (options.Marker ?? ''));
@@ -121,7 +126,7 @@ export function managerFixture({ request, initialConfiguration = configuration()
         state.lastFilePath = file.FilePath;
         state.calls.push({ action: 'cos-upload', key: file.Key });
         state.files.set(file.Key, readFileSync(file.FilePath));
-        if (state.fail !== 'missing-callback')
+        if (state.fail !== 'missing-callback' && !state.missingAck?.has(file.Key))
           options.onFileFinish(
             null,
             { statusCode: 200, headers: { 'x-cos-request-id': 'put-file' } },

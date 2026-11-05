@@ -102,6 +102,80 @@ test('staging preserves the filename extension used by COS MIME inference', asyn
   await port.upload('assets/app.hash.js', Buffer.from('script'));
   assert.ok(state.lastFilePath.endsWith('/app.hash.js'));
 });
+test('a site batch is one installed-SDK upload with one COS client and an exact completion per file', async () => {
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
+  const port = createCloudbaseHostingProvider({ manager, target });
+  const files = [
+    { path: 'index.html', body: Buffer.from('home') },
+    { path: 'blog/index.html', body: Buffer.from('blog') },
+    { path: 'products/p-one/index.html', body: Buffer.from('one') },
+  ];
+  const result = await port.uploadBatch(files, { parallel: 3 });
+  assert.equal(result.terminal, true);
+  assert.deepEqual(result.files, [
+    { path: 'index.html', providerOperationId: 'put-file' },
+    { path: 'blog/index.html', providerOperationId: 'put-file' },
+    { path: 'products/p-one/index.html', providerOperationId: 'put-file' },
+  ]);
+  for (const file of files)
+    assert.equal(state.files.get(file.path).toString(), file.body.toString());
+  assert.equal(state.uploads, 1);
+  assert.deepEqual(state.cosClients, [{ parallel: 3 }]);
+  assert.equal(state.calls.filter((c) => c.action === 'DescribeStaticStore').length, 1);
+  assert.ok(state.lastFilePath.endsWith('/index.html'));
+});
+test('one missing file completion leaves the whole SDK batch unconfirmed', async () => {
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
+  const port = createCloudbaseHostingProvider({ manager, target });
+  state.missingAck = new Set(['b.html']);
+  await assert.rejects(
+    port.uploadBatch(
+      [
+        { path: 'a.html', body: Buffer.from('a') },
+        { path: 'b.html', body: Buffer.from('b') },
+      ],
+      { parallel: 2 },
+    ),
+    /unconfirmed/,
+  );
+  assert.equal(state.uploads, 1);
+});
+test('a batch whose parallel upload fails is confirmed only by the SDK serial fallback per file', async () => {
+  const { manager, state } = managerFixture();
+  const port = createCloudbaseHostingProvider({ manager, target });
+  state.fail = 'parallel-fallback';
+  const result = await port.uploadBatch(
+    [
+      { path: 'a.html', body: Buffer.from('a') },
+      { path: 'b.html', body: Buffer.from('b') },
+    ],
+    { parallel: 2 },
+  );
+  assert.deepEqual(
+    result.files.map((file) => file.path),
+    ['a.html', 'b.html'],
+  );
+  assert.equal(state.calls.filter((c) => c.action === 'cos-put').length, 2);
+  assert.equal(state.uploads, 1);
+});
+test('a batch with a protected, reserved or duplicate member writes nothing', async () => {
+  const { manager, state } = managerFixture();
+  const port = createCloudbaseHostingProvider({ manager, target });
+  const ok = { path: 'a.html', body: Buffer.from('a') };
+  for (const [files, parallel] of [
+    [[ok, { path: '__auth/x.html', body: Buffer.from('x') }], 2],
+    [[ok, { path: '404.html', body: Buffer.from('x') }], 2],
+    [[ok, { path: 'google0123abcd.html', body: Buffer.from('x') }], 2],
+    [[ok, ok], 2],
+    [[], 1],
+    [Array.from({ length: 13 }, (_, n) => ({ path: `${n}.html`, body: Buffer.from('x') })), 12],
+    [[ok], 2],
+    [[ok], 0],
+  ])
+    await assert.rejects(port.uploadBatch(files, { parallel }));
+  assert.equal(state.uploads, 0);
+  assert.equal(state.files.size, 0);
+});
 test('a foreign EnvInfo result cannot redirect later SDK calls', async () => {
   const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   state.envId = 'foreign-env';
