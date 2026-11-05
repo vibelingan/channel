@@ -79,6 +79,15 @@ test('unknown browser origin is rejected before conversation creation', { skip }
   assert.equal(response.status, 403);
 });
 
+test('an allowed cross-origin page can read Retry-After', { skip }, async () => {
+  // Without this the browser hides Retry-After, and a 429 shows no countdown.
+  const response = await fetch(`${baseUrl}/api/ai/healthz`, {
+    headers: { origin: 'https://site.example' },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('access-control-expose-headers') ?? '', /\bRetry-After\b/);
+});
+
 test('rate-limit storage pseudonymizes a trusted proxy client address', { skip }, async () => {
   assert.ok(store);
   const rawAddress = '203.0.113.42';

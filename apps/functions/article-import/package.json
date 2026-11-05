@@ -5,11 +5,22 @@
   "type": "module",
   "main": "dist/index.cjs",
   "description": "Restricted server-to-server draft ingestion; no publication or administrator capability.",
-  "scripts": { "build": "tsup", "typecheck": "tsc --noEmit", "test": "tsx --test src/*.test.ts" },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
+  },
   "dependencies": {
     "@vibelingan-channel/articles": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
-    "@cloudbase/node-sdk": "3.17.2"
+    "@cloudbase/node-sdk": "3.17.2",
+    "@vibelingan-channel/media-storage": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*",
+    "image-size": "2.0.4"
   },
-  "devDependencies": { "@types/node": "^22.10.2", "tsup": "^8.3.5", "tsx": "^4.22.4" }
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.22.4"
+  }
 }

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "client_id": "client_demo_a",
+  "business_line": "gift_oem",
+  "task_id": "task_demo_1",
+  "run_id": "run_demo_1",
+  "runtime_id": "runtime_demo_a",
+  "source_ref": {
+    "installation_id": "channel_demo_a",
+    "kind": "website_oem",
+    "id": "oem_demo_001",
+    "revision": "1"
+  },
+  "control_epoch": 1,
+  "inquiry_snapshot_ref": "inquiry_demo_1",
+  "output_dir_ref": "output_demo_1",
+  "allowed_tools": [
+    "read_inquiry",
+    "read_products"
+  ]
+}

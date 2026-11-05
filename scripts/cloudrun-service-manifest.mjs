@@ -26,7 +26,17 @@ export const CLOUDRUN_SERVICE_NAMES = ['ai-bff', 'ai-worker'];
  * Environment values that must come from a secret store at deploy time and
  * must never appear as literals in this repository.
  */
-export const SECRET_ENV_KEYS = ['DATABASE_URL', 'KB_API_KEY', 'AI_IP_HASH_SECRET'];
+export const SECRET_ENV_KEYS = [
+  'DATABASE_URL',
+  'KB_API_KEY',
+  'AI_IP_HASH_SECRET',
+  'AI_MODEL_API_KEY',
+  'VIBEKB_MCP_API_KEY',
+  'AI_INQUIRY_TOKEN',
+];
+
+/** The engines a deployment can run, each with the settings its worker needs. */
+export const ENGINE_IDS = ['anythingllm', 'vibekb'];
 
 /**
  * Switches that must never appear in a deployed service definition.
@@ -42,10 +52,13 @@ export const SECRET_ENV_KEYS = ['DATABASE_URL', 'KB_API_KEY', 'AI_IP_HASH_SECRET
 // ALLOW_INSECURE_KB turns off the HTTPS requirement on the knowledge
 // base — which carries an INSTANCE-WIDE developer token — so it belongs here
 // beside the harness flag rather than relying on nobody copying a compose file.
+// VIBEKB_MCP_ALLOW_LOOPBACK_HTTP is the same switch for the MCP knowledge
+// path: plain HTTP to a local SSH tunnel, which only a developer has.
 export const FORBIDDEN_ENV_KEYS = [
   'AI_LOCAL_HARNESS',
   'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE',
   'ALLOW_INSECURE_KB',
+  'VIBEKB_MCP_ALLOW_LOOPBACK_HTTP',
 ];
 
 /** Drop undefined values so optional variables are omitted, not set to "undefined". */
@@ -91,6 +104,64 @@ export function provenanceEnv(ctx) {
 }
 
 /**
+ * What the worker needs to reach its knowledge and its model, by engine.
+ *
+ * `anythingllm` sends each question to the knowledge base's own chat API and
+ * the knowledge base answers; it needs the workspace and a recorded proof that
+ * the workspace is the approved one. `vibekb` calls the model itself and reads
+ * approved documents through the knowledge base's MCP tools; it needs the
+ * model, the MCP address and the public document scope, plus the public
+ * catalog for product cards. Like the provenance kind, the engine is a shape
+ * decision read from the deployment context, not through requireEnv.
+ */
+export function engineEnv(ctx) {
+  const engine = ctx.engineId;
+  if (engine === 'anythingllm') {
+    return {
+      KB_BASE_URL: ctx.requireEnv('KB_BASE_URL'),
+      KB_API_KEY: ctx.requireEnv('KB_API_KEY'),
+      KB_WORKSPACE_SLUG: ctx.requireEnv('KB_WORKSPACE_SLUG'),
+      KB_WORKSPACE_ID: ctx.requireEnv('KB_WORKSPACE_ID'),
+      AI_KNOWLEDGE_CREDENTIAL_ID: ctx.requireEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
+      KB_CITATIONS_VERIFIED: ctx.requireEnv('KB_CITATIONS_VERIFIED'),
+      KB_CREDENTIAL_ROTATION: ctx.requireEnv('KB_CREDENTIAL_ROTATION'),
+      AI_CORPUS_GENERATION: ctx.requireEnv('AI_CORPUS_GENERATION'),
+      AI_KB_EVIDENCE_JSON: ctx.requireEnv('AI_KB_EVIDENCE_JSON'),
+    };
+  }
+  if (engine === 'vibekb') {
+    return {
+      AI_MODEL_BASE_URL: ctx.requireEnv('AI_MODEL_BASE_URL'),
+      AI_MODEL_ID: ctx.requireEnv('AI_MODEL_ID'),
+      AI_MODEL_API_KEY: ctx.requireEnv('AI_MODEL_API_KEY'),
+      AI_MODEL_THINKING_MODE: ctx.optionalEnv('AI_MODEL_THINKING_MODE'),
+      VIBEKB_MCP_URL: ctx.requireEnv('VIBEKB_MCP_URL'),
+      VIBEKB_MCP_API_KEY: ctx.requireEnv('VIBEKB_MCP_API_KEY'),
+      VIBEKB_PUBLIC_WORKSPACE_ID: ctx.requireEnv('VIBEKB_PUBLIC_WORKSPACE_ID'),
+      VIBEKB_PUBLIC_DOCUMENT_IDS: ctx.requireEnv('VIBEKB_PUBLIC_DOCUMENT_IDS'),
+      VIBEKB_PUBLIC_TAG: ctx.optionalEnv('VIBEKB_PUBLIC_TAG'),
+      AI_PUBLIC_CATALOG_ORIGIN: ctx.requireEnv('AI_PUBLIC_CATALOG_ORIGIN'),
+    };
+  }
+  throw new Error(
+    `AI_ENGINE_ID must be one of ${ENGINE_IDS.join(', ')}, got: ${JSON.stringify(engine)}`,
+  );
+}
+
+/**
+ * The BFF hands a confirmed inquiry to the sales intake only when this is
+ * switched on, and then both the address and its dedicated token are required.
+ */
+function inquiryEnv(ctx) {
+  if (ctx.optionalEnv('AI_INQUIRY_ENABLED') !== '1') return {};
+  return {
+    AI_INQUIRY_ENABLED: '1',
+    AI_INQUIRY_BASE_URL: ctx.requireEnv('AI_INQUIRY_BASE_URL'),
+    AI_INQUIRY_TOKEN: ctx.requireEnv('AI_INQUIRY_TOKEN'),
+  };
+}
+
+/**
  * The private network both services join. PostgreSQL has no public address:
  * it accepts connections only from inside its VPC, and its security group
  * admits only the CloudRun subnet. A service deployed outside it has no route
@@ -110,8 +181,8 @@ function databaseVpc(vpc) {
 
 /**
  * Build the per-service deploy definitions from a deploy context:
- * { envId, appEnv, vpc: { vpcId, subnetId }, siteOrigins, engineProvenanceKind,
- *   requireEnv }.
+ * { envId, appEnv, vpc: { vpcId, subnetId }, siteOrigins, engineId,
+ *   engineProvenanceKind, requireEnv, optionalEnv }.
  *
  * CloudRun builds each image itself: a deploy uploads a clean copy of one
  * commit and CloudRun runs the service's Dockerfile against it. No image is
@@ -147,11 +218,12 @@ export function buildCloudRunServiceDefs(ctx) {
         TCB_ENV: ctx.envId,
         DATABASE_URL: ctx.requireEnv('DATABASE_URL'),
         CORS_ALLOWED_ORIGINS: ctx.siteOrigins,
-        AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
+        AI_ENGINE_ID: ctx.engineId,
         AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
         ...provenanceEnv(ctx),
         AI_IP_HASH_SECRET: ctx.requireEnv('AI_IP_HASH_SECRET'),
         AI_TRUST_PROXY: ctx.requireEnv('AI_TRUST_PROXY'),
+        ...inquiryEnv(ctx),
       }),
     },
     {
@@ -167,7 +239,7 @@ export function buildCloudRunServiceDefs(ctx) {
       // surface and an attack surface for no benefit.
       publicAccess: false,
       // Same network as the BFF, for the database. The worker ALSO calls the
-      // knowledge base over the internet, and joining a VPC does not by itself
+      // knowledge base (and, for vibekb, the model) over the internet, and joining a VPC does not by itself
       // give a service an internet route: without one (a NAT gateway) the
       // worker keeps logging knowledge_base_unreachable instead of starting.
       vpc,
@@ -184,7 +256,7 @@ export function buildCloudRunServiceDefs(ctx) {
         PORT: '8080',
         TCB_ENV: ctx.envId,
         DATABASE_URL: ctx.requireEnv('DATABASE_URL'),
-        AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
+        AI_ENGINE_ID: ctx.engineId,
         AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
         ...provenanceEnv(ctx),
         AI_PROFILE_ID: ctx.requireEnv('AI_PROFILE_ID'),
@@ -192,15 +264,7 @@ export function buildCloudRunServiceDefs(ctx) {
         AI_MAX_STREAM_DURATION_MS: ctx.requireEnv('AI_MAX_STREAM_DURATION_MS'),
         AI_MAX_OUTPUT_TOKENS: ctx.requireEnv('AI_MAX_OUTPUT_TOKENS'),
         AI_MAX_TOOL_CALLS: ctx.requireEnv('AI_MAX_TOOL_CALLS'),
-        KB_BASE_URL: ctx.requireEnv('KB_BASE_URL'),
-        KB_API_KEY: ctx.requireEnv('KB_API_KEY'),
-        KB_WORKSPACE_SLUG: ctx.requireEnv('KB_WORKSPACE_SLUG'),
-        KB_WORKSPACE_ID: ctx.requireEnv('KB_WORKSPACE_ID'),
-        AI_KNOWLEDGE_CREDENTIAL_ID: ctx.requireEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
-        KB_CITATIONS_VERIFIED: ctx.requireEnv('KB_CITATIONS_VERIFIED'),
-        KB_CREDENTIAL_ROTATION: ctx.requireEnv('KB_CREDENTIAL_ROTATION'),
-        AI_CORPUS_GENERATION: ctx.requireEnv('AI_CORPUS_GENERATION'),
-        AI_KB_EVIDENCE_JSON: ctx.requireEnv('AI_KB_EVIDENCE_JSON'),
+        ...engineEnv(ctx),
         AI_APPROVED_SOURCE_PREFIX: ctx.requireEnv('AI_APPROVED_SOURCE_PREFIX'),
         AI_SITE_ORIGIN: ctx.requireEnv('AI_SITE_ORIGIN'),
       }),

@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./port": "./src/port.ts",
+    "./budget": "./src/budget.ts",
     "./errors": "./src/errors.ts",
     "./capabilities": "./src/capabilities.ts",
     "./conformance": "./src/conformance.ts",

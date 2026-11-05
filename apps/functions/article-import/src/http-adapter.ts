@@ -1,6 +1,15 @@
 import { ArticleImportError } from '@vibelingan-channel/articles/import';
 import type { createArticleImportService } from '@vibelingan-channel/articles/import-store';
-type Service = ReturnType<typeof createArticleImportService>;
+type ImportService = ReturnType<typeof createArticleImportService>;
+type Service = Pick<ImportService, 'create' | 'get'> &
+  Partial<Pick<ImportService, 'rotate'>> & {
+    images?: {
+      state(credential: string, operationId: string): Promise<unknown>;
+      intent(credential: string, operationId: string, input: unknown): Promise<unknown>;
+      complete(credential: string, operationId: string, input: unknown): Promise<unknown>;
+      attach(credential: string, operationId: string, input: unknown): Promise<unknown>;
+    };
+  };
 export interface HttpResponse {
   statusCode: number;
   headers: Record<string, string>;
@@ -31,7 +40,7 @@ const failure = (
   message: string,
   headers: Record<string, string> = {},
 ) => response(status, { ok: false, error: { code, message } }, headers);
-/** A separate Event function with two server-to-server routes; never accepts admin action envelopes. */
+/** Server-to-server draft and credential routes never accept browser admin action envelopes. */
 export async function handleArticleImportEvent(
   event: unknown,
   service: Service | undefined,
@@ -42,10 +51,15 @@ export async function handleArticleImportEvent(
       return failure(400, 'INVALID_REQUEST', 'An HTTP request is required.');
     const method = event.httpMethod.toUpperCase();
     const path = event.path;
+    const imageRoute = new RegExp(
+      `^${root}/(article-import-[a-f0-9]{64})/images/(state|intent|complete|attach)$`,
+    ).exec(path);
     if (
       path !== root &&
       !new RegExp(`^${root}/article-import-[a-f0-9]{64}$`).test(path) &&
-      path !== `${root}/health`
+      path !== `${root}/health` &&
+      path !== `${root}/credential-rotation` &&
+      !imageRoute
     )
       return failure(404, 'NOT_FOUND', 'Route not found.');
     if (!service) return failure(503, 'UNAVAILABLE', 'Draft integration is not enabled.');
@@ -59,9 +73,13 @@ export async function handleArticleImportEvent(
         data: { service: 'article-import', releaseId: codeSha, apiContract: 'article-drafts-v1' },
       });
     }
-    if (path === root ? method !== 'POST' : method !== 'GET')
+    const isPost =
+      path === root ||
+      path === `${root}/credential-rotation` ||
+      Boolean(imageRoute && imageRoute[2] !== 'state');
+    if (isPost ? method !== 'POST' : method !== 'GET')
       return failure(405, 'INVALID_REQUEST', 'Method not allowed.', {
-        Allow: path === root ? 'POST' : 'GET',
+        Allow: isPost ? 'POST' : 'GET',
       });
     const headers: Record<string, string> = {};
     if (record(event.headers))
@@ -75,10 +93,15 @@ export async function handleArticleImportEvent(
       /^Bearer ([A-Za-z0-9][A-Za-z0-9_-]{0,47}\.[a-f0-9]{64})$/,
     )?.[1];
     if (!credential) return failure(401, 'UNAUTHORIZED', 'Draft integration is unavailable.');
+    if (imageRoute && !service.images)
+      return failure(503, 'UNAVAILABLE', 'Draft image integration is not enabled.');
     if (method === 'GET') {
       if (event.body !== undefined && event.body !== null && event.body !== '')
         return failure(400, 'INVALID_REQUEST', 'GET requests cannot contain an article.');
-      const result = await service.get(credential, path.slice(root.length + 1));
+      const result =
+        imageRoute && service.images
+          ? await service.images.state(credential, String(imageRoute[1]))
+          : await service.get(credential, path.slice(root.length + 1));
       return response(200, { ok: true, data: result });
     }
     if (headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
@@ -104,6 +127,22 @@ export async function handleArticleImportEvent(
       body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch {
       return failure(400, 'INVALID_REQUEST', 'Invalid UTF-8 JSON body.');
+    }
+    if (path === `${root}/credential-rotation`) {
+      if (!service.rotate)
+        return failure(503, 'UNAVAILABLE', 'Credential maintenance is not enabled.');
+      return response(200, { ok: true, data: await service.rotate(credential, body) });
+    }
+    if (imageRoute && service.images) {
+      const id = String(imageRoute[1]);
+      const action = imageRoute[2];
+      const result =
+        action === 'intent'
+          ? await service.images.intent(credential, id, body)
+          : action === 'complete'
+            ? await service.images.complete(credential, id, body)
+            : await service.images.attach(credential, id, body);
+      return response(200, { ok: true, data: result });
     }
     const result = await service.create(credential, body);
     return response(result.replayed ? 200 : 201, { ok: true, data: result });

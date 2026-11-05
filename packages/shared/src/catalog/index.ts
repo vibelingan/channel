@@ -41,6 +41,7 @@ const nonNegativeNumber = z.number().nonnegative().finite();
  */
 export const PublicProductSchema = z
   .object({
+    publicPageReady: z.boolean().optional(),
     _id: nonEmptyString,
     name: nonEmptyString,
     productFamily: z.enum(PRODUCT_FAMILY_OPTIONS),

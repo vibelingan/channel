@@ -622,7 +622,7 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('#oem-inquiry')).toHaveCount(1);
     await expect(page.locator('#factory video source')).toHaveAttribute(
       'src',
-      '/media/oem/factory-video.mp4',
+      '/media/oem/factory-video-display-015f0629.mp4',
     );
     await expect(page.locator('a[href="/#oem-inquiry"]').first()).toBeVisible();
     await expect(page.locator('a[href="#submit"]')).toHaveCount(0);
@@ -2397,8 +2397,7 @@ test.describe('public browser smoke', () => {
 
   test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    // The client-provided factory video is wired: /oem emits a muted autoplay
-    // <video> with an mp4 source. See docs/oem-refresh/DESIGN.md.
+    // The factory source remains discoverable before its viewport starts playback.
     await expect(page.locator('video')).toHaveCount(1);
     await expect(page.locator('video source[src*="oem-factory"]')).toHaveCount(1);
   });
@@ -2598,5 +2597,113 @@ test.describe('public browser smoke', () => {
     }
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(problems).toEqual([]);
+  });
+});
+
+test.describe('factory video loading', () => {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`factory video waits offscreen and resumes on return at ${viewport.width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const mediaRequests: string[] = [];
+      page.on('request', (request) => {
+        if (new URL(request.url()).pathname === '/media/oem/factory-video-display-015f0629.mp4')
+          mediaRequests.push(request.url());
+      });
+      await page.goto('/', { waitUntil: 'load' });
+      const video = page.locator('#factory video');
+      await expect(video.locator('source')).toHaveAttribute(
+        'src',
+        '/media/oem/factory-video-display-015f0629.mp4',
+      );
+      await expect(video).toHaveAttribute('poster', '/media/oem/factory-video-poster.jpg');
+      await expect(video).toHaveAttribute('preload', 'none');
+      expect((await video.boundingBox())?.y).toBeGreaterThan(viewport.height + 300);
+      expect(mediaRequests).toEqual([]);
+
+      const top = await video.evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
+      await page.evaluate(({ top, height }) => window.scrollTo(0, top - height - 150), {
+        top,
+        height: viewport.height,
+      });
+      await expect.poll(() => mediaRequests.length).toBeGreaterThan(0);
+      await expect(video).toHaveJSProperty('paused', true);
+      await video.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          video.evaluate(
+            (node: HTMLVideoElement) =>
+              !node.paused && node.currentTime > 0 && node.readyState >= 2,
+          ),
+        )
+        .toBe(true);
+      expect(mediaRequests.length).toBeGreaterThan(0);
+      await expect(video).toHaveJSProperty('muted', true);
+      await expect(video).toHaveJSProperty('loop', true);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(video).toHaveJSProperty('paused', true);
+      const time = await video.evaluate((node: HTMLVideoElement) => node.currentTime);
+      await video.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          video.evaluate(
+            (node: HTMLVideoElement, previous) => !node.paused && node.currentTime > previous,
+            time,
+          ),
+        )
+        .toBe(true);
+    });
+
+    test(`factory video keeps a discoverable source, poster and manual controls without JavaScript at ${viewport.width}px`, async ({
+      browser,
+    }) => {
+      const context = await browser.newContext({ viewport, javaScriptEnabled: false });
+      try {
+        const page = await context.newPage();
+        const mediaRequests: string[] = [];
+        page.on('request', (request) => {
+          if (new URL(request.url()).pathname === '/media/oem/factory-video-display-015f0629.mp4')
+            mediaRequests.push(request.url());
+        });
+        await page.goto(`${e2e.siteUrl}/`, { waitUntil: 'load' });
+        const video = page.locator('#factory video');
+        await video.scrollIntoViewIfNeeded();
+        await expect(video.locator('source')).toHaveAttribute(
+          'src',
+          '/media/oem/factory-video-display-015f0629.mp4',
+        );
+        await expect(video).toHaveAttribute('poster', '/media/oem/factory-video-poster.jpg');
+        await expect(video).toHaveJSProperty('controls', true);
+        await expect(video).toHaveJSProperty('paused', true);
+        expect(mediaRequests).toEqual([]);
+        const poster = await context.request.get(
+          `${e2e.siteUrl}/media/oem/factory-video-poster.jpg`,
+        );
+        expect(poster.ok()).toBe(true);
+        expect(poster.headers()['content-type']).toContain('image/jpeg');
+      } finally {
+        await context.close();
+      }
+    });
+  }
+
+  test('factory video remains playable without IntersectionObserver', async ({ page }) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'IntersectionObserver');
+    });
+    await page.goto('/', { waitUntil: 'load' });
+    const video = page.locator('#factory video');
+    await video.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        video.evaluate(
+          (node: HTMLVideoElement) => !node.paused && node.currentTime > 0 && node.readyState >= 2,
+        ),
+      )
+      .toBe(true);
   });
 });

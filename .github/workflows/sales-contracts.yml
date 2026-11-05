@@ -1,0 +1,104 @@
+name: Sales contracts
+
+on:
+  push:
+    branches: [feat/sales-agent-modular-design, feat/sales-agent-integration]
+    paths:
+      - 'packages/ai-contracts/**'
+      - 'packages/sales-contracts/**'
+      - 'apps/functions/sales-integration/**'
+      - 'apps/site/src/islands/admin/AssistantInquirySummary*'
+      - 'apps/site/src/islands/admin/RecordForm.tsx'
+      - 'packages/db/**'
+      - 'apps/functions/admin/**'
+      - 'apps/functions/public-api/**'
+      - 'apps/local-server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/sales-contracts.yml'
+  pull_request:
+    paths:
+      - 'packages/ai-contracts/**'
+      - 'packages/sales-contracts/**'
+      - 'apps/functions/sales-integration/**'
+      - 'apps/site/src/islands/admin/AssistantInquirySummary*'
+      - 'apps/site/src/islands/admin/RecordForm.tsx'
+      - 'packages/db/**'
+      - 'apps/functions/admin/**'
+      - 'apps/functions/public-api/**'
+      - 'apps/local-server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/sales-contracts.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sales-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: packages/sales-contracts/python/requirements.txt
+      - name: Install locked workspace dependencies
+        run: pnpm --filter @vibelingan-channel/sales-contracts... --filter @vibelingan-channel/fn-sales-integration... --filter @vibelingan-channel/local-server... --filter @vibelingan-channel/site... install --frozen-lockfile
+      - name: Install Python contract validator
+        run: python -m pip install -r packages/sales-contracts/python/requirements.txt
+      - run: pnpm --filter @vibelingan-channel/sales-contracts check:generated
+      - run: pnpm --filter @vibelingan-channel/sales-contracts typecheck
+      - run: pnpm --filter @vibelingan-channel/sales-contracts test
+      - run: pnpm --filter @vibelingan-channel/sales-contracts test:python
+      - run: pnpm --filter @vibelingan-channel/sales-contracts test:conformance
+      - run: pnpm --filter @vibelingan-channel/sales-contracts test:task-conformance
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration typecheck
+      - run: pnpm exec tsc --noEmit -p apps/functions/sales-integration/tsconfig.live.json
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration test
+      - run: pnpm --filter @vibelingan-channel/site exec tsx --test src/islands/admin/AssistantInquirySummary.test.ts
+      - name: Prove source and delivery tests detect broken guards
+        run: |
+          node apps/functions/sales-integration/scripts/check-assistant-inquiry-defects.mjs
+          pnpm --filter @vibelingan-channel/fn-sales-integration test:source-grant-defects
+          node apps/functions/sales-integration/scripts/check-website-delivery-defects.mjs --output output/sales-agent/SG1.2-delivery-defects-ci
+      - name: Preserve website submission and persistence behavior
+        run: |
+          pnpm --filter @vibelingan-channel/db typecheck
+          pnpm --filter @vibelingan-channel/db test
+          pnpm --filter @vibelingan-channel/fn-admin typecheck
+          pnpm --filter @vibelingan-channel/fn-admin test
+          pnpm --filter @vibelingan-channel/fn-public-api typecheck
+          pnpm --filter @vibelingan-channel/fn-public-api test
+          pnpm --filter @vibelingan-channel/local-server typecheck
+          pnpm --filter @vibelingan-channel/local-server test
+      - name: Build website function callers
+        run: |
+          pnpm --filter @vibelingan-channel/fn-admin build
+          pnpm --filter @vibelingan-channel/fn-public-api build
+      - run: pnpm verify:cloudbase-sdk
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration build
+      - name: Build standalone cloud acceptance handler without calling cloud services
+        run: |
+          pnpm --filter @vibelingan-channel/fn-sales-integration build:acceptance
+          node -e 'const h = require("./apps/functions/sales-integration/dist/acceptance/index.js"); if (typeof h.main !== "function") process.exit(1)'
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration package:artifact
+      - run: pnpm --filter @vibelingan-channel/fn-sales-integration check:artifact
+      - name: Preserve website delivery defect evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-delivery-defects
+          path: output/sales-agent/SG1.2-delivery-defects-ci/
+          if-no-files-found: warn

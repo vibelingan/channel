@@ -153,6 +153,8 @@ function isProduct(value: unknown): value is Product {
   if (!isRecord(value) || typeof value._id !== 'string' || typeof value.name !== 'string') {
     return false;
   }
+  if (value.publicPageReady !== undefined && typeof value.publicPageReady !== 'boolean')
+    return false;
   if (value.productFamily !== undefined && !isProductFamily(value.productFamily)) return false;
   for (const key of [
     'category',

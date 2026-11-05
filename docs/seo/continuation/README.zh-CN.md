@@ -1,0 +1,67 @@
+# 商品自动更新与网站收录：进度和执行入口
+
+2026-11-04 当前状态以[本轮逐项验收](review-2026-11-04/README.zh-CN.md)为准：www 301已上线；主域HTTP 301未完成，试改已恢复；商品自动通知等待GitHub App授权；美国与本机各54次性能基准完成，性能优化尚未实施。下方保留此前阶段记录，不能把其中的“当前”当作今日状态。
+
+## 此前阶段记录
+
+
+更新于2026-11-01。沿用`feat/seo-foundation`，不新开分支或worktree，不改pricing和其他应用。这里汇总当前结果；每次失败、修复和早期测试保留在[工作记录](WORKLOG.zh-CN.md)。
+
+## 先说现在能用什么
+
+商品独立网址、首次打开就有正文、浏览器继续请求实时API，以及Blog后台、配图、私有预览和人工发布，之前均已部署并实际验收。Blog按请求返回当前文章HTML，日常发文章不用GitHub构建。
+
+Blog正式域名已开放收录，临时地址、草稿、健康检查和错误页继续排除。两篇现有公开文章按用户确认保留；公开商品图片的robots规则也已修复并上线。10月30日再次读取全部539个公开网址，全部通过技术规则、与528个当前公开商品清单一致；[本次完整结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-20261030.json)。10月30日重新读取 Google 单网址检查：Blog 列表已进入索引，Google 选定 canonical 与正式地址一致；一篇文章也已进入 Google 索引；另一篇历史抓取仍显示旧 noindex，但本次实时抓取已确认允许收录，等待重抓。Bing 地图成功、发现 519 个网址；Blog 实时检查允许收录，尚未进入索引。[平台逐项结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation-20261030.json)。
+
+**商品修改后自动更新初始HTML尚未开启。**本轮已把保存记录、完整内容比较、增量快照和上传保护接起来，并开始真实CloudBase验证；固定程序归档、定时检查和当前内容配旧程序恢复的代码及本地测试本轮已补；真实归档、定时器接入和正式HTML交付验收继续执行；商品变化记录已开，页面就绪和自动交付仍关闭。以前用“SEO全部好了”概括这些不同步骤不准确，以本页逐项状态为准。
+
+当前网站的私有恢复包与A、B两份渲染程序均已归档。c450903b的真实交付41313740695已成功保存72,263,357字节候选恢复包并完整读回校验；随后完成35批网页确认，在第36批上传后的数据库确认环节超过30秒事务上限而停止。这批12个商品HTML均已独立读回，长度与SHA-256全部匹配；仍未宣布整站发布成功。当前保留原发布占用和待恢复记录，正在将状态确认移到上海同地域执行，再按精确旧任务和文件证据清理中断状态。商品与Blog的失败后只读检查通过；这不代表A→B→A已验收。详细证据与实际步骤见工作记录。
+
+不清楚为什么API更新后还要更新HTML，先读[原理和四模块摘要](EXPLAIN.zh-CN.md)，或看[HTML与浏览器API对照图](diagrams/html-and-api.html)。普通访客与搜索引擎访问同一份初始HTML，没有专供Google的页面。
+
+补查入口：HTTP与www尚未执行301跳转，网关仍允许双协议访问；canonical正确。原539页技术验收不覆盖这些入口，不能称重定向全部完成。[实测及修复边界](01-indexing.zh-CN.md#10月30日补查入口跳转还没有完成)。
+
+## 分模块状态
+
+| 模块 | 已有结果 | 剩余工作 |
+| --- | --- | --- |
+| [01 页面规则与Blog开放](01-indexing.zh-CN.md) | 正式Blog允许收录；公开图片抓取修复已上线；10月29日539个公开网址全量技术检查通过，528商品清单一致 | 真实报价的商品增强展示单独设计，不能为消除提示编造价格或评价 |
+| [02 公开商品变化记录](02-product-changes.zh-CN.md) | 实际保存、审批、同步、分类入口已接线；商品与待办同事务。8 个私有集合、2 条队列索引及 3 条读取索引已创建并读回；第二轮 10 项真实云库检查通过 | 三个真实函数已在41291665194接受dc3af64b；实际程序包摘要、配置及健康版本均核对通过。永久备份与临时ZIP分开后，同步大包也已成功。41292508820已开启两个写入方的记录并完成首次等待，记录回执验收成功；首次跟踪HTML和页面就绪仍待验收 |
+| [03 商品SSG交付](03-product-delivery.zh-CN.md) | 请求消费、完整批准变体读取、增量快照、稳定日期、页面就绪查询和分批上传保护已写代码；本地真实Astro及浏览器检查通过 | 真实资源准备与关闭的定时函数安装已通过；八路分片真实上传已通过：新程序约46.7 MB上传143.5秒，两次完整读回及SHA-256一致；旧程序也已归档，定时函数更新后仍关闭。商品保存/同步与自动更新接通、首次HTML交付及恢复仍在验收。现有页面登记与交付/恢复尚未验收；GitHub App 安装按用户安排后置 |
+| [04 搜索平台跟进](04-search-observation.zh-CN.md) | 已核对客户Google/Bing账号、地图与代表网址；Blog三个地址重新收录请求已接受 | 后续实际索引观察；已上线变化事件及可选IndexNow发送器尚未实现，开关关闭 |
+
+所有当前公开商品都参加，不新增“合格商品”筛选门槛。商品普通索引与Product增强展示分开判断；地图成功、发现网址、允许收录和已收录分别记录。
+
+## 本轮完成的验证
+
+- 本地数据库全包2619项、全量脚本1288项在本轮早期版本通过；追加修复另跑相关62项核心/消费者验证、6项交付验证、15项前端请求测试，以及23项发布与清理测试，均通过。完整测试版本和日志见工作记录，不把早期总数当作后续每个提交重新跑过的数量。
+- 使用2件合成商品实际构建Astro，19份HTML通过SEO规则检查，8项浏览器检查通过，包含初始正文、API刷新、图库、变体、分类、日期与询盘。询盘只发往本地stub，没有写线上业务。这不是528件商品全站耗时证明。
+- 修复已知失败后的接手：确认没有未决云调用，才释放原执行者和任务；下一轮按当前内容重新交付。未知上传继续占用并等待读回，不因过期就放行，不用旧内容覆盖新商品。
+- 修复并发请求的时间边界：较早请求可能较晚提交，公开日期不倒退，真实内容变化仍推进版本；首次纳入跟踪但历史日期未知时省略lastmod。
+- [首轮真实CloudBase运行40910382710](https://github.com/vibelingan/channel/actions/runs/40910382710)：8项业务检查通过，工作流因删除临时表返回超时而失败。实际目录证明第一张表已删除；其余7张表已逐项补清理，临时函数也确认不存在。失败运行与补清理证据均保留，见[实际记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-20261030.json)。
+- [第二轮真实运行40920976437](https://github.com/vibelingan/channel/actions/runs/40920976437)整体成功：9个临时私有集合、137个批准变体、10项检查全部通过，自动清理完成；独立查询确认临时函数和全部临时集合不存在，6个正式SEO集合仍为空。[完整结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-expanded-20261030.json)。函数删除成功后目录会短暂保留；清理器再补有上限的等待读回，成功回执不再触发重复删除，25项关联操作测试通过。[最后确认40924050633](https://github.com/vibelingan/channel/actions/runs/40924050633)再次10项通过，函数一次删除、三次读回，无重复删除及清理错误；[最终回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-final-20261030.json)。
+
+文档提交4d8578e6的原后台回归在20件假商品用例连续两次超时；轨迹显示20个任务已完成，但最后分类核对只剩约0.6秒。没有改客户商品或线上功能。新鲜本地数据下两条重批量用例均通过；现将完整发布流程与分类文件分到独立假数据库，保留原数量、断言和90秒时限，全部原用例仍必须通过。隔离后的完整分类文件本地12项全过，其中20件用例约44秒；远端结果以本次提交Actions为准，不拿本地耗时代替Linux结果。[CI隔离说明](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-ci-isolation-20261030.json)。
+
+[线上验收步骤](05-live-validation.zh-CN.md)列出每段的写入范围、恢复和停止条件。隔离函数只读写本次前缀，未访问真实商品或文章，未上传网站；不能据此称实际HTML自动交付已经验收。
+
+## 正式网站的已有发布与搜索证据
+
+最近一次已接受的全站静态发布为[40819519497](https://github.com/vibelingan/channel/actions/runs/40819519497)，源代码`08923537`，接受记录`site-40819519497-1`；528商品来自真实公开API。真实浏览器检查初始HTML、API刷新、分类和询盘打开通过，业务写入0。保留前一已验收版本`site-40617257076-1`作为原恢复来源。该次完整job为51分40秒，**八分钟目标仍未达到**。
+
+Blog程序由[40814822583](https://github.com/vibelingan/channel/actions/runs/40814822583)更新为`71fb996b`；正式收录开放由[40819158070](https://github.com/vibelingan/channel/actions/runs/40819158070)验收。首次开放失败[40815882150](https://github.com/vibelingan/channel/actions/runs/40815882150)及恢复记录保留，没有用后来的成功覆盖。
+
+10月29日Google地图成功、发现539个网址，Bing原地图成功、发现517个网址，重新提交后Processing；这些是带日期的观察，不当作今天的索引总数。首页和耳机分类页的独立报告已收录；此处是 10 月 29 日的旧观察；10 月 30 日 Blog 列表和一篇文章已确认在 Google 索引中，最新逐项结果见上方记录。[平台记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation.json)、[当次全量页面结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-after.json)。
+
+## 后续按这个顺序交付
+
+1. 隔离云库和自动清理已通过；继续验证实际候选与HTML交付，不跳过未知结果读回。
+2. 归档固定源码、锁文件和运行版本的渲染程序；支持旧程序读取当前商品资料，禁止代码恢复顺带倒退业务内容。
+3. 接可靠唤醒与积压补漏；核对全部实际写入方、登记现有已验收页面，再受控开启记录和就绪状态，执行新增、修改、撤回及恢复验收。
+4. 计量采集、构建、归档、上传和验收的完整耗时。常规批次争取八分钟内；未有实测前不承诺。随后接已验收变化事件，继续观察搜索平台。
+
+本轮尚未合并回main/test。商品变化记录已在41292508820开启并读回；自动交付仍关闭。原main/test在本轮开始时已包含于SEO分支；之后仍按实际远端提交核对，不影响其他工作流。
+
+[完整流程大图](diagrams/search-continuity.html) · [商品更新时序](diagrams/product-refresh.html) · [图验收记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-diagrams.json) · [工作记录](WORKLOG.zh-CN.md)
+
+本轮实现入口：[固定程序与自动更新设计](06-renderer-and-wakeup.zh-CN.md) · [一次性 GitHub 授权步骤](07-github-app-setup.zh-CN.md) · [程序与当前内容时序图](diagrams/renderer-delivery.html)。授权待客户安排，不新增 SSH 密钥，不把 SSH 当成 Actions API 权限。

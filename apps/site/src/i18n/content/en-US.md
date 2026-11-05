@@ -234,6 +234,7 @@ footer:
         - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
   legal: © 2026 Diversity Innovations Limited. All rights reserved.
+  privacy: { label: Privacy, href: '/privacy/' }
   filingNumber: 粤ICP备2026092477号-1
   filingUrl: 'https://beian.miit.gov.cn/'
 ---

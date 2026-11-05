@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-28T02:37:17.438978+00:00",
+  "sourceCommit": "2681b003b84612f3efe01508e18160fb8d838247",
+  "branch": "feat/seo-foundation",
+  "localArticleBrowserTests": 12,
+  "remoteCI": {
+    "releaseModules": 40615472589,
+    "blogHTTP": 40615472329,
+    "offlineDrill": 40615472360,
+    "conclusion": "success"
+  },
+  "publication": {
+    "workflowRunId": 40617257076,
+    "status": "accepted",
+    "receipt": {
+      "deliveryId": "site-40617257076-1",
+      "artifactHash": "528b08118dd11dea52b6803efbbdcbf2f7cad700586377d3cac58b9484ad9f9e",
+      "acceptedAt": "2026-10-28T02:30:18.919Z"
+    },
+    "articleTaskId": null,
+    "products": 528,
+    "productSource": "fresh"
+  },
+  "liveUI": {
+    "nativeModal": true,
+    "dialogInsideViewport": true,
+    "privateBlobImagesLoaded": 2,
+    "closeRemainsVisibleWhenScrolling": true,
+    "escapeClosesAndReturnsFocus": true,
+    "reopenAndCloseButtonPassed": true,
+    "draftRevisionBefore": 2,
+    "draftRevisionAfter": 2,
+    "draftPublication": "private"
+  },
+  "http": {
+    "admin": {
+      "status": 200,
+      "sha256": "622eda51482d2de7440620da04a056ee444531457888b8e8333e0b128a649690",
+      "bytes": 7004
+    },
+    "article": {
+      "status": 200,
+      "sha256": "c0d0c0534592154b8047da1c43502cba1d16a36d482e80aacad5d5faaa9d2778",
+      "bytes": 36207
+    },
+    "adminMatchesAcceptedCandidate": true,
+    "publicArticleUnchanged": true
+  },
+  "artifactFileDelta": {
+    "baselineFiles": 1751,
+    "candidateFiles": 1776,
+    "addedFiles": 25,
+    "changedExisting": 513,
+    "retiredFiles": 0,
+    "productHtmlUpdates": 528,
+    "nonHtmlUpdates": 9
+  },
+  "privateScreenshotsCommitted": false,
+  "mainAndTestBranchesChanged": false,
+  "performanceTargetEightMinutes": "not_met",
+  "siteJobDurationSeconds": 2492
+}

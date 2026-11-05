@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import {
+  collectProductRefresh,
   collectProductSnapshot,
   collectPublicProductPaths,
   decodeProductSnapshot,
@@ -122,4 +123,105 @@ test('emergency reuse preserves accepted detail and interactions, filters withdr
       origin,
     ),
   );
+});
+
+function refreshTransport(items: Array<typeof row>, counts: Map<string, number>): typeof fetch {
+  return async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/products')
+      return Response.json({
+        ok: true,
+        data: { items, total: items.length, page: 1, pageSize: 48 },
+      });
+    const id = decodeURIComponent(url.pathname.split('/')[3] ?? '');
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+    const product = items.find((p) => p._id === id);
+    assert.ok(product);
+    if (url.pathname.endsWith('/detail'))
+      return Response.json({ ok: true, data: { ...detailFixture(), _id: id, name: product.name } });
+    return Response.json({ ok: true, data: product });
+  };
+}
+const refreshHead = (productId: string, visible = true) => ({
+  productId,
+  visible,
+  sequence: 1,
+  semanticHash: 'a'.repeat(64),
+  detailRevision: visible ? 'approved-r1' : null,
+  changedAt: null,
+});
+
+test('incremental capture reads only changed and new product details, retaining every other accepted entry', async () => {
+  const second = { ...row, _id: 'second', name: 'Second headset' };
+  const accepted = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport([row, second], new Map()),
+  );
+  const changed = { ...row, name: 'Updated headset' };
+  const calls = new Map<string, number>();
+  const result = await collectProductRefresh(
+    accepted,
+    [refreshHead(row._id)],
+    origin,
+    origin,
+    refreshTransport([changed, second], calls),
+  );
+  assert.equal(result.total, 2);
+  assert.equal(
+    result.products.find((p) => p.product._id === row._id)?.product.name,
+    'Updated headset',
+  );
+  assert.equal(calls.get('second'), undefined);
+  assert.equal(calls.get(row._id), 2);
+  assert.deepEqual(
+    result.products.find((p) => p.product._id === 'second'),
+    accepted.products.find((p) => p.product._id === 'second'),
+  );
+  assert.equal(
+    result.products.find((p) => p.product._id === row._id)?.publicVersion?.changedAt,
+    null,
+  );
+});
+
+test('withdrawal requires an explicit nonvisible head, and an outage keeps the old candidate intact', async () => {
+  const accepted = await collectProductSnapshot(origin, origin, transport());
+  const empty: typeof fetch = async () =>
+    Response.json({ ok: true, data: { items: [], total: 0, page: 1, pageSize: 48 } });
+  await assert.rejects(collectProductRefresh(accepted, [], origin, origin, empty), /withdrawal/);
+  const result = await collectProductRefresh(
+    accepted,
+    [refreshHead(row._id, false)],
+    origin,
+    origin,
+    empty,
+  );
+  assert.equal(result.total, 0);
+  await assert.rejects(
+    collectProductRefresh(
+      accepted,
+      [refreshHead(row._id)],
+      origin,
+      origin,
+      transport(undefined, 503),
+    ),
+  );
+  assert.equal(accepted.total, 1);
+});
+
+test('new public IDs need a tracked version before they enter a complete candidate', async () => {
+  const accepted = await collectProductSnapshot(origin, origin, transport());
+  const next = { ...row, _id: 'new-product', name: 'New headset' };
+  await assert.rejects(
+    collectProductRefresh(accepted, [], origin, origin, refreshTransport([row, next], new Map())),
+    /tracked/,
+  );
+  const result = await collectProductRefresh(
+    accepted,
+    [refreshHead(next._id)],
+    origin,
+    origin,
+    refreshTransport([row, next], new Map()),
+  );
+  assert.equal(result.total, 2);
 });

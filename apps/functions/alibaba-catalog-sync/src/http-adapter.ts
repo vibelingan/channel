@@ -225,7 +225,10 @@ export async function handleAlibabaSyncFunctionEvent(
     if (segments.length === 1 && segments[0] === 'health') {
       return jsonResponse(event, config, {
         ok: true,
-        data: releaseInfo('alibaba-catalog-sync'),
+        data: {
+          ...releaseInfo('alibaba-catalog-sync'),
+          catalogSeoRecording: config.catalogSeoRecording === true,
+        },
       } as ApiResult<unknown>);
     }
     if (segments.length === 2 && segments[0] === 'oauth' && segments[1] === 'callback') {

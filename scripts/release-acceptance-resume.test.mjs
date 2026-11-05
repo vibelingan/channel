@@ -140,3 +140,73 @@ test('an owner whose lease is still active cannot be replaced even if its job en
     code: 'READ_ONLY_ACCEPTANCE_REQUIRED',
   });
 });
+
+test('a current-data reconcile run can hand over its final read while unconfirmed writes remain excluded', async () => {
+  const f = await setup();
+  // The original candidate has confirmed writes and an unknown read-only acceptance.
+  await f.client.reconcile({
+    expectedVersion: f.request.expectedVersion,
+    expectedFence: f.guard.fence,
+    proof: {
+      ...f.request.proof,
+      cloud: {
+        status: 'quiescent',
+        operationId: f.step.operationId,
+        observedHash: f.step.afterHash,
+        evidenceRef: 'original confirmed writes; only final read stopped',
+      },
+    },
+  });
+  const owner = runner('current-data');
+  const guard = await f.client.acquire(owner);
+  await f.client.startRun({
+    guard,
+    runId: 'current-data',
+    scopeKey: 'site',
+    kind: 'reconcile',
+    composition: composition('B'),
+    deliveredComponents: ['static'],
+    plan: plan(2),
+  });
+  let step = await f.client.beginStep({ guard, runId: 'current-data', ...stepInput('write') });
+  await f.client.confirmStep({
+    guard,
+    runId: 'current-data',
+    stepId: step.stepId,
+    receipt: receipt(step),
+  });
+  step = await f.client.beginStep({ guard, runId: 'current-data', ...stepInput('accept') });
+  await f.client.markUnknown({
+    guard,
+    runId: 'current-data',
+    stepId: step.stepId,
+    reason: 'Final read stopped',
+  });
+  f.time.advance(180001);
+  const status = await f.client.status();
+  const resumed = await f.client.resumeReadOnlyAcceptance({
+    ...f.request,
+    runId: 'current-data',
+    expectedVersion: status.target.version,
+    expectedFence: guard.fence,
+    ...runner('reconcile-readback'),
+    proof: { ...f.request.proof, runnerRef: owner.runnerRef, checkedAt: f.time.now() },
+  });
+  const accepted = await f.client.beginStep({
+    guard: resumed,
+    runId: 'current-data',
+    ...stepInput('accept'),
+  });
+  await f.client.confirmStep({
+    guard: resumed,
+    runId: 'current-data',
+    stepId: accepted.stepId,
+    receipt: receipt(accepted),
+  });
+  await f.client.commitRun({
+    guard: resumed,
+    runId: 'current-data',
+    changeSetRef: 'verified current-data candidate',
+  });
+  assert.equal((await f.client.status()).scope.baseline.sourceRunId, 'current-data');
+});

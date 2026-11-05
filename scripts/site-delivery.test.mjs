@@ -31,6 +31,7 @@ async function setup(t) {
   const files = new Map();
   const times = new Map();
   const writes = [];
+  const batchUploads = [];
   let clock = 0;
   let unknown = false;
   let unknownRemove = false;
@@ -72,6 +73,11 @@ async function setup(t) {
       times.set(path, stamp());
       if (unknown === true || unknown === path) throw Error('lost upload acknowledgement');
       return { terminal: true };
+    },
+    uploadBatch: async (members, { parallel }) => {
+      batchUploads.push({ paths: members.map((m) => m.path), parallel });
+      await Promise.all(members.map(({ path, body }) => provider.upload(path, body)));
+      return { terminal: true, files: members.map(({ path }) => ({ path })) };
     },
     remove: async (path) => {
       writes.push(['remove', path]);
@@ -184,6 +190,7 @@ async function setup(t) {
     },
     deliver,
     writes,
+    batchUploads,
     files,
     request: http.request,
     coordinator,
@@ -400,6 +407,11 @@ test('every batched upload has its exact path and hash in the persisted intent b
   });
   assert.equal((await f.deliver(b.input)).status, 'accepted');
   assert(checked >= 3);
+  // Each journaled batch is one provider call carrying all of its members at once.
+  const puts = f.writes.filter(([kind]) => kind === 'put').map(([, path]) => path);
+  assert.deepEqual(f.batchUploads.flatMap((batch) => batch.paths).sort(), [...puts].sort());
+  for (const batch of f.batchUploads)
+    assert.equal(batch.parallel, Math.min(12, batch.paths.length));
 });
 
 test('final full-site acceptance has a bounded whole-site budget and still reads every ordinary URL', async (t) => {
@@ -438,4 +450,46 @@ test('a recovery checkpoint accepts unchanged files but refuses any upload or re
   const accepted = await f.deliver(same.input, 'publish', { requireUnchangedFiles: true });
   assert.equal(accepted.status, 'accepted');
   assert.equal(f.writes.length, 0);
+});
+
+test('current-data recovery replaces a failed candidate without resurrecting the accepted historical content', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B');
+  const failed = await f.deliver(b.input, 'publish', {
+    allowRecovery: async () => false,
+    postCheck: async () => {
+      throw Error('confirmed failure');
+    },
+  });
+  assert.equal(failed.status, 'retry-current-data');
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  const dirty = await f.coordinator.runStatus(status.target.dirtyRunId);
+  const c = f.source('C');
+  const result = await f.deliver(c.input, 'reconcile', {
+    failedCandidates: [{ run: dirty, input: b.input }],
+  });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  for (const [path, bytes] of c.data) assert.deepEqual(f.files.get(path), bytes);
+  assert.equal((await f.coordinator.status({ scopeKey: 'site' })).target.dirtyRunId, null);
+});
+
+test('an unknown cloud write cannot use the known-failure release shortcut', async (t) => {
+  const f = await setup(t);
+  const b = f.source('B');
+  f.setUnknown();
+  assert.equal((await f.deliver(b.input)).status, 'unknown');
+  const status = await f.coordinator.status({ scopeKey: 'site' });
+  assert.ok(status.pendingStep);
+  const lease = status.target.lease;
+  const guard = {
+    targetId: status.target.targetId,
+    ownerRunId: lease.ownerRunId,
+    fence: lease.fence,
+    acquiredVersion: lease.acquiredVersion,
+  };
+  await assert.rejects(
+    f.coordinator.releaseFailedSite(guard, status.target.currentRunId ?? status.target.dirtyRunId),
+    /UNRESOLVED_OPERATION/,
+  );
+  assert.ok((await f.coordinator.status({ scopeKey: 'site' })).pendingStep);
 });

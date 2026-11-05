@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-10-27T14:33:05.295685+00:00",
+  "scope": "existing private article from VibeKB document 203; two existing images; no public publish",
+  "textBlocksPreserved": true,
+  "revisionBefore": 1,
+  "revisionAfter": 2,
+  "imageCount": 2,
+  "replayReturnedOriginalReceipt": true,
+  "staleRevisionStatus": 409,
+  "anonymousWebsiteImageStatuses": [404, 404],
+  "anonymousStorageStatuses": [403, 403],
+  "bodySha256": "01264adaa3b6ef74312de87f3701306eb2a754a7a0191f031dbc617ad8d6a821",
+  "originalFileSha256": {
+    "blog_cover_enquiry.png": "09004b976575e2d25760c50b7f013339b9fca1a42fb793bff87df2c619993ea4",
+    "blog_checklist_enquiry.png": "1da6bd16976c878c44e9ec016238503ab95aadf6589dcfb754a5d076613c1742"
+  },
+  "otherAssistantConfigurationUnchanged": true,
+  "a2aProcessesUnchanged": true,
+  "defaultCongestionControl": "cubic",
+  "groupAcceptance": "not_run_by_this_session",
+  "articlePublicPublish": "not_run",
+  "deployedFunctionSource": "7c99e89116180d70b4c3ddd8f1117e940b7ab8aa",
+  "publisherToolsSource": "d68d3b82ab2ecd8eda2fc6af45e2f52094b92228",
+  "contentToolsSource": "6e0b6fd4a23c688d3e9aa61b85f3f143d2fb2a55",
+  "privateScreenshotsCommitted": false,
+  "rawArticleOrCredentialCommitted": false,
+  "diagram": {
+    "type": "workflow",
+    "specification": {
+      "sha256": "9d79bfba07fc40b85e4553c1bea647801c68ae051500c1c3221ccb8e1332825d",
+      "bytes": 4226
+    },
+    "artifact": {
+      "sha256": "eb45c897272752227c13218348f6ed4c25f1648c4e7b3f1d6d144b7ba75f689d",
+      "bytes": 812468
+    },
+    "artifactChecksPassed": 9,
+    "compositionErrors": 0,
+    "compositionWarnings": 0,
+    "browserEvidence": "passed",
+    "desktopViewports": [[1440, 900], [1600, 1000], [1920, 1080], [2048, 1320]],
+    "visualReview": "passed by image-capable reviewer on all four captured light/dark screenshots"
+  }
+}

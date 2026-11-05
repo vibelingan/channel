@@ -81,7 +81,7 @@ pnpm exec tsc --project scripts/blog/tsconfig.json --noEmit
 pnpm lint
 ```
 
-本地完整脚本 **1,142 项通过**，SDK 契约检查、全仓类型检查和 lint 通过。可复制的无敏感信息汇总见 [验收记录](evidence/2026-10-25/hosting-backup-acceptance.json)。远端源码 CI 另以本次提交的实际结果为准。
+本地完整脚本 **1,142 项通过**，SDK 契约检查、全仓类型检查和 lint 通过。可复制的无敏感信息汇总见 [验收记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-25/hosting-backup-acceptance.json)。远端源码 CI 另以本次提交的实际结果为准。
 
 用例包括真实 HTTP 半截响应、持续断连、慢正文、三次上限、重试间隔、403、不等长和等长错误内容、分片 ETag、文件/目录同名、未完整下载不能生成恢复清单、SDK 实际签名、共享桶前缀、跨环境拒绝、非 COS 地址拒绝、签名错误脱敏、底层忽略取消时仍按时退出。测试没有通过修改云权限、造成功或删掉旧文件来完成。
 

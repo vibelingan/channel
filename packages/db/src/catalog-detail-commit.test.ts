@@ -363,7 +363,7 @@ test('silent SDK write failure aborts; no partial product or variant version can
         }),
       ),
   };
-  await assert.rejects(approveCatalogDetailInCloud(silent, 'admin', h.command), /not confirmed/);
+  await assert.rejects(approveCatalogDetailInCloud(silent, 'admin', h.command), /not acknowledged/);
   assert.deepEqual(h.state, before);
 });
 

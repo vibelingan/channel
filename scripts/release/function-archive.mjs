@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkNativeFunctionArchive } from './native-function-archive.mjs';
 
 export const functionZipLimit = 1.5 * 1024 * 1024;
 export const functionBuildPolicy = Object.freeze({
@@ -13,7 +14,9 @@ export const functionBuildPolicy = Object.freeze({
 });
 
 /** Keep the archived ZIP unchanged; extraction is only for a credential-free cold-start check. */
-export function checkFunctionArchive(input, { smoke = false } = {}) {
+export function checkFunctionArchive(input, { smoke = false, profile = 'bundled' } = {}) {
+  if (profile === 'catalog-native-decoder') return checkNativeFunctionArchive(input, { smoke });
+  if (profile !== 'bundled') throw Error('Unreviewed function archive profile');
   const bytes = Buffer.from(input);
   if (!bytes.length || bytes.length > functionZipLimit)
     throw new Error('Function ZIP exceeds the supported inline scope');

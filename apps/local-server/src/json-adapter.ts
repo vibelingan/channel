@@ -110,8 +110,28 @@ import {
   isCatalogRowCollection,
   runCatalogRowMutation,
 } from '@vibelingan-channel/db/catalog-row-mutation';
+import {
+  catalogSeoControlId,
+  planCatalogSeoWriteFromControl,
+} from '@vibelingan-channel/db/catalog-seo-control';
+import {
+  type CatalogSeoRecordingConfig,
+  CatalogSeoRecordingConfigSchema,
+  catalogSeoRequestsForStore,
+} from '@vibelingan-channel/db/catalog-seo-requests';
 import { planSourceInvalidation } from '@vibelingan-channel/db/catalog-source-invalidation';
 import { runCategoryCommand } from '@vibelingan-channel/db/category-transaction';
+import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
+import {
+  type FinalizedSalesOemInput,
+  type SalesCaptureScope,
+  assertSalesInstallation,
+  createInitialSourceDelivery,
+  parseSalesCaptureScope,
+  planSalesSubmission,
+  registrationKey,
+  saveFinalizedOemInCloud,
+} from '@vibelingan-channel/db/sales-inquiry-submission';
 import { categorySyncBaseline } from '@vibelingan-channel/shared';
 import {
   type CollectionDoc,
@@ -568,11 +588,17 @@ export class JsonFileAdapter implements DbAdapter {
   }
   private readonly file: string;
   private store: Store;
+  private readonly catalogSeo: CatalogSeoRecordingConfig | undefined;
 
   constructor(
     file: string,
     private readonly enablePublicInquiries = false,
+    catalogSeo?: CatalogSeoRecordingConfig,
   ) {
+    this.catalogSeo =
+      catalogSeo === undefined
+        ? undefined
+        : Object.freeze(CatalogSeoRecordingConfigSchema.parse(catalogSeo));
     this.file = resolve(file);
     this.claimProcessOwnership();
     this.store = this.load();
@@ -675,9 +701,62 @@ export class JsonFileAdapter implements DbAdapter {
   private persist(): void {
     mkdirSync(dirname(this.file), { recursive: true });
     const temporaryFile = `${this.file}.${process.pid}.${randomUUID()}.tmp`;
+    const previous = this.catalogSeo ? this.load() : undefined;
     try {
+      if (this.catalogSeo && previous) {
+        const requests = catalogSeoRequestsForStore(
+          previous,
+          this.store,
+          this.catalogSeo,
+          new Date().toISOString(),
+        );
+        if (requests.length) {
+          const previousProducts = new Map((previous.products ?? []).map((row) => [row._id, row]));
+          const nextProducts = new Map((this.store.products ?? []).map((row) => [row._id, row]));
+          const changes = requests.flatMap((request) =>
+            request.kind === 'product'
+              ? [
+                  {
+                    collection: 'products',
+                    before: previousProducts.get(request.productId) ?? null,
+                    after: nextProducts.get(request.productId) ?? null,
+                  },
+                ]
+              : [],
+          );
+          const controlId = catalogSeoControlId(this.catalogSeo.siteOrigin);
+          const permit = planCatalogSeoWriteFromControl(
+            (previous.catalogSeoControl ?? []).find((row) => row._id === controlId) ?? null,
+            this.catalogSeo,
+            changes,
+            requests,
+            new Date().toISOString(),
+          );
+          if (permit) {
+            const controls = new Map(
+              (this.store.catalogSeoControl ?? []).map((row) => [row._id, row]),
+            );
+            controls.set(permit.control._id, permit.control);
+            const pages = new Map((this.store.catalogSeoPages ?? []).map((row) => [row._id, row]));
+            for (const page of permit.pages) pages.set(page._id, page);
+            this.store = {
+              ...this.store,
+              catalogSeoControl: [...controls.values()],
+              catalogSeoPages: [...pages.values()],
+            };
+          }
+          const existing = new Map(
+            (this.store.catalogSeoRequests ?? []).map((row) => [row._id, row]),
+          );
+          for (const request of requests) existing.set(request._id, request);
+          this.store = { ...this.store, catalogSeoRequests: [...existing.values()] };
+        }
+      }
       writeFileSync(temporaryFile, JSON.stringify(this.store, null, 2), 'utf8');
       renameSync(temporaryFile, this.file);
+    } catch (error) {
+      if (previous) this.store = previous;
+      throw error;
     } finally {
       rmSync(temporaryFile, { force: true });
     }
@@ -717,6 +796,13 @@ export class JsonFileAdapter implements DbAdapter {
   ): Promise<string | null> {
     return this.withMutationLock(() =>
       firstApprovalImageHold(this.docs('catalogDetailApprovals'), imageId, startedAfter),
+    );
+  }
+
+  readCatalogSeoPageRows(ids: readonly string[]): CollectionDoc[] {
+    const wanted = new Set(ids);
+    return structuredClone(
+      (this.load().catalogSeoPages ?? []).filter((row) => wanted.has(row._id)),
     );
   }
 
@@ -810,10 +896,12 @@ export class JsonFileAdapter implements DbAdapter {
   /** The same snapshot policy as CloudBase, inside the local catalog write lock. */
   async submitCatalogQuote(
     input: unknown,
+    capture?: SalesCaptureScope,
   ): Promise<{ ok: true; requestId: string } | { ok: false; code: string }> {
     const parsed = CatalogQuoteSubmissionSchema.safeParse(input);
     if (!parsed.success) return { ok: false, code: 'validation' };
-    return this.withMutationLock(() => {
+    const configured = capture === undefined ? undefined : parseSalesCaptureScope(capture);
+    return this.withMutationLock(async () => {
       const keyHash = hashQuoteValue(parsed.data.idempotencyKey);
       const previous = this.docs('catalogQuoteRequests').find((row) => row.keyHash === keyHash);
       if (previous)
@@ -837,9 +925,87 @@ export class JsonFileAdapter implements DbAdapter {
         now: new Date().toISOString(),
       });
       if (!planned.ok) return planned;
-      this.docs('catalogQuoteRequests').push(planned.record);
+      let record: CollectionDoc = planned.record;
+      let registration: Awaited<ReturnType<typeof planSalesSubmission>>['registration'] | undefined;
+      const at = Math.floor(Date.parse(String(record.createdAt)) / 1000);
+      const activeCapture = configured && at >= configured.cutover_at ? configured : undefined;
+      if (activeCapture) {
+        assertSalesInstallation(
+          this.docs('channelSalesInstallations').find(
+            (row) => row._id === activeCapture.source_installation_id,
+          )?.record,
+          activeCapture,
+        );
+        const plan = await planSalesSubmission(activeCapture, 'product', record, null, at);
+        record = plan.project;
+        registration = plan.registration;
+        if (
+          this.docs('channelSalesSourceRegistrations').some(
+            (row) => row._id === registrationKey(plan.registration),
+          )
+        )
+          throw new Error('Source registration conflict');
+        if (
+          this.docs('channelSalesSourceDeliveries').some(
+            (row) => row._id === registrationKey(plan.registration),
+          )
+        )
+          throw new Error('Source delivery conflict');
+      }
+      this.docs('catalogQuoteRequests').push(record);
+      if (registration)
+        this.docs('channelSalesSourceRegistrations').push({
+          _id: registrationKey(registration),
+          record: registration,
+        });
+      if (registration)
+        this.docs('channelSalesSourceDeliveries').push({
+          _id: registrationKey(registration),
+          record: createInitialSourceDelivery(registration),
+        });
       this.persist();
       return { ok: true, requestId: planned.record._id };
+    });
+  }
+
+  async saveFinalizedSalesOemSubmission(
+    input: FinalizedSalesOemInput,
+    scope: SalesCaptureScope,
+  ): Promise<CollectionDoc> {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      const db: NodeSdkDatabase = {
+        command: { set: (value) => value },
+        runTransaction: async (operation) =>
+          operation({
+            collection: (collection) => ({
+              doc: (id) => ({
+                get: async () => ({
+                  data: copy[collection]?.find((row) => row._id === id) ?? null,
+                }),
+                set: async (data) => {
+                  copy[collection] ??= [];
+                  const rows = copy[collection];
+                  const index = rows.findIndex((row) => row._id === id);
+                  const row = { ...data, _id: id };
+                  if (index < 0) rows.push(row);
+                  else rows[index] = row;
+                  return { updated: 1 };
+                },
+                update: async () => {
+                  throw new Error('Unsupported local sales transaction update');
+                },
+                remove: async () => {
+                  throw new Error('Unsupported local sales transaction remove');
+                },
+              }),
+            }),
+          }),
+      };
+      const project = await saveFinalizedOemInCloud(db, input, scope);
+      this.store = copy;
+      this.persist();
+      return project;
     });
   }
 

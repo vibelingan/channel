@@ -48,7 +48,7 @@
 
 新增本地 HTTP 用例调用现有 CloudBase 文章仓库与安装 SDK 的离线传输，验证创建持久记录、普通用户和数据库角色降级拒绝、错误来源拒绝、业务路径白名单以及发布关闭。SDK 合同按现有门禁核对；Context7 未提供，使用官方 CloudBase 文档、当前安装包和现有可执行校验。
 
-[机器检查摘要和截图](evidence/2026-10-24/verification.json)。[桌面页面](evidence/2026-10-24/local-workspace-desktop.png)、[手机页面](evidence/2026-10-24/local-workspace-mobile.png) 展示的是离线测试内容，不是客户文章。
+[机器检查摘要和截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-24/verification.json)。[桌面页面](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-24/local-workspace-desktop.png)、[手机页面](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-24/local-workspace-mobile.png) 展示的是离线测试内容，不是客户文章。
 
 ## 检查中遇到的两个问题
 

@@ -26,7 +26,8 @@
     "./catalog-product-operation": "./src/catalog/product-operation.ts",
     "./catalog-detail-pagination": "./src/catalog/pagination.ts",
     "./catalog-media-protection": "./src/media-protection.ts",
-    "./admin-product-list": "./src/catalog/admin-product-list.ts"
+    "./admin-product-list": "./src/catalog/admin-product-list.ts",
+    "./catalog-public-projection": "./src/catalog/public-projection.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

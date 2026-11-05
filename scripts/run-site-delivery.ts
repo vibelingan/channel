@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
+import COS from 'cos-nodejs-sdk-v5';
 import { productPath } from '../apps/site/src/lib/seo/product-identity.ts';
 import { prepareArticleBuild } from '../packages/articles/src/build.ts';
 import { articleReleaseBuildInput } from '../packages/articles/src/release-build.ts';
@@ -11,16 +12,51 @@ import type { ClaimedArticleRelease } from '../packages/articles/src/release-sto
 import { writeBlogArticleAssets } from '../packages/db/src/article-build-assets.ts';
 import { readAcceptedArticles } from '../packages/db/src/article-release-source.ts';
 import { createCloudBaseArticleReleaseWorker } from '../packages/db/src/article-repository.ts';
+import { createCatalogSeoStore } from '../packages/db/src/catalog-seo-cloud.ts';
+import { catalogSeoControlId } from '../packages/db/src/catalog-seo-control.ts';
+import { catalogRegionalRequestHash } from '../packages/db/src/catalog-seo-regional.ts';
+import { readCatalogSeoRecordingConfig } from '../packages/db/src/catalog-seo-requests.ts';
 import { assertBlogConfigurationCheckpoint } from './blog/hosting-checkpoint.mjs';
 import { readFunctionRuntimeState } from './blog/runtime-health.mjs';
 import { assertBlogDeliveryOwnership, assertServerBlogReady } from './blog/server-route-health.mjs';
 import { checkBlogSiteBaseline, readBlogSiteBaseline } from './blog/site-baseline.mjs';
 import { blogWorkerSdk } from './blog/worker-source.ts';
+import { createCatalogAcceptanceProof, finishCatalogAcceptance } from './catalog-acceptance.ts';
+import {
+  assertCatalogBuildInputCurrent,
+  assertPrebuiltCatalogMode,
+  versionFreshCatalogBuildSnapshot,
+} from './catalog-build-input.ts';
+import { guardCatalogHostingAdapters, type prepareCatalogRefresh } from './catalog-refresh.ts';
+import { createCatalogRegionalClient } from './catalog-regional-client.mjs';
 import { auditHostingContract } from './hosting-contract.mjs';
+import { createReleaseRegionalClient } from './release-regional-client.mjs';
 import { createCanaryProvider } from './release/canary-provider.mjs';
+import {
+  activateAcceptedCatalogRegistration,
+  activateCatalogRenderer,
+} from './release/catalog-activation.mjs';
+import { loadCatalogPreparationEvidence } from './release/catalog-preparation-evidence.mjs';
+import { recoverCatalogPreparation } from './release/catalog-preparation-recovery.mjs';
+import { completeCatalogRegistration } from './release/catalog-registration.mjs';
+import { createRendererSource } from './release/catalog-renderer-source.mjs';
+import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
+import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
+import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
+import { assertStoppedFunctionsAbsent } from './release/catalog-stopped-evidence.mjs';
+import { recoverStoppedCatalogDelivery } from './release/catalog-stopped-recovery.mjs';
+import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import { createGithubReadClient } from './release/github-read.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
+import { identity, sha256 } from './release/input.mjs';
 import { readObject } from './release/input.mjs';
+import {
+  createExclusiveLeaseHeartbeat,
+  renewCurrentSiteLease,
+} from './release/lease-heartbeat.mjs';
+import { createPrivateArchive } from './release/private-archive.mjs';
 import { publicBuildEnvironment, serverBlogBuild } from './release/public-build-env.mjs';
+import { releaseRegionalDiagnostic } from './release/regional-coordinator.mjs';
 import { assertOwnedArticleDrill } from './release/site-acceptance-scope.mjs';
 import { readBuiltSite } from './release/site-build-record.mjs';
 import {
@@ -35,9 +71,18 @@ import {
 import { createSiteGithubSource } from './release/site-github-source.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import { assertSiteDeliveryInvocation } from './release/site-policy.mjs';
-import { createReleaseCoordinator } from './release/state.mjs';
+import { createSiteRetention } from './release/site-retention.mjs';
 import { deliverStaticContent } from './release/static-delivery.mjs';
-import { createCloudbaseReleaseStore } from './release/store-cloudbase.mjs';
+function reportSiteStop(phase: string, error: Error) {
+  console.error(
+    JSON.stringify({
+      event: 'site-delivery-stopped',
+      phase,
+      ...releaseRegionalDiagnostic(error),
+      message: error.message,
+    }),
+  );
+}
 interface SiteObjectEntry {
   path: string;
   bytes: number;
@@ -46,14 +91,14 @@ interface SiteObjectEntry {
 }
 const env = process.env;
 const policy = assertSiteDeliveryInvocation(env);
+assertPrebuiltCatalogMode(env);
 const blogServer = serverBlogBuild(env);
 if (blogServer && env.SITE_ARTICLE_TASK_ID)
   throw Error('Server Blog does not use a static article build task');
 const codeSha = env.GITHUB_SHA ?? '';
 if (!env.TENCENTCLOUD_SECRETID || !env.TENCENTCLOUD_SECRETKEY || !env.GITHUB_TOKEN)
   throw Error('Existing deployment credentials required');
-const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
-await github.requireCI(codeSha, {
+await createSiteGithubSource({ token: env.GITHUB_TOKEN }).requireCI(codeSha, {
   ref: env.GITHUB_REF,
   event: env.GITHUB_EVENT_NAME,
   runId: env.GITHUB_RUN_ID,
@@ -78,11 +123,105 @@ const sdk = blogWorkerSdk({
   secretKey: env.TENCENTCLOUD_SECRETKEY,
 });
 const db = sdk.database();
-const worker = createCloudBaseArticleReleaseWorker(db);
-const coordinator = createReleaseCoordinator({
-  store: createCloudbaseReleaseStore({ db, envId: policy.envId }),
-  policy,
+const archiveCos = new COS({
+  SecretId: env.TENCENTCLOUD_SECRETID,
+  SecretKey: env.TENCENTCLOUD_SECRETKEY,
+  ...ARCHIVE_COS_OPTIONS,
 });
+const objects = createPrivateArchive({
+  ...createCosArchiveTransfer({
+    cos: archiveCos,
+    policy,
+    onStatus: (event: object) =>
+      console.log(JSON.stringify({ event: 'private-archive-sdk', ...event })),
+  }),
+  sdk,
+  manager,
+  policy,
+  readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
+  onTransfer: (event: object) =>
+    console.log(JSON.stringify({ event: 'private-archive-transfer', ...event })),
+});
+const retention = createSiteRetention({ db, objects, policy });
+const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
+const catalogConfig = readCatalogSeoRecordingConfig(env);
+if (catalogConfig) {
+  await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
+  const activation = await db.collection('catalogSeoBuilders').doc('runtime-activation').get();
+  assertInitialCatalogRuntime(
+    Array.isArray(activation.data) ? activation.data[0] : activation.data,
+    policy.siteOrigin,
+  );
+}
+if (env.SITE_PRODUCT_SOURCE === 'refresh' && !catalogConfig)
+  throw Error('Enable all product writers before automatic refresh');
+if (catalogConfig)
+  for (const name of ['admin', 'alibaba-catalog-sync'])
+    if (!(await readFunctionRuntimeState(policy.envId, name)).catalogSeoRecording)
+      throw Error(`The actual ${name} runtime has not enabled catalog change recording`);
+const programRestore = env.SITE_DELIVERY_MODE === 'restore' && Boolean(env.SITE_RENDERER_SHA);
+if (programRestore && (!catalogConfig || env.SITE_PRODUCT_SOURCE !== 'refresh'))
+  throw Error('Program restoration requires current catalog tracking and refresh inputs');
+if (catalogConfig && env.SITE_DELIVERY_MODE === 'restore' && !programRestore)
+  throw Error(
+    'Historical content restoration is disabled while product recording is enabled; rebuild the approved program with current public data',
+  );
+if (
+  env.SITE_PRODUCT_SOURCE === 'refresh' &&
+  !programRestore &&
+  env.SITE_CATALOG_BOOTSTRAP !== '1'
+) {
+  let pending = false;
+  for (const collection of ['catalogSeoRequests', 'catalogSeoTasks']) {
+    const result = await db
+      .collection(collection)
+      .where({ siteOrigin: policy.siteOrigin, state: 'pending' })
+      .limit(1)
+      .get();
+    if (!Array.isArray(result.data)) throw Error('Catalog pending queue could not be read');
+    pending ||= result.data.length > 0;
+  }
+  if (!pending) {
+    console.log('No pending product changes. No website writes or build.');
+    process.exit(0);
+  }
+}
+let renderer:
+  | {
+      root: string;
+      proof: {
+        codeSha: string;
+        manifestSha256: string;
+        archiveSha256: string;
+        archiveFileId: string;
+        inputSchema: number;
+      };
+    }
+  | undefined;
+if (env.SITE_RENDERER_SHA || env.SITE_PRODUCT_SOURCE === 'refresh') {
+  const active = await db.collection('catalogSeoBuilders').doc('active').get();
+  const activeRow = Array.isArray(active.data) ? active.data[0] : active.data;
+  const rendererSha = env.SITE_RENDERER_SHA || activeRow?.codeSha;
+  if (!/^[a-f0-9]{40}$/.test(rendererSha ?? ''))
+    throw Error('An approved renderer SHA is required');
+  const result = await db.collection('catalogSeoBuilders').doc(rendererSha).get();
+  const approved = Array.isArray(result.data) ? result.data[0] : result.data;
+  if (!approved || approved.codeSha !== rendererSha) throw Error('Renderer approval is absent');
+  const source = await createRendererSource({ objects }).download(approved);
+  const archiveFile = resolve('output/renderer-download.tar.gz');
+  await mkdir(resolve('output'), { recursive: true });
+  await writeFile(archiveFile, source.archive, { flag: 'wx', mode: 0o600 });
+  const rendererRoot = resolve('output/approved-renderer');
+  const proof = unpackCatalogRenderer({
+    manifest: source.manifest,
+    approved,
+    archiveFile,
+    directory: rendererRoot,
+  });
+  renderer = { root: rendererRoot, proof };
+}
+let catalog: Awaited<ReturnType<typeof prepareCatalogRefresh>> | undefined;
+const worker = createCloudBaseArticleReleaseWorker(db);
 const automatic = env.SITE_ARTICLE_TASK_ID === 'auto';
 let requestedTaskId = env.SITE_ARTICLE_TASK_ID ?? '';
 if (env.SITE_DELIVERY_MODE === 'publish' && requestedTaskId === 'auto') {
@@ -112,42 +251,124 @@ if (requestedTaskId && !/^release-[a-f0-9]{64}$/.test(requestedTaskId))
 const directory = resolve('output/site-delivery');
 await mkdir(directory, { recursive: true });
 const runId = `site-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
-let guard = await coordinator.acquire({
+const releaseRegional = await createReleaseRegionalClient({
+  manager,
+  policy,
   ownerRunId: runId,
   runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+  codeSha,
+  directory: join(directory, 'release-regional'),
 });
+const coordinator = releaseRegional.coordinator;
+let guard: Awaited<ReturnType<typeof coordinator.acquire>>;
+try {
+  if (catalogConfig) {
+    const recoveryGithub = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
+    const recovered = await recoverCatalogPreparation({
+      coordinator,
+      github: recoveryGithub,
+      policy,
+      functions: manager.functions,
+      manager,
+      onCleanup: (supplementalRecovery: Record<string, unknown>) =>
+        writeFile(
+          join(directory, 'preparation-cleanup.json'),
+          JSON.stringify(supplementalRecovery, null, 2),
+          { mode: 0o600 },
+        ),
+      readPreparationRun: (priorRunId: string) =>
+        createCatalogSeoStore(db).get(
+          'siteReleaseRuns',
+          identity({ targetId: coordinator.targetId, runId: priorRunId }),
+        ),
+      loadEvidence: (input: {
+        run: Record<string, unknown>;
+        artifactName: string;
+        regionalPath: string;
+      }) =>
+        loadCatalogPreparationEvidence({
+          ...input,
+          github: recoveryGithub,
+          artifacts: new DefaultArtifactClient(),
+          token: env.GITHUB_TOKEN,
+          directory: join(
+            directory,
+            'preparation-evidence',
+            input.regionalPath === 'release-regional/result.json' ? 'release' : 'catalog',
+          ),
+        }),
+    });
+    await writeFile(
+      join(directory, 'preparation-check.json'),
+      JSON.stringify(
+        {
+          state: recovered.state,
+          baselineRunId: recovered.scope?.baseline?.sourceRunId ?? null,
+          reconciliation: recovered.target?.lastReconciliation ?? null,
+          websiteWrites: 0,
+          businessWrites: 0,
+        },
+        null,
+        2,
+      ),
+      { flag: 'wx', mode: 0o600 },
+    );
+  }
+  guard = await coordinator.acquire({
+    ownerRunId: runId,
+    runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+  });
+} catch (error) {
+  try {
+    await releaseRegional.close();
+  } catch (cleanupError) {
+    reportSiteStop('release-cleanup', cleanupError as Error);
+  }
+  throw error;
+}
+let regional: Awaited<ReturnType<typeof createCatalogRegionalClient>> | undefined;
+const failedInputs = new Map<string, Awaited<ReturnType<typeof github.downloadFailed>>>();
+const failedInput = async (run: Awaited<ReturnType<typeof coordinator.runStatus>>) => {
+  let input = failedInputs.get(run.runId);
+  if (!input) {
+    input = await github.downloadFailed(
+      run,
+      join(directory, `current-data-failed-${failedInputs.size + 1}`),
+      run.runId,
+    );
+    failedInputs.set(run.runId, input);
+  }
+  return input;
+};
+const regionalCatalog = async () => {
+  if (!regional)
+    regional = await createCatalogRegionalClient({
+      manager,
+      policy,
+      runId,
+      codeSha,
+      runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+      guard,
+      directory: join(directory, 'regional'),
+      requestHash: catalogRegionalRequestHash,
+      withLease: (operation: () => Promise<unknown>) => heartbeat.withLease(operation),
+    });
+  return regional;
+};
 let claim: ClaimedArticleRelease | undefined;
 let deploying = false;
-let failure: unknown;
-let renewing = false;
-const clock = setInterval(async () => {
-  if (renewing) return;
-  renewing = true;
-  try {
-    try {
-      await coordinator.renew(guard);
-    } catch (error) {
-      const status = await coordinator.status({ scopeKey: 'site' }).catch(() => null);
-      // Acceptance ends this lease; ignore only that confirmed handover.
-      if (
-        !status ||
-        (status.target.lease && status.target.lease.ownerRunId !== runId) ||
-        status.target.currentRunId ||
-        status.target.dirtyRunId ||
-        status.target.unresolvedOperation
-      )
-        throw error;
-    }
-    if (claim) await worker.renew(claim.guard);
-  } catch (error) {
-    failure = error;
-  } finally {
-    renewing = false;
-  }
-}, 30000);
-const check = () => {
-  if (failure) throw failure;
+let releaseCleanupFailure: unknown;
+const renewLease = async () => {
+  await renewCurrentSiteLease({
+    coordinator,
+    getGuard: () => guard,
+    runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+    acceptedRunIds: [runId, `${runId}-baseline`],
+  });
+  if (claim) await worker.renew(claim.guard);
 };
+let heartbeat = createExclusiveLeaseHeartbeat({ renew: renewLease });
+const check = () => heartbeat.check();
 async function command(
   bin: string,
   args: string[],
@@ -169,7 +390,7 @@ async function command(
   check();
 }
 async function verifyPublicDelivery({ action }: { action: string }) {
-  if (action === 'publish' || action === 'initialize') {
+  if (['publish', 'initialize', 'reconcile'].includes(action)) {
     const publicEnv = {
       PATH: env.PATH,
       HOME: env.HOME,
@@ -178,6 +399,7 @@ async function verifyPublicDelivery({ action }: { action: string }) {
       E2E_SITE_URL: policy.siteOrigin,
       E2E_API_URL: `https://${policy.envId}.service.tcloudbase.com`,
       E2E_SEO_PUBLIC_LIVE: '1',
+      E2E_BLOG_DELIVERY_MODE: blogServer ? 'server' : 'static',
       E2E_RECORD_ARTIFACTS: '0',
       ...(claim
         ? {
@@ -227,8 +449,10 @@ async function loadAccepted(run: {
     policy,
     run: source,
     acceptedSeal: run.accepted.seals.static,
+    retainedProof: source.retainedProof ?? null,
   });
   if (blogServer) assertServerBlogRecoverySource(input);
+  await retention.save(input);
   acceptedCache.set(artifact.artifactId, input);
   return input;
 }
@@ -256,14 +480,21 @@ async function archivePayload(payload: string, prefix: string) {
     currentRunId: env.GITHUB_RUN_ID,
   });
   check();
-  return siteArtifact({ directory: destination, policy, run });
+  const input = siteArtifact({
+    directory: destination,
+    policy,
+    run,
+    retainedProof: run.retainedProof ?? null,
+  });
+  await retention.save(input);
+  return input;
 }
 try {
   const status = await coordinator.status({ scopeKey: 'site' });
   if (
     status.pendingStep ||
     status.target.currentRunId ||
-    (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore')
+    (status.target.dirtyRunId && env.SITE_DELIVERY_MODE !== 'restore' && !catalogConfig)
   )
     throw Error('An earlier delivery requires readback before another publication');
   if (blogServer) await assertServerBlogReady(policy.siteOrigin);
@@ -281,6 +512,7 @@ try {
           codeSha,
           dist: 'apps/site/dist',
           productFile: 'output/seo-release/product-snapshot.json',
+          productSourceFile: 'output/seo-release/product-source.json',
           blogFile: 'output/seo-release/blog/snapshot.json',
           blogDelivery: blogServer ? 'server' : 'static',
           recordFile: 'output/seo-release/build-record.json',
@@ -348,18 +580,22 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
     if (adopted.status !== 'accepted')
       throw Error('Current site could not be accepted without writes');
-    // commitRun ends its lease. Acquire a new fence before publishing B.
+    // Drain the old renewal before acquiring the next fence.
+    await heartbeat.stop();
+    heartbeat.check();
     const next = await coordinator.acquire({
       ownerRunId: runId,
       runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
     });
     guard = next;
+    heartbeat = createExclusiveLeaseHeartbeat({ renew: renewLease });
+    regional?.setGuard(guard);
     const accepted = await coordinator.status({ scopeKey: 'site' });
     baseline = await loadAccepted(await coordinator.runStatus(accepted.scope.baseline.sourceRunId));
   }
@@ -372,6 +608,7 @@ try {
       baseline.staticManifest.configuration,
       configuration,
       policy.siteOrigin,
+      { allowHttpsUpgrade: true },
     );
     const payload = join(directory, 'checkpoint');
     createSitePayload({
@@ -413,8 +650,7 @@ try {
           if (!(await auditHostingContract(policy.siteOrigin)).passed)
             throw Error('Unchanged site status/cache check failed');
         },
-        onStop: (phase: string, error: Error) =>
-          console.error(`Checkpoint ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -433,7 +669,7 @@ try {
       { flag: 'wx' },
     );
     if (result.status !== 'accepted') throw Error(`Site checkpoint: ${result.status}`);
-  } else if (env.SITE_DELIVERY_MODE === 'restore') {
+  } else if (env.SITE_DELIVERY_MODE === 'restore' && !programRestore) {
     const sourceRunId = env.SITE_RESTORE_RUN_ID ?? '';
     if (!/^[A-Za-z0-9:_-]{1,200}$/.test(sourceRunId))
       throw Error('Exact accepted site run required');
@@ -475,7 +711,7 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
@@ -515,7 +751,148 @@ try {
       assertOwnedArticleDrill({ taskId: requestedTaskId, task, draft: drafts.data[0].draft });
     }
     if (requestedTaskId) claim = await worker.claim(requestedTaskId, runId);
-    if (built) {
+    if (catalogConfig) {
+      const recovery = await recoverStoppedCatalogDelivery({
+        coordinator,
+        regional: await regionalCatalog(),
+        github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
+        policy,
+        readSteps: async (stoppedRunId: string) => {
+          const result = await db
+            .collection('siteReleaseSteps')
+            .where({ runId: stoppedRunId, kind: 'write' })
+            .limit(1000)
+            .get();
+          if (!Array.isArray(result.data)) throw Error('Stopped release steps were not read');
+          return result.data;
+        },
+        readReceipt: (id: string) => createCatalogSeoStore(db).get('catalogSeoBuilders', id),
+        readControl: () =>
+          createCatalogSeoStore(db).get(
+            'catalogSeoControl',
+            catalogSeoControlId(policy.siteOrigin),
+          ),
+        readTasks: (state: string, cursor: string | null, limit: number) =>
+          createCatalogSeoStore(db).list(
+            'catalogSeoTasks',
+            { siteOrigin: policy.siteOrigin, state },
+            cursor,
+            limit,
+          ),
+        loadCandidate: failedInput,
+        loadEvidence: (context: { githubRun: Record<string, unknown>; artifactName: string }) =>
+          loadCatalogPreparationEvidence({
+            github: createGithubReadClient({ policy, token: env.GITHUB_TOKEN }),
+            artifacts: new DefaultArtifactClient(),
+            token: env.GITHUB_TOKEN,
+            directory: join(directory, 'stopped-catalog-evidence'),
+            run: context.githubRun,
+            artifactName: context.artifactName,
+            regionalPath: 'regional/result.json',
+          }),
+        verifyQuiescence: async (context: {
+          githubRunId: string;
+          attempt: string;
+          [key: string]: unknown;
+        }) => {
+          await assertStoppedFunctionsAbsent(manager.functions, [
+            `seo-catalog-region-${context.githubRunId}-${context.attempt}`,
+            `seo-release-region-${context.githubRunId}-${context.attempt}`,
+          ]);
+          return {
+            ...context,
+            functionsAbsent: true,
+            oldJobCompleted: true,
+            checkedAt: Date.now(),
+          };
+        },
+        onProgress: (progress: Record<string, unknown>) =>
+          writeFile(
+            join(directory, 'stopped-catalog-recovery.json'),
+            JSON.stringify(progress, null, 2),
+            { mode: 0o600 },
+          ),
+      });
+      await writeFile(
+        join(directory, 'stopped-catalog-recovery.json'),
+        JSON.stringify(recovery, null, 2),
+        { mode: 0o600 },
+      );
+    }
+    if (env.SITE_CATALOG_BOOTSTRAP === '1') {
+      if (!catalogConfig || !baseline || !renderer)
+        throw Error(
+          'Catalog bootstrap requires checked writers, an accepted public snapshot and an archived program',
+        );
+      const snapshot = JSON.parse(
+        readObject(baseline.directory, 'product-snapshot.json').toString(),
+      );
+      if (!Array.isArray(snapshot.products))
+        throw Error('Accept an initial full product snapshot before enabling change tracking');
+      const ids = [
+        ...publicProductPaths.map((path) => {
+          const match = /^\/products\/p-([A-Za-z0-9_-]{1,200})\/$/.exec(path);
+          if (!match) throw Error('Invalid public product path');
+          return match[1];
+        }),
+        ...snapshot.products.map((item: { product: { _id: string } }) => item.product._id),
+      ];
+      const result = await (await regionalCatalog()).seed(ids, catalogConfig);
+      console.log(
+        JSON.stringify({ operation: 'seed-existing-product-pages', ...result, businessWrites: 0 }),
+      );
+    }
+    if (catalogConfig) catalog = await (await regionalCatalog()).prepare(catalogConfig);
+    if (built && catalogConfig && catalog) {
+      const captured = JSON.parse(await readFile('output/seo-release/product-source.json', 'utf8'));
+      assert(captured.source === env.SITE_PRODUCT_SOURCE, 'Product source changed after capture');
+      assert(captured.source === 'fresh' || captured.source === 'accepted');
+      assertCatalogBuildInputCurrent({
+        config: catalogConfig,
+        source: captured.source,
+        snapshot: await readFile('output/seo-release/product-snapshot.json'),
+        proof: captured.catalog,
+        current: catalog,
+      });
+    }
+    if (env.SITE_PRODUCT_SOURCE === 'refresh' || env.SITE_CATALOG_BOOTSTRAP === '1') {
+      if (!catalog || !baseline)
+        throw Error('A current accepted snapshot and checked requests are required');
+      if (!renderer) throw Error('Content refresh requires an approved archived renderer');
+      const previousProgram = JSON.parse(
+        readObject(baseline.directory, 'compatibility.json').toString(),
+      ).renderer?.codeSha;
+      if (
+        !programRestore &&
+        env.SITE_CATALOG_BOOTSTRAP !== '1' &&
+        previousProgram &&
+        previousProgram !== renderer.proof.codeSha
+      )
+        throw Error('Automatic content refresh cannot switch the accepted renderer program');
+      const heads = catalog.heads.map(
+        ({ productId, visible, detailRevision, sequence, semanticHash, changedAt }) => ({
+          productId,
+          visible,
+          detailRevision,
+          sequence,
+          semanticHash,
+          changedAt,
+        }),
+      );
+      const headsFile = join(directory, 'catalog-heads.json');
+      await writeFile(headsFile, JSON.stringify(heads), { flag: 'wx' });
+      await command(
+        join(root, 'apps/site/node_modules/.bin/tsx'),
+        [
+          'apps/site/scripts/refresh-product-seo.ts',
+          join(baseline.directory, 'product-snapshot.json'),
+          headsFile,
+          productFile,
+        ],
+        root,
+        { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
+      );
+    } else if (built) {
       await writeFile(productFile, await readFile('output/seo-release/product-snapshot.json'), {
         flag: 'wx',
       });
@@ -540,6 +917,18 @@ try {
         root,
         { SITE_URL: policy.siteOrigin, SEO_CATALOG_API_ORIGIN: policy.siteOrigin },
       );
+      if (catalogConfig && catalog) {
+        const after = await (await regionalCatalog()).prepare(catalogConfig);
+        const versioned = versionFreshCatalogBuildSnapshot({
+          config: catalogConfig,
+          source: 'fresh',
+          snapshot: await readFile(productFile),
+          before: catalog,
+          after,
+        });
+        await writeFile(productFile, versioned);
+        catalog = after;
+      }
     }
     const products = JSON.parse(await readFile(productFile, 'utf8'));
     assert(Array.isArray(products.products));
@@ -595,13 +984,28 @@ try {
           { flag: 'wx' },
         );
       }
-      const dist = join(root, 'apps/site/.astro/formal-site-delivery/site');
+      const buildRoot = renderer?.root ?? root;
+      if (renderer) {
+        await command(
+          'pnpm',
+          [
+            'install',
+            '--frozen-lockfile',
+            '--ignore-scripts',
+            '--filter',
+            '@vibelingan-channel/site...',
+          ],
+          buildRoot,
+        );
+      }
+      const dist = join(buildRoot, 'apps/site/.astro/formal-site-delivery/site');
       await command(
-        join(root, 'apps/site/node_modules/.bin/astro'),
+        join(buildRoot, 'apps/site/node_modules/.bin/astro'),
         ['build', '--outDir', dist],
-        join(root, 'apps/site'),
+        join(buildRoot, 'apps/site'),
         {
           SEO_CATALOG_SNAPSHOT: productFile,
+          ...(renderer ? { CHANNEL_BUILD_SHA: renderer.proof.codeSha } : {}),
           SEO_BLOG_SNAPSHOT: claim ? '' : blogFile,
           SEO_BLOG_RELEASE_INPUT: claim ? blogFile : '',
           SEO_BLOG_TASK_ID: claim?.task.id ?? '',
@@ -622,6 +1026,16 @@ try {
       configuration: await provider.readConfiguration(),
       codeSha,
       releaseId: runId,
+      ...(renderer ? { renderer: renderer.proof } : {}),
+      ...(catalog && catalogConfig
+        ? {
+            catalog: createCatalogAcceptanceProof({
+              config: catalogConfig,
+              capture: catalog,
+              snapshot: Buffer.from(JSON.stringify(products)),
+            }),
+          }
+        : {}),
       files,
       snapshot: products,
       objectProofs: baseline.staticManifest.entries.flatMap((e: SiteObjectEntry) =>
@@ -640,8 +1054,37 @@ try {
       await worker.markDeploying(claim.guard);
       deploying = true;
     }
+    const pathIds = new Map<string, string>();
+    for (const item of products.products)
+      pathIds.set(`${productPath(item.product._id).slice(1)}index.html`, item.product._id);
+    for (const head of catalog?.heads ?? [])
+      pathIds.set(`${productPath(head.productId).slice(1)}index.html`, head.productId);
+    const failedCandidates = [];
+    let dirty = (await coordinator.status({ scopeKey: 'site' })).target.dirtyRunId;
+    const seen = new Set<string>();
+    while (dirty) {
+      if (seen.has(dirty) || seen.size >= 16) throw Error('Invalid recovery history');
+      seen.add(dirty);
+      const run = await coordinator.runStatus(dirty);
+      const input = await failedInput(run);
+      failedCandidates.push({ run, input });
+      dirty = run.failedRunId;
+    }
+    if (failedCandidates.length && !catalog)
+      throw Error('Current-data recovery requires catalog version coordination');
+    const checkedCatalog = catalog;
     const result = await deliverStaticContent(
       {
+        ...(failedCandidates.length ? { mode: 'reconcile', failedCandidates } : {}),
+        ...(checkedCatalog
+          ? {
+              wrapAdapters: (api: Record<string, unknown>) =>
+                guardCatalogHostingAdapters(api, checkedCatalog.delivery, pathIds),
+              beforeAcceptance: () => checkedCatalog.delivery.check(),
+              // A historical snapshot would undo public content; retry a current-data candidate instead.
+              allowRecovery: async () => false,
+            }
+          : {}),
         coordinator,
         provider,
         guard,
@@ -651,10 +1094,87 @@ try {
         publicProductPaths,
         readPublicProductPaths,
         postCheck: verifyPublicDelivery,
-        onStop: (phase: string, error: Error) => console.error(`Site ${phase}: ${error.message}`),
+        onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },
     );
+    if (catalog && result.status === 'retry-current-data')
+      await catalog.delivery.retryKnownFailure();
+    if (result.status === 'accepted') {
+      const finishCatalog = catalog
+        ? async () => {
+            if (!catalog) throw Error('Catalog acceptance context changed');
+            await finishCatalogAcceptance({ catalog, files });
+          }
+        : null;
+      if (renderer && catalog) {
+        const acceptedRun = await coordinator.runStatus(runId);
+        candidate.acceptedSeal = acceptedRun.accepted.seals.static;
+        await heartbeat.stop();
+        heartbeat.check();
+        await completeCatalogRegistration({
+          coordinator,
+          store: createCatalogSeoStore(db),
+          runId,
+          input: candidate,
+          owner: {
+            ownerRunId: runId,
+            runnerRef: `github:${policy.repository}:${env.GITHUB_RUN_ID}:attempt-${env.GITHUB_RUN_ATTEMPT}`,
+          },
+          register: async ({
+            checkpoint,
+            guard: registrationGuard,
+          }: {
+            checkpoint: () => Promise<unknown>;
+            guard: typeof guard;
+          }) => {
+            guard = registrationGuard;
+            heartbeat = createExclusiveLeaseHeartbeat({ renew: checkpoint });
+            regional?.setGuard(registrationGuard);
+            try {
+              return await activateCatalogRenderer({
+                db,
+                proof: renderer.proof,
+                runId,
+                executorSha: codeSha,
+                executorRef: env.GITHUB_REF?.slice(11),
+                finishCatalog: async () => {
+                  if (!catalog) throw Error('Catalog acceptance context changed');
+                  await finishCatalogAcceptance({
+                    catalog,
+                    files,
+                    checkpoint: () => heartbeat.checkpoint(),
+                  });
+                },
+                writeActive: async (data: object) => {
+                  if (!catalog || !renderer) throw Error('Catalog registration context changed');
+                  await activateAcceptedCatalogRegistration({
+                    regional: await regionalCatalog(),
+                    input: candidate,
+                    renderer: renderer.proof,
+                    executorRef: env.GITHUB_REF?.slice(11),
+                    expectedWrites: catalog.writes,
+                    data,
+                  });
+                },
+              });
+            } finally {
+              await heartbeat.stop();
+              heartbeat.check();
+            }
+          },
+        });
+      } else if (renderer)
+        await activateCatalogRenderer({
+          db,
+          proof: renderer.proof,
+          runId,
+          executorSha: codeSha,
+          executorRef: env.GITHUB_REF?.slice(11),
+          finishCatalog,
+        });
+      else await finishCatalog?.();
+    }
     if (claim) {
       if (result.status === 'accepted' && result.receipt)
         await worker.complete(claim.guard, result.receipt);
@@ -671,6 +1191,8 @@ try {
           articleTaskId: claim?.task.id ?? null,
           products: publicProductPaths.length,
           productSource: env.SITE_PRODUCT_SOURCE ?? 'fresh',
+          renderer: renderer?.proof ?? null,
+          programRestore,
         },
         null,
         2,
@@ -680,16 +1202,35 @@ try {
     if (result.status !== 'accepted') throw Error(`Site publication: ${result.status}`);
   }
 } catch (error) {
+  await heartbeat.stop();
   if (claim) {
     try {
       if (deploying) await worker.markUnknown(claim.guard);
       else await worker.failBuild(claim.guard);
     } catch {}
   }
-  try {
-    await coordinator.release(guard);
-  } catch {}
+  if (
+    !regional?.unconfirmed &&
+    !releaseRegional.unconfirmed &&
+    Reflect.get(Object(error), 'code') !== 'RELEASE_REGIONAL_UNCONFIRMED' &&
+    Reflect.get(Object(error), 'code') !== 'CATALOG_REGIONAL_UNCONFIRMED'
+  )
+    try {
+      await coordinator.release(guard);
+    } catch {}
   throw error;
 } finally {
-  clearInterval(clock);
+  try {
+    await heartbeat.stop();
+    await regional?.close();
+  } finally {
+    try {
+      await releaseRegional.close();
+    } catch (error) {
+      reportSiteStop('release-cleanup', error as Error);
+      releaseCleanupFailure = error;
+    }
+  }
 }
+
+if (releaseCleanupFailure) throw releaseCleanupFailure;

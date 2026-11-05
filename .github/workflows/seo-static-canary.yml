@@ -1,4 +1,5 @@
 name: SEO static canary (manual)
+run-name: ${{ inputs.reason }}
 
 on:
   workflow_dispatch:
@@ -6,9 +7,19 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup]
+        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, site-reconcile, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
         default: plan
         required: true
+      catalog_runtime_action:
+        description: Initial catalog runtime setup; code first, recording next, page readiness after tracked HTML acceptance
+        type: choice
+        options: [stage, record, readiness]
+        default: stage
+        required: false
+      catalog_runtime_sha:
+        description: Exact deployed and CI-approved function source for recording/readiness; empty uses this workflow commit
+        type: string
+        required: false
       integration_profile:
         description: Fixed draft credential owner; local is the completed pilot, wecom is the publishing helper
         type: choice
@@ -18,8 +29,12 @@ on:
       product_source:
         description: Full acquisition by default; accepted reuses the last verified details, excludes withdrawals and refuses new product IDs
         type: choice
-        options: [fresh, accepted]
+        options: [fresh, accepted, refresh]
         default: fresh
+        required: false
+      renderer_sha:
+        description: Approved archived renderer commit; restore rebuilds this program with current content
+        type: string
         required: false
       fault:
         description: Controlled article-only acceptance drill; after-upload requires an exact owned article task ID and intentionally fails before acceptance
@@ -66,6 +81,202 @@ concurrency:
   queue: max
 
 jobs:
+  catalog_runtime:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-runtime' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CATALOG_RUNTIME_ACTION: ${{ inputs.catalog_runtime_action }}
+      CATALOG_RUNTIME_SHA: ${{ inputs.catalog_runtime_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fix the candidate build identity
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+      - name: Package only the managed function candidates
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        env:
+          CHANNEL_BUILD_SHA: ${{ github.sha }}
+        run: pnpm package:functions
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        with: {node-version: 20.19.0}
+      - name: Cold-start every candidate on the actual function runtime
+        if: ${{ inputs.catalog_runtime_action == 'stage' }}
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0}
+      - name: Preserve originals, update exact code or enable the reviewed catalog setting
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            await new Promise((resolve, reject) => {
+              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/stage-catalog-runtime.ts'], {stdio:'inherit', env:process.env});
+              child.once('error', reject);
+              child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Catalog runtime setup stopped (${code}); inspect its receipt before retrying`)));
+            });
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: catalog-runtime-stopped-inputs-${{ github.run_id }}
+          path: output/catalog-runtime/before/
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-runtime-receipt-${{ github.run_id }}
+          path: |
+            output/catalog-runtime/receipt.json
+            output/catalog-runtime/progress.json
+          if-no-files-found: ignore
+          retention-days: 90
+  catalog_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-prepare' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare only private SEO collections and additive read indexes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/prepare-catalog-seo.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-preparation-${{ github.run_id }}
+          path: output/catalog-preparation/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+  catalog_clock:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && startsWith(inputs.mode, 'catalog-clock-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CATALOG_CLOCK_ACTION: ${{ inputs.mode == 'catalog-clock-enable' && 'enable' || inputs.mode == 'catalog-clock-disable' && 'disable' || 'stage' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Stage, stop or enable only the owned catalog clock function
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          CATALOG_GITHUB_APP_ID: ${{ vars.CATALOG_GITHUB_APP_ID }}
+          CATALOG_GITHUB_INSTALLATION_ID: ${{ vars.CATALOG_GITHUB_INSTALLATION_ID }}
+          CATALOG_GITHUB_PRIVATE_KEY: ${{ secrets.CATALOG_GITHUB_PRIVATE_KEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/run-catalog-clock.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-clock-receipt-${{ github.run_id }}
+          path: output/catalog-clock/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+  site_archive:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-archive' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_ARCHIVE_CONFIRM: CURRENT_ACCEPTED_SITE_ONLY
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify or retain only the current accepted website recovery archive
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-accepted-site.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-archive-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/site-archive/receipt.json
+          if-no-files-found: error
+          retention-days: 90
+  renderer_archive:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'renderer-archive' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fetch the selected historical program without replacing the checked executor
+        if: ${{ inputs.renderer_sha != '' && inputs.renderer_sha != github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.renderer_sha }}
+          path: renderer-source
+          persist-credentials: false
+      - name: Archive the exact CI-approved program; read back before registering
+        env:
+          SITE_RENDERER_SHA: ${{ inputs.renderer_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-catalog-renderer.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-renderer-receipt-${{ github.run_id }}
+          path: output/catalog-renderer/receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+  catalog_probe:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-probe' }}
+    uses: ./.github/workflows/seo-catalog-probe.yml
+    secrets: inherit
   cloud_readiness:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'cloud-readiness' }}
     uses: ./.github/workflows/seo-cloud-readiness.yml
@@ -281,11 +492,13 @@ jobs:
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
   site_delivery:
-    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && inputs.mode == 'site-delivery' }}
+    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && (inputs.mode == 'site-delivery' || inputs.mode == 'catalog-bootstrap') }}
     uses: ./.github/workflows/seo-site-delivery.yml
     with:
       action: ${{ inputs.action }}
       product_source: ${{ inputs.product_source }}
+      renderer_sha: ${{ inputs.renderer_sha }}
+      catalog_bootstrap: ${{ inputs.mode == 'catalog-bootstrap' }}
       fault: ${{ inputs.fault }}
       article_task_id: ${{ inputs.artifact_id }}
       restore_run_id: ${{ inputs.restore_run_id }}
@@ -315,6 +528,18 @@ jobs:
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       BLOG_QUEUE_STATUS_KEY: ${{ secrets.BLOG_QUEUE_STATUS_KEY }}
+
+  blog_images_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-images-prepare' && inputs.action == 'initialize' }}
+    uses: ./.github/workflows/seo-blog-images.yml
+    secrets: inherit
+
+  blog_formal_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-formal-prepare' && inputs.action == 'initialize' }}
+    uses: ./.github/workflows/seo-blog-formal.yml
+    with:
+      registration: ${{ inputs.plan_token }}
+    secrets: inherit
 
   blog_import_setup:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-import-setup' }}
@@ -348,6 +573,15 @@ jobs:
     with:
       action: ${{ inputs.action }}
     secrets: inherit
+
+  site_reconcile:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-reconcile' }}
+    uses: ./.github/workflows/seo-site-reconcile.yml
+    with:
+      source_run_id: ${{ inputs.restore_run_id }}
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
 
   site_readback:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-readback' }}

@@ -6,6 +6,7 @@ import {
   type CollectionDoc,
   type ListResult,
   compareBySort,
+  initialCatalogTaxonomy,
   matchesFilter,
 } from '@vibelingan-channel/shared';
 import { getProductDetail } from './catalog-detail.ts';
@@ -275,4 +276,138 @@ test('stale revision wins over an out-of-range page so the browser can refresh',
   const current = await getProductDetail('reduced', 2, 50, 'r1', false, false, false, true);
   assert.ok(!current.ok);
   assert.equal(current.error.code, 'VALIDATION_ERROR');
+});
+
+test('public content tracking detects a real API change beyond the first detail page', async () => {
+  const { approvedVariantDocumentId } = await import(
+    '@vibelingan-channel/db/catalog-detail-storage'
+  );
+  const { prepareCatalogPublicState } = await import(
+    '@vibelingan-channel/db/catalog-public-content'
+  );
+  const product = approved('paged', {
+    productFamily: 'misc',
+    catalogDetailPublication: {
+      state: 'approved',
+      revision: 'r1',
+      header: header('paged'),
+      variantCount: 60,
+      variantStorage: 'immutable-v1',
+    },
+  });
+  const rows: CollectionDoc[] = Array.from({ length: 60 }, (_, i) => ({
+    _id: approvedVariantDocumentId('paged', 'r1', `v${i}`),
+    productId: 'paged',
+    variantId: `v${i}`,
+    catalogDetailRevision: 'r1',
+    catalogDetailPosition: i,
+    catalogDetailApproved: {
+      id: `v${i}`,
+      sku: `SKU-${i}`,
+      options: [],
+      images: [],
+      inventory: { state: 'unknown' },
+      offers: [],
+    },
+  }));
+  const store = { products: [product], catalogDetailVariants: rows };
+  setAdapter(new ReadOnlyAdapter(store));
+  const first = await getProductDetail('paged', 1);
+  const second = await getProductDetail('paged', 2);
+  const before = prepareCatalogPublicState({
+    product,
+    taxonomy: initialCatalogTaxonomy('misc'),
+    detailEnabled: true,
+    variants: { kind: 'approved', total: 60, items: rows },
+  });
+  const target = rows[55];
+  assert.ok(target);
+  target.catalogDetailApproved = {
+    id: 'v55',
+    sku: 'Changed public SKU',
+    options: [],
+    images: [],
+    inventory: { state: 'unknown' },
+    offers: [],
+  };
+  assert.deepEqual(
+    await getProductDetail('paged', 1),
+    first,
+    'the first page alone cannot reveal this change',
+  );
+  const changed = await getProductDetail('paged', 2);
+  assert.notDeepEqual(changed, second);
+  assert.ok(changed.ok);
+  if (changed.ok) assert.equal(changed.data.variants.items[5]?.sku, 'Changed public SKU');
+  assert.notDeepEqual(
+    prepareCatalogPublicState({
+      product,
+      taxonomy: initialCatalogTaxonomy('misc'),
+      detailEnabled: true,
+      variants: { kind: 'approved', total: 60, items: rows },
+    }),
+    before,
+  );
+});
+
+test('public row variants and change tracking use the same deterministic capped order', async () => {
+  const { getCatalogItem } = await import('./handler.ts');
+  const { prepareCatalogPublicState } = await import(
+    '@vibelingan-channel/db/catalog-public-content'
+  );
+  const product: CollectionDoc = {
+    _id: 'p',
+    name: 'Legacy',
+    published: true,
+    productFamily: 'misc',
+  };
+  const rows: CollectionDoc[] = Array.from({ length: 51 }, (_, i) => ({
+    _id: `v${String(i).padStart(2, '0')}`,
+    productId: 'p',
+    position: 1,
+    sku: `SKU-${i}`,
+  }));
+  setAdapter(new ReadOnlyAdapter({ products: [product], productVariants: [...rows].reverse() }));
+  const first = await getCatalogItem('products', 'p', {});
+  assert.ok(first.ok);
+  if (first.ok) {
+    const data = first.data;
+    assert.ok(data && typeof data === 'object' && 'variants' in data);
+    assert.ok(Array.isArray(data.variants));
+    assert.equal(data.variants.length, 50);
+    assert.deepEqual(
+      data.variants.map((v) => v.id),
+      rows.slice(0, 50).map((v) => v._id),
+    );
+  }
+  const before = prepareCatalogPublicState({
+    product,
+    taxonomy: initialCatalogTaxonomy('misc'),
+    detailEnabled: false,
+    variants: { kind: 'row', total: 51, items: rows },
+  });
+  const last = rows[50];
+  assert.ok(last);
+  last.sku = 'Hidden configuration';
+  assert.deepEqual(await getCatalogItem('products', 'p', {}), first);
+  assert.deepEqual(
+    prepareCatalogPublicState({
+      product,
+      taxonomy: initialCatalogTaxonomy('misc'),
+      detailEnabled: false,
+      variants: { kind: 'row', total: 51, items: rows },
+    }),
+    before,
+  );
+  last.position = -1;
+  assert.notDeepEqual(await getCatalogItem('products', 'p', {}), first);
+  assert.notDeepEqual(
+    prepareCatalogPublicState({
+      product,
+      taxonomy: initialCatalogTaxonomy('misc'),
+      detailEnabled: false,
+      variants: { kind: 'row', total: 51, items: rows },
+    }),
+    before,
+  );
 });

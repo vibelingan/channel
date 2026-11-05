@@ -42,6 +42,25 @@ test('site batches bind every object and keep assets, leaf HTML, entry HTML and 
   );
   assert.throws(() => withSiteUploadBatches({ ...plan(entries), scope: { kind: 'canary' } }));
 });
+test('new site plans bind one twelve-way upload per batch; journaled four-way plans stay valid', () => {
+  const entries = Array.from({ length: 13 }, (_, i) => entry(`_astro/${i}.js`));
+  const next = withSiteUploadBatches(plan(entries));
+  assert.deepEqual(next.delivery, {
+    batchSize: 12,
+    removeBatchSize: 12,
+    parallel: 4,
+    uploadParallel: 12,
+  });
+  const legacy = {
+    ...plan(entries),
+    delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4 },
+  };
+  assert.deepEqual(siteUploadBatches(legacy), siteUploadBatches(next));
+  for (const uploadParallel of [4, 13, 24, '12', null])
+    assert.throws(() =>
+      siteUploadBatches({ ...plan(entries), delivery: { ...next.delivery, uploadParallel } }),
+    );
+});
 test('batch membership includes exact before states and refuses ambiguous or duplicated paths', () => {
   const m = [{ ...entry('index.html'), beforeHash: 'absent' }];
   assert.doesNotThrow(() => assertHostingBatchMembers(m));

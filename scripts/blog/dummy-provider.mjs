@@ -34,6 +34,10 @@ export function createBlogDummyProvider(manager) {
       only(path);
       return provider.upload(path, bytes, options);
     },
+    uploadBatch: (files, options) => {
+      for (const file of files) only(file.path);
+      return provider.uploadBatch(files, options);
+    },
     remove: (path, options) => {
       only(path);
       return provider.remove(path, options);

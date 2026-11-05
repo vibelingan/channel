@@ -222,7 +222,7 @@ function printRuntimeSignals(name) {
     const signals = [
       ...new Set(
         JSON.stringify(result).match(
-          /\b(database_unavailable|knowledge_base_unreachable|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|28P01|3D000|42501|startup_failed)\b/g,
+          /\b(database_unavailable|database_idle_connection_lost|knowledge_base_unreachable|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EHOSTUNREACH|28P01|3D000|42501|57P01|startup_failed)\b/g,
         ) ?? [],
       ),
     ];
@@ -438,9 +438,15 @@ async function main() {
       if (name === 'ai-bff') {
         const url = publicUrl(detail);
         for (const path of ['/api/ai/healthz', '/api/ai/readyz']) {
-          const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(15_000) });
-          const body = await response.json();
-          log(JSON.stringify({ url: `${url}${path}`, httpStatus: response.status, body }));
+          // A hanging probe is itself the finding; it must not stop the logs
+          // and database checks below from being read.
+          try {
+            const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(15_000) });
+            const body = await response.json();
+            log(JSON.stringify({ url: `${url}${path}`, httpStatus: response.status, body }));
+          } catch (error) {
+            log(JSON.stringify({ url: `${url}${path}`, failed: error?.name ?? 'error' }));
+          }
         }
       }
       printProcessLog(name);
@@ -467,7 +473,9 @@ async function main() {
     printDatabaseNetwork(env);
     return;
   }
-  env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);
+  // Only the AnythingLLM path ships a recorded proof of its workspace; the
+  // vibekb worker checks each document's workspace and public tag as it reads.
+  if (env.AI_ENGINE_ID?.trim() === 'anythingllm') env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);
   // Builds every service definition, so a missing setting stops the deploy
   // here, before either service has changed.
   const ctx = deployContextFromEnv(env);

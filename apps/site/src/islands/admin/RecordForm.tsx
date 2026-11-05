@@ -22,6 +22,7 @@ import {
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { AlibabaPhotoPicker, type AlibabaPhotoSource } from './AlibabaPhotoPicker.tsx';
+import { AssistantInquirySummary } from './AssistantInquirySummary';
 import { ConfigurationPhotosEditor } from './ConfigurationPhotosEditor.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
@@ -684,6 +685,9 @@ export function RecordForm({
                 Retry Alibaba photos
               </button>
             </div>
+          )}
+          {collection.name === 'oemProjects' && (
+            <AssistantInquirySummary value={initial?.assistantSubmission} />
           )}
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">

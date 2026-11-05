@@ -16,6 +16,8 @@ test.beforeAll(() => {
     process.env.E2E_API_URL !== 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com'
   )
     throw Error('Unapproved live public target');
+  if (!['static', 'server'].includes(process.env.E2E_BLOG_DELIVERY_MODE ?? ''))
+    throw Error('The accepted Blog delivery mode is required');
 });
 test.afterEach(async ({ page }, info) => {
   if (info.status === info.expectedStatus) return;
@@ -172,7 +174,16 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     path: 'output/site-delivery/public-browser/blog-index-desktop.png',
     fullPage: true,
   });
-  const articlePath = process.env.E2E_EXPECT_ARTICLE_PATH;
+  const articleLink = page.locator('main h2 a[href^="/blog/"]').first();
+  const sampledArticle = (await articleLink.count())
+    ? { path: await articleLink.getAttribute('href'), title: await articleLink.innerText() }
+    : null;
+  const articlePath = process.env.E2E_EXPECT_ARTICLE_PATH || sampledArticle?.path;
+  const articleTitle = process.env.E2E_EXPECT_ARTICLE_PATH
+    ? process.env.E2E_EXPECT_ARTICLE_TITLE
+    : sampledArticle?.title;
+  const serverBlog = process.env.E2E_BLOG_DELIVERY_MODE === 'server';
+  const articleSitemapPath = serverBlog ? '/blog/sitemap.xml' : '/sitemap-0.xml';
   if (articlePath && process.env.E2E_EXPECT_ARTICLE_STATUS !== '404')
     await expect(page.locator(`main a[href="${articlePath}"]`)).toBeVisible();
   if (articlePath) {
@@ -182,9 +193,9 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     expect(article.status()).toBe(status);
     if (status === 404) {
       expect(await article.text()).toContain('data-not-found-page');
-      expect(await (await page.request.get('/sitemap-0.xml')).text()).not.toContain(
-        `https://supplychainsai.com${articlePath}`,
-      );
+      const articleSitemap = await page.request.get(articleSitemapPath);
+      expect(articleSitemap.status()).toBe(200);
+      expect(await articleSitemap.text()).not.toContain(`https://supplychainsai.com${articlePath}`);
     } else {
       const articleResponse = await page.goto(articlePath, { waitUntil: 'domcontentloaded' });
       await expectPageAllowsIndexing(page, articleResponse);
@@ -192,7 +203,10 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
         'href',
         `https://supplychainsai.com${articlePath}`,
       );
-      await expect(page.locator('h1')).toHaveText(process.env.E2E_EXPECT_ARTICLE_TITLE ?? '');
+      await expect(page.locator('h1')).toHaveText(articleTitle ?? '');
+      const articleSitemap = await page.request.get(articleSitemapPath);
+      expect(articleSitemap.status()).toBe(200);
+      expect(await articleSitemap.text()).toContain(`https://supplychainsai.com${articlePath}`);
       const images = await page.locator('.article-body img').evaluateAll((nodes) =>
         nodes.map((img) => ({
           src: img.getAttribute('src') ?? '',
@@ -203,7 +217,9 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
       );
       for (const image of images) {
         expect(image.src).toMatch(
-          /^\/media\/articles\/[A-Za-z0-9:_-]+\/[a-f0-9]{64}\.(jpg|png|webp)$/,
+          serverBlog
+            ? /^\/blog\/media\/articles\/[A-Za-z0-9:_-]+\/[a-f0-9]{64}\.(jpg|png|webp)$/
+            : /^\/media\/articles\/[A-Za-z0-9:_-]+\/[a-f0-9]{64}\.(jpg|png|webp)$/,
         );
         expect(Number(image.width)).toBeGreaterThan(0);
         expect(Number(image.height)).toBeGreaterThan(0);

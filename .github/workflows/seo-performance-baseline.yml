@@ -1,0 +1,35 @@
+name: SEO performance baseline (read only)
+on:
+  push:
+    branches: [feat/seo-foundation]
+    paths:
+      - .github/workflows/seo-performance-baseline.yml
+      - scripts/performance/us-lighthouse.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [mobile, desktop]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned tool in temporary directory
+        run: npm install --prefix "$RUNNER_TEMP/lighthouse" --ignore-scripts --no-audit --no-fund lighthouse@13.0.1
+      - name: Measure public pages from verified US egress; no deployment or credentials
+        env:
+          LIGHTHOUSE_CLI: ${{ runner.temp }}/lighthouse/node_modules/lighthouse/cli/index.js
+        run: node scripts/performance/us-lighthouse.mjs '${{ matrix.profile }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-before-${{ matrix.profile }}-${{ github.run_id }}
+          path: performance-evidence/
+          retention-days: 30

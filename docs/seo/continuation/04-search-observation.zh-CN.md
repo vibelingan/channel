@@ -1,0 +1,70 @@
+# 04 搜索平台核对与变化记录
+
+## 先看摘要
+
+这一块负责确认“页面允许收录以后，Google和Bing实际处理到哪一步”。网站先交付正确页面和地图，搜索引擎随后来抓取；我们不会把HTML直接推入索引，也不能承诺全部网址立即收录。核对报告时分清已发现、已抓取和已收录，逐项处理真实排除原因。通知只针对已经上线的变化，失败只重试通知，不恢复网站或撤回文章。解释见[先读说明](EXPLAIN.zh-CN.md)。
+
+## 需求
+
+把“技术上能被收录”与“Google/Bing实际收录”分开，覆盖营销页、分类、商品及正式Blog。保留已有验证文件和稳定sitemap；不为每次代码发布重复提交整站，也不把通用Google Indexing API当普通商品/文章的快速收录入口。
+
+## MIU SEARCH-01：读回平台状态并建立对照
+
+先运行01的只读检查：地图全部URL合法、当前公开商品数量一致、页面初始正文与规范网址正确、私有页面不在地图、错误返回404/503、公开图片允许抓取。抽样与全量分开。Google/Bing以前验站和提交成功是历史记录，仍需从客户既有账号核对当前站点、地图处理情况及覆盖报告。
+
+GSC先查少量代表URL：首页、一个分类、一个商品、已确认保留的Blog及一个已撤回URL。记录用户声明canonical、Google选择canonical、最近抓取、是否允许收录、具体排除原因；Bing记录相应地图与URL结果。未登录或权限不够时保留unknown，不从site:搜索估计收录总数。请求重新抓取仅在页面验收后，针对必要代表URL；大批页面依靠稳定地图和真实lastmod。
+
+结果形状：`{url, checkedAt, technicalReady, platform:'google'|'bing', indexing:'indexed'|'excluded'|'unknown', lastCrawlAt?, reason?, evidenceRef}`。平台原始账号资料不进公开仓库；交付脱敏结果和观察日期。后续观察窗口按真实抓取频率调整，不能承诺一天内收录。
+
+## MIU SEARCH-02：只记录已上线的有效变化
+
+继承原SEO-REL-E1，输入只来自已经接受的公开内容版本，不消费尚未交付的dist。Blog使用公开事务版本，商品使用03的验收版本。数据库或私有草稿变化不通知搜索引擎。
+
+按规范URL保留最新变化：`{url, source:'product'|'article', sequence, semanticHash, state:'present'|'withdrawn', acceptedAt, notBefore, lastDeliveredHash?}`。页面、地图和真实404立即对应当前公开状态，不能为通知稳定窗保留撤回URL。通知可以合并约30分钟的短暂变化；该窗口是项目选择，并非Google规定。
+
+A→B→A只有确认A已通知且B尚未发送时可消去重复通知。没有已送达依据则保留当前状态。B已发出不能撤销，按A当前状态后续纠正。通知失败或超时只改通知结果，不回退网站；外部服务已收请求但回复丢失时记unknown，保留尝试编号并做受限重试，不伪造sent。
+
+先交事件记录与预览，默认发送器disabled。后续可接IndexNow：只发同站规范公开URL及已确认撤回URL；密钥按官方同站验证文件方式管理，与网站登录/CloudBase密钥无关。Google仍依靠地图与GSC，不把IndexNow写成Google接口。
+
+测试：相同内容不重复、不同激活的旧事件被覆盖、A→B→A合并、有无已送达依据、disabled不算sent、超时不回退网站、草稿与私有图不入队、代码更新但语义相同不发通知。恢复演练不反复对真实搜索平台制造无意义测试提交。
+
+### 拟实现的验证入口
+
+SEARCH-01：`scripts/search-observation.test.mjs`，验证indexed/excluded/unknown的转换、证据时间与缺权限；SEARCH-02沿用原计划`node --test scripts/search-release-events.test.mjs`。平台真实结果另留带日期的脱敏回执。上述新文件仍未实现，现有IDX-01只交付技术就绪检查，不能冒充平台收录查询。
+
+## 10月29日已读取的实际平台结果
+
+### 网址清单的最新结果
+
+复用客户常用Chrome的现有Google/Bing登录，没有新开浏览器或要求再次登录。Google地图页面显式刷新后显示：`/sitemap-index.xml`处理成功，发现539个网址，最后读取10月27日。先前未刷新页面显示的10个网址保留为历史观察，不能继续当作最新结果。没有为更新这个数字重复提交Google地图。
+
+Google覆盖报告仍更新到10月23日，显示3已收录、7未收录；后者包含重定向1、正确canonical替代页1、已发现未收录5。这是旧覆盖报告，不能拿它和539直接计算今天的收录比例。发现网址与已收录不是同一个指标。
+
+Bing页面刷新后显示地图成功、发现517个网址，最后抓取10月26日、零错误与零警告。尚未读到Bing实际索引总数，不能把517当成已收录。
+
+### 首页与分类
+
+本轮分别打开首页和`/headphones/`的独立索引报告，均明确显示“URL is on Google / Page is indexed”。首页报告的最近抓取为平台显示10月20日01:07:42，允许抓取与收录，声明及Google选择的标准网址均为首页。这个结果仅对应这两个网址，不推广为全站已收录。
+
+### 商品抽查
+
+抽查商品的Google索引查询显示URL尚不为其所知；实时测试显示成功抓取且允许收录，Breadcrumb有一个有效项目。Product snippets缺offers、review或aggregateRating，是商品增强展示条件未满足，不能因此说普通商品页禁止收录。真实报价的适用范围需要IDX-03单独处理，不编造金额或评价。
+
+### Blog开放后的实际验证
+
+正式域名开放后，实际HTTP/HTML检查确认Blog列表与两篇文章可收录；三张已发布配图均200、可读取且带有alt。三个文章API的业务数据hash与操作前一致。
+
+Google对样品检查文章的旧记录显示：10月29日凌晨曾抓取成功，但因当时HTTP头的noindex被排除。开放后再次实时测试，平台显示10月29日13:46:07、成功抓取、允许收录、声明的canonical与正式网址一致。Google选择的canonical只有正式索引后才决定。
+
+该文章重新收录请求已被Google接受，回执为“Indexing requested”，进入优先抓取队列。第一次提交曾因reCAPTCHA服务连接失败未成功，显式刷新后重试成功；没有代替用户解验证码、绕过验证或重复提交已成功的请求。这个回执仍不是已经收录。
+
+另一篇采购准备文章的旧记录也因noindex被排除；开放后的实时测试显示10月29日13:51:49、抓取成功、允许收录、声明canonical正确。其重新收录请求也已被接受。两篇均只在Google接受一次请求后停止，不重复提交。
+
+Blog列表的旧记录同样因noindex被排除，并显示旧的地图发现临时处理错误；当前地图总报告自身是成功的539个网址。列表开放后的实时测试显示10月29日14:07:09、抓取成功、允许收录、声明canonical正确；列表的重新收录请求也已接受。三个地址都只记为技术允许和请求已接受，不能写成已经进入索引。没有申请移除网址。真实账号截图保存在本机私有证据目录；仓库只保存[脱敏平台记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation.json)。
+
+
+### 全量技术验收与Bing重新读取
+
+静态站点发布被接受后，独立工具逐一读取539个公开网址，539通过、问题0；地图中的528商品与当前公开API一致。[全量报告](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-after.json)。它验证网站技术条件，仍不能代替Google/Bing实际索引结果。
+
+本轮随后仅重新提交Bing已有的`sitemap-index.xml`，平台提示成功接收并进入Processing，提交日期变为10月29日。旧的517发现数量仍显示，尚未完成新一轮读取；没有创建重复地图或把Processing写成已收录。Google地图当前已发现539，未重复提交地图，只对已经验证的Blog列表和两篇文章各请求一次重新收录。自动IndexNow与搜索事件发送器仍未启用。

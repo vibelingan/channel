@@ -12,6 +12,12 @@ export function createCloudbaseFunctionProvider({
   region,
   names,
   configurationKey,
+  expectedTriggers = {},
+  archiveProfiles = {},
+  archiveBucket = /** @type {string|null} */ (null),
+  stageArchive = /** @type {null|((bytes:Buffer)=>Promise<{fileID:string,bytes:number,sha256:string}>)} */ (
+    null
+  ),
   request = fetchFully,
 }) {
   const fixed = freeze(structuredClone(target));
@@ -24,6 +30,47 @@ export function createCloudbaseFunctionProvider({
   )
     throw new Error('Explicit function scope required');
   const allowed = new Set(names);
+  if (!expectedTriggers || typeof expectedTriggers !== 'object' || Array.isArray(expectedTriggers))
+    throw Error('Explicit reviewed timer map required');
+  const timers = freeze(structuredClone(expectedTriggers));
+  for (const [name, list] of Object.entries(timers)) {
+    if (
+      !allowed.has(name) ||
+      !Array.isArray(list) ||
+      list.length !== 1 ||
+      list.some(
+        (t) =>
+          !t ||
+          t.type !== 'timer' ||
+          !/^[A-Za-z0-9_-]{1,100}$/.test(t.name ?? '') ||
+          typeof t.config !== 'string' ||
+          t.config.split(' ').length !== 7 ||
+          t.config.length > 128,
+      )
+    )
+      throw Error('Invalid reviewed timer scope');
+  }
+  const profiles = freeze(structuredClone(archiveProfiles));
+  if (
+    !profiles ||
+    typeof profiles !== 'object' ||
+    Array.isArray(profiles) ||
+    Object.entries(profiles).some(
+      ([name, profile]) =>
+        name !== 'alibaba-catalog-sync' ||
+        !allowed.has(name) ||
+        !timers[name] ||
+        profile !== 'catalog-native-decoder',
+    )
+  )
+    throw Error('Native archive scope is not reviewed');
+  if (
+    Object.keys(profiles).length &&
+    (typeof stageArchive !== 'function' ||
+      !/^[a-z0-9][a-z0-9-]+-[0-9]+$/.test(archiveBucket ?? '') ||
+      !archiveBucket.includes(fixed.envId))
+  )
+    throw Error('Private environment archive transport required for native code');
   const environment = manager.currentEnvironment();
   const functions = environment.getFunctionService();
   if (
@@ -69,7 +116,8 @@ export function createCloudbaseFunctionProvider({
           code: 'FUNCTION_PROVIDER_UNCONFIRMED',
           stage,
           functionName,
-          ...(/^[A-Z][A-Z0-9_]{0,80}$/.test(causeCode ?? '') ? { causeCode } : {}),
+          ...functionParameterHint(error),
+          ...(/^[A-Za-z][A-Za-z0-9_.]{0,127}$/.test(causeCode ?? '') ? { causeCode } : {}),
           ...(/^[A-Za-z0-9_-]{1,128}$/.test(error?.requestId ?? '')
             ? { requestId: error.requestId }
             : {}),
@@ -103,7 +151,8 @@ export function createCloudbaseFunctionProvider({
       throw new Error('Unproven event function detail');
     if (!Array.isArray(detail.Triggers)) throw new Error('Unproven function trigger inventory');
     const recoveryReasons = [];
-    if (detail.Triggers.length) recoveryReasons.push('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE');
+    if ((timers[name] || detail.Triggers.length) && !matchesTimers(detail.Triggers, timers[name]))
+      recoveryReasons.push('EXISTING_TRIGGER_OUTSIDE_RECOVERY_SCOPE');
     if (
       detail.VpcConfig?.VpcId ||
       detail.VpcConfig?.SubnetId ||
@@ -232,7 +281,33 @@ export function createCloudbaseFunctionProvider({
         !/^Nodejs\d+\.\d+$/.test(runtime)
       )
         throw new Error('Invalid archived function update');
-      checkFunctionArchive(bytes);
+      const profile = profiles[name] ?? 'bundled';
+      checkFunctionArchive(bytes, { profile });
+      let code = { ZipFile: bytes.toString('base64') };
+      if (profile === 'catalog-native-decoder') {
+        if (runtime !== 'Nodejs20.19') throw Error('Native function runtime differs');
+        const stored = await safe(async (stage) => {
+          stage('stage-native-code');
+          signal?.throwIfAborted();
+          return stageArchive(bytes);
+        }, name);
+        if (
+          typeof stored?.fileID !== 'string' ||
+          !stored.fileID.startsWith(`cloud://${fixed.envId}.${archiveBucket}/`) ||
+          !/^fnzip-upload\/\d{10}-[a-f0-9]{16}\/alibaba-catalog-sync\.zip$/.test(
+            stored.fileID.slice(`cloud://${fixed.envId}.${archiveBucket}/`.length),
+          ) ||
+          stored.bytes !== bytes.length ||
+          stored.sha256 !== hash
+        )
+          throw Error('Native function code archive differs');
+        code = {
+          CosBucketName: archiveBucket.replace(/-[0-9]+$/, ''),
+          CosBucketRegion: region,
+          // Match the official MCP/Manager path already accepted by this environment.
+          CosObjectName: stored.fileID.slice(`cloud://${fixed.envId}.${archiveBucket}/`.length),
+        };
+      }
       signal?.throwIfAborted();
       const current = await read(name, { signal });
       if (
@@ -250,15 +325,56 @@ export function createCloudbaseFunctionProvider({
       return safe(async (stage) => {
         stage('submit-code');
         signal?.throwIfAborted();
-        const result = await functions.updateFunctionCode({
-          func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
-          base64Code: bytes.toString('base64'),
-        });
+        // Native ZIPs use the same public Manager custom-code port as the proven
+        // normal deployment. Permanent recovery objects are never submitted directly.
+        const result =
+          profile === 'catalog-native-decoder'
+            ? await functions.updateFunctionCode({
+                func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
+                deployMode: 'cos',
+                code,
+              })
+            : await functions.updateFunctionCode({
+                func: { name, runtime, handler, installDependency: false, isWaitInstall: false },
+                base64Code: code.ZipFile,
+              });
+        if (result?.SCFErrorCode)
+          throw Object.assign(new Error(String(result.SCFErrorMsg ?? 'Function code rejected')), {
+            code: result.SCFErrorCode,
+            requestId: result.RequestId,
+          });
         if (!result?.RequestId) throw new Error('Function update has no receipt');
         return { submitted: true, providerOperationId: result.RequestId };
       }, name);
     },
   });
+}
+
+/** Return fixed labels only; provider messages may contain signed URLs or credentials. */
+function functionParameterHint(error) {
+  const message = typeof error?.message === 'string' ? error.message.slice(0, 8192) : '';
+  const parameterHint = [
+    'CodeSource',
+    'CosBucketName',
+    'CosBucketRegion',
+    'CosObjectName',
+    'TempCosObjectName',
+    'ZipFile',
+    'InstallDependency',
+    'Handler',
+    'EnvId',
+    'Namespace',
+  ].find((name) => new RegExp(`\\b${name}\\b`, 'i').test(message));
+  const reasonHint = /not found|不存在|NoSuchKey/i.test(message)
+    ? 'OBJECT_NOT_FOUND'
+    : /denied|forbidden|无权限|未授权|鉴权/i.test(message)
+      ? 'ACCESS_DENIED'
+      : /required|missing|缺少|缺失|不能为空/i.test(message)
+        ? 'MISSING_PARAMETER'
+        : /invalid.*zip|不是标准.*zip|解压|压缩文件/i.test(message)
+          ? 'ARCHIVE_INVALID'
+          : undefined;
+  return { ...(parameterHint ? { parameterHint } : {}), ...(reasonHint ? { reasonHint } : {}) };
 }
 
 /** Secret-bearing configuration stays inside the trusted process. Never log or archive it. */
@@ -280,4 +396,25 @@ export function functionConfiguration(detail) {
     ...configuration
   } = detail;
   return configuration;
+}
+
+// Existing timer metadata remains part of the configuration fingerprint before and after code writes.
+function matchesTimers(actual, expected) {
+  if (!expected || actual.length !== expected.length) return false;
+  return actual.every((trigger, index) => {
+    const reviewed = expected[index];
+    let config;
+    try {
+      config = JSON.parse(trigger.TriggerDesc);
+    } catch {
+      return false;
+    }
+    return (
+      trigger.TriggerName === reviewed.name &&
+      trigger.Type === reviewed.type &&
+      config &&
+      Object.keys(config).length === 1 &&
+      config.cron === reviewed.config
+    );
+  });
 }

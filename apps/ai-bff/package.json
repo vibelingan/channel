@@ -7,7 +7,7 @@
     "build": "tsup && node ../../scripts/copy-ai-migrations.mjs dist/migrations",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test": "tsx --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -11,6 +11,36 @@
  * the same custom properties on `:root`.
  */
 @theme {
+  /* The assistant launcher's short "you can continue here" nudge. */
+  --animate-launcher-nudge: launcher-nudge 0.9s ease-in-out 2;
+  --animate-launcher-spark: launcher-spark 0.9s ease-in-out 2;
+  @keyframes launcher-nudge {
+    0%,
+    100% {
+      transform: rotate(0);
+    }
+    15% {
+      transform: rotate(-6deg);
+    }
+    30% {
+      transform: rotate(5deg);
+    }
+    45% {
+      transform: rotate(-4deg);
+    }
+    60% {
+      transform: rotate(2deg);
+    }
+  }
+  @keyframes launcher-spark {
+    from {
+      transform: rotate(0);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Brand — deep professional navy/indigo */
   --color-brand-50: #eef2ff;
   --color-brand-100: #e0e7ff;

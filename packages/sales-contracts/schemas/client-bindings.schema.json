@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:client-bindings:1.0",
+  "title": "ClientBindings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "enabled",
+    "bindings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "client_id",
+          "active",
+          "business_lines",
+          "source_installation_id",
+          "runtime_id",
+          "knowledge_scope_ref",
+          "credential_refs",
+          "resend_team_id",
+          "resend_inbox_id",
+          "allowed_sender_ids",
+          "permitted_operator_ids",
+          "automation_mode",
+          "test_recipient_allowlist",
+          "environment",
+          "control_epoch",
+          "connections"
+        ],
+        "properties": {
+          "client_id": {
+            "$ref": "#/$defs/id"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "business_lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true
+          },
+          "source_installation_id": {
+            "$ref": "#/$defs/id"
+          },
+          "runtime_id": {
+            "$ref": "#/$defs/id"
+          },
+          "knowledge_scope_ref": {
+            "$ref": "#/$defs/id"
+          },
+          "credential_refs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "channel",
+              "resend"
+            ],
+            "properties": {
+              "channel": {
+                "$ref": "#/$defs/id"
+              },
+              "resend": {
+                "$ref": "#/$defs/id"
+              },
+              "apollo": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          },
+          "resend_team_id": {
+            "$ref": "#/$defs/id"
+          },
+          "resend_inbox_id": {
+            "$ref": "#/$defs/id"
+          },
+          "apollo_workspace_id": {
+            "$ref": "#/$defs/id"
+          },
+          "allowed_sender_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true
+          },
+          "permitted_operator_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            },
+            "minItems": 0,
+            "maxItems": 50,
+            "uniqueItems": true
+          },
+          "automation_mode": {
+            "enum": [
+              "disabled",
+              "draft_only",
+              "test_sending",
+              "approval_required"
+            ]
+          },
+          "test_recipient_allowlist": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 254,
+              "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+              "not": {
+                "pattern": "[\\r\\n]"
+              }
+            },
+            "minItems": 0,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "environment": {
+            "enum": [
+              "test",
+              "production"
+            ]
+          },
+          "control_epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "connection_id",
+                "credential_ref",
+                "active",
+                "actor",
+                "actions"
+              ],
+              "properties": {
+                "connection_id": {
+                  "$ref": "#/$defs/id"
+                },
+                "credential_ref": {
+                  "$ref": "#/$defs/id"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "actor": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "runtime",
+                        "operator",
+                        "publisher"
+                      ]
+                    },
+                    "id": {
+                      "$ref": "#/$defs/id"
+                    }
+                  }
+                },
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "inquiry.read",
+                      "product.read",
+                      "asset.read",
+                      "artifact.write",
+                      "mail.send",
+                      "mail.approve",
+                      "task.pause",
+                      "task.takeover",
+                      "task.resume",
+                      "connection.manage"
+                    ]
+                  },
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "uniqueItems": true
+                }
+              }
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        }
+      },
+      "minItems": 0,
+      "maxItems": 50,
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$",
+      "maxLength": 200
+    }
+  }
+}

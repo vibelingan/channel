@@ -1653,3 +1653,18 @@ test('item and slug endpoints return the same approved projection as the list', 
   assert.deepEqual(item.data, fromList);
   assert.deepEqual(bySlug.data, fromList);
 });
+
+test('health reports page readiness only when its reader is actually wired', async () => {
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/health' },
+    {
+      catalogPages: { siteOrigin: 'https://fixture.example', read: async () => new Map() },
+      jwtSecret: 'fixture-private',
+    },
+  );
+  const health = JSON.parse(response.body);
+  assert.equal(health.data.catalogSeoPageReadiness, true);
+  assert.equal(response.body.includes('fixture-private'), false);
+  const disabled = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/health' }, {});
+  assert.equal(JSON.parse(disabled.body).data.catalogSeoPageReadiness, false);
+});

@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import CloudBase from '@cloudbase/manager-node';
 
@@ -55,8 +56,8 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
   const manager = new CloudBase({
     envId: 'fixture-env',
     region: 'ap-shanghai',
-    requestFn: async ({ action, payload }) => {
-      state.calls.push({ action, payload: structuredClone(payload) });
+    requestFn: async ({ service, version, region, action, payload }) => {
+      state.calls.push({ service, version, region, action, payload: structuredClone(payload) });
       if (action === 'DescribeEnvInfo')
         return {
           EnvInfo: {
@@ -102,10 +103,25 @@ export function functionManagerFixture({ bytes = functionZip(), name = 'public-a
         return { RequestId: 'config-update' };
       }
       if (action === 'UpdateFunctionCode') {
+        if (!payload.Code.ZipFile) {
+          assert.equal(payload.CodeSource, undefined);
+          assert.match(
+            payload.Code.CosObjectName,
+            /^fnzip-upload\/\d{10}-[a-f0-9]{16}\/alibaba-catalog-sync\.zip$/,
+          );
+        }
+        if (state.scfError)
+          return {
+            SCFErrorCode: 'InvalidParameterValue.CosObjectName',
+            SCFErrorMsg: 'CosObjectName not found https://private.example/?secret=fixture-secret',
+            RequestId: 'scf-rejected',
+          };
         state.onUpdate?.();
         if (state.holdUpdate) await state.holdUpdate;
         state.updates++;
-        state.bytes = Buffer.from(payload.Code.ZipFile, 'base64');
+        state.bytes = payload.Code.ZipFile
+          ? Buffer.from(payload.Code.ZipFile, 'base64')
+          : Buffer.from(state.nativeObjects.get(payload.Code.CosObjectName));
         state.detail.CodeSize = state.bytes.length;
         state.detail.ModTime = 'version-A';
         state.detail.InstallDependency = payload.InstallDependency;

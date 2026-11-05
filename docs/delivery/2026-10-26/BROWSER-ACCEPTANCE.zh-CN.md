@@ -20,7 +20,7 @@
 | no-store + response.json，对照 3 次 | 全部成功 | 全部成功 |
 | no-cache + stream，对照 3 次 | 全部成功 | 全部成功 |
 
-机器结果见 [实验记录](evidence/browser-stream-observer.json)。[Playwright 的同类报告](https://github.com/microsoft/playwright/issues/42742)描述了更新版本上的相同行为，但上游最终修复和内部根因尚未确认。这里确认的是当前版本可独立复现的观察差异，不能泛化成所有取消都可以忽略。
+机器结果见 [实验记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/browser-stream-observer.json)。[Playwright 的同类报告](https://github.com/microsoft/playwright/issues/42742)描述了更新版本上的相同行为，但上游最终修复和内部根因尚未确认。这里确认的是当前版本可独立复现的观察差异，不能泛化成所有取消都可以忽略。
 
 ## 验收怎样改
 
@@ -30,4 +30,4 @@
 
 失败时保留公开页面截图、测试错误及 API 请求路径/状态，不保留身份凭证、请求头或客户后台会话。失败仍使发布不被接受；恢复规则没有放宽。离线状态用例确保快照、未完成请求和失败请求都不能误报 fresh。
 
-修正后用509商品实际快照重新构建：526份HTML、517个可收录canonical检查通过。候选页面连接真实只读API重复3轮，全部实际应用最新revision，并操作图库、变体和询盘弹窗；其中1轮CDP仍报ERR_ABORTED，但页面已完整应用当前数据。结果见[本地实际API验证](evidence/product-refresh-local.json)。这仍是本地候选验证，不能代替线上重新发布后的验收。
+修正后用509商品实际快照重新构建：526份HTML、517个可收录canonical检查通过。候选页面连接真实只读API重复3轮，全部实际应用最新revision，并操作图库、变体和询盘弹窗；其中1轮CDP仍报ERR_ABORTED，但页面已完整应用当前数据。结果见[本地实际API验证](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/product-refresh-local.json)。这仍是本地候选验证，不能代替线上重新发布后的验收。

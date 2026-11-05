@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:mail-snapshot:1.0",
+  "title": "MailSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "client_id",
+    "business_line",
+    "logical_message_id",
+    "version",
+    "source_revision",
+    "context_epoch",
+    "sender_id",
+    "from",
+    "reply_to",
+    "to",
+    "cc",
+    "bcc",
+    "approved_headers",
+    "subject",
+    "html_ref",
+    "text_ref",
+    "attachments",
+    "evidence_refs",
+    "unresolved_items",
+    "content_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "business_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "logical_message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "source_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "context_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "sender_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "from": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 254,
+      "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "reply_to": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 254,
+        "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 10,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "to": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 254,
+        "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "cc": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 254,
+        "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 50,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "bcc": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 254,
+        "pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 50,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "approved_headers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "In-Reply-To": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "References": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 998,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 998,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "html_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "text_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact_id",
+          "filename",
+          "mime",
+          "size",
+          "sha256"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\r\\n]+$",
+            "not": {
+              "pattern": "[\\r\\n]"
+            }
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^/\\\\\\r\\n]+$",
+            "not": {
+              "pattern": "[\\r\\n]"
+            }
+          },
+          "mime": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        }
+      },
+      "maxItems": 20,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[^\\r\\n]+$",
+        "not": {
+          "pattern": "[\\r\\n]"
+        }
+      },
+      "maxItems": 50,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "unresolved_items": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      },
+      "maxItems": 50,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "reply_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inbox_id",
+        "thread_id",
+        "email_id"
+      ],
+      "properties": {
+        "inbox_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "thread_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "email_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "resend_draft_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]+$",
+      "not": {
+        "pattern": "[\\r\\n]"
+      }
+    }
+  }
+}

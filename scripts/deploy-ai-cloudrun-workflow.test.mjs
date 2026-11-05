@@ -21,7 +21,7 @@ import {
   deployContextFromEnv,
   requireSetting,
 } from './ai-cloudrun-deploy-plan.mjs';
-import { buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
+import { ENGINE_IDS, buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
 
 const readWorkflow = (file) =>
   parseYaml(readFileSync(new URL(`../.github/workflows/${file}`, import.meta.url), 'utf8'));
@@ -119,7 +119,7 @@ test('inspection tags query existing services without uploading or probing the K
   assert.match(deploy.env.AI_CLOUDRUN_INSPECT_ONLY, /ai-cloudrun-deploy-inspect-/);
   assert.equal(
     stepRunning(deploy, 'node scripts/probe-anythingllm.mjs').if,
-    "env.AI_CLOUDRUN_INSPECT_ONLY != '1'",
+    "env.AI_CLOUDRUN_INSPECT_ONLY != '1' && env.AI_ENGINE_ID == 'anythingllm'",
   );
   const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
   const inspect = script
@@ -158,19 +158,26 @@ function stepRunning(job, command) {
 /** Every setting the deploy reads, for both kinds of engine provenance. */
 function settingsTheDeployReads() {
   const names = new Set(['TENCENTCLOUD_SECRETID', 'TENCENTCLOUD_SECRETKEY']);
-  for (const kind of ['git', 'oci']) {
-    const values = { AI_VPC_ID: 'vpc-a', AI_CLOUDRUN_SUBNET_ID: 'subnet-a' };
-    const recording = new Proxy(
-      {},
-      {
-        get(_, name) {
-          names.add(name);
-          if (name === 'AI_ENGINE_PROVENANCE_KIND') return kind;
-          return values[name] ?? 'value';
+  for (const engine of ENGINE_IDS) {
+    for (const kind of ['git', 'oci']) {
+      const values = {
+        AI_VPC_ID: 'vpc-a',
+        AI_CLOUDRUN_SUBNET_ID: 'subnet-a',
+        AI_ENGINE_ID: engine,
+        AI_ENGINE_PROVENANCE_KIND: kind,
+        AI_INQUIRY_ENABLED: '1',
+      };
+      const recording = new Proxy(
+        {},
+        {
+          get(_, name) {
+            names.add(name);
+            return values[name] ?? 'value';
+          },
         },
-      },
-    );
-    buildCloudRunServiceDefs(deployContextFromEnv(recording));
+      );
+      buildCloudRunServiceDefs(deployContextFromEnv(recording));
+    }
   }
   // The deploy writes this itself, from the file the probe step records.
   names.delete('AI_KB_EVIDENCE_JSON');

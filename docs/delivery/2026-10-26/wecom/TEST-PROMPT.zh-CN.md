@@ -1,26 +1,13 @@
-# 发到内容助手群里的测试任务
+# 客户发到群里的示例
 
-下面这段可直接发送。发送前应由服务器操作人完成 GUIDE 的接线和工具发现检查；本地 Hermes 跑通不能代替这一步。
+安装完成后，客户只需发送下面这段业务需求：
 
-> 请帮我写一篇发到 supplychainsai.com Blog 的英文文章草稿，主题是“How to prepare a clear OEM headphone enquiry”。读者是第一次向工厂询价的海外采购，400–600 词，简洁实用，包含：用途和目标用户、连接方式、预计数量、样品确认、包装和交期信息。不要编造我们公司的产能、价格、证书或客户案例。
->
-> 给出 SEO 标题、简介、作者 Diversity Technology Limited，以及 slug `oem-headphone-enquiry-wecom-20261026`。正文用 H2、小段落和清单，不用 H1、HTML、Markdown 图片或表格。
->
-> 我想配两张图：① 耳机、包装盒、笔记本组成的简洁采购准备场景，不出现品牌和虚构认证；② 六项询价准备清单的简洁信息图。先提供英文生成提示词、建议放置位置和准确 alt；如果你已有图片生成能力，可以另给我图片文件，正文仍不嵌入图片链接。
->
-> 创作完成后，请按现有协作方式交给发布小助手。发布小助手只调用网站“保存草稿”工具，使用 `externalTaskId=wecom-oem-enquiry-20261026`、`idempotencyKey=wecom-oem-enquiry-20261026-v1`。保存失败重试不得换号或改正文。保存成功再查一次结果，把真实后台编辑链接给我。不要直接公开，不要调用其他平台发布。
->
-> 如果当前找不到网站草稿工具，请明确说“网站草稿工具尚未配置”，不要把微信群里发出正文当成已保存到网站。
+> 帮我写一篇英文文章，给第一次向工厂采购耳机的海外客户看。讲清楚询价前要准备哪些信息，实用一些，不要太像广告。配两张简洁的图，风格清爽。完成后请交给发布小助手，存到我们的网站草稿里，把编辑链接给我，我审核后再上线。
 
-同一篇草稿重试必须保留这两个编号。如果你已经人工编辑过，不要求助手重新投递改写正文；直接在网站后台继续编辑。开始另一篇文章时，再使用新的任务编号。
+也可以附自己的产品照片、参考文章或希望讲的重点。客户不用补SEO标题、图片alt、标签、任务号或接口参数。这些由已安装的写作技能和草稿技能处理。
 
-## 配图提示词示例
+这是本轮固定单篇群测，内部绑定已放入技能参考，客户不需要说。重试仍是同一篇草稿；当前配置不能直接拿来存第二篇。
 
-1. `Editorial still life for an OEM headphone purchasing guide: unbranded over-ear headphones, a plain kraft packaging box, a notebook with blank pages and a pen on a light desk, soft natural daylight, clean neutral palette, no logos, no certificates, no readable text, 16:9.`
-   - 建议放在开头第二段之后。
-   - 生成后按实际画面填写 alt，例如：`Unbranded headphones, a plain box and a notebook on a desk`。
-2. `A clean six-step infographic for preparing a headphone OEM enquiry, using simple line icons for audience, connection type, quantity, sample, packaging, and delivery; generous white space, teal accent, no company logos or certification badges. Avoid small readable text; labels will be added separately.`
-   - 建议放在文章结尾的检查清单之前。
-   - 根据最后实际生成的图调整 alt，不能只写“SEO image”。
+图片文件或建议由助手提供。当前网站接口只存文字草稿，图片仍由人在后台上传，助手应一并给出适合实际画面的图片说明。人工补图、预览和确认公开的步骤保持不变。
 
-当前接口保存文字草稿，不接收或下载任意图片 URL。人拿到图片文件后，在后台上传、填写 alt、预览，再决定发布。图片自动导入需要另做受限上传接口，不能把网站管理员账号交给助手绕过去。
+[安装阻塞怎样处理](../../2026-10-27/wecom/OPERATOR-UNBLOCK.zh-CN.md) · [本机安全传送凭证](../../2026-10-27/wecom/CREDENTIAL-TRANSFER.zh-CN.md)

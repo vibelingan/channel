@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -230,4 +230,32 @@ test('server article settings reach only their owning APIs and remain opt-in', (
     defs.map((d) => d.envVariables.ARTICLE_PUBLIC_READ_ENABLED),
     [undefined, '1', undefined],
   );
+});
+
+test('SEO recording stays off by default and explicit settings reach every writer, never public-api', () => {
+  assert.ok(
+    buildFunctionDefs(ctx).every((def) => def.envVariables.CATALOG_SEO_RECORDING === undefined),
+  );
+  const values = {
+    CATALOG_SEO_RECORDING: '1',
+    CATALOG_SEO_SITE_ORIGIN: 'https://site.example',
+    CATALOG_DETAIL_APPROVAL_ENABLED: '1',
+  };
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => values[name] ?? optionalEnvFixture(name),
+  });
+  for (const def of defs.filter((def) => def.name !== 'public-api')) {
+    for (const [key, value] of Object.entries(values)) assert.equal(def.envVariables[key], value);
+  }
+  assert.equal(
+    defs.find((def) => def.name === 'public-api').envVariables.CATALOG_SEO_RECORDING,
+    undefined,
+  );
+  const deploy = readFileSync(
+    new URL('../.github/workflows/deploy-test.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(deploy, /CATALOG_SEO_RECORDING: \$\{\{ vars\.CATALOG_SEO_RECORDING \|\| '0' \}\}/);
+  assert.match(deploy, /CATALOG_SEO_SITE_ORIGIN: \$\{\{ vars\.CATALOG_SEO_SITE_ORIGIN \}\}/);
 });

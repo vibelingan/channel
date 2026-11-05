@@ -65,9 +65,113 @@ jobs:
     name: Verified source and browser checks
     uses: ./.github/workflows/seo-module-1.yml
 
-  deploy:
+  renderer-archive:
     needs: ci
     if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+    steps:
+      # Environment variables are available on the runner, after job.if was evaluated.
+      - name: Check the environment's catalog recording setting
+        id: catalog
+        env:
+          CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
+        run: |
+          case "$CATALOG_SEO_RECORDING" in
+            0) echo 'required=false' >> "$GITHUB_OUTPUT" ;;
+            1) echo 'required=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'CATALOG_SEO_RECORDING must be 0 or 1' >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
+        with: {version: 11.5.0, run_install: false}
+      - uses: actions/setup-node@v4
+        if: ${{ steps.catalog.outputs.required == 'true' }}
+        with: {node-version: 22.13.0, cache: pnpm}
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        if: ${{ steps.catalog.outputs.required == 'true' }}
+      - name: Preserve this approved site program before normal delivery
+        if: ${{ steps.catalog.outputs.required == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: ./apps/site/node_modules/.bin/tsx scripts/archive-catalog-renderer.ts
+
+  # Read-only work that needs no CI result runs beside CI. Every cloud write stays in
+  # the deploy job, which needs both CI and this job.
+  prepare:
+    if: ${{ github.ref == 'refs/heads/test' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    name: Read-only preparation beside CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: test
+    env:
+      CI: 'true'
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test deployment contracts
+        run: pnpm test:deploy-smoke
+
+      - name: Verify CloudBase deploy credentials
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: |
+          if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then
+            echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
+            exit 1
+          fi
+
+      # Reads only: inventory, configuration and object downloads, sealed by a second inventory.
+      - name: Capture the current hosted site before cloud mutation
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
+
+      - name: Preserve the verified pre-deployment hosting backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+  deploy:
+    needs: [ci, renderer-archive, prepare]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -87,6 +191,10 @@ jobs:
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
       # The AI assistant API that the website's chat widget calls from the browser.
       PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}
+      # '1' builds the new assistant (vibekb engine) instead of the old widget,
+      # and lets it send inquiries. Both stay off until the AI runtime serves it.
+      PUBLIC_AI_CHAT_V2: ${{ vars.PUBLIC_AI_CHAT_V2 || '0' }}
+      PUBLIC_AI_INQUIRIES: ${{ vars.PUBLIC_AI_INQUIRIES || '0' }}
       SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
       LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
@@ -94,6 +202,10 @@ jobs:
       BOOTSTRAP_ENABLED: '0'
       CATALOG_RFQ_ENABLED: '1'
       CATALOG_DETAIL_APPROVAL_ENABLED: '1'
+      SITE_RENDERER_SHA: ${{ vars.CATALOG_SEO_RECORDING == '1' && github.sha || '' }}
+      CATALOG_SEO_RECORDING: ${{ vars.CATALOG_SEO_RECORDING || '0' }}
+      CATALOG_SEO_SITE_ORIGIN: ${{ vars.CATALOG_SEO_SITE_ORIGIN }}
+      CATALOG_SEO_PAGE_READINESS: ${{ vars.CATALOG_SEO_PAGE_READINESS || '0' }}
       BLOG_SERVER_ENABLED: ${{ vars.BLOG_SERVER_ENABLED || '0' }}
       PUBLIC_BLOG_WORKSPACE: '0'
       ARTICLE_DELIVERY_MODE: ${{ vars.ARTICLE_DELIVERY_MODE || 'static' }}
@@ -125,8 +237,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test deployment contracts
-        run: pnpm test:deploy-smoke
+      # One stamp for every bundle, known to the deploy step, so it can prove a build unchanged.
+      - name: Fix the function build stamp to the commit time
+        run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
 
       - name: Package CloudBase functions
         run: pnpm package:functions
@@ -223,20 +336,17 @@ jobs:
       - name: Install the public acceptance browser before static writes
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Capture the current hosted site before cloud mutation
+      - name: Restore the hosted-site backup taken beside CI
+        uses: actions/download-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before
+
+      - name: Confirm the live site still matches that backup before cloud mutation
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
-
-      - name: Preserve the verified pre-deployment hosting backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
-          path: output/hosting-backup-before/
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 30
+        run: node scripts/verify-hosting-backup-current.mjs --backup output/hosting-backup-before
 
       - name: Capture all existing function packages before updating any function
         env:
@@ -247,7 +357,7 @@ jobs:
       - name: Preserve function originals and configuration fingerprints
         uses: actions/upload-artifact@v4
         with:
-          name: function-backup-before-${{ github.sha }}-${{ github.run_id }}
+          name: function-backup-before-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/function-backup-before/
           if-no-files-found: error
           retention-days: 90
@@ -297,6 +407,13 @@ jobs:
           name: site-delivery-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/site-delivery/result.json
+            output/site-delivery/preparation-check.json
+            output/site-delivery/preparation-cleanup.json
+            output/site-delivery/stopped-catalog-recovery.json
+            output/site-delivery/release-regional/result.json
+            output/seo-release/release-regional/result.json
+            output/site-delivery/regional/result.json
+            output/seo-release/regional/result.json
             output/site-delivery/public-browser/
           if-no-files-found: ignore
           retention-days: 90

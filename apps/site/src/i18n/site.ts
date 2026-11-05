@@ -151,6 +151,8 @@ export interface SiteContent {
     blurb: string;
     columns: FooterColumn[];
     legal: string;
+    /** Low-key link to the privacy notice in the legal bar. */
+    privacy: { label: string; href: string };
     filingNumber: string;
     filingUrl: string;
   };

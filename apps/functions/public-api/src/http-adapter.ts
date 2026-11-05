@@ -24,6 +24,7 @@ import {
 
 export interface PublicHttpConfig extends PublicApiConfig {
   articles?: PublicArticles;
+  salesCapture?: import('@vibelingan-channel/db/sales-inquiry-submission').SalesCaptureScope;
   corsAllowedOrigins?: readonly string[];
   // `enableCatalogDetail` lives on PublicApiConfig: the catalog projection uses it too.
   /** Explicit cloud rollout gate; no email, checkout or OEM side effects. */
@@ -374,7 +375,11 @@ async function routeGet(
     return jsonResponse(
       event,
       config,
-      ok({ ...releaseInfo('public-api'), articlePublicReadEnabled: config.articles !== undefined }),
+      ok({
+        ...releaseInfo('public-api'),
+        articlePublicReadEnabled: config.articles !== undefined,
+        catalogSeoPageReadiness: config.catalogPages !== undefined,
+      }),
     );
   }
 

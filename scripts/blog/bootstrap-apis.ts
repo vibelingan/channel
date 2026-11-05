@@ -9,9 +9,9 @@ import { readArticleQueueStatus } from '../../packages/db/src/article-release-so
 import { captureFunctionBackups } from '../capture-function-backups.mjs';
 import { checkFunctionArchive } from '../release/function-archive.mjs';
 import { createCloudbaseFunctionProvider } from '../release/function-provider.mjs';
+import { replaceFunctionCode } from '../release/function-replacement.mjs';
 import { createGithubReadClient } from '../release/github-read.mjs';
 import { identity } from '../release/input.mjs';
-import { replaceBlogFunctionCode } from './bootstrap-delivery.mjs';
 import { assertBlogBootstrapInvocation } from './bootstrap-policy.mjs';
 import { readBlogRuntimeSource } from './check-api-source.mjs';
 import { ensureFormalArticleResources } from './resources.mjs';
@@ -132,7 +132,7 @@ for (const name of names) {
   const before = captured.entries.find((entry) => entry.snapshot.name === name)?.snapshot;
   const candidate = candidates.get(name);
   if (!before || !candidate) throw Error('Verified API recovery inputs disappeared');
-  const result = await replaceBlogFunctionCode({
+  const result = await replaceFunctionCode({
     name,
     provider,
     before,

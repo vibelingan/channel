@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { type Server, createServer } from 'node:http';
+import { isCatalogAction } from '@vibelingan-channel/ai-contracts';
 import { AnythingLlmEngine, assertNoToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
+import { VibeKbEngine } from '@vibelingan-channel/ai-engine-vibekb';
 import {
   type EngineProvenance,
   assertEngineUsable,
@@ -8,11 +10,26 @@ import {
 } from '@vibelingan-channel/ai-engine/capabilities';
 import { EngineError } from '@vibelingan-channel/ai-engine/errors';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
-import type { ConversationEngine, EngineEvent } from '@vibelingan-channel/ai-engine/port';
+import { PRODUCT_PROFILE_ID, QUESTION_BUDGET_EXHAUSTED } from '@vibelingan-channel/ai-engine/port';
+import type {
+  ConversationEngine,
+  EngineEvent,
+  EngineUsage,
+} from '@vibelingan-channel/ai-engine/port';
 import {
+  EMPTY_NEED,
+  type NeedState,
+  type RawSuggestion,
+  buildContext,
   enforceGroundedFinal,
+  isNeedState,
+  mergeNeed,
+  needRequirement,
   normalizeCitations,
+  parseNeedUpdate,
+  parseSuggestions,
   preparePublicTurns,
+  publicSuggestions,
 } from '@vibelingan-channel/ai-policy';
 import {
   AiStore,
@@ -21,8 +38,18 @@ import {
   isDatabaseUnavailable,
   waitForDatabase,
 } from '@vibelingan-channel/ai-store';
+import { GroundedAnswerStream } from './answer-stream.ts';
+import { explainCatalog } from './catalog-answer.ts';
+import {
+  type CatalogCursor,
+  PublicCatalog,
+  isCatalogCursor,
+  parseProductPlan,
+} from './product-workflow.ts';
+import { FIXED_REPLIES, fixedReply, screenVisitorMessage, smallTalkStreak } from './screen.ts';
 
 export interface WorkerConfig {
+  catalog?: PublicCatalog;
   pollMs: number;
   leaseSeconds: number;
   maxAttempts: number;
@@ -32,7 +59,25 @@ export interface WorkerConfig {
   maxToolCalls: number;
   approvedSourcePrefix: string;
   citationSiteOrigin: string;
+  /** Estimated tokens of recent dialogue sent with each request (ROUND2-DESIGN §7.2). */
+  historyTokens?: number;
+  /** Estimated input ceiling of any one model call. */
+  maxInputTokensPerCall?: number;
+  /** Input available to one visitor question across all its calls and attempts. */
+  maxInputTokensPerQuestion?: number;
 }
+
+export const DEFAULT_INPUT_BUDGET = Object.freeze({
+  historyTokens: 6_000,
+  perCall: 16_000,
+  perQuestion: 32_000,
+});
+
+/** The reply when a question has used its whole input budget: a way to continue, not an error. */
+export const BUDGET_REPLY = {
+  en: 'This needs more than I can check in one answer. Ask about one part at a time, or review an inquiry and our team will answer it.',
+  zh: '这个问题一次回答需要查的内容太多。你可以一次问一部分，或核对询盘后交给团队解答。',
+};
 
 export function validateWorkerConfig(config: WorkerConfig): WorkerConfig {
   if (config.leaseSeconds * 1_000 <= config.maxStreamDurationMs + 5_000) {
@@ -326,53 +371,404 @@ async function startRun(
   const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
-  const handle = await workerStage('create_engine_run', () =>
-    engine.createRun(
-      {
-        operationId: context.operationId,
-        conversationRef: context.conversationId,
-        turns: preparePublicTurns(context.turns),
-        profileId: config.profileId,
-        locale: context.locale,
-        limits: {
-          maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
-          maxStreamDurationMs: config.maxStreamDurationMs,
-          maxToolCalls: config.maxToolCalls,
-        },
-      },
-      controller.signal,
-    ),
-  );
-  await workerStage('record_engine_handle', () =>
-    store.recordEngineHandle({
-      conversationId: context.conversationId,
-      runId: context.runId,
-      operationId: context.operationId,
-      engineRunId: handle.engineRunId,
-    }),
-  );
-
-  for await (const rawEvent of engine.streamRun(handle, controller.signal)) {
-    if (!(await workerStage('check_run_fence', () => store.isRunCommitAuthorized(context)))) {
+  // Our own deadline and an unreadable fence are failures to terminalize; other
+  // aborts mean the run was cancelled or fenced off, and its owner has already
+  // terminalized it.
+  let timedOut = false;
+  let fenceUnreadable = false;
+  const deadline = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, config.maxStreamDurationMs);
+  const stopWatching = watchRunFence(store, context, controller, () => {
+    fenceUnreadable = true;
+  });
+  const fenced = {
+    conversationId: context.conversationId,
+    runId: context.runId,
+    expectedControlVersion: context.controlVersion,
+    claimEpoch: context.claimEpoch,
+  };
+  const answerStream = new GroundedAnswerStream(config.approvedSourcePrefix);
+  const publishSentence = async (
+    text: string,
+    citations: import('@vibelingan-channel/ai-engine/port').EngineCitation[],
+  ) => {
+    controller.signal.throwIfAborted();
+    const delta = answerStream.accept(text, citations);
+    if (delta === undefined) return;
+    if (!(await store.appendEventFenced({ ...fenced, type: 'token', payload: { text: delta } }))) {
       controller.abort();
+      controller.signal.throwIfAborted();
+    }
+  };
+  const need: NeedState = isNeedState(context.needState) ? context.needState : EMPTY_NEED;
+  const latestVisitorText =
+    context.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text ?? '';
+  const chinese = /[㐀-鿿]/.test(latestVisitorText);
+  const perQuestion = config.maxInputTokensPerQuestion ?? DEFAULT_INPUT_BUDGET.perQuestion;
+  // Whatever this run already recorded counts too (a replayed run is
+  // terminalized before this point, so normally nothing has been).
+  let questionLeft = Math.max(0, perQuestion - context.usage.inputTokens);
+  const recordUsage = async (usage: EngineUsage) => {
+    questionLeft = Math.max(0, questionLeft - usage.inputTokens);
+    await workerStage('record_usage', () => store.addRunUsage(context.runId, usage));
+  };
+  const built = buildContext({
+    turns: context.turns,
+    need,
+    historyTokens: config.historyTokens ?? DEFAULT_INPUT_BUDGET.historyTokens,
+  });
+  const limits = () => ({
+    maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+    maxStreamDurationMs: config.maxStreamDurationMs,
+    maxToolCalls: config.maxToolCalls,
+    maxInputTokens: config.maxInputTokensPerCall ?? DEFAULT_INPUT_BUDGET.perCall,
+    questionInputTokens: questionLeft,
+  });
+  /** The summary and follow-ups proposed with this answer's plan, checked. */
+  let nextNeed = need;
+  let proposed: RawSuggestion[] = [];
+  const suggestionsFor = (raw: readonly RawSuggestion[]) => {
+    const shown = publicSuggestions(raw, nextNeed, latestVisitorText);
+    return shown.length ? { suggestions: shown } : {};
+  };
+  const needChange = () => (nextNeed.version !== need.version ? { needState: nextNeed } : {});
+  const finishBudgetSpent = () =>
+    store.finishRunFenced({
+      ...fenced,
+      status: 'completed',
+      events: [
+        {
+          type: 'final',
+          payload: {
+            text: BUDGET_REPLY[chinese ? 'zh' : 'en'],
+            kind: 'team_followup',
+            ...(needRequirement(nextNeed)
+              ? { inquirySuggestion: { requirement: needRequirement(nextNeed) } }
+              : {}),
+          },
+        },
+      ],
+      ...needChange(),
+    });
+  const finishProduct = async (action: Parameters<PublicCatalog['execute']>[0]) => {
+    const catalog = config.catalog;
+    if (!catalog) throw new WorkerFailure('invalid_request', 'catalog_not_configured');
+    if (engine instanceof VibeKbEngine)
+      await store.appendEventFenced({
+        ...fenced,
+        type: 'tool.progress',
+        payload: { action: 'product_search' },
+      });
+    let after: CatalogCursor | undefined;
+    if (action.kind === 'more') {
+      const cursor = await workerStage('load_catalog_cursor', () =>
+        store.getCatalogCursor(context.conversationId, action.after),
+      );
+      // An answer with nothing more to show (or an old one) has no cursor.
+      if (!isCatalogCursor(cursor)) {
+        await store.finishRunFenced({
+          ...fenced,
+          status: 'completed',
+          events: [
+            {
+              type: 'final',
+              payload: {
+                kind: 'no_match',
+                text: 'There are no more published options for this request. Ask with a broader product type and I will search again.',
+              },
+            },
+          ],
+        });
+        return;
+      }
+      after = cursor;
+    }
+    const result = await workerStage('read_public_catalog', () =>
+      catalog.execute(action, controller.signal, after),
+    );
+    const explanation =
+      engine instanceof VibeKbEngine && context.catalogAction === undefined
+        ? await explainCatalog(
+            engine,
+            {
+              operationId: context.operationId,
+              conversationRef: context.conversationId,
+              turns: preparePublicTurns(built.turns),
+              ...(built.memory ? { memory: built.memory } : {}),
+              profileId: PRODUCT_PROFILE_ID,
+              locale: context.locale,
+              limits: { ...limits(), maxToolCalls: 0 },
+            },
+            result.products,
+            controller.signal,
+            config.approvedSourcePrefix,
+            recordUsage,
+            publishSentence,
+          )
+        : null;
+    await store.finishRunFenced({
+      ...fenced,
+      status: 'completed',
+      events: [
+        ...(explanation
+          ? approvedEvents(explanation, answerStream.delivered)
+              .map(storeEvent)
+              .filter((event) => event.type !== 'final')
+          : []),
+        {
+          type: 'final',
+          payload: {
+            ...result,
+            ...(explanation ? { text: explanation.text } : {}),
+            ...(result.products.length ? suggestionsFor(proposed) : {}),
+          },
+        },
+      ],
+      ...needChange(),
+    });
+  };
+  try {
+    if (context.catalogAction !== undefined) {
+      if (!isCatalogAction(context.catalogAction))
+        throw new WorkerFailure('invalid_request', 'invalid_catalog_action');
+      await finishProduct(context.catalogAction);
       return;
     }
-
-    if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
-      // Citations arrive at the end on the hosted KB. Until the final evidence
-      // set passes policy, neither its prose nor its source names are public.
-      continue;
-    }
-
-    if (rawEvent.type === 'error') {
-      const committed = await workerStage('finish_engine_error', () =>
+    const screened = config.catalog ? screenVisitorMessage(context.turns) : null;
+    if (screened) {
+      // Only the topic is logged, never the message.
+      console.info(
+        JSON.stringify({ level: 'info', event: 'message_screened', runId, topic: screened }),
+      );
+      const reply = fixedReply(
+        screened,
+        latestVisitorText,
+        context.locale,
+        smallTalkStreak(context.turns),
+      );
+      await workerStage('finish_screened', () =>
         store.finishRunFenced({
-          conversationId: context.conversationId,
-          runId: context.runId,
-          expectedControlVersion: context.controlVersion,
-          claimEpoch: context.claimEpoch,
-          status: 'failed',
-          events: [storeEvent(rawEvent)],
+          ...fenced,
+          status: 'completed',
+          events: [
+            {
+              type: 'final',
+              payload: {
+                text: reply.text,
+                kind: reply.kind,
+                // Worker-only: marks a fixed reply for context and for the BFF.
+                screened,
+                ...suggestionsFor(reply.suggestions),
+              },
+            },
+          ],
+        }),
+      );
+      return;
+    }
+    const useBudget = config.catalog !== undefined;
+    if (useBudget && questionLeft === 0) {
+      await workerStage('finish_budget_spent', finishBudgetSpent);
+      return;
+    }
+    const handle = await workerStage('create_engine_run', () =>
+      engine.createRun(
+        {
+          operationId: context.operationId,
+          conversationRef: context.conversationId,
+          turns: preparePublicTurns(useBudget ? built.turns : context.turns),
+          ...(useBudget && built.memory ? { memory: built.memory } : {}),
+          profileId: config.catalog ? PRODUCT_PROFILE_ID : config.profileId,
+          locale: context.locale,
+          limits: useBudget
+            ? limits()
+            : {
+                maxDeliveredOutputUnits: config.maxDeliveredOutputUnits,
+                maxStreamDurationMs: config.maxStreamDurationMs,
+                maxToolCalls: config.maxToolCalls,
+              },
+        },
+        controller.signal,
+      ),
+    );
+    await workerStage('record_engine_handle', () =>
+      store.recordEngineHandle({
+        conversationId: context.conversationId,
+        runId: context.runId,
+        operationId: context.operationId,
+        engineRunId: handle.engineRunId,
+      }),
+    );
+
+    for await (const rawEvent of engine.streamRun(handle, controller.signal)) {
+      if (!(await workerStage('check_run_fence', () => store.isRunCommitAuthorized(context)))) {
+        controller.abort();
+        return;
+      }
+      if (rawEvent.type === 'usage') {
+        await recordUsage(rawEvent.usage);
+        continue;
+      }
+      if (rawEvent.type === 'activity') {
+        const committed = await store.appendEventFenced({
+          ...fenced,
+          type: 'tool.progress',
+          payload: { action: rawEvent.action },
+        });
+        if (!committed) {
+          controller.abort();
+          return;
+        }
+        continue;
+      }
+
+      if (rawEvent.type === 'token' || rawEvent.type === 'citation') {
+        // Only evidence-bound, complete answer sentences take the early path.
+        // Legacy vendor tokens and late vendor citations remain withheld.
+        if (rawEvent.type === 'token' && rawEvent.citations)
+          await publishSentence(rawEvent.text, rawEvent.citations);
+        continue;
+      }
+
+      if (rawEvent.type === 'error') {
+        if (rawEvent.safeDetail === QUESTION_BUDGET_EXHAUSTED) {
+          await workerStage('finish_budget_spent', finishBudgetSpent);
+          return;
+        }
+        const committed = await workerStage('finish_engine_error', () =>
+          store.finishRunFenced({
+            ...fenced,
+            status: 'failed',
+            events: [storeEvent(rawEvent)],
+          }),
+        );
+        if (!committed) {
+          controller.abort();
+          return;
+        }
+        return;
+      }
+
+      let candidate = rawEvent;
+      if (config.catalog) {
+        let plan: ReturnType<typeof parseProductPlan>;
+        try {
+          plan = parseProductPlan(rawEvent.text);
+        } catch {
+          throw new WorkerFailure('invalid_request', 'invalid_product_plan');
+        }
+        const extras = planExtras(rawEvent.text);
+        proposed = extras.suggestions;
+        nextNeed = mergeNeed(need, extras.need, {
+          latestVisitorText,
+          turn: context.visitorTurn,
+          shown: shownProducts(context.turns),
+        });
+        if (plan.kind === 'search' || plan.kind === 'lookup') {
+          await finishProduct(plan);
+          return;
+        }
+        if (plan.kind === 'clarify') {
+          await store.finishRunFenced({
+            ...fenced,
+            status: 'completed',
+            events: [
+              {
+                type: 'final',
+                payload: {
+                  text: plan.question,
+                  kind: 'clarification',
+                  ...suggestionsFor(proposed),
+                },
+              },
+            ],
+            ...needChange(),
+          });
+          return;
+        }
+        if (plan.kind === 'inquiry' || plan.kind === 'help') {
+          if (plan.kind === 'inquiry' && plan.productId) {
+            const latestProducts = new Map<string, unknown>();
+            for (const turn of context.turns) {
+              for (const product of turn.publicCatalog?.products ?? [])
+                latestProducts.set(product.id, product);
+              for (const id of turn.publicCatalog?.unavailableProductIds ?? [])
+                latestProducts.delete(id);
+            }
+            if (!latestProducts.has(plan.productId))
+              throw new WorkerFailure('invalid_request', 'inquiry_product_not_in_context');
+          }
+          const text =
+            plan.kind === 'inquiry'
+              ? chinese
+                ? '我已整理采购需求。请核对需求、填写邮箱，并确认是否交给团队跟进；确认前不会提交。'
+                : 'Your purchase requirements are ready to review. Check the details and add your email before confirming. Nothing is submitted yet.'
+              : plan.topic === 'greeting'
+                ? (FIXED_REPLIES.greeting.replies[0][chinese ? 'zh' : 'en'] as string)
+                : plan.topic === 'unsupported'
+                  ? chinese
+                    ? '这件事超出我目前能处理的范围。我可以帮你查产品、了解服务，或者整理需求交给团队。'
+                    : 'I cannot carry out that request. I can help with products, our services, or preparing a requirement for our team.'
+                  : chinese
+                    ? '这部分需要团队进一步确认。你可以继续说明需求，或核对询盘后交给团队跟进。'
+                    : 'Our team needs to confirm that detail. You can describe your needs or review an inquiry for follow-up.';
+          await store.finishRunFenced({
+            ...fenced,
+            status: 'completed',
+            events: [
+              {
+                type: 'final',
+                payload: {
+                  text,
+                  kind:
+                    plan.kind === 'help' && plan.topic === 'unsupported'
+                      ? 'unsupported'
+                      : plan.kind === 'help' && plan.topic === 'greeting'
+                        ? 'answer'
+                        : 'team_followup',
+                  ...(plan.kind === 'inquiry'
+                    ? {
+                        inquirySuggestion: {
+                          requirement: plan.summary,
+                          ...(plan.productId ? { productId: plan.productId } : {}),
+                        },
+                      }
+                    : suggestionsFor(proposed)),
+                },
+              },
+            ],
+            ...needChange(),
+          });
+          return;
+        }
+        candidate = { ...rawEvent, text: plan.text };
+      }
+      const policyResult = enforceGroundedFinal(candidate, {
+        approvedSourcePrefix: config.approvedSourcePrefix,
+      });
+      const approved =
+        policyResult.type === 'final'
+          ? {
+              ...policyResult,
+              citations: normalizeCitations(policyResult.citations, {
+                siteOrigin: config.citationSiteOrigin,
+              }),
+            }
+          : policyResult;
+      const safeEvents = approvedEvents(approved, answerStream.delivered).map(storeEvent);
+      const status = approved.type === 'final' ? 'completed' : 'failed';
+      if (status === 'completed' && config.catalog) {
+        const final = safeEvents.find((event) => event.type === 'final');
+        if (final) Object.assign(final.payload, suggestionsFor(proposed));
+      }
+      const committed = await workerStage(`finish_${status}`, () =>
+        store.finishRunFenced({
+          ...fenced,
+          status,
+          events: safeEvents,
+          ...(status === 'completed' ? needChange() : {}),
         }),
       );
       if (!committed) {
@@ -381,38 +777,73 @@ async function startRun(
       }
       return;
     }
-
-    const policyResult = enforceGroundedFinal(rawEvent, {
-      approvedSourcePrefix: config.approvedSourcePrefix,
-    });
-    const approved =
-      policyResult.type === 'final'
-        ? {
-            ...policyResult,
-            citations: normalizeCitations(policyResult.citations, {
-              siteOrigin: config.citationSiteOrigin,
-            }),
-          }
-        : policyResult;
-    const safeEvents = approvedEvents(approved);
-    const status = approved.type === 'final' ? 'completed' : 'failed';
-    const committed = await workerStage(`finish_${status}`, () =>
-      store.finishRunFenced({
-        conversationId: context.conversationId,
-        runId: context.runId,
-        expectedControlVersion: context.controlVersion,
-        claimEpoch: context.claimEpoch,
-        status,
-        events: safeEvents.map(storeEvent),
-      }),
-    );
-    if (!committed) {
-      controller.abort();
-      return;
-    }
-    return;
+    if (fenceUnreadable) throw new WorkerFailure('transient', 'run_fence_read_failed');
+    if (timedOut) throw new WorkerFailure('timeout', 'stream_deadline_exceeded');
+    if (!controller.signal.aborted)
+      throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
+  } finally {
+    clearTimeout(deadline);
+    await stopWatching();
+    controller.abort();
   }
-  throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
+}
+
+/** The requirement update and follow-ups a plan proposed; invalid parts are dropped. */
+function planExtras(text: string): {
+  need: ReturnType<typeof parseNeedUpdate>;
+  suggestions: RawSuggestion[];
+} {
+  const plan: unknown = JSON.parse(text);
+  return isRecord(plan)
+    ? { need: parseNeedUpdate(plan.need), suggestions: parseSuggestions(plan.suggestions) }
+    : { need: undefined, suggestions: [] };
+}
+
+/** Every product card the model saw in this request's turns, by id. */
+function shownProducts(turns: RunExecutionContext['turns']): Map<string, string> {
+  const shown = new Map<string, string>();
+  for (const turn of turns)
+    for (const product of turn.publicCatalog?.products ?? []) shown.set(product.id, product.name);
+  return shown;
+}
+
+/** Check cancellation even when a provider is not sending any frames. */
+function watchRunFence(
+  store: AiStore,
+  context: RunExecutionContext,
+  controller: AbortController,
+  onReadFailure: () => void,
+) {
+  const watch = new AbortController();
+  const task = (async () => {
+    while (!watch.signal.aborted) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer);
+          watch.signal.removeEventListener('abort', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, 200);
+        watch.signal.addEventListener('abort', finish, { once: true });
+      });
+      if (watch.signal.aborted) return;
+      try {
+        if (!(await store.isRunCommitAuthorized(context))) {
+          controller.abort();
+          return;
+        }
+      } catch {
+        // Unknown is not cancelled: the run still needs a terminal state.
+        onReadFailure();
+        controller.abort();
+        return;
+      }
+    }
+  })();
+  return async () => {
+    watch.abort();
+    await task;
+  };
 }
 
 async function workerStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
@@ -424,13 +855,14 @@ async function workerStage<T>(stage: string, operation: () => Promise<T>): Promi
   }
 }
 
-function approvedEvents(terminal: EngineEvent): EngineEvent[] {
+function approvedEvents(terminal: EngineEvent, delivered = ''): EngineEvent[] {
   if (terminal.type !== 'final') return [terminal];
-  // Vendor chunks were deliberately withheld until the final evidence set
-  // passed. Replaying hundreds of now-approved chunks would add hundreds of DB
-  // transactions without restoring real-time streaming, so publish the exact
-  // approved final text once.
-  const tokens: EngineEvent[] = [{ type: 'token', text: terminal.text }];
+  // Already delivered sentences must not be appended twice. A policy replacement
+  // is published by the final event, which replaces the visible partial answer.
+  const remaining = terminal.text.startsWith(delivered)
+    ? terminal.text.slice(delivered.length)
+    : '';
+  const tokens: EngineEvent[] = remaining ? [{ type: 'token', text: remaining }] : [];
   const citations: EngineEvent[] = terminal.citations.map((citation) => ({
     type: 'citation',
     citation,
@@ -710,6 +1142,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   }
   const config = validateWorkerConfig({
+    ...(process.env.AI_PUBLIC_CATALOG_ORIGIN
+      ? { catalog: new PublicCatalog(process.env.AI_PUBLIC_CATALOG_ORIGIN) }
+      : {}),
     pollMs: envNumber('AI_WORKER_POLL_MS', 250),
     leaseSeconds: envNumber('AI_WORKER_LEASE_SECONDS', 90),
     maxAttempts: envNumber('AI_WORKER_MAX_ATTEMPTS', 5),
@@ -720,9 +1155,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // ignore it. Renamed from maxOutputTokens, which promised the second thing.
     maxDeliveredOutputUnits: envNumber('AI_MAX_OUTPUT_TOKENS', 4096),
     maxStreamDurationMs: envNumber('AI_MAX_STREAM_DURATION_MS', 55_000),
-    maxToolCalls: envNonNegativeNumber('AI_MAX_TOOL_CALLS', 0),
+    maxToolCalls: envNonNegativeNumber('AI_MAX_TOOL_CALLS', engine instanceof VibeKbEngine ? 8 : 0),
     approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
     citationSiteOrigin: process.env.AI_SITE_ORIGIN ?? 'http://localhost:4321',
+    historyTokens: envNumber('AI_HISTORY_TOKENS', DEFAULT_INPUT_BUDGET.historyTokens),
+    maxInputTokensPerCall: envNumber('AI_MAX_INPUT_TOKENS_PER_CALL', DEFAULT_INPUT_BUDGET.perCall),
+    maxInputTokensPerQuestion: envNumber(
+      'AI_MAX_INPUT_TOKENS_PER_QUESTION',
+      DEFAULT_INPUT_BUDGET.perQuestion,
+    ),
   });
   const store = new AiStore(databaseUrl);
 
@@ -763,6 +1204,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       () => shuttingDown,
     );
   }
+  if (engine instanceof VibeKbEngine) {
+    await retryStartupStep(
+      'public_knowledge_unreachable',
+      async () => {
+        await engine.verifyKnowledge();
+      },
+      () => shuttingDown,
+    );
+  }
 
   let databaseReady = false;
   try {
@@ -786,7 +1236,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
-function engineFromEnvironment(): ConversationEngine {
+export function engineFromEnvironment(): ConversationEngine {
   const engineId = process.env.AI_ENGINE_ID ?? 'fake';
   if (engineId === 'fake') {
     return new FakeEngine({
@@ -817,6 +1267,27 @@ function engineFromEnvironment(): ConversationEngine {
           ],
         },
       ],
+    });
+  }
+  if (engineId === 'vibekb') {
+    const thinkingMode = process.env.AI_MODEL_THINKING_MODE;
+    if (thinkingMode !== undefined && thinkingMode !== 'enabled' && thinkingMode !== 'disabled')
+      throw new Error('invalid_AI_MODEL_THINKING_MODE');
+    return new VibeKbEngine({
+      modelBaseUrl: requiredEnv('AI_MODEL_BASE_URL'),
+      model: requiredEnv('AI_MODEL_ID'),
+      modelApiKey: requiredEnv('AI_MODEL_API_KEY'),
+      ...(thinkingMode ? { thinkingMode } : {}),
+      provenance: provenanceFromEnvironment(),
+      knowledge: {
+        url: requiredEnv('VIBEKB_MCP_URL'),
+        apiKey: requiredEnv('VIBEKB_MCP_API_KEY'),
+        workspaceId: Number(requiredEnv('VIBEKB_PUBLIC_WORKSPACE_ID')),
+        publicDocumentIds: requiredEnv('VIBEKB_PUBLIC_DOCUMENT_IDS').split(',').map(Number),
+        publicTag: process.env.VIBEKB_PUBLIC_TAG ?? '对外公开',
+        sourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
+        allowLocalHttp: process.env.VIBEKB_MCP_ALLOW_LOOPBACK_HTTP === '1',
+      },
     });
   }
   if (engineId !== 'anythingllm') throw new Error(`unsupported_AI_ENGINE_ID:${engineId}`);

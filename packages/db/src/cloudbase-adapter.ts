@@ -1,3 +1,10 @@
+import { planCatalogSeoWrite, writeCatalogSeoPermit } from './catalog-seo-control.ts';
+import { catalogSeoRequests, readCatalogSeoRecordingConfig } from './catalog-seo-requests.ts';
+import {
+  catalogSeoRecordingConfig,
+  configureCatalogSeoRecording,
+  recordCatalogSeoWrites,
+} from './catalog-seo-write.ts';
 import { assertOrdinaryImageReferenceWrite, assertOrdinaryImageReferenceRemoval, ImageReferenceWriteError } from './catalog-image-reference-write.ts';
 import {
   APPROVAL_IMAGE_HOLD_PROJECTION,
@@ -59,6 +66,7 @@ import cloud from 'wx-server-sdk';
 import { InquiryCommandSchema } from '@vibelingan-channel/shared/catalog-inquiry';
 import { INQUIRY_COLLECTION, manageInquiryInCloud, saveQuoteInCloud } from './catalog-inquiry-cloud.ts';
 import { processCatalogInquiry } from './catalog-inquiry.ts';
+import { saveFinalizedOemInCloud } from './sales-inquiry-submission.ts';
 import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
 import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
 import { runCategoryCommand } from './category-transaction.ts';
@@ -203,6 +211,7 @@ export async function saveCatalogProductInCloudBase(
   db: NodeSdkDatabase,
   request: CatalogProductSaveInput,
   now = new Date().toISOString(),
+  seo = catalogSeoRecordingConfig(),
 ): Promise<CatalogProductSaveResult> {
   const input = captureProductOperationSave(request);
   if (!input) return { result: 'stale' };
@@ -316,6 +325,12 @@ export async function saveCatalogProductInCloudBase(
       }
     }
 
+    const seoRequests = seo
+      ? catalogSeoRequests([{ collection: 'products', before: existing, after: plan.doc }], seo, now)
+      : [];
+    const seoPermit = seo ? await planCatalogSeoWrite(operationTx, seo, [{collection:'products',before:existing,after:plan.doc}],seoRequests,now) : undefined;
+
+    await writeCatalogSeoPermit(operationTx,seoPermit);
     if (actorRef) {
       const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
       if (
@@ -373,6 +388,7 @@ export async function saveCatalogProductInCloudBase(
       );
     if (operation.result === 'ready' && operation.referenceProof)
       await setAcknowledged('catalogDetailApprovals', operation.referenceProof);
+    for (const request of seoRequests) await setAcknowledged('catalogSeoRequests', request);
     return { result: 'saved', doc: plan.doc, previous: existing };
   });
 }
@@ -382,6 +398,7 @@ let storageApp: CloudBase | null = null;
 
 export function initCloudBase(envId: string): void {
   if (initialized) return;
+  configureCatalogSeoRecording(readCatalogSeoRecordingConfig(process.env));
   cloud.init({ env: envId });
   storageApp = cloudbase.init({ env: envId });
   initialized = true;
@@ -536,9 +553,13 @@ export async function mutateCatalogRowInCloudBase(
   db: NodeSdkDatabase,
   command: CatalogRowMutation,
   now = new Date().toISOString(),
+  seo = catalogSeoRecordingConfig(),
 ): Promise<CatalogRowMutationResult> {
-  return db.runTransaction(async (transaction) =>
-    runCatalogRowMutation(catalogRowStore(transaction), command, now),
+  return db.runTransaction((transaction) =>
+    recordCatalogSeoWrites(
+      catalogRowStore(transaction), seo,
+      (store) => runCatalogRowMutation(store, command, now), { now },
+    ),
   );
 }
 
@@ -583,6 +604,7 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
   patch: Record<string, unknown>,
   createOnly: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
+  seo = catalogSeoRecordingConfig(),
 ): Promise<boolean> {
   const input = collection === 'images' ? structuredClone(patch) : patch;
   const initial = collection === 'images' ? structuredClone(createOnly) : createOnly;
@@ -592,10 +614,12 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
     const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
     if (isCatalogRowCollection(collection)) {
-      const result = await runCatalogRowMutation(
-        catalogRowStore(transaction, beforeWrite),
-        { action: 'upsert', collection, id, data: input, createOnly: initial },
-        guard.now,
+      const result = await recordCatalogSeoWrites(
+        catalogRowStore(transaction, beforeWrite), seo,
+        (store) => runCatalogRowMutation(store, {
+          action: 'upsert', collection, id, data: input, createOnly: initial,
+        }, guard.now),
+        { now: guard.now, externalOperations: 2 },
       );
       return result.status === 'written';
     }
@@ -637,6 +661,7 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
   id: string,
   patch: Record<string, unknown>,
   guard: AlibabaLeaseGuard,
+  seo = catalogSeoRecordingConfig(),
 ): Promise<boolean> {
   const input = collection === 'images' ? structuredClone(patch) : patch;
   if (collection === 'images') Reflect.deleteProperty(input, '_id');
@@ -649,10 +674,12 @@ export async function updateDocWithAlibabaLeaseInCloudBase(
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
     const beforeWrite = alibabaLeaseWriteFence(transaction, guard.connectionId, lease);
     if (isCatalogRowCollection(collection)) {
-      const result = await runCatalogRowMutation(
-        catalogRowStore(transaction, beforeWrite),
-        { action: 'update', collection, id, data: input },
-        guard.now,
+      const result = await recordCatalogSeoWrites(
+        catalogRowStore(transaction, beforeWrite), seo,
+        (store) => runCatalogRowMutation(store, {
+          action: 'update', collection, id, data: input,
+        }, guard.now),
+        { now: guard.now, externalOperations: 2 },
       );
       return result.status === 'written';
     }
@@ -765,8 +792,8 @@ export async function upsertCatalogSourceObservationInCloudBase(
   });
 }
 
-export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'runTransaction'>, actorId:string, input:unknown, now=new Date().toISOString()) {
-  return db.runTransaction(async transaction => runCategoryCommand({
+export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'runTransaction'>, actorId:string, input:unknown, now=new Date().toISOString(), seo = catalogSeoRecordingConfig()) {
+  return db.runTransaction(async transaction => recordCatalogSeoWrites({
     get: async (collection,id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
     set: async (collection,row) => {
       const {_id,...data}=row;
@@ -774,7 +801,7 @@ export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'run
       // A new document is acknowledged by upserted, not necessarily updated=1.
       if(result.updated!==1&&!result.upserted?.some(row=>row._id===_id))throw new Error('Classification write was not acknowledged');
     },
-  },actorId,input,now));
+  }, seo, store => runCategoryCommand(store,actorId,input,now), { now }));
 }
 
 export interface AlibabaProductCloudDatabase {
@@ -797,6 +824,7 @@ export interface AlibabaProductCloudDatabase {
 export async function mutateAlibabaProductInCloud(
   db: AlibabaProductCloudDatabase,
   input: AlibabaProductMutationInput,
+  seo = catalogSeoRecordingConfig(),
 ): Promise<AlibabaProductMutationResult> {
   const result = sdkAnswer(await db.collection('alibabaProductLinks')
     .where({ productId: input.productId }).limit(ALIBABA_PRODUCT_LINK_LIMIT + 1).get());
@@ -804,7 +832,7 @@ export async function mutateAlibabaProductInCloud(
     throw new Error('Alibaba link query was not acknowledged');
   }
   const links = result.data as CollectionDoc[];
-  const commit = () => db.runTransaction((transaction) => runAlibabaProductMutation({
+  const commit = () => db.runTransaction((transaction) => recordCatalogSeoWrites({
     get: async (collection, id) => normalizeSingle(sdkAnswer(await transaction.collection(collection).doc(id).get()).data),
     set: async (collection, row) => {
       const { _id, ...data } = row;
@@ -817,7 +845,7 @@ export async function mutateAlibabaProductInCloud(
       const acknowledgement = sdkAnswer(await transaction.collection(collection).doc(id).remove());
       if (acknowledgement.deleted !== 1) throw new Error('Alibaba link removal was not acknowledged');
     },
-  }, links, input));
+  }, seo, store => runAlibabaProductMutation(store, links, input), { now: input.now }));
   return 'guard' in input ? withAlibabaLeaseCommit(input.guard, commit) : commit();
 }
 
@@ -886,7 +914,10 @@ export function manageCatalogPreparationJobInCloudBase(
   now?: number,
 ) {
   return db.runTransaction((transaction) =>
-    runCatalogPreparationJob(catalogRowStore(transaction), authority, command, now),
+    recordCatalogSeoWrites(
+      catalogRowStore(transaction), catalogSeoRecordingConfig(),
+      (store) => runCatalogPreparationJob(store, authority, command, now),
+    ),
   );
 }
 
@@ -1034,8 +1065,11 @@ export const cloudBaseAdapter: DbAdapter = {
   async manageCatalogCategory(actorId, input) {
     return manageCatalogCategoryInCloud(cloudStorageSdk().database(),actorId,input);
   },
-  async submitCatalogQuote(input) {
-    return saveQuoteInCloud(cloudStorageSdk().database(), input);
+  async submitCatalogQuote(input,capture) {
+    return saveQuoteInCloud(cloudStorageSdk().database(), input,capture);
+  },
+  async saveFinalizedSalesOemSubmission(input,scope) {
+    return saveFinalizedOemInCloud(cloudStorageSdk().database(),input,scope);
   },
   async manageCatalogInquiry(actorId, input) {
     const parsed = InquiryCommandSchema.safeParse(input);

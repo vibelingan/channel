@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cmd_demo_1",
+  "action": "approve",
+  "expected_task_revision": 2,
+  "target_version": 1,
+  "target_content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

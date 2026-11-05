@@ -60,8 +60,10 @@ export function deployContextFromEnv(env) {
       subnetId: requireSetting(env, 'AI_CLOUDRUN_SUBNET_ID'),
     },
     siteOrigins: requireSetting(env, 'CORS_ALLOWED_ORIGINS'),
+    engineId: requireSetting(env, 'AI_ENGINE_ID'),
     engineProvenanceKind: requireSetting(env, 'AI_ENGINE_PROVENANCE_KIND'),
     requireEnv: (name) => requireSetting(env, name),
+    optionalEnv: (name) => env[name]?.trim() || undefined,
   };
 }
 
@@ -288,10 +290,13 @@ export function deployedConfigProblems(def, config) {
     }
   }
 
-  // A service that calls the knowledge base goes out to the internet through
-  // CloudRun's default exit. Switched off, that path needs a NAT gateway in the
-  // VPC, and this VPC has none.
-  if (def.envVariables.KB_BASE_URL && config?.PublicNetConf?.PublicNetStatus === 'DISABLE') {
+  // A service that calls the knowledge base or the model goes out to the
+  // internet through CloudRun's default exit. Switched off, that path needs a
+  // NAT gateway in the VPC, and this VPC has none.
+  const callsOut = ['KB_BASE_URL', 'VIBEKB_MCP_URL', 'AI_MODEL_BASE_URL'].some(
+    (key) => def.envVariables[key],
+  );
+  if (callsOut && config?.PublicNetConf?.PublicNetStatus === 'DISABLE') {
     problems.push(
       `${def.name} has internet egress switched off, so it cannot reach the knowledge base unless the VPC gets a NAT gateway`,
     );

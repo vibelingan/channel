@@ -1,0 +1,72 @@
+import { identity } from './input.mjs';
+
+/** The clock may use a program only after website and product-page acceptance have both finished. */
+export async function activateCatalogRenderer({
+  db,
+  proof,
+  runId,
+  executorSha,
+  executorRef,
+  finishCatalog = /** @type {null | (()=>Promise<void>)} */ (null),
+  writeActive = /** @type {null | ((data:object)=>Promise<void>)} */ (null),
+}) {
+  if (
+    !/^[a-f0-9]{40}$/.test(proof?.codeSha ?? '') ||
+    !/^[a-f0-9]{64}$/.test(proof?.manifestSha256 ?? '') ||
+    !/^[a-f0-9]{40}$/.test(executorSha) ||
+    !['feat/seo-foundation', 'test'].includes(executorRef) ||
+    !/^site-[1-9][0-9]*-[1-9][0-9]*$/.test(runId)
+  )
+    throw Error('Invalid accepted catalog program');
+  if (finishCatalog && typeof writeActive !== 'function')
+    throw Error('Tracked catalog activation requires a guarded registration writer');
+  if (finishCatalog) await finishCatalog();
+  const data = {
+    codeSha: proof.codeSha,
+    executorSha,
+    executorRef,
+    acceptedRunId: runId,
+    manifestSha256: proof.manifestSha256,
+    catalogTracked: Boolean(finishCatalog),
+  };
+  const doc = db.collection('catalogSeoBuilders').doc('active');
+  if (writeActive) await writeActive(data);
+  else {
+    try {
+      await doc.set(data);
+    } catch {
+      /* Readback settles a lost reply for this exact untracked run. */
+    }
+  }
+  const response = await doc.get();
+  const row = Array.isArray(response?.data) ? response.data[0] : response?.data;
+  if (
+    !row ||
+    identity(Object.fromEntries(Object.entries(row).filter(([k]) => k !== '_id'))) !==
+      identity(data)
+  )
+    throw Error('Accepted catalog program registration needs readback');
+  return data;
+}
+
+/** Ask the guarded same-region worker to register exactly the accepted renderer. */
+export async function activateAcceptedCatalogRegistration({
+  regional,
+  input,
+  renderer,
+  executorRef,
+  expectedWrites,
+  data,
+}) {
+  const result = await regional.activateAcceptedRegistration({
+    artifact: input.envelope.artifact,
+    acceptedSeal: input.acceptedSeal,
+    renderer,
+    executorRef,
+    expectedWrites,
+  });
+  if (result?.registered !== true || identity(result.active) !== identity(data))
+    throw Object.assign(Error('Accepted renderer registration does not match its readback'), {
+      code: 'CATALOG_REGIONAL_ACTIVATION_MISMATCH',
+    });
+}

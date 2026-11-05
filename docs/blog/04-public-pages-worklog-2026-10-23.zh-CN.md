@@ -70,4 +70,4 @@ Astro 的路由和静态资源方式已对照安装包及 [Astro 6 路由文档]
 
 后续先实现 P2 的离线任务逻辑：冻结指定修订与图片清单、固定拟公开时间、幂等重试、旧任务不能覆盖新结果；补受控的内部候选构建输入，再接共享锁、备份和交付验收。文章只有在交付验收成功后才能登记公开。更新/撤回不能删除存储原件，恢复不能复活已撤回页面。真实写入前仍需单独确认目标、范围、A→B→A 和停止条件；P1 的本地结果不提供这项授权。
 
-当前进度只更新 [共同记录](NEXT-STEPS.zh-CN.md)。[截图和机器记录](../../output/blog-public-2026-10-23/README.zh-CN.md) 可直接交给云端继续使用。
+当前进度只更新 [共同记录](NEXT-STEPS.zh-CN.md)。[截图和机器记录](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/output/blog-public-2026-10-23/README.zh-CN.md) 可直接交给云端继续使用。

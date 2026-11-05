@@ -10,8 +10,9 @@ import { CATALOG_DETAIL_PAGINATION_POLICY } from '@vibelingan-channel/shared/cat
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { planApprovalImageReferences } from './catalog-approval-image-references.ts';
+import { catalogSeoRecordingConfig, recordCatalogSeoWrites } from './catalog-seo-write.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
-import { sdkAnswer } from './cloudbase-sdk-answer.ts';
+import { assertDocumentWrite, sdkAnswer } from './cloudbase-sdk-answer.ts';
 import { serializeCloudBaseTransactionReads } from './cloudbase-transaction-reads.ts';
 
 const identity = z
@@ -302,21 +303,21 @@ export async function approveCatalogDetailInCloud(
   db: NodeSdkDatabase,
   actorId: string,
   input: unknown,
+  seo = catalogSeoRecordingConfig(),
 ): Promise<CatalogApprovalResult> {
   return db.runTransaction((tx) =>
-    commitCatalogApproval(
+    recordCatalogSeoWrites(
       {
         get: serializeCloudBaseTransactionReads(async (collection, id) =>
           document(sdkAnswer(await tx.collection(collection).doc(id).get()).data),
         ),
         set: async (collection, row) => {
           const { _id, ...data } = row;
-          const result = sdkAnswer(await tx.collection(collection).doc(_id).set(data));
-          if (result.updated !== 1) throw new Error('Approval write not confirmed');
+          assertDocumentWrite(await tx.collection(collection).doc(_id).set(data), _id, 'set');
         },
       },
-      actorId,
-      input,
+      seo,
+      (store) => commitCatalogApproval(store, actorId, input),
     ),
   );
 }

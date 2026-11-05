@@ -1,0 +1,123 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { nativeFunctionFixture } from './catalog-native-fixture.mjs';
+import { functionManagerFixture } from './release-function-manager-fixture.mjs';
+import { createCloudbaseFunctionProvider } from './release/function-provider.mjs';
+import { sha256 } from './release/input.mjs';
+const name = 'alibaba-catalog-sync';
+const bucket = 'fixture-env-1234567890';
+const stagingKey = 'fnzip-upload/1793520000-0123456789abcdef/alibaba-catalog-sync.zip';
+function setup(bytes, onStage = () => {}) {
+  const x = functionManagerFixture({ name, bytes });
+  x.state.nativeObjects = new Map();
+  x.state.detail.Triggers = [
+    {
+      TriggerName: 'alibaba-sync-tick',
+      Type: 'timer',
+      TriggerDesc: JSON.stringify({ cron: '0 */1 * * * * *' }),
+    },
+  ];
+  const provider = createCloudbaseFunctionProvider({
+    ...x,
+    target: { envId: 'fixture-env', siteOrigin: 'https://fixture.example' },
+    region: 'ap-shanghai',
+    names: [name],
+    expectedTriggers: {
+      [name]: [{ name: 'alibaba-sync-tick', type: 'timer', config: '0 */1 * * * * *' }],
+    },
+    archiveProfiles: { [name]: 'catalog-native-decoder' },
+    archiveBucket: bucket,
+    stageArchive: async (data) => {
+      const hash = sha256(data);
+      x.state.nativeObjects.set(stagingKey, Buffer.from(data));
+      onStage(x);
+      return {
+        fileID: `cloud://fixture-env.${bucket}/${stagingKey}`,
+        bytes: data.length,
+        sha256: hash,
+      };
+    },
+  });
+  return { ...x, provider };
+}
+test('the real management SDK receives only a verified environment COS descriptor for the large native ZIP', async () => {
+  const fixture = nativeFunctionFixture();
+  try {
+    const base = fixture.pack();
+    const candidate = fixture.pack({ 'index.js': 'exports.main=async()=>({ok:true,revision:2});' });
+    const x = setup(base);
+    const before = await x.provider.read(name);
+    await x.provider.updateCode({
+      name,
+      runtime: 'Nodejs20.19',
+      handler: 'index.main',
+      bytes: candidate,
+      sha256: sha256(candidate),
+      expectedSnapshot: before,
+    });
+    const call = x.state.calls.find((c) => c.action === 'UpdateFunctionCode');
+    assert.equal(call.service, 'tcb');
+    assert.equal(call.version, '2018-06-08');
+    assert.equal(call.region, 'ap-shanghai');
+    assert.deepEqual(call.payload.Code, {
+      CosBucketName: 'fixture-env',
+      CosBucketRegion: 'ap-shanghai',
+      CosObjectName: stagingKey,
+    });
+    assert.equal(call.payload.InstallDependency, 'FALSE');
+    assert.equal(Object.hasOwn(call.payload, 'CodeSource'), false);
+    assert.equal(call.payload.Handler, 'index.main');
+    assert.equal(Object.hasOwn(call.payload, 'Environment'), false);
+    assert.equal((await x.provider.read(name)).packageSha256, sha256(candidate));
+    assert.equal(x.state.configUpdates ?? 0, 0);
+    const drift = setup(base, (x) => {
+      x.state.detail.MemorySize = 512;
+    });
+    const original = await drift.provider.read(name);
+    await assert.rejects(
+      drift.provider.updateCode({
+        name,
+        runtime: 'Nodejs20.19',
+        handler: 'index.main',
+        bytes: candidate,
+        sha256: sha256(candidate),
+        expectedSnapshot: original,
+      }),
+    );
+    assert.equal(drift.state.updates, 0);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test('TCB success with a nested SCF rejection is not reported as a submitted update', async () => {
+  const fixture = nativeFunctionFixture();
+  try {
+    const base = fixture.pack();
+    const candidate = fixture.pack({ 'index.js': 'exports.main=async()=>({revision:2});' });
+    const x = setup(base);
+    const before = await x.provider.read(name);
+    x.state.scfError = true;
+    await assert.rejects(
+      x.provider.updateCode({
+        name,
+        runtime: 'Nodejs20.19',
+        handler: 'index.main',
+        bytes: candidate,
+        sha256: sha256(candidate),
+        expectedSnapshot: before,
+      }),
+      (error) => {
+        assert.equal(error.causeCode, 'InvalidParameterValue.CosObjectName');
+        assert.equal(error.requestId, 'scf-rejected');
+        assert.equal(error.parameterHint, 'CosObjectName');
+        assert.equal(error.reasonHint, 'OBJECT_NOT_FOUND');
+        assert.equal(JSON.stringify(error).includes('fixture-secret'), false);
+        return true;
+      },
+    );
+    assert.equal(x.state.updates, 0);
+  } finally {
+    fixture.cleanup();
+  }
+});

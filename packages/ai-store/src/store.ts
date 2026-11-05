@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { isProductCards } from '@vibelingan-channel/ai-contracts';
 import type { EngineProvenance } from '@vibelingan-channel/ai-engine/capabilities';
+import type { EngineTurn } from '@vibelingan-channel/ai-engine/port';
 import type { Pool, PoolClient } from 'pg';
 import { createAiPool } from './pool.ts';
 
 export type EventType =
   | 'token'
+  | 'tool.progress'
   | 'citation'
   | 'final'
   | 'error'
@@ -21,6 +24,16 @@ export interface ConversationRow {
   activeRunId: string | null;
 }
 
+export interface SnapshotRow {
+  role: 'visitor' | 'assistant';
+  content: string;
+  /** The visitor's idempotency key; null for assistant turns. */
+  operationKey: string | null;
+  runId: string | null;
+  /** Null while a visitor message waits for a run. */
+  runStatus: 'creating' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+  finalPayload: Record<string, unknown> | null;
+}
 export interface EventRow {
   id: string;
   conversationId: string;
@@ -46,6 +59,14 @@ export interface OutboxItem {
   claimEpoch: number;
 }
 
+export interface RunUsage {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Calls whose provider reported no usage, so the numbers are estimates. */
+  estimatedCalls: number;
+}
+
 export interface RunExecutionContext {
   conversationId: string;
   runId: string;
@@ -53,7 +74,27 @@ export interface RunExecutionContext {
   controlVersion: number;
   claimEpoch: number;
   locale: string;
-  turns: Array<{ role: 'visitor' | 'assistant'; text: string }>;
+  catalogAction?: unknown;
+  /** `screened` marks a fixed small-talk reply, which later requests can skip. */
+  turns: Array<EngineTurn & { screened?: boolean }>;
+  /** The conversation's requirement summary, unvalidated; the worker checks it. */
+  needState?: unknown;
+  /** Ordinal of the visitor message this run answers, 1-based. */
+  visitorTurn: number;
+  /** Usage already spent on this question by earlier attempts. */
+  usage: RunUsage;
+}
+
+function runUsage(value: unknown): RunUsage {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const count = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 0);
+  return {
+    calls: count(record.calls),
+    inputTokens: count(record.inputTokens),
+    outputTokens: count(record.outputTokens),
+    estimatedCalls: count(record.estimatedCalls),
+  };
 }
 
 export interface FencedTerminalEvent {
@@ -231,6 +272,17 @@ export class AiStore {
       : { allowed: true, remaining: Math.max(0, input.limit - hits) };
   }
 
+  /** Hits so far in the current window of a bucket, without adding one. */
+  async rateLimitHits(bucketKey: string, windowSeconds: number): Promise<number> {
+    const result = await this.pool.query<{ hits: number }>(
+      `SELECT hits FROM ai_rate_limit_buckets
+       WHERE bucket_key = $1
+         AND window_started_at = to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2) * $2)`,
+      [bucketKey, windowSeconds],
+    );
+    return result.rows[0]?.hits ?? 0;
+  }
+
   async appendVisitorMessage(input: {
     conversationId: string;
     idempotencyKey: string;
@@ -238,6 +290,8 @@ export class AiStore {
     engineId: string;
     engineVersion: string;
     provenance?: EngineProvenance;
+    strictReplay?: boolean;
+    catalogAction?: unknown;
   }): Promise<{ messageId: string; run: NewRun | null; replayed: boolean }> {
     return this.transaction(async (client) => {
       const conversation = await client.query<{
@@ -254,21 +308,44 @@ export class AiStore {
       if (!row) throw new Error('conversation_not_found');
       if (row.status === 'closed') throw new Error('conversation_closed');
 
-      const existing = await client.query<{ id: string }>(
-        `SELECT id FROM conversation_messages
+      const existing = await client.query<{
+        id: string;
+        content: string;
+        answered_by_run: string | null;
+        same_action: boolean;
+      }>(
+        `SELECT id, content, answered_by_run, catalog_action IS NOT DISTINCT FROM $3::jsonb AS same_action FROM conversation_messages
          WHERE conversation_id = $1 AND idempotency_key = $2`,
-        [input.conversationId, input.idempotencyKey],
+        [
+          input.conversationId,
+          input.idempotencyKey,
+          input.catalogAction ? JSON.stringify(input.catalogAction) : null,
+        ],
       );
       if (existing.rows[0]) {
+        if (
+          input.strictReplay &&
+          (existing.rows[0].content !== input.content || !existing.rows[0].same_action)
+        )
+          throw new Error('replay_content_conflict');
         return { messageId: existing.rows[0].id, run: null, replayed: true };
       }
+      if (input.strictReplay && (row.status !== 'ai' || row.active_run_id))
+        throw new Error('conversation_busy');
 
       const messageId = randomUUID();
       await client.query(
         `INSERT INTO conversation_messages(
-           id, conversation_id, role, content, idempotency_key, accepted_in_epoch
-         ) VALUES ($1, $2, 'visitor', $3, $4, $5)`,
-        [messageId, input.conversationId, input.content, input.idempotencyKey, row.takeover_epoch],
+           id, conversation_id, role, content, idempotency_key, accepted_in_epoch, catalog_action
+         ) VALUES ($1, $2, 'visitor', $3, $4, $5, $6::jsonb)`,
+        [
+          messageId,
+          input.conversationId,
+          input.content,
+          input.idempotencyKey,
+          row.takeover_epoch,
+          input.catalogAction ? JSON.stringify(input.catalogAction) : null,
+        ],
       );
       await client.query(
         `INSERT INTO audit_events(conversation_id, actor_type, action, metadata)
@@ -454,31 +531,143 @@ export class AiStore {
       control_version: string;
       claim_epoch: string;
       locale: string;
+      usage: unknown;
+      need_state: unknown;
     }>(
       `SELECT r.conversation_id, r.id, r.operation_id, r.control_version,
-              r.claim_epoch, c.locale
+              r.claim_epoch, c.locale, r.usage, c.need_state
        FROM ai_runs r JOIN conversations c ON c.id = r.conversation_id
        WHERE r.id = $1 AND r.status = 'running'`,
       [runId],
     );
     const row = run.rows[0];
     if (!row) return null;
-    const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
-      `SELECT role, content FROM conversation_messages
-       WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
-         AND (role = 'assistant' OR answered_by_run IS NOT NULL)
-       ORDER BY created_at ASC, id ASC LIMIT 30`,
+    const turns = await this.pool.query<{
+      role: 'visitor' | 'assistant';
+      content: string;
+      payload: Record<string, unknown> | null;
+    }>(
+      `SELECT recent.role, recent.content, e.payload FROM (
+         SELECT role, content, created_at, id, event_sequence, answered_by_run FROM conversation_messages
+         WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
+           AND (role = 'assistant' OR answered_by_run IS NOT NULL)
+         ORDER BY created_at DESC, id DESC LIMIT 30
+       ) recent LEFT JOIN conversation_events e ON e.conversation_id=$1
+         AND e.sequence=recent.event_sequence AND e.run_id=recent.answered_by_run AND e.type='final'
+       ORDER BY recent.created_at ASC, recent.id ASC`,
       [row.conversation_id],
     );
+    const contextual: RunExecutionContext['turns'] = turns.rows.map((turn) => ({
+      role: turn.role,
+      text: turn.content,
+      ...(turn.role === 'assistant' && turn.payload?.screened !== undefined
+        ? { screened: true }
+        : {}),
+    }));
+    for (let i = turns.rows.length - 1; i >= 0; i--) {
+      const payload = turns.rows[i]?.payload;
+      if (
+        !payload ||
+        (!Array.isArray(payload.products) && !Array.isArray(payload.unavailableProductIds))
+      )
+        continue;
+      if (payload.products !== undefined && !isProductCards(payload.products)) continue;
+      const missing = payload.unavailableProductIds ?? [];
+      if (
+        !Array.isArray(missing) ||
+        missing.length > 2 ||
+        !missing.every((id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id))
+      )
+        continue;
+      const turn = contextual[i];
+      if (turn?.role === 'assistant')
+        turn.publicCatalog = {
+          products: isProductCards(payload.products)
+            ? payload.products.map((p) => ({
+                id: p.id,
+                name: p.name,
+                summary: p.summary.slice(0, 500),
+              }))
+            : [],
+          unavailableProductIds: missing,
+        };
+      break;
+    }
+    const action = await this.pool.query<{ catalog_action: unknown; ordinal: string }>(
+      `SELECT m.catalog_action,
+              (SELECT count(*) FROM conversation_messages v
+               WHERE v.conversation_id = m.conversation_id AND v.role = 'visitor'
+                 AND (v.created_at, v.id) <= (m.created_at, m.id)) AS ordinal
+       FROM conversation_messages m
+       WHERE m.conversation_id=$1 AND m.answered_by_run=$2 AND m.role='visitor'`,
+      [row.conversation_id, row.id],
+    );
     return {
+      ...(action.rows[0]?.catalog_action ? { catalogAction: action.rows[0].catalog_action } : {}),
+      ...(row.need_state ? { needState: row.need_state } : {}),
       conversationId: row.conversation_id,
       runId: row.id,
       operationId: row.operation_id,
       controlVersion: Number(row.control_version),
       claimEpoch: Number(row.claim_epoch),
       locale: row.locale,
-      turns: turns.rows.map((turn) => ({ role: turn.role, text: turn.content })),
+      turns: contextual,
+      visitorTurn: Number(action.rows[0]?.ordinal ?? 0),
+      usage: runUsage(row.usage),
     };
+  }
+
+  /**
+   * Adds one model call to the question's usage. Not fenced: the provider
+   * has already billed the call, whether or not this run still owns the reply.
+   */
+  async addRunUsage(
+    runId: string,
+    usage: { inputTokens: number; outputTokens: number; estimated?: boolean },
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE ai_runs SET usage = jsonb_build_object(
+         'calls', COALESCE((usage->>'calls')::bigint, 0) + 1,
+         'inputTokens', COALESCE((usage->>'inputTokens')::bigint, 0) + $2,
+         'outputTokens', COALESCE((usage->>'outputTokens')::bigint, 0) + $3,
+         'estimatedCalls', COALESCE((usage->>'estimatedCalls')::bigint, 0) + $4)
+       WHERE id = $1`,
+      [runId, usage.inputTokens, usage.outputTokens, usage.estimated ? 1 : 0],
+    );
+  }
+
+  /**
+   * How many of the latest answers in a row were idle: fixed small-talk
+   * replies or out-of-scope refusals. Looks back at most `limit` answers.
+   */
+  async idleAnswerStreak(conversationId: string, limit: number): Promise<number> {
+    const result = await this.pool.query<{ idle: boolean }>(
+      `SELECT (e.payload ? 'screened' OR e.payload->>'kind' = 'unsupported') AS idle
+       FROM conversation_messages m
+       JOIN conversation_events e ON e.conversation_id = m.conversation_id
+         AND e.sequence = m.event_sequence AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.role = 'assistant'
+       ORDER BY m.created_at DESC, m.id DESC LIMIT $2`,
+      [conversationId, limit],
+    );
+    const streak = result.rows.findIndex((row) => !row.idle);
+    return streak === -1 ? result.rows.length : streak;
+  }
+
+  /**
+   * The worker-only catalog cursor stored with the answer to one question in
+   * this conversation, if that answer had more products to show.
+   */
+  async getCatalogCursor(conversationId: string, operationKey: string): Promise<unknown> {
+    const result = await this.pool.query<{ cursor: unknown }>(
+      `SELECT e.payload->'catalogCursor' AS cursor
+       FROM conversation_messages m
+       JOIN conversation_events e ON e.conversation_id = m.conversation_id
+         AND e.run_id = m.answered_by_run AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.idempotency_key = $2 AND m.role = 'visitor'`,
+      [conversationId, operationKey],
+    );
+    return result.rows[0]?.cursor ?? undefined;
   }
 
   async getEngineHandle(runId: string): Promise<{
@@ -813,6 +1002,8 @@ export class AiStore {
     claimEpoch: number;
     status: 'completed' | 'failed';
     events: FencedTerminalEvent[];
+    /** The conversation's requirement summary after this answer. */
+    needState?: Record<string, unknown>;
   }): Promise<boolean> {
     const finalCount = input.events.filter((event) => event.type === 'final').length;
     if (input.events.length === 0) throw new Error('terminal_event_set_empty');
@@ -852,6 +1043,11 @@ export class AiStore {
       );
       const control = fence.rows[0];
       if (!control) return false;
+      if (input.needState)
+        await client.query('UPDATE conversations SET need_state = $2::jsonb WHERE id = $1', [
+          input.conversationId,
+          JSON.stringify(input.needState),
+        ]);
 
       const firstSequence = Number(control.first_sequence);
       for (const [offset, event] of input.events.entries()) {
@@ -995,6 +1191,86 @@ export class AiStore {
     return result.rows[0] ? mapConversation(result.rows[0]) : null;
   }
 
+  async getChatTurn(conversationId: string, key: string) {
+    const result = await this.pool.query<{
+      message_id: string;
+      run_id: string | null;
+      control_version: string | null;
+      status: 'creating' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+      cancel_requested: boolean;
+    }>(
+      `SELECT m.id AS message_id, r.id AS run_id, r.control_version, r.status,
+       (r.cancel_requested_at IS NOT NULL) AS cancel_requested
+       FROM conversation_messages m LEFT JOIN ai_runs r ON r.id = m.answered_by_run AND r.conversation_id = m.conversation_id
+       WHERE m.conversation_id=$1 AND m.idempotency_key=$2 AND m.role='visitor'`,
+      [conversationId, key],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          protocolVersion: 2 as const,
+          conversationId,
+          operationKey: key,
+          messageId: row.message_id,
+          runId: row.run_id,
+          controlVersion: row.control_version === null ? null : Number(row.control_version),
+          status: row.status ?? ('queued' as const),
+          cancelRequested: row.cancel_requested,
+        }
+      : null;
+  }
+
+  async cancelChatTurn(
+    conversationId: string,
+    key: string,
+    runId: string,
+    version: number,
+  ): Promise<boolean> {
+    return this.transaction(async (client) => {
+      const current = await client.query<{
+        active_run_id: string | null;
+        control_version: string;
+        status: string;
+      }>('SELECT active_run_id,control_version,status FROM conversations WHERE id=$1 FOR UPDATE', [
+        conversationId,
+      ]);
+      const turn = await client.query<{
+        status: string;
+        control_version: string;
+        cancel_requested_at: Date | null;
+      }>(
+        `SELECT r.status,r.control_version,r.cancel_requested_at FROM ai_runs r
+         JOIN conversation_messages m ON m.answered_by_run=r.id AND m.conversation_id=r.conversation_id
+         WHERE r.id=$1 AND r.conversation_id=$2 AND m.idempotency_key=$3 AND m.role='visitor' FOR UPDATE OF r`,
+        [runId, conversationId, key],
+      );
+      const c = current.rows[0];
+      const r = turn.rows[0];
+      if (!c || !r || Number(r.control_version) !== version) return false;
+      if (r.cancel_requested_at || ['completed', 'failed', 'cancelled'].includes(r.status))
+        return true;
+      if (c.status !== 'ai' || c.active_run_id !== runId || Number(c.control_version) !== version)
+        return false;
+      await client.query(
+        'UPDATE conversations SET control_version=control_version+1,updated_at=clock_timestamp() WHERE id=$1',
+        [conversationId],
+      );
+      await client.query(
+        'UPDATE ai_runs SET cancel_requested_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1',
+        [runId],
+      );
+      await client.query(
+        "INSERT INTO outbox(conversation_id,run_id,type) VALUES ($1,$2,'cancel_run')",
+        [conversationId, runId],
+      );
+      await client.query(
+        "INSERT INTO audit_events(conversation_id,actor_type,action,metadata) VALUES ($1,'visitor','run.cancel_requested',jsonb_build_object('runId',$2::text))",
+        [conversationId, runId],
+      );
+      return true;
+    });
+  }
+
   async requestCancellation(conversationId: string, expectedVersion: number): Promise<boolean> {
     return this.transaction(async (client) => {
       const conversation = await client.query<{ active_run_id: string | null }>(
@@ -1023,6 +1299,41 @@ export class AiStore {
       );
       return true;
     });
+  }
+
+  /**
+   * The latest visitor and assistant turns, oldest first, for restoring one
+   * conversation in its own tab. Callers authorize the conversation first and
+   * project the final payload; nothing here is public as-is.
+   */
+  async getConversationSnapshot(conversationId: string, limit = 60): Promise<SnapshotRow[]> {
+    const result = await this.pool.query<{
+      role: 'visitor' | 'assistant';
+      content: string;
+      idempotency_key: string;
+      run_id: string | null;
+      run_status: SnapshotRow['runStatus'];
+      payload: Record<string, unknown> | null;
+    }>(
+      `SELECT m.role, m.content, m.idempotency_key, m.answered_by_run AS run_id,
+              r.status AS run_status, e.payload
+       FROM conversation_messages m
+       LEFT JOIN ai_runs r ON r.conversation_id = m.conversation_id AND r.id = m.answered_by_run
+       LEFT JOIN conversation_events e
+         ON m.role = 'assistant' AND e.conversation_id = m.conversation_id
+        AND e.sequence = m.event_sequence AND e.type = 'final'
+       WHERE m.conversation_id = $1 AND m.role IN ('visitor', 'assistant')
+       ORDER BY m.created_at DESC, m.id DESC LIMIT $2`,
+      [conversationId, limit],
+    );
+    return result.rows.reverse().map((row) => ({
+      role: row.role,
+      content: row.content,
+      operationKey: row.role === 'visitor' ? row.idempotency_key : null,
+      runId: row.run_id,
+      runStatus: row.run_status,
+      finalPayload: row.payload,
+    }));
   }
 
   async listEvents(conversationId: string, afterSequence = 0, limit = 200): Promise<EventRow[]> {

@@ -65,6 +65,7 @@ export function productPageDescriptor(
     content: {
       source: detail ? 'public-catalog-detail' : 'public-catalog-legacy',
       revision: entry.revision,
+      ...(entry.publicVersion?.changedAt ? { updatedAt: entry.publicVersion.changedAt } : {}),
     },
     schemaNodes: [
       schema,

@@ -20,6 +20,14 @@ also applies independently of that skill. 使用中文时，直接按汉语习�
 保留必要的代码标识符与不确定性，不把本地通过说成已经上线。
 已有 UI 和业务流程优先；涉及变化时截图并解释，不擅自重做页面。
 
+## OOODA 与非技术客户交接
+
+解释和汇报先给结论。按用户所称的 OOODA，依次想清事实、影响、可行办法、推荐决定、下一步由谁做什么；正文按需要展开，不机械套标题，也不编造缩写全称。默认读者没有项目背景，每个陌生概念首次出现就解释实际含义。
+
+配置交接必须分清客户、我们和原服务商的动作：客户负责邀请和必要授权，技术配置由我们接手。账号邀请须写清自己的登录账号、准确菜单、最低所需角色及可见数据；不能把“不主动查看客户名单”当成系统隔离。域名管理员指能改网站地址记录的人，通常是原建站人员或云账号负责人，不是 Resend 官方；不知道具体是谁就先查，不能让客户凭一个术语猜要找谁。
+
+交付一条推荐顺序，已完成的密钥交接不要求重做。区分本地通过、线上发布和实际效果；连续输出要在真实页面看到正文在完成前增长，文件下载要实际点击并读回核对。结束前检查读者是否知道现在的结果、剩余限制、自己需要做什么以及我们接手什么。所有对用户和客户的文字继续按 humanizer 检查。
+
 本地与云端共用 `docs/delivery/README.zh-CN.md` 记录当前状态；`docs/blog/NEXT-STEPS.zh-CN.md` 指向同一入口，模块 worklog 记录检查和证据。接手前核对远端，结束时更新同一记录，不平行维护另一份完成清单。
 
 每次交付主动给简短中文 brief：做了什么、实际怎样测试、还差什么、下一步是什么，
@@ -34,6 +42,22 @@ design/review. Reuse the existing approved spec and tracked feature plan/worklog
 Apply judgment within the authorization above; do not treat upstream templates as
 permission to delegate, change branches, create a PR or deploy. Setup and pinned
 sources are documented in `docs/cloud-handoff/SKILLS.zh-CN.md`.
+
+## What not to commit
+
+- Never commit local run products: `output/`, screenshots, PDFs, zips, run
+  reports, evidence JSON, `.claude/` review notes. Never use `git add -f` to get
+  past `.gitignore`. CI fails when a tracked file matches `.gitignore`
+  (`git ls-files -ci --exclude-standard` must print nothing).
+- Scripts that produce reports write under `output/` by default; CI uploads them
+  as workflow artifacts. Evidence a reviewer needs goes in the PR description
+  (command, counts, result), not as files in `docs/`.
+- One feature keeps one design doc and one execution record, updated in place.
+  Do not add a new plan/verification/delivery file per round or per step.
+- Old process files live in the tags `archive/process-evidence-2026-11-02` and
+  `archive/docs-evidence-2026-11-05` (`git show <tag>:<path>`); do not restore
+  them to the branch. Images a guide shows its reader stay beside that guide
+  (for example `wecom/images/`), not in an `evidence/` folder.
 
 ## Public page SEO contract
 

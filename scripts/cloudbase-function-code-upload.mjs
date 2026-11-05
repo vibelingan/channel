@@ -7,39 +7,59 @@ import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 
 // Keep base64 overhead below the API's 1.5 MB inline limit.
 const INLINE_ZIP_BYTES = 1024 * 1024;
+// The ~9 MB native-decoder ZIP takes 4-5 minutes from GitHub runners to
+// ap-shanghai; a 300 s limit timed out on 2026-11-04 (run 41850270700).
+const STORAGE_UPLOAD_TIMEOUT_MS = 600_000;
 const cliDeployment = () => ({ method: 'cloudbase-cli-primary', cleanup() {} });
+
+/** One health read; null unless it is this function's own healthy answer. */
+export async function readFunctionRelease({
+  functionName,
+  apiUrl,
+  routePath,
+  request = fetchFully,
+}) {
+  const admin = functionName === 'admin';
+  const url = `${apiUrl}${routePath}${admin ? '' : '/health'}`;
+  const response = await request(admin ? 'POST' : 'GET', url, {
+    ...(admin
+      ? { headers: { 'content-type': 'application/json' }, body: '{"action":"health"}' }
+      : {}),
+    maxBytes: 16 * 1024,
+    redirect: 'error',
+  });
+  const body = JSON.parse(decodeUtf8(response.body));
+  return response.status === 200 &&
+    body.ok === true &&
+    body.data?.status === 'ok' &&
+    body.data.service === functionName
+    ? body.data
+    : null;
+}
 
 export async function confirmFunctionCode({
   functionName,
   apiUrl,
   routePath,
   expectedRelease,
+  expectedDeployedRelease,
   pause = 500,
+  attempts = 3,
+  request = fetchFully,
 }) {
-  const admin = functionName === 'admin';
-  const url = `${apiUrl}${routePath}${admin ? '' : '/health'}`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await fetchFully(admin ? 'POST' : 'GET', url, {
-        ...(admin
-          ? { headers: { 'content-type': 'application/json' }, body: '{"action":"health"}' }
-          : {}),
-        maxBytes: 16 * 1024,
-        redirect: 'error',
-      });
-      const body = JSON.parse(decodeUtf8(response.body));
+      const data = await readFunctionRelease({ functionName, apiUrl, routePath, request });
       if (
-        response.status === 200 &&
-        body.ok === true &&
-        body.data?.status === 'ok' &&
-        body.data.service === functionName &&
-        body.data.releaseId === expectedRelease
+        data?.releaseId === expectedRelease &&
+        (expectedDeployedRelease === undefined ||
+          data.deployedReleaseId === expectedDeployedRelease)
       )
         return;
     } catch {
       // A read may still reach the previous instance during code activation.
     }
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, pause));
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, pause));
   }
   throw new Error(`${functionName}: deployed code release ${expectedRelease} was not confirmed`);
 }
@@ -146,6 +166,7 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
     )
   )
     throw new Error(`${functionName}: SDK upload requires verified private storage`);
+  const started = Date.now();
   try {
     const result = callTool(
       'cloudbase.manageStorage',
@@ -155,7 +176,7 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
         cloudPath: upload.cosObjectName,
         isDirectory: false,
       },
-      { timeoutMs: 300_000, maxAttempts: 1 },
+      { timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS, maxAttempts: 1 },
     );
     if (
       result?.success !== true ||
@@ -165,8 +186,12 @@ function uploadWithStorageSdk({ callTool, envId, functionName, zipPath, upload }
     )
       throw new Error('Storage SDK did not acknowledge the requested upload');
   } catch {
-    // Upload results can include temporary URLs. Do not expose them in errors.
-    throw new Error('Private function ZIP upload failed (storage SDK)');
+    // Upload results can include temporary URLs. Do not expose them in errors;
+    // elapsed time alone tells a timeout apart from a fast rejection.
+    const seconds = Math.round((Date.now() - started) / 1000);
+    throw new Error(
+      `Private function ZIP upload failed (storage SDK after ${seconds}s of ${STORAGE_UPLOAD_TIMEOUT_MS / 1000}s)`,
+    );
   }
 }
 

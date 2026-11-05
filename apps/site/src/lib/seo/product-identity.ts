@@ -17,3 +17,10 @@ export function isPlainProductClick(event: {
 }): boolean {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
+
+/** Pending first delivery uses the existing dynamic page until HTML is verified. */
+export function productBrowserPath(product: { _id: string; publicPageReady?: boolean }): string {
+  return product.publicPageReady === false
+    ? `/products/item/?id=${encodeURIComponent(product._id)}`
+    : productPath(product._id);
+}

@@ -269,3 +269,48 @@ test('overstock is untouched by the variant path', async () => {
   assert.equal(Object.hasOwn(items[0] ?? {}, 'variants'), false);
   assert.equal(items[0]?.inventory, 500);
 });
+
+test('page availability is one batch per list and exposes only the safe boolean', async () => {
+  wire({ products: [importedProduct], productVariants: variants });
+  let reads = 0;
+  const result = await listCatalog(
+    'products',
+    {},
+    {
+      ...CONFIG,
+      catalogPages: {
+        siteOrigin: 'https://shop.example',
+        read: async (ids) => {
+          reads++;
+          assert.deepEqual(ids, [importedProduct._id]);
+          return new Map([[importedProduct._id, true]]);
+        },
+      },
+    },
+  );
+  const item = itemsOf(result)[0];
+  assert.equal(item?.publicPageReady, true);
+  assert.equal(reads, 1);
+  assert.doesNotMatch(JSON.stringify(item), /htmlSha256|catalogSeo|acceptedAt|lease/);
+  const old = itemsOf(await listCatalog('products', {}, CONFIG))[0];
+  assert.equal(Object.hasOwn(old ?? {}, 'publicPageReady'), false);
+});
+
+test('availability outages keep products usable through the dynamic detail entry', async () => {
+  wire({ products: [importedProduct], productVariants: variants });
+  const result = await listCatalog(
+    'products',
+    {},
+    {
+      ...CONFIG,
+      catalogPages: {
+        siteOrigin: 'https://shop.example',
+        read: async () => {
+          throw Error('unavailable');
+        },
+      },
+    },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(itemsOf(result)[0]?.publicPageReady, false);
+});
