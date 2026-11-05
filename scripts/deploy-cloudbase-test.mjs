@@ -15,13 +15,22 @@ import {
   toolMessage,
   uploadHostingDirectory,
 } from './cloudbase-deploy-resources.mjs';
-import { confirmFunctionCode, deployFunctionCode } from './cloudbase-function-code-upload.mjs';
+import {
+  confirmFunctionCode,
+  deployFunctionCode,
+  readFunctionRelease,
+} from './cloudbase-function-code-upload.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import {
   REQUIRED_NOSQL_RESOURCES,
   ensureNoSqlResourceSetConcurrently,
 } from './cloudbase-nosql-resources.mjs';
+import { provenUnchangedFunctionCode } from './function-code-equivalence.mjs';
+import {
+  functionReleaseManifest,
+  writeFunctionReleaseManifest,
+} from './function-release-manifest.mjs';
 import {
   WEBSITE_DOCUMENTS,
   auditHostingContract,
@@ -67,6 +76,18 @@ const corsAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS || `${siteUrl},http:
 const loginUrl = process.env.LOGIN_URL || `${siteUrl}/login`;
 const resetPasswordUrl = process.env.RESET_PASSWORD_URL || `${siteUrl}/reset`;
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@channel.local';
+const currentRelease = process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local';
+// The pre-deploy step saved every running package here, before any function changed.
+const functionBackupPath = resolve(
+  root,
+  process.env.CLOUDBASE_FUNCTION_BACKUP_DIR || 'output/function-backup-before',
+);
+const functionReleasePath = resolve(
+  root,
+  process.env.CLOUDBASE_FUNCTION_RELEASES || 'output/function-release/releases.json',
+);
+const forceFunctionCode = process.env.CLOUDBASE_FORCE_FUNCTION_CODE === '1';
+const functionReleases = {};
 
 function trimSlash(value) {
   return value.trim().replace(/\/+$/, '');
@@ -370,7 +391,7 @@ function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
 }
 
-function updateFunctionConfig(def) {
+function updateFunctionConfig(def, codeRelease) {
   let configResult = null;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     configResult = callTool('cloudbase.manageFunctions', {
@@ -378,7 +399,13 @@ function updateFunctionConfig(def) {
       functionName: def.name,
       handler: 'index.main',
       timeout: def.timeout,
-      envVariables: def.envVariables,
+      // Set only here, after this deploy uploaded the code or proved the running code unchanged.
+      // Health names this deploy only while the running build is still codeRelease.
+      envVariables: {
+        ...def.envVariables,
+        CHANNEL_DEPLOYED_RELEASE: currentRelease,
+        CHANNEL_DEPLOYED_CODE: codeRelease,
+      },
     });
     if (
       configResult.success !== false ||
@@ -414,6 +441,49 @@ const functionDefs = buildFunctionDefs({
   optionalEnv,
 });
 
+/** The saved package of a running function, from this job's pre-deploy backup. */
+function backedUpPackage(functionName) {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(resolve(functionBackupPath, 'function-backups.json'), 'utf8'),
+    );
+    const entry = manifest?.entries?.find((candidate) => candidate.snapshot?.name === functionName);
+    if (manifest?.target?.envId !== envId || entry?.path !== `${functionName}.zip`) return null;
+    return resolve(functionBackupPath, entry.path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The running build's stamp when its package equals this artifact apart from the stamp;
+ * otherwise null, and the code is uploaded as before.
+ */
+async function unchangedRunningCode(def, artifactDir) {
+  if (forceFunctionCode) return null;
+  const deployedZip = backedUpPackage(def.name);
+  if (!deployedZip) return null;
+  let running;
+  try {
+    running = await readFunctionRelease({
+      functionName: def.name,
+      apiUrl,
+      routePath: def.routePath,
+    });
+  } catch {
+    return null;
+  }
+  const deployedStamp = { releaseId: running?.releaseId, buildTime: running?.buildTime };
+  return provenUnchangedFunctionCode({
+    artifactDir,
+    deployedZip,
+    deployedStamp,
+    currentStamp: { releaseId: currentRelease, buildTime: process.env.CHANNEL_BUILD_TIME },
+  })
+    ? deployedStamp
+    : null;
+}
+
 async function deployFunction(def) {
   const artifactDir = resolve(functionRootPath, def.name);
   if (!existsSync(resolve(artifactDir, 'index.js'))) {
@@ -429,38 +499,58 @@ async function deployFunction(def) {
   }
 
   if (before) waitForActive(def.name);
-  const deployment = deployFunctionCode({
-    functionName: def.name,
-    artifactDir,
-    action: before ? 'update' : 'deploy',
-    envId,
-    region: process.env.CLOUDBASE_REGION || 'ap-shanghai',
-    callTool,
-    deployWithCli: () =>
-      deployFunctionWithCloudBaseCli(
-        def,
-        before ? 'primary CI code update' : 'primary CI create',
-        before ? 'update' : 'deploy',
-      ),
-  });
+  const kept = before ? await unchangedRunningCode(def, artifactDir) : null;
+  if (kept)
+    console.log(
+      `${def.name}: running code from ${kept.releaseId} equals this build apart from its stamp; code upload skipped`,
+    );
+  const deployment = kept
+    ? { method: 'unchanged-code', cleanup() {} }
+    : deployFunctionCode({
+        functionName: def.name,
+        artifactDir,
+        action: before ? 'update' : 'deploy',
+        envId,
+        region: process.env.CLOUDBASE_REGION || 'ap-shanghai',
+        callTool,
+        deployWithCli: () =>
+          deployFunctionWithCloudBaseCli(
+            def,
+            before ? 'primary CI code update' : 'primary CI create',
+            before ? 'update' : 'deploy',
+          ),
+      });
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
   }
-  const configRequestId = updateFunctionConfig(def);
+  const configRequestId = updateFunctionConfig(def, kept ? kept.releaseId : currentRelease);
   const configAfter = waitForActive(def.name);
   if (configAfter.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
   }
-  if (deployment.method === 'private-staged-zip') {
+  if (kept) {
+    // The kept build must still be serving, now under this deploy's configuration.
     await confirmFunctionCode({
       functionName: def.name,
       apiUrl,
       routePath: def.routePath,
-      expectedRelease: process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local',
+      expectedRelease: kept.releaseId,
+      expectedDeployedRelease: currentRelease,
+      attempts: 10,
+    });
+  } else if (deployment.method === 'private-staged-zip') {
+    await confirmFunctionCode({
+      functionName: def.name,
+      apiUrl,
+      routePath: def.routePath,
+      expectedRelease: currentRelease,
     });
   }
   deployment.cleanup();
+  functionReleases[def.name] = kept
+    ? { releaseId: kept.releaseId, code: 'unchanged' }
+    : { releaseId: currentRelease, code: 'uploaded' };
   console.log(
     `${def.name}: deployed on ${configAfter.Runtime}; code deploy ${deployment.method}; config request ${configRequestId}`,
   );
@@ -572,6 +662,11 @@ for (const def of functionDefs) {
   ensureGateway(def, { callTool });
   reconcileTriggers(def, desiredTriggersFor(def.name), { callTool });
 }
+// Tells the smoke step which earlier, identical build each kept function still reports.
+writeFunctionReleaseManifest(
+  functionReleasePath,
+  functionReleaseManifest(currentRelease, functionReleases),
+);
 
 if (coordinatedSite)
   console.log(

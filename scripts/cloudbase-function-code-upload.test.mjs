@@ -380,3 +380,80 @@ test('old or wrong-service healthy instance cannot authorize staging cleanup', a
   assert.ok(source.indexOf('await confirmFunctionCode(') < source.indexOf('deployment.cleanup()'));
   assert.ok(source.includes('await deployFunction(def)'));
 });
+
+test('a kept build is confirmed only once health names this deploy for the same build', async () => {
+  const replies = [
+    { releaseId: 'a'.repeat(40) },
+    { releaseId: 'a'.repeat(40), deployedReleaseId: 'c'.repeat(40) },
+    { releaseId: 'a'.repeat(40), deployedReleaseId: 'b'.repeat(40) },
+  ];
+  let reads = 0;
+  const request = async () => ({
+    status: 200,
+    body: Buffer.from(
+      JSON.stringify({
+        ok: true,
+        data: { status: 'ok', service: 'public-api', ...replies[reads++] },
+      }),
+    ),
+  });
+  await confirmFunctionCode({
+    functionName: 'public-api',
+    apiUrl: 'https://api.example',
+    routePath: '/api',
+    expectedRelease: 'a'.repeat(40),
+    expectedDeployedRelease: 'b'.repeat(40),
+    attempts: 10,
+    pause: 0,
+    request,
+  });
+  assert.equal(reads, 3);
+  reads = 0;
+  replies.splice(0, 3, ...Array(10).fill({ releaseId: 'a'.repeat(40) }));
+  await assert.rejects(
+    confirmFunctionCode({
+      functionName: 'public-api',
+      apiUrl: 'https://api.example',
+      routePath: '/api',
+      expectedRelease: 'a'.repeat(40),
+      expectedDeployedRelease: 'b'.repeat(40),
+      attempts: 10,
+      pause: 0,
+      request,
+    }),
+    /was not confirmed/,
+  );
+  assert.equal(reads, 10);
+});
+
+test('the deploy skips code only on proof, and records both release names in configuration', () => {
+  const source = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
+  const workflow = readFileSync(
+    new URL('../.github/workflows/deploy-test.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    source,
+    /const kept = before \? await unchangedRunningCode\(def, artifactDir\) : null;/,
+  );
+  assert.match(source, /if \(forceFunctionCode\) return null;/);
+  assert.match(
+    source,
+    /CHANNEL_DEPLOYED_RELEASE: currentRelease,\s+CHANNEL_DEPLOYED_CODE: codeRelease,/,
+  );
+  assert.match(source, /updateFunctionConfig\(def, kept \? kept\.releaseId : currentRelease\)/);
+  // A kept build is confirmed under this deploy before the release manifest names it.
+  assert.ok(
+    source.indexOf('expectedDeployedRelease: currentRelease') <
+      source.indexOf('functionReleases[def.name] = kept'),
+  );
+  assert.ok(
+    source.indexOf('reconcileTriggers(def') < source.indexOf('writeFunctionReleaseManifest('),
+  );
+  const stampAt = workflow.indexOf('echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)"');
+  assert.ok(stampAt > 0 && stampAt < workflow.indexOf('run: pnpm package:functions'));
+  assert.ok(
+    workflow.indexOf('node scripts/capture-function-backups.mjs output/function-backup-before') <
+      workflow.indexOf('run: pnpm deploy:cloudbase:test'),
+  );
+});

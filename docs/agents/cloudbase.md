@@ -20,8 +20,16 @@ first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
   - public API: `GET /api/health`
   - Alibaba sync: `GET /api/alibaba-catalog-sync/health`
   - admin: `POST /api/admin` with `{"action":"health"}`
-  Each returns `releaseId` (the commit) and `buildTime`. Watch that, not the
-  workflow status: the code is live when the function says so.
+  Each returns `releaseId` (the commit whose build is running) and
+  `buildTime`. Watch that, not the workflow status: the code is live when the
+  function says so.
+- The normal deploy skips a function's code upload when the running package
+  equals the new build apart from its stamp (`releaseId`/`buildTime`). That
+  function keeps reporting the earlier `releaseId`; its `deployedReleaseId`
+  names the deploy that confirmed it. `deployedReleaseId` disappears if any
+  other path replaces the code. The deploy log says "code upload skipped",
+  and `output/function-release/releases.json` lists what each function must
+  report. Set `CLOUDBASE_FORCE_FUNCTION_CODE=1` to upload every function.
 - Before fast-forwarding `test`, check that every live `releaseId` is an
   ancestor of the commit you are about to deploy
   (`git merge-base --is-ancestor <releaseId> <commit>`). `test` is not the

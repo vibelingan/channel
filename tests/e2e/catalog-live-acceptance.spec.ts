@@ -28,6 +28,10 @@ if (
   );
 
 // Already public in the pre-release audit. Never publish a new draft to make a test pass.
+type ReleaseHealth = { releaseId: string; deployedReleaseId?: string };
+// A normal deploy keeps a build whose code it proved unchanged; that function still reports the
+// earlier releaseId, and deployedReleaseId names the deploy that confirmed it.
+const deployedRelease = (health: ReleaseHealth) => health.deployedReleaseId ?? health.releaseId;
 const sampleIds = ['f15a8e4f-3f48-4021-ac3d-67bd1060836a', '0aa9d459-159c-4ffa-a5c0-db9a8e7c642f'];
 test.describe.configure({ retries: 0 });
 test('live release: approved categories, existing published galleries, real inquiry and Admin completion', async ({
@@ -37,13 +41,17 @@ test('live release: approved categories, existing published galleries, real inqu
   // @skip-when a separately approved narrow media repair was explicitly selected.
   test.skip(scope !== 'full', 'Full historical remediation is outside the selected repair scope.');
   test.setTimeout(20 * 60 * 1000);
-  const health = await adminAction<{ releaseId: string }>(request, 'health');
-  expect(health.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
+  const health = await adminAction<ReleaseHealth>(request, 'health');
+  expect(deployedRelease(health)).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
   const publicHealth = await request.get(`${e2e.apiUrl}/api/health`);
-  expect((await publicHealth.json()).data.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
+  expect(deployedRelease((await publicHealth.json()).data)).toBe(
+    process.env.CHANNEL_EXPECTED_RELEASE,
+  );
   const syncHealth = await request.get(`${e2e.apiUrl}/api/alibaba-catalog-sync/health`);
   expect(syncHealth.ok()).toBe(true);
-  expect((await syncHealth.json()).data.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
+  expect(deployedRelease((await syncHealth.json()).data)).toBe(
+    process.env.CHANNEL_EXPECTED_RELEASE,
+  );
   const session = await loginAdmin(request);
   expect(await adminAction(request, 'inquiryCapabilities', undefined, session.token)).toEqual({
     enabled: true,
@@ -404,12 +412,12 @@ for (const sample of mediaRepairs)
     test.skip(scope !== 'variant-media', 'Only the explicitly selected variant-media repair.');
     test.setTimeout(10 * 60 * 1000);
     const expectedRelease = process.env.CHANNEL_EXPECTED_RELEASE;
-    expect((await adminAction<{ releaseId: string }>(request, 'health')).releaseId).toBe(
+    expect(deployedRelease(await adminAction<ReleaseHealth>(request, 'health'))).toBe(
       expectedRelease,
     );
-    expect((await (await request.get(`${e2e.apiUrl}/api/health`)).json()).data.releaseId).toBe(
-      expectedRelease,
-    );
+    expect(
+      deployedRelease((await (await request.get(`${e2e.apiUrl}/api/health`)).json()).data),
+    ).toBe(expectedRelease);
     const session = await loginAdmin(request);
     const sync = async (action: string, data?: unknown) => {
       const response = await request.post(`${e2e.apiUrl}/api/alibaba-catalog-sync`, {
@@ -424,7 +432,7 @@ for (const sample of mediaRepairs)
     };
     const syncHealth = await request.get(`${e2e.apiUrl}/api/alibaba-catalog-sync/health`);
     expect(syncHealth.ok()).toBe(true);
-    expect((await syncHealth.json()).data.releaseId).toBe(expectedRelease);
+    expect(deployedRelease((await syncHealth.json()).data)).toBe(expectedRelease);
     const { id, sourceKey } = sample;
     const expectedImages: Record<string, string | undefined> = sample.images;
     const getProduct = () =>
