@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PublicCatalog, parseProductPlan } from './product-workflow.ts';
+import { PublicCatalog, isCatalogCursor, parseProductPlan } from './product-workflow.ts';
 test('planner cannot select tools, private connections or arbitrary URLs', () => {
   assert.throws(() =>
     parseProductPlan('{"kind":"search","query":"headphones","url":"https://private.invalid"}'),
@@ -262,6 +262,27 @@ test('next_batch_deduplicates_seen_ids and continues across candidate pages', as
   // Never more than one extra page per request.
   assert.ok(reads.length <= 10);
   assert.ok(reads.every((read) => read.pageSize === 20 && read.page <= 2));
+});
+
+test('all twenty batches are reachable, and the last never promises a twenty-first', async () => {
+  const signal = new AbortController().signal;
+  for (const count of [100, 120]) {
+    const { catalog } = pagedCatalog(count);
+    let result = await catalog.execute(search(), signal);
+    let shown = result.products.length;
+    while (result.catalogCursor) {
+      // The worker refuses a cursor this check rejects, ending the list early.
+      assert.ok(isCatalogCursor(result.catalogCursor), `batch ${result.catalogCursor.batch}`);
+      result = await catalog.execute(
+        { kind: 'more', after: 'question-1' },
+        signal,
+        result.catalogCursor,
+      );
+      shown += result.products.length;
+    }
+    assert.equal(shown, 100);
+    assert.deepEqual(result.resultSet, { batch: 20, hasMore: false });
+  }
 });
 
 test('anc_is_not_inferred_from_enc, and proven features rank first without reordering ties', async () => {

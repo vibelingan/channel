@@ -189,6 +189,10 @@ export function cancelsList(list: NeedList, message: string): boolean {
     .some((clause) => english.test(clause) || chinese.test(clause));
 }
 
+/** A later explicit statement of a value the model only inferred. */
+const promotes = (current: NeedFact, proposed: NeedFact) =>
+  current.basis === 'inferred' && proposed.basis === 'stated';
+
 /**
  * Applies one proposed update from the plan that answered `turn`.
  * `shown` is every product card shown in the turns the model saw, by id.
@@ -211,8 +215,9 @@ export function mergeNeed(
     const value = update[field];
     if (value === undefined) continue;
     const current = base[field];
-    if (current && same(current.value, value)) continue;
     const proposed = fact(value);
+    // The same value is unchanged unless the visitor now states what was inferred.
+    if (current && same(current.value, value) && !promotes(current, proposed)) continue;
     if (current?.basis === 'stated' && proposed.basis === 'inferred') continue;
     next[field] = proposed;
     changed = true;
@@ -221,9 +226,11 @@ export function mergeNeed(
     const values = update[list];
     if (values === undefined) continue;
     const current = base[list] ?? [];
-    const proposed = values.map(
-      (value) => current.find((item) => same(item.value, value)) ?? fact(value),
-    );
+    const proposed = values.map((value) => {
+      const known = current.find((item) => same(item.value, value));
+      const candidate = fact(value);
+      return known && !promotes(known, candidate) ? known : candidate;
+    });
     // A stated item leaves only when the latest message names it ("no logo")
     // or cancels the whole list; a bare empty list from the model does not.
     const cancelled = values.length === 0 && cancelsList(list, input.latestVisitorText);
@@ -238,7 +245,10 @@ export function mergeNeed(
     const kept = proposed.slice(0, MAX_ITEMS);
     if (
       kept.length === current.length &&
-      kept.every((item, index) => same(item.value, current[index]?.value ?? ''))
+      kept.every(
+        (item, index) =>
+          same(item.value, current[index]?.value ?? '') && item.basis === current[index]?.basis,
+      )
     )
       continue;
     if (kept.length) next[list] = kept;
