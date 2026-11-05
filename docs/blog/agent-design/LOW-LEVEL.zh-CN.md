@@ -1,6 +1,6 @@
 # 内容助手接入：底层设计
 
-本页定义接口和数据规则。网站入口、私有权限、本地原生 Hermes、管理员页面及发布撤回已通过真实联测，见[实际结果](../../delivery/2026-10-26/evidence/assistant-acceptance.json)。正式 HermesInfra / 企业微信接入尚未执行。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务，不引入第二套 CMS 或数据库。
+本页定义接口和数据规则。网站入口、私有权限、本地原生 Hermes、管理员页面及发布撤回已通过真实联测，见[实际结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)。正式 HermesInfra / 企业微信接入尚未执行。沿用 TypeScript、Zod、文章核心和 CloudBase node-sdk 事务，不引入第二套 CMS 或数据库。
 
 ## 网站入口和路由
 

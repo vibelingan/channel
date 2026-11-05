@@ -105,7 +105,7 @@ SDK 已提供公开的 `getManagerConfig()`，类型声明和实际运行都已�
 
 现场使用 Manager 5.9.1。清理演练 40282178282 在删除前的旧路由查询返回 `UnknownParameter`，请求号 `33ad3e13-1d2a-4f71-ad1a-58478aa24294`，没有提交删除。检查实际安装包的 `AccessService.getAccessList`，传入 `{name, offset, limit}` 后，发送的是 `{ServiceId, Name, Offset, limit}`，其中 `limit` 为小写。离线探针运行真实 SDK 并截取传输参数，确认这一点。
 
-本轮只需确认指定测试函数没有旧绑定，因此去掉不需要的分页参数，仍要求 `APISet` 为空且 `Total === 0`。新请求只含明确环境和函数名，与 SDK 自己的删除前检查一致。随后真实清理 40289025957 通过，函数、三条记录、空集合和单一测试 HTML 均删除并读回，普通网站及其他函数未变。修正和传输测试在 `8fa487a6`；清理结果见 [实际记录](../2026-10-26/evidence/dummy-cleanup.json)。
+本轮只需确认指定测试函数没有旧绑定，因此去掉不需要的分页参数，仍要求 `APISet` 为空且 `Total === 0`。新请求只含明确环境和函数名，与 SDK 自己的删除前检查一致。随后真实清理 40289025957 通过，函数、三条记录、空集合和单一测试 HTML 均删除并读回，普通网站及其他函数未变。修正和传输测试在 `8fa487a6`；清理结果见 [实际记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-cleanup.json)。
 
 这不是“列表查询一律不传分页”的建议。读取非空、可能分页的资源仍必须完整枚举，并以总数核对。此处仅核对一个明确函数的空绑定。也不据此推断其他 SDK 版本有相同问题；升级后重验实际传输。
 

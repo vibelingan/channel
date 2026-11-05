@@ -16,7 +16,7 @@ Hermes 制定通用权限协议并执行任务门禁，Channel 独立执行业�
 
 产品准备按最新批准资料查询；保留买家提交时的事实，并在审核时固定正文、附件和实际采用的资料依据。无需为这轮另建完整产品版本仓库。
 
-[整体模块图](diagrams/modules.html) · [系统门禁与流程图](diagrams/security-boundaries.html) · [可转发的图文 PDF](diagrams/security-design-review.pdf)。两张图都表达目标设计，不表示已上线。
+[整体模块图](diagrams/modules.html) · [系统门禁与流程图](diagrams/security-boundaries.html) · [可转发的图文 PDF](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/sales-agent/diagrams/security-design-review.pdf)。两张图都表达目标设计，不表示已上线。
 
 ## 1. 谁负责什么
 

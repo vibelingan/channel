@@ -22,7 +22,7 @@
 
 ## 接手后做什么
 
-本轮闭环已完成，不再重新跑首次安装或创建临时资源。查看 [实际结果和截图](../delivery/2026-10-26/evidence/assistant-acceptance.json)、[本轮恢复资源清理](../delivery/2026-10-26/evidence/dummy-cleanup.json)。网站当前运行版本分别记在进度入口，测试工具更新不要求反复重发业务程序。
+本轮闭环已完成，不再重新跑首次安装或创建临时资源。查看 [实际结果和截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)、[本轮恢复资源清理](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-cleanup.json)。网站当前运行版本分别记在进度入口，测试工具更新不要求反复重发业务程序。
 
 两机正式连接和凭证维护已启用，文档201、202实际保存和重投通过。现在由用户完成微信群任务及人工审核，最新状态和实际证据见10月27日FORMAL-USE-STATUS。不要按早期安装页重新配置，不把单公司工作区绑定当成多客户隔离。商品变化自动触发SSG、应急跳过、正式文章收录、海外和八分钟目标分别后续安排。图片自动导入已经完成；现有article-import上次受控发布源码为7c99e891，不能用后续文档版本替代实际运行记录。通用生产函数恢复仍关闭。
 

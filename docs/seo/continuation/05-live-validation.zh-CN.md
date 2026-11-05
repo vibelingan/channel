@@ -46,14 +46,14 @@ A→B→A分清两种情况：代码/样式退回A时仍使用当前商品与文
 
 ## 第二轮实际结果
 
-[40920976437](https://github.com/vibelingan/channel/actions/runs/40920976437)使用1bf019b9，10项真实数据库检查和自动清理全部成功。独立目录读回确认本轮9张临时表均不存在；函数详情也返回明确不存在。6个正式SEO集合仍各0条。137个批准变体完整读回并匹配公开摘要；没有修改客户商品、文章或网站，htmlDeliveryVerified仍为false。[实际回执](evidence/catalog-seo-live-expanded-20261030.json)。
+[40920976437](https://github.com/vibelingan/channel/actions/runs/40920976437)使用1bf019b9，10项真实数据库检查和自动清理全部成功。独立目录读回确认本轮9张临时表均不存在；函数详情也返回明确不存在。6个正式SEO集合仍各0条。137个批准变体完整读回并匹配公开摘要；没有修改客户商品、文章或网站，htmlDeliveryVerified仍为false。[实际回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-expanded-20261030.json)。
 
 这个probe job为98秒，包含依赖准备、临时资源创建、真实检查和清理；它不是实际SSG网站交付耗时，不能据此说八分钟目标达成。函数删除首个成功回执后目录短暂保留，第二次删除接口返回失败但读回已不存在；流程以实际目录结算成功。清理器进一步改为先做有上限的等待读回；收到成功回执后不重复发删除，权限失败仍立即停止。实际异步行为和失败记录均保留。
 
 
 ## 最终清理修正的实际确认
 
-[40924050633](https://github.com/vibelingan/channel/actions/runs/40924050633)运行eaaba9b9，精确源码的完整回归40922044994、Blog离线40922044399、HTTP40922044247全部成功后才执行。再次10项通过；函数只发一次DeleteFunction、三次读回后确认消失，9张临时表也各一次删除后确认，无清理错误。MCP独立查询确认全部临时资源不存在，6个正式SEO集合仍各0条。[最终回执](evidence/catalog-seo-live-final-20261030.json)。probe job96秒，仍不代表实际SSG交付耗时；本轮没有客户业务、网站或开关写入。
+[40924050633](https://github.com/vibelingan/channel/actions/runs/40924050633)运行eaaba9b9，精确源码的完整回归40922044994、Blog离线40922044399、HTTP40922044247全部成功后才执行。再次10项通过；函数只发一次DeleteFunction、三次读回后确认消失，9张临时表也各一次删除后确认，无清理错误。MCP独立查询确认全部临时资源不存在，6个正式SEO集合仍各0条。[最终回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/catalog-seo-live-final-20261030.json)。probe job96秒，仍不代表实际SSG交付耗时；本轮没有客户业务、网站或开关写入。
 
 
 ## 私有归档和关闭的定时函数：本轮实际结果
@@ -69,7 +69,7 @@ A→B→A分清两种情况：代码/样式退回A时仍使用当前商品与文
 
 ### 10月30日：真实程序归档尚未通过
 
-61a7d508 已通过完整远端 CI；归档运行 40994923963 中小文件上传及读回成功，约46.7 MB程序分片上传仍在五分钟超时，补读404。没有批准程序或替换网站；暂不开启商品记录、自动通知或历史程序恢复。新增真实COS客户端加本地HTTP服务的分片/Range验证，并增加不含凭证、签名地址和multipart编号的阶段日志；云端结果仍需实测。详见[实际失败回执](evidence/renderer-native-failure-20261030.json)。
+61a7d508 已通过完整远端 CI；归档运行 40994923963 中小文件上传及读回成功，约46.7 MB程序分片上传仍在五分钟超时，补读404。没有批准程序或替换网站；暂不开启商品记录、自动通知或历史程序恢复。新增真实COS客户端加本地HTTP服务的分片/Range验证，并增加不含凭证、签名地址和multipart编号的阶段日志；云端结果仍需实测。详见[实际失败回执](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/renderer-native-failure-20261030.json)。
 
 
 ### 10月30日：程序归档通过，继续商品接口接通

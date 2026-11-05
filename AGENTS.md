@@ -54,8 +54,10 @@ sources are documented in `docs/cloud-handoff/SKILLS.zh-CN.md`.
   (command, counts, result), not as files in `docs/`.
 - One feature keeps one design doc and one execution record, updated in place.
   Do not add a new plan/verification/delivery file per round or per step.
-- Old process files live in the tag `archive/process-evidence-2026-11-02`
-  (`git show <tag>:<path>`); do not restore them to the branch.
+- Old process files live in the tags `archive/process-evidence-2026-11-02` and
+  `archive/docs-evidence-2026-11-05` (`git show <tag>:<path>`); do not restore
+  them to the branch. Images a guide shows its reader stay beside that guide
+  (for example `wecom/images/`), not in an `evidence/` folder.
 
 ## Public page SEO contract
 

@@ -1,6 +1,6 @@
 # 本地助手怎样把文章送到人手里
 
-2026-10-26：以下闭环已在真实 CloudBase 和网站通过，本地原生 Hermes 只加载两个草稿工具。页面操作由自动化浏览器模拟管理员；正式 HermesInfra / 企业微信未修改。实际证据见[整体验收](evidence/assistant-acceptance.json)，后续进度统一在[当前入口](../README.zh-CN.md)。网站代码仍在原 SEO 分支，日常发文章不调用下面的 GitHub 测试任务。
+2026-10-26：以下闭环已在真实 CloudBase 和网站通过，本地原生 Hermes 只加载两个草稿工具。页面操作由自动化浏览器模拟管理员；正式 HermesInfra / 企业微信未修改。实际证据见[整体验收](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)，后续进度统一在[当前入口](../README.zh-CN.md)。网站代码仍在原 SEO 分支，日常发文章不调用下面的 GitHub 测试任务。
 
 ## 三种身份各自做什么
 

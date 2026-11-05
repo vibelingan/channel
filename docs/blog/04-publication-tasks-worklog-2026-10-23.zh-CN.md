@@ -85,7 +85,7 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 
 最终测试数量、远端提交/CI、真实 dummy 时间和验收结果在实际完成后补记，当前不提前填写成功。
 
-第二段本地收尾：`pnpm test` 实际运行 3,379 项，3,376 通过，3 项既有跳过，零失败；随后补充的 HTTP/范围检查单独运行 11 项通过。SDK gate、交付入口类型检查、真实函数 bundle（无云凭证）、本地页面队列/取消/重试，以及公开文章三项浏览器检查和四种构建通过。完整 workspace 类型检查在最后修正测试类型后重跑。截图已保存到 [编辑页发布区域](evidence/2026-10-23/publication-queued.png)。
+第二段本地收尾：`pnpm test` 实际运行 3,379 项，3,376 通过，3 项既有跳过，零失败；随后补充的 HTTP/范围检查单独运行 11 项通过。SDK gate、交付入口类型检查、真实函数 bundle（无云凭证）、本地页面队列/取消/重试，以及公开文章三项浏览器检查和四种构建通过。完整 workspace 类型检查在最后修正测试类型后重跑。截图已保存到 [编辑页发布区域](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-23/publication-queued.png)。
 
 现场只读检查另发现：缺失地址返回 HTTP 404，但网站错误文档配置当前为 `index.html`，正文仍是首页；`errors/not-found.html` 可正常读取。这说明此前修复的设置被旧的部署重新写回。pricing 当前 Deploy Test 尚在部署，本轮不抢占。继续采用原有 F1 维护入口排队、备份和重新核对后处理，不把“404 状态正确”当成错误页完整验收通过。正式页面摘要发生外部变化时，dummy 停止继续写入。
 
@@ -117,7 +117,7 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 
 运行代码 `f6a24b2d8f576944200b2b56b3b9e3e6b03575bf`：专项 [39960419919](https://github.com/vibelingan/channel/actions/runs/39960419919) 及全仓 [39960419872](https://github.com/vibelingan/channel/actions/runs/39960419872) 通过，独立函数实际 health 读回同一提交。
 
-在 pricing 持有发布队列期间，运行明确命名的后台独立场景，48.1 秒通过：真正的页面创建和保存 → COS 签名 PUT → 服务端下载检查字节/尺寸 → Blob 私有预览且浏览器解码为 320×96 → 刷新重开 → 普通成员/未登录拒绝 → 另一个真实请求先保存，再从旧页面保存时被拒绝，输入保留，服务器内容未被覆盖。该场景未发起静态构建或上传。截图见 [真实冲突](evidence/2026-10-23/real-cloud-conflict.png)。
+在 pricing 持有发布队列期间，运行明确命名的后台独立场景，48.1 秒通过：真正的页面创建和保存 → COS 签名 PUT → 服务端下载检查字节/尺寸 → Blob 私有预览且浏览器解码为 320×96 → 刷新重开 → 普通成员/未登录拒绝 → 另一个真实请求先保存，再从旧页面保存时被拒绝，输入保留，服务器内容未被覆盖。该场景未发起静态构建或上传。截图见 [真实冲突](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-23/real-cloud-conflict.png)。
 
 另以发布进程使用的实际 Manager SDK，只读检查函数调用、十二集合权限与 OPA 摘要、空测试目录及网站配置，均通过。包含会话的测试记录直接写入外部私有目录。独立后台通过与静态 A→B→A 尚未通过分别记录。
 
@@ -143,7 +143,7 @@ SDK 合同核对：本会话没有 Context7。读了 CloudBase 官方 `/database
 
 实际执行只读核对与受控补登记后，同一篇 A 的任务从 UNKNOWN 转为 SUCCEEDED，回执仍指向原始 `blog-39965188199-1` 和 `12506975756`；错误字段清空。未重新上传或删除任何托管文件，未改文章正文。独立函数已更新并读回运行代码 74710f96。
 
-之后从真实后台重新打开同一篇 A，显示 Published · revision 2；匿名浏览器访问实际公开地址，初始 HTML 正文、图片解码及截图通过。该明确命名的检查 9.3 秒完成，没有创建新的发布任务。见 [后台已发布](evidence/2026-10-23/real-admin-published.png)、[真实公开页](evidence/2026-10-23/real-public-A.png) 和 [机器可读验收记录](evidence/2026-10-23/acceptance.json)。后台页面运行在本地，函数、数据库、私有原件及公开测试页在真实 CloudBase；未将后台页面部署到云端。
+之后从真实后台重新打开同一篇 A，显示 Published · revision 2；匿名浏览器访问实际公开地址，初始 HTML 正文、图片解码及截图通过。该明确命名的检查 9.3 秒完成，没有创建新的发布任务。见 [后台已发布](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-23/real-admin-published.png)、[真实公开页](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-23/real-public-A.png) 和 [机器可读验收记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/blog/evidence/2026-10-23/acceptance.json)。后台页面运行在本地，函数、数据库、私有原件及公开测试页在真实 CloudBase；未将后台页面部署到云端。
 
 用户随后明确选择“pricing 还要连续发布，先交付已完成内容”。因此本轮不再启动 B→A 恢复、重试 B 或撤回，不将这些步骤记为通过。原 A 和文件包保留，用于下一次从同一版本继续；第一次失败的 GitHub 任务仍保留真实失败状态，不改写为成功。修正后的自动成功登记仍需在后续真实发布/重试中进一步验收，当前依据是连通测试、真实补登记与 UI 复查。
 

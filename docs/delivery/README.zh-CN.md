@@ -54,7 +54,7 @@ test分支仍为91443842；当前静态网站已通过10月29日受控入口4081
 
 ## 现在可以怎样看效果
 
-用现有管理员账号打开 [本轮助手草稿](https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683)，可查看第 3 版正文和私有预览。测试文章已发布验收后撤回，故它的公开地址现在返回 404；草稿仍在。公开效果保留了[桌面截图](2026-10-26/evidence/assistant-public-desktop.png)、[手机截图](2026-10-26/evidence/assistant-public-mobile.png)和[后台截图](2026-10-26/evidence/assistant-private-preview.png)。此前的[手工验收文章](https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/)仍可查看。
+用现有管理员账号打开 [本轮助手草稿](https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683)，可查看第 3 版正文和私有预览。测试文章已发布验收后撤回，故它的公开地址现在返回 404；草稿仍在。公开效果保留了[桌面截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-public-desktop.png)、[手机截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-public-mobile.png)和[后台截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-private-preview.png)。此前的[手工验收文章](https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/)仍可查看。
 
 客户日常流程是保存草稿、Preview、确认后 Save and publish。保存草稿不改变公开文章；更新公开内容仍须点击发布。Withdraw article 撤回后保留草稿，公开页面返回 404，列表与 sitemap 移除。这里的“人工操作验收”由自动化浏览器模拟管理员完成，不表示客户本人已验收。
 
@@ -66,9 +66,9 @@ test分支仍为91443842；当前静态网站已通过10月29日受控入口4081
 - [图文群测入口](2026-10-26/wecom/START-HERE.html)、[WeCom 群测配置与图文示例](2026-10-26/wecom/GUIDE.zh-CN.md)、[可直接发送的测试任务](2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。
 - [完整总图](2026-10-26/diagrams/complete-delivery.html)、[文章发布时序](2026-10-26/diagrams/article-publication.html)、[助手草稿时序](2026-10-26/diagrams/assistant-draft.html)。
 - [按模块实施](2026-10-26/EXECUTION.zh-CN.md)、[当前工作记录](2026-10-26/WORKLOG.zh-CN.md)、[无害恢复演练范围](2026-10-26/DUMMY-LIVE-DRILL.zh-CN.md)。
-- [线上桌面文章](2026-10-26/evidence/live-blog-public-desktop.png)、[线上手机文章](2026-10-26/evidence/live-blog-public-mobile.png)、[实际私有预览](2026-10-26/evidence/live-blog-admin-preview.png)。
-- [商品前端交付结果](2026-10-26/evidence/site-20-accepted.json)、[文章真实发布结果](2026-10-26/evidence/blog-server-republish.json)、[文章服务器 A→B→A](2026-10-26/evidence/blog-server-aba.json)、[测试函数 A→A](2026-10-26/evidence/dummy-AA.json)、[测试函数 B→A](2026-10-26/evidence/dummy-BA.json)。
-- [助手整体验收](2026-10-26/evidence/assistant-acceptance.json)、[本轮测试资源清理](2026-10-26/evidence/dummy-cleanup.json)。
+- [线上桌面文章](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-public-desktop.png)、[线上手机文章](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-public-mobile.png)、[实际私有预览](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-admin-preview.png)。
+- [商品前端交付结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/site-20-accepted.json)、[文章真实发布结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/blog-server-republish.json)、[文章服务器 A→B→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/blog-server-aba.json)、[测试函数 A→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-AA.json)、[测试函数 B→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-BA.json)。
+- [助手整体验收](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)、[本轮测试资源清理](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-cleanup.json)。
 - [内容助手设计](../blog/agent-design/HIGH-LEVEL.zh-CN.md)、[CloudBase 故障调查](2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。
 
 Google/Bing 此前完成过网站验证和 sitemap 提交。本轮未重新读取收录数据；提交成功、页面可访问与搜索引擎已经收录是不同结果。
