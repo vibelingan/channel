@@ -456,4 +456,9 @@ test('the deploy skips code only on proof, and records both release names in con
     workflow.indexOf('node scripts/capture-function-backups.mjs output/function-backup-before') <
       workflow.indexOf('run: pnpm deploy:cloudbase:test'),
   );
+  // A rerun recaptures functions after a partial deploy; it must not reuse the original's name.
+  assert.match(
+    workflow,
+    /name: function-backup-before-\$\{\{ github\.sha \}\}-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}\n/,
+  );
 });
