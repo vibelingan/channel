@@ -309,23 +309,22 @@ test('Deploy Test runs deployment contracts before packaging', () => {
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,
-    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
-    'only the test-branch/full-CI gate may condition deployment',
+    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    'only the test-branch/full-CI gate and the read-only preparation may condition deployment',
   );
-  const contractStep = findUniqueStep(
-    deployJob,
+  // The contract tests run in the preparation job, which the deploy job needs, so they
+  // finish before anything is packaged.
+  findUniqueStep(
+    buildWorkflows[1][1].jobs?.prepare,
     (step) => step.run === 'pnpm test:deploy-smoke',
     'Deploy Test contract gate',
   );
-  const packageStep = findUniqueStep(
+  assert.ok([deployJob.needs].flat().includes('prepare'));
+  assert.ok(!deployJob.steps.some((step) => step.run === 'pnpm test:deploy-smoke'));
+  findUniqueStep(
     deployJob,
     (step) => step.run === 'pnpm package:functions',
     'Deploy Test function packaging',
-  );
-
-  assert.ok(
-    deployJob.steps.indexOf(contractStep) < deployJob.steps.indexOf(packageStep),
-    'deployment contract tests must run before packaging',
   );
 });
 

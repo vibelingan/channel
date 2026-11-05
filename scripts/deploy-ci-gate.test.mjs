@@ -77,21 +77,39 @@ test('deployment captures one explicit public snapshot and retains recovery inpu
     (step) => step.name === 'Preserve accepted site recovery inputs before deployment',
   );
   const deploy = steps.findIndex((step) => step.run === 'pnpm deploy:cloudbase:test');
-  const backup = steps.findIndex(
+  assert.ok(capture >= 0 && capture < build && build < archive && archive < deploy);
+  // The read-only backup runs beside CI; the deploy job restores it and proves it current
+  // immediately before its first write.
+  const prepare = workflow('deploy-test').jobs.prepare.steps;
+  const backup = prepare.findIndex(
     (step) => step.name === 'Capture the current hosted site before cloud mutation',
   );
-  const preserveBackup = steps.findIndex(
+  const preserveBackup = prepare.findIndex(
     (step) => step.name === 'Preserve the verified pre-deployment hosting backup',
   );
-  assert.ok(capture >= 0 && capture < build && build < archive && archive < deploy);
-  assert.ok(archive < backup && backup < preserveBackup && preserveBackup < deploy);
+  assert.ok(backup >= 0 && backup < preserveBackup);
   assert.equal(
-    steps[backup].run,
+    prepare[backup].run,
     'node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before',
   );
-  assert.equal(steps[preserveBackup].with['if-no-files-found'], 'error');
-  assert.equal(steps[preserveBackup].with['include-hidden-files'], true);
-  for (const step of [steps[backup], steps[preserveBackup]]) {
+  assert.equal(prepare[preserveBackup].with['if-no-files-found'], 'error');
+  assert.equal(prepare[preserveBackup].with['include-hidden-files'], true);
+  const restore = steps.findIndex(
+    (step) => step.name === 'Restore the hosted-site backup taken beside CI',
+  );
+  const current = steps.findIndex(
+    (step) => step.name === 'Confirm the live site still matches that backup before cloud mutation',
+  );
+  const functions = steps.findIndex((step) =>
+    step.run?.startsWith('node scripts/capture-function-backups.mjs'),
+  );
+  assert.ok(archive < restore && restore < current && current < functions && functions < deploy);
+  assert.equal(steps[restore].with.name, prepare[preserveBackup].with.name);
+  assert.equal(
+    steps[current].run,
+    'node scripts/verify-hosting-backup-current.mjs --backup output/hosting-backup-before',
+  );
+  for (const step of [prepare[backup], prepare[preserveBackup], steps[restore], steps[current]]) {
     assert.equal(step.if, undefined);
     assert.equal(step['continue-on-error'], undefined);
   }
@@ -154,7 +172,26 @@ function assertReleaseGate(ci, release) {
   assert.equal(prerequisite.secrets, undefined, 'code checks do not need deployment secrets');
   assert.equal(prerequisite['continue-on-error'], undefined);
   const deploy = release.jobs.deploy;
-  assert.deepEqual([deploy.needs].flat(), ['ci', 'renderer-archive']);
+  assert.deepEqual([deploy.needs].flat(), ['ci', 'renderer-archive', 'prepare']);
+  // Preparation runs beside CI, so it may only read: every command is on this list.
+  const prepare = release.jobs.prepare;
+  assert.equal(prepare.needs, undefined);
+  assert.equal(
+    prepare.if,
+    "${{ github.ref == 'refs/heads/test' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+  );
+  assert.equal(prepare['continue-on-error'], undefined);
+  assert.equal(prepare.environment, 'test');
+  assert.deepEqual(
+    prepare.steps.filter((step) => step.run).map((step) => step.run.split('\n')[0]),
+    [
+      'pnpm install --frozen-lockfile',
+      'pnpm test:deploy-smoke',
+      'if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then',
+      'node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before',
+    ],
+  );
+  for (const step of prepare.steps) assert.equal(step['continue-on-error'], undefined);
   const archive = release.jobs['renderer-archive'];
   assert.equal(archive.needs, 'ci');
   assert.equal(
@@ -180,13 +217,13 @@ function assertReleaseGate(ci, release) {
   );
   assert.equal(
     deploy.if,
-    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
   );
   assert.equal(deploy['continue-on-error'], undefined);
   assert.equal(deploy.environment, 'test');
   assert.equal(release.concurrency.group, 'cloudbase-deploy-test');
   assert.equal(release.concurrency['cancel-in-progress'], false);
-  for (const job of [ci.jobs.checks, deploy]) {
+  for (const job of [ci.jobs.checks, deploy, prepare]) {
     const checkout = job.steps.find((step) => step.uses?.startsWith('actions/checkout@'));
     assert.equal(
       checkout?.with?.ref,
@@ -232,6 +269,7 @@ test('push and manual deployments require same-SHA unit, build and SDK checks', 
     'catalog-acceptance',
     'ci',
     'deploy',
+    'prepare',
     'renderer-archive',
   ]);
 });
@@ -266,7 +304,11 @@ test('the real archive policy shell handles the test environment flag after job 
   assert.notEqual(result.status, 0);
   assert.equal(existsSync(invalid), false);
   assert.equal(result.stderr.includes('never-log-this-value'), false);
-  assert.deepEqual(workflow('deploy-test').jobs.deploy.needs, ['ci', 'renderer-archive']);
+  assert.deepEqual(workflow('deploy-test').jobs.deploy.needs, [
+    'ci',
+    'renderer-archive',
+    'prepare',
+  ]);
 });
 
 test('browser component units retain both required engines in the site unit group', () => {
@@ -377,6 +419,19 @@ test('release guard detects missing dependencies, success bypass, moving refs an
     },
     (_ci, candidate) => {
       candidate.jobs.deploy.needs = undefined;
+    },
+    (_ci, candidate) => {
+      candidate.jobs.deploy.needs = ['ci', 'renderer-archive'];
+    },
+    (_ci, candidate) => {
+      candidate.jobs.prepare.steps.push({ run: 'pnpm deploy:cloudbase:test' });
+    },
+    (_ci, candidate) => {
+      candidate.jobs.prepare.needs = undefined;
+      candidate.jobs.deploy.if = candidate.jobs.deploy.if.replace(
+        " && needs.prepare.result == 'success'",
+        '',
+      );
     },
     (_ci, candidate) => {
       candidate.jobs.deploy.if = '${{ always() }}';
