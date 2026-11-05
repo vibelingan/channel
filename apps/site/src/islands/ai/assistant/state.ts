@@ -48,8 +48,7 @@ export function resumableRequest(turn: TurnView | null): TurnRequest | undefined
   const resumable =
     isTurnWorking(turn.phase) ||
     turn.phase === 'reconnecting' ||
-    ((turn.phase === 'failed' || turn.phase === 'rate_limited') &&
-      turn.retryMode !== 'new_answer');
+    ((turn.phase === 'failed' || turn.phase === 'rate_limited') && turn.retryMode !== 'new_answer');
   return resumable ? turn.request : undefined;
 }
 function terminal(phase: TurnPhase): boolean {
