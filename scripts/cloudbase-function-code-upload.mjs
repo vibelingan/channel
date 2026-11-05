@@ -12,37 +12,54 @@ const INLINE_ZIP_BYTES = 1024 * 1024;
 const STORAGE_UPLOAD_TIMEOUT_MS = 600_000;
 const cliDeployment = () => ({ method: 'cloudbase-cli-primary', cleanup() {} });
 
+/** One health read; null unless it is this function's own healthy answer. */
+export async function readFunctionRelease({
+  functionName,
+  apiUrl,
+  routePath,
+  request = fetchFully,
+}) {
+  const admin = functionName === 'admin';
+  const url = `${apiUrl}${routePath}${admin ? '' : '/health'}`;
+  const response = await request(admin ? 'POST' : 'GET', url, {
+    ...(admin
+      ? { headers: { 'content-type': 'application/json' }, body: '{"action":"health"}' }
+      : {}),
+    maxBytes: 16 * 1024,
+    redirect: 'error',
+  });
+  const body = JSON.parse(decodeUtf8(response.body));
+  return response.status === 200 &&
+    body.ok === true &&
+    body.data?.status === 'ok' &&
+    body.data.service === functionName
+    ? body.data
+    : null;
+}
+
 export async function confirmFunctionCode({
   functionName,
   apiUrl,
   routePath,
   expectedRelease,
+  expectedDeployedRelease,
   pause = 500,
+  attempts = 3,
+  request = fetchFully,
 }) {
-  const admin = functionName === 'admin';
-  const url = `${apiUrl}${routePath}${admin ? '' : '/health'}`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await fetchFully(admin ? 'POST' : 'GET', url, {
-        ...(admin
-          ? { headers: { 'content-type': 'application/json' }, body: '{"action":"health"}' }
-          : {}),
-        maxBytes: 16 * 1024,
-        redirect: 'error',
-      });
-      const body = JSON.parse(decodeUtf8(response.body));
+      const data = await readFunctionRelease({ functionName, apiUrl, routePath, request });
       if (
-        response.status === 200 &&
-        body.ok === true &&
-        body.data?.status === 'ok' &&
-        body.data.service === functionName &&
-        body.data.releaseId === expectedRelease
+        data?.releaseId === expectedRelease &&
+        (expectedDeployedRelease === undefined ||
+          data.deployedReleaseId === expectedDeployedRelease)
       )
         return;
     } catch {
       // A read may still reach the previous instance during code activation.
     }
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, pause));
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, pause));
   }
   throw new Error(`${functionName}: deployed code release ${expectedRelease} was not confirmed`);
 }

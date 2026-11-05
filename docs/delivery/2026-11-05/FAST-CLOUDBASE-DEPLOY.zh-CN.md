@@ -89,3 +89,28 @@ A+B 预计让集合检查从 11.5 分降到约 1.5–2.5 分，部署步骤从 1
 - 网站交付 7.2 分里，私有恢复包上传（83 MB）占 2.8 分。
 - 上一次运行（41878896329）在清理临时区域函数时失败；本次清理在提交后约 5 秒内完成，没有触发新的等待上限。
 - 回滚点：本次运行在写入前保存的函数原包与托管备份（步骤 21–23 的产物）；上一份已验收网站与函数版本为 3f1851cc。
+
+## 6. 未变的函数不再上传代码
+
+### 6.1 为什么以前做不到
+
+每个函数的 `tsup.config.ts` 都把 `CHANNEL_BUILD_SHA`（commit）和 `CHANNEL_BUILD_TIME` 编译进代码。所以源码没变时，每次提交的包也都不一样。函数恢复和目录运行时准备（`stage-catalog-runtime.ts`）都把 health 里的 `releaseId` 当作“正在运行哪份代码”的证据，所以这个版本戳不能简单移到环境变量里。
+
+### 6.2 现在的判断
+
+- **版本戳固定：** 部署任务在打包前把 `CHANNEL_BUILD_TIME` 固定为 commit 时间，部署步骤因此知道新包里的两个版本戳。
+- **逐字节比对：** 部署前一步（步骤 22）已经把每个正在运行的函数包保存在 `output/function-backup-before/`。部署时把新包里的新版本戳换成线上 health 报告的旧版本戳，然后要求和线上包逐字节相同：`index.js`、`package.json`、原生解码器文件都要相同，文件集合也必须一致。
+- **出错一律上传：** 任何不一致、读取失败、版本戳格式不对或找不到备份，都按原来的方式上传。`CLOUDBASE_FORCE_FUNCTION_CODE=1` 可以强制全部上传。
+- **跳过上传的函数：** 仍然更新配置（环境变量照常整体替换），然后确认 health 仍是原来那份代码，并且已经带上本次部署编号。
+
+### 6.3 版本怎么报告
+
+- `releaseId` 仍然是“正在运行的这份代码由哪个 commit 构建”，函数恢复、目录运行时准备和人工核对的含义都不变。被跳过的函数会继续报告较早的 commit。
+- 新增 `deployedReleaseId`：部署在配置里写入 `CHANNEL_DEPLOYED_RELEASE`（本次部署）和 `CHANNEL_DEPLOYED_CODE`（它确认过的代码 commit）。只有正在运行的代码的 `releaseId` 等于 `CHANNEL_DEPLOYED_CODE` 时，health 才报告 `deployedReleaseId`。如果代码被其他途径替换，这个字段会自动消失，不会冒充本次部署。
+- 部署写出 `output/function-release/releases.json`，冒烟检查据此核对每个函数应有的 `releaseId` 和 `deployedReleaseId`。手动目录验收接受 `deployedReleaseId`（没有时退回 `releaseId`）。
+
+### 6.4 预计效果与上线顺序
+
+`alibaba-catalog-sync` 源码很少变化，每次可省约 2–5 分钟（ZIP 上传加代码导入激活）；admin 和 public-api 各约半分钟。
+
+第一次部署这项改动时，`packages/shared` 的 health 代码变了，三个函数都会正常上传。从第二次起，没有改动的函数才会跳过上传。

@@ -175,6 +175,10 @@ jobs:
       - name: Test deployment contracts
         run: pnpm test:deploy-smoke
 
+      # One stamp for every bundle, known to the deploy step, so it can prove a build unchanged.
+      - name: Fix the function build stamp to the commit time
+        run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+
       - name: Package CloudBase functions
         run: pnpm package:functions
 
