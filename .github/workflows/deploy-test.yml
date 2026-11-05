@@ -104,9 +104,74 @@ jobs:
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
         run: ./apps/site/node_modules/.bin/tsx scripts/archive-catalog-renderer.ts
 
+  # Read-only work that needs no CI result runs beside CI. Every cloud write stays in
+  # the deploy job, which needs both CI and this job.
+  prepare:
+    if: ${{ github.ref == 'refs/heads/test' && github.event.inputs.catalog_acceptance_only != 'true' }}
+    name: Read-only preparation beside CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: test
+    env:
+      CI: 'true'
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test deployment contracts
+        run: pnpm test:deploy-smoke
+
+      - name: Verify CloudBase deploy credentials
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: |
+          if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then
+            echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
+            exit 1
+          fi
+
+      # Reads only: inventory, configuration and object downloads, sealed by a second inventory.
+      - name: Capture the current hosted site before cloud mutation
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
+
+      - name: Preserve the verified pre-deployment hosting backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
   deploy:
-    needs: [ci, renderer-archive]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}
+    needs: [ci, renderer-archive, prepare]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -171,9 +236,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Test deployment contracts
-        run: pnpm test:deploy-smoke
 
       # One stamp for every bundle, known to the deploy step, so it can prove a build unchanged.
       - name: Fix the function build stamp to the commit time
@@ -274,20 +336,17 @@ jobs:
       - name: Install the public acceptance browser before static writes
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Capture the current hosted site before cloud mutation
+      - name: Restore the hosted-site backup taken beside CI
+        uses: actions/download-artifact@v4
+        with:
+          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
+          path: output/hosting-backup-before
+
+      - name: Confirm the live site still matches that backup before cloud mutation
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-        run: node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before
-
-      - name: Preserve the verified pre-deployment hosting backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: hosting-backup-before-${{ github.sha }}-${{ github.run_id }}
-          path: output/hosting-backup-before/
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 30
+        run: node scripts/verify-hosting-backup-current.mjs --backup output/hosting-backup-before
 
       - name: Capture all existing function packages before updating any function
         env:
