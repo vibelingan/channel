@@ -265,3 +265,24 @@ test('the estimate counts CJK characters as one token each', () => {
   assert.equal(estimateTokens('abcdef'), 2);
   assert.equal(estimateTokens('700个 earbuds'), 1 + Math.ceil(12 / 3));
 });
+
+test('a visitor confirming an inferred value promotes it to stated', () => {
+  let state = apply(EMPTY_NEED, { quantity: '500' }, 'a few hundred units', 1);
+  assert.equal(state.quantity?.basis, 'inferred');
+  state = apply(state, { quantity: '500' }, '500 units exactly', 2);
+  assert.equal(state.quantity?.basis, 'stated');
+  assert.equal(state.quantity?.turn, 2);
+  assert.match(needRequirement(state) ?? '', /quantity: 500/);
+  // A list item confirmed later is promoted the same way, keeping its place.
+  state = apply(state, { customization: ['logo', 'gift box'] }, 'With a gift box', 3);
+  assert.equal(state.customization?.[0]?.basis, 'inferred');
+  state = apply(state, { customization: ['logo', 'gift box'] }, 'Yes, our logo too', 4);
+  assert.deepEqual(
+    state.customization?.map((item) => [item.value, item.basis]),
+    [
+      ['logo', 'stated'],
+      ['gift box', 'stated'],
+    ],
+  );
+  assert.match(needRequirement(state) ?? '', /customization: logo, gift box/);
+});

@@ -371,14 +371,18 @@ async function startRun(
   const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
-  // Our own deadline is a failure to terminalize; other aborts mean the run was
-  // cancelled or fenced off, and its owner has already terminalized it.
+  // Our own deadline and an unreadable fence are failures to terminalize; other
+  // aborts mean the run was cancelled or fenced off, and its owner has already
+  // terminalized it.
   let timedOut = false;
+  let fenceUnreadable = false;
   const deadline = setTimeout(() => {
     timedOut = true;
     controller.abort();
   }, config.maxStreamDurationMs);
-  const stopWatching = watchRunFence(store, context, controller);
+  const stopWatching = watchRunFence(store, context, controller, () => {
+    fenceUnreadable = true;
+  });
   const fenced = {
     conversationId: context.conversationId,
     runId: context.runId,
@@ -773,6 +777,7 @@ async function startRun(
       }
       return;
     }
+    if (fenceUnreadable) throw new WorkerFailure('transient', 'run_fence_read_failed');
     if (timedOut) throw new WorkerFailure('timeout', 'stream_deadline_exceeded');
     if (!controller.signal.aborted)
       throw new WorkerFailure('transient', 'stream_ended_without_terminal_event');
@@ -803,7 +808,12 @@ function shownProducts(turns: RunExecutionContext['turns']): Map<string, string>
 }
 
 /** Check cancellation even when a provider is not sending any frames. */
-function watchRunFence(store: AiStore, context: RunExecutionContext, controller: AbortController) {
+function watchRunFence(
+  store: AiStore,
+  context: RunExecutionContext,
+  controller: AbortController,
+  onReadFailure: () => void,
+) {
   const watch = new AbortController();
   const task = (async () => {
     while (!watch.signal.aborted) {
@@ -823,6 +833,8 @@ function watchRunFence(store: AiStore, context: RunExecutionContext, controller:
           return;
         }
       } catch {
+        // Unknown is not cancelled: the run still needs a terminal state.
+        onReadFailure();
         controller.abort();
         return;
       }

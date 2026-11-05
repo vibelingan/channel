@@ -10,6 +10,8 @@ import {
 export type CatalogPlan = CatalogAction & { fallbackQuery?: string; must?: string[] };
 /** Candidates read per catalog request; the visitor sees PRODUCT_BATCH_SIZE of them. */
 export const CANDIDATE_PAGE_SIZE = 20;
+/** Batches one request may page through; matches isProductResultSet's limit. */
+const MAX_BATCHES = 20;
 /**
  * Where the next batch starts. Kept in the stored answer for the worker only:
  * the BFF rebuilds public fields by name and never forwards it, so a visitor
@@ -37,7 +39,7 @@ export function isCatalogCursor(v: unknown): v is CatalogCursor {
     v.seen.every((id) => typeof id === 'string' && /^[-a-zA-Z0-9_]{1,128}$/.test(id)) &&
     Number.isSafeInteger(v.batch) &&
     (v.batch as number) >= 1 &&
-    (v.batch as number) < 20
+    (v.batch as number) <= MAX_BATCHES
   );
 }
 /**
@@ -316,7 +318,8 @@ export class PublicCatalog {
       })
       .sort((a, b) => Number(Boolean(a.toConfirm)) - Number(Boolean(b.toConfirm)));
     const products = ranked.slice(0, PRODUCT_BATCH_SIZE);
-    const hasMore = ranked.length > PRODUCT_BATCH_SIZE || read.morePages;
+    const hasMore =
+      cursor.batch < MAX_BATCHES && (ranked.length > PRODUCT_BATCH_SIZE || read.morePages);
     const next: CatalogCursor = {
       ...cursor,
       // Leftovers of this page are read again next time, minus what was shown.
