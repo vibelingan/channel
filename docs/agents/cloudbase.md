@@ -3,7 +3,9 @@
 Facts an agent needs before touching deploys, production data or the CloudBase
 SDKs in this repo. Each was re-derived at least once at a cost; read this
 first. Deeper design: `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`,
-`docs/CLOUDBASE_SDK_CONTRACT_VERIFICATION.md`.
+`docs/CLOUDBASE_SDK_CONTRACT_VERIFICATION.md`. Measured call costs and
+upload/cleanup timings for making a deploy faster: the project skill
+`.claude/skills/cloudbase-engineering/`.
 
 ## Environments
 
