@@ -1,0 +1,93 @@
+{
+  "reviewedOn": "2026-11-05",
+  "allSamples": 54,
+  "blogSamples": 12,
+  "queryStringsRemovedByCollector": true,
+  "samples": [
+    {
+      "page": "blog-list",
+      "profile": "desktop",
+      "repeat": 1,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "desktop",
+      "repeat": 1,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "blog-list",
+      "profile": "desktop",
+      "repeat": 2,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "desktop",
+      "repeat": 2,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "blog-list",
+      "profile": "desktop",
+      "repeat": 3,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "desktop",
+      "repeat": 3,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "blog-list",
+      "profile": "mobile",
+      "repeat": 1,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "mobile",
+      "repeat": 1,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "blog-list",
+      "profile": "mobile",
+      "repeat": 2,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "mobile",
+      "repeat": 2,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "blog-list",
+      "profile": "mobile",
+      "repeat": 3,
+      "failedRequests": [],
+      "pageErrors": 0
+    },
+    {
+      "page": "article",
+      "profile": "mobile",
+      "repeat": 3,
+      "failedRequests": [],
+      "pageErrors": 0
+    }
+  ],
+  "conclusion": "No failed Blog requests recorded in these samples; URL without query alone does not prove missing family."
+}

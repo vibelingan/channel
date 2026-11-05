@@ -1,0 +1,40 @@
+{
+  "checkedOn": "2026-11-05",
+  "readOnly": true,
+  "source": "Read-only CloudBase product publication, images and Alibaba source records; public complete GETs recorded separately.",
+  "products": [
+    {
+      "productId": "bbdc923d-7103-40e2-a8ae-93e10bc27f58",
+      "imageId": "4db8df016ac88396000781db489eb227",
+      "sha256": "fb0ea15a3153105632b674e7015200cf269f2cc3bc867bbba80b3cfc0e81f0ac",
+      "bytes": 5021685,
+      "productName": "SH1 New 2021 Original All Phone Earphone for Skype With Microphone Wired Headphone Computer Headset",
+      "alibabaSourceProductId": "AAHiBBhgAOVTpOqZBhj1H7Es",
+      "originalUrl": "https://sc04.alicdn.com/kf/Sfb4701ec663c4bda8e77868cb9c2d0f45.png",
+      "websiteImageUrl": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "approvedGalleryContainsImage": true
+    },
+    {
+      "productId": "9504ba1c-247d-4864-a6ae-74b65da3d922",
+      "imageId": "ea7765a56ab1dbea01d9b6924386c973",
+      "sha256": "ebee5cd061e17d5e3785244d2e4e8ac0ad2bd8ee9037424effb3aebbaf7dd7a1",
+      "bytes": 4943448,
+      "productName": "Soyto HN8806 HiFi Headphones Immersive Sound for PC Mobile Factory Direct Fashion Versatile New Model Fone De Ouvido Auriculares",
+      "alibabaSourceProductId": "AAFUBBhgAOVTpOKZBnRAim5X",
+      "originalUrl": "https://sc04.alicdn.com/kf/H27f1e5ea3e724468b43fbf2f74509a6fl.png",
+      "websiteImageUrl": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "approvedGalleryContainsImage": true
+    },
+    {
+      "productId": "8df493d4-3e02-4f7c-a3a2-907c1639064d",
+      "imageId": "31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "sha256": "d19e831af52b46794a442131c4060beb92ededfa616abb5b2b9af96b9e426885",
+      "bytes": 5051781,
+      "productName": "Wireless On Ear Headphones Foldable Stereo  Headset for Mobile Phone PC with 5 Color Options",
+      "alibabaSourceProductId": "AAEVBBhgAOVTpOKZBnRG5G05",
+      "originalUrl": "https://sc04.alicdn.com/kf/H57f6fd4d151240b2a7f3467d66217717f.png",
+      "websiteImageUrl": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "approvedGalleryContainsImage": true
+    }
+  ]
+}

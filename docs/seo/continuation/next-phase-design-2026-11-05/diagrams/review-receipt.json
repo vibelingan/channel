@@ -1,0 +1,67 @@
+{
+  "reviewedOn": "2026-11-05",
+  "artifacts": [
+    {
+      "name": "next-phase",
+      "diagramType": "architecture",
+      "specification": {
+        "sha256": "7ff9b500b5558d6459c7f61944dff2fbcfc9678e49c32d39d9c96e04fe4bd90e",
+        "bytes": 6315
+      },
+      "artifact": {
+        "sha256": "bb8a2733918a0996fe599bb9df74de06d5eadd67207937aaf39e8180b8e71c38",
+        "bytes": 812955
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "passed",
+      "visualReview": "passed",
+      "visualReviewScope": [
+        "1440x900 light/dark screenshots",
+        "2048x1320 light screenshot"
+      ],
+      "observations": [
+        "No crossing routes or obscured node labels in inspected screenshots",
+        "Desktop content and conclusion cards fit the viewport",
+        "Architecture links show collaboration, not total delivery order"
+      ]
+    },
+    {
+      "name": "public-content",
+      "diagramType": "sequence",
+      "specification": {
+        "sha256": "25d21882afe065a56976b7de954d3b87318a586d7fe34445a85ae64bebc858f3",
+        "bytes": 4716
+      },
+      "artifact": {
+        "sha256": "3ae98747421eaf8e839e4858d9334395f4b8fa3a2697b886b2b4ed971826bb47",
+        "bytes": 811977
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "passed",
+      "visualReview": "passed",
+      "visualReviewScope": [
+        "1440x900 light/dark screenshots",
+        "2048x1320 light screenshot"
+      ],
+      "observations": [
+        "No crossing routes or obscured node labels in inspected screenshots",
+        "Desktop content and conclusion cards fit the viewport",
+        "Architecture links show collaboration, not total delivery order"
+      ]
+    }
+  ]
+}

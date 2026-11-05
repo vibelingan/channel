@@ -1,0 +1,125 @@
+{
+  "observedAtUtc": "2026-11-05T10:26:24Z",
+  "readOnly": true,
+  "requests": [
+    {
+      "key": "original-sh1",
+      "url": "https://sc04.alicdn.com/kf/Sfb4701ec663c4bda8e77868cb9c2d0f45.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 5021685,
+      "sha256": "fb0ea15a3153105632b674e7015200cf269f2cc3bc867bbba80b3cfc0e81f0ac",
+      "finalUrl": "https://sc04.alicdn.com/kf/Sfb4701ec663c4bda8e77868cb9c2d0f45.png",
+      "dimensions": [
+        3000,
+        3000
+      ],
+      "pngSignatureValid": true,
+      "durationSeconds": 20.038
+    },
+    {
+      "key": "original-hn8806",
+      "url": "https://sc04.alicdn.com/kf/H27f1e5ea3e724468b43fbf2f74509a6fl.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 4943448,
+      "sha256": "ebee5cd061e17d5e3785244d2e4e8ac0ad2bd8ee9037424effb3aebbaf7dd7a1",
+      "finalUrl": "https://sc04.alicdn.com/kf/H27f1e5ea3e724468b43fbf2f74509a6fl.png",
+      "dimensions": [
+        2755,
+        2755
+      ],
+      "pngSignatureValid": true,
+      "durationSeconds": 18.039
+    },
+    {
+      "key": "original-foldable",
+      "url": "https://sc04.alicdn.com/kf/H57f6fd4d151240b2a7f3467d66217717f.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 5051781,
+      "sha256": "d19e831af52b46794a442131c4060beb92ededfa616abb5b2b9af96b9e426885",
+      "finalUrl": "https://sc04.alicdn.com/kf/H57f6fd4d151240b2a7f3467d66217717f.png",
+      "dimensions": [
+        2048,
+        2048
+      ],
+      "pngSignatureValid": true,
+      "durationSeconds": 17.352
+    },
+    {
+      "key": "site-sh1",
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 318,
+      "sha256": "330a51f9b4c53db788ad8f6cd276e92c6a53e2a5f17563c276697a58cc623147",
+      "finalUrl": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "errorBody": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (571f5d8b-d903-11f1-a616-5254001d4d48). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"365b27f4-34ec-4931-aa4e-f6509918a1ff\"}",
+      "durationSeconds": 9.858
+    },
+    {
+      "key": "site-hn8806",
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 318,
+      "sha256": "70fe11e2af3e1e28350d3924eaad592953de323b1706b666d24bbd8883af0bd6",
+      "finalUrl": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "errorBody": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (571e97e0-d903-11f1-9a90-52540008de27). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"fa73e49a-7c9f-4d3f-9dee-25f7279b58ea\"}",
+      "durationSeconds": 7.076
+    },
+    {
+      "key": "site-foldable",
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 318,
+      "sha256": "44d3338dbd518398c8629315057d474ece428290cccd66bc9409e9e58be689df",
+      "finalUrl": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "errorBody": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (56e44382-d903-11f1-9c6a-525400631ae4). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"e13e2d35-b8cd-47c2-9464-1f60657a0b45\"}",
+      "durationSeconds": 4.794
+    },
+    {
+      "key": "taxonomy-without-family",
+      "url": "https://supplychainsai.com/api/catalog-taxonomy",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 106,
+      "sha256": "2cdec5456c4a6f71c0badb3c66c7d1ba15d36f978e8356a78a20605617823daf",
+      "finalUrl": "https://supplychainsai.com/api/catalog-taxonomy",
+      "errorBody": "{\"ok\":false,\"error\":{\"code\":\"VALIDATION_ERROR\",\"message\":\"Exactly one valid product family is required.\"}}",
+      "durationSeconds": 2.02
+    },
+    {
+      "key": "taxonomy-headphones",
+      "url": "https://supplychainsai.com/api/catalog-taxonomy?family=headphones",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 334,
+      "sha256": "0e0bb51eb73455a710491be7745f630ee3d1420f7163eaaad0f4eaa6c5e04372",
+      "finalUrl": "https://supplychainsai.com/api/catalog-taxonomy?family=headphones",
+      "responseSummary": {
+        "ok": true,
+        "family": "headphones",
+        "children": 3
+      },
+      "durationSeconds": 1.739
+    },
+    {
+      "key": "taxonomy-toys",
+      "url": "https://supplychainsai.com/api/catalog-taxonomy?family=toys",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bytes": 77,
+      "sha256": "3c11c2dad4d7401add1f783f277d0b73461636e9594b87f22a0c003948a2fce4",
+      "finalUrl": "https://supplychainsai.com/api/catalog-taxonomy?family=toys",
+      "responseSummary": {
+        "ok": true,
+        "family": "toys",
+        "children": 0
+      },
+      "durationSeconds": 1.665
+    }
+  ]
+}

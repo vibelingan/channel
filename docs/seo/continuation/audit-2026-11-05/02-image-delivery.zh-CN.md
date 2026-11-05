@@ -14,7 +14,7 @@ Google 抓取统计列出的三个图片地址，11月5日普通 GET 均返回40
 
 代码确认 `apps/functions/public-api/src/index.ts` 使用事件型函数；`handler.ts` 的 `getCatalogImage` 读取整张图并转换成 Base64，`http-adapter.ts` 把它放进函数响应。`packages/shared/src/media.ts` 允许商品原图最大10MiB。腾讯的[响应上限说明](https://docs.cloudbase.net/error-code/EXCEED_MAX_RESPONSE_SIZE)列出的云函数响应上限为6MB。
 
-因此，“能上传10MiB原图”和“能通过这个函数响应交付原图”没有对齐。Base64还会把数据量放大约三分之一。这条链路足以解释本次错误；原始图片精确字节数及平台在哪个封装层计数仍需管理侧读回，不能把估算的边界当作已测上限。
+因此，“能上传10MiB原图”和“能通过这个函数响应交付原图”没有对齐。Base64还会把数据量放大约三分之一。11月5日后续只读核对已取得三个原始文件的完整字节，分别为5,021,685、4,943,448、5,051,781字节，SHA-256均与存储记录一致；原图均200，网站均400。具体商品及来源见[原图核对表](../next-phase-design-2026-11-05/IMAGE-SOURCE-CHECK.zh-CN.md)。平台在哪个封装层计数仍需边界验证，不能把估算当作已测阈值。
 
 对照读取另一个已知图片：服务域名返回200、JPEG、220114字节；同一图片的主域请求有一次超时。不能据此说所有小图也坏了，需在实施时将主域和服务域名的路由、错误及缓存分别核对。[对照结果](evidence/image-route-comparison.json)。
 

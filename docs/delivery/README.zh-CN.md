@@ -1,6 +1,6 @@
 # SEO / Blog：当前进度与执行入口
 
-2026-11-04 当前状态以[本轮逐项验收](../seo/continuation/review-2026-11-04/README.zh-CN.md)为准：www 301已上线；主域HTTP 301未完成，试改已恢复；商品自动通知等待GitHub App授权；美国与本机各54次性能基准完成，性能优化尚未实施。下方保留此前阶段记录，不能把其中的“当前”当作今日状态。
+2026-11-05 当前入口：[实际搜索效果](../seo/continuation/effect-review-2026-11-05/README.zh-CN.md)、[平台逐项核查](../seo/continuation/audit-2026-11-05/README.zh-CN.md)、[下一阶段九模块高层设计](../seo/continuation/next-phase-design-2026-11-05/README.zh-CN.md)。商品自动更新已于11月4日启用并真实验收；www 301已上线，主域HTTP 301仍待完成；美国与本机各54次优化前基准完成，性能和海外CDN尚未实施。三张原图正常、网站传输超限；先前Blog分类400诊断依据不足，已在新设计更正。下方保留历史记录，不能把其中的“当前”当作今日状态。
 
 ## 此前阶段记录
 

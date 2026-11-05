@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品与 Blog：从公开变化到读者和搜索引擎",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [
+      1400,
+      680
+    ]
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "后台操作"
+    },
+    {
+      "id": "public",
+      "type": "backend",
+      "label": "公开版本服务"
+    },
+    {
+      "id": "ssg",
+      "type": "messagebus",
+      "label": "自动交付"
+    },
+    {
+      "id": "hosting",
+      "type": "cloud",
+      "label": "静态站点"
+    },
+    {
+      "id": "blog",
+      "type": "backend",
+      "label": "文章服务器"
+    },
+    {
+      "id": "reader",
+      "type": "external",
+      "label": "读者浏览器"
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "搜索引擎"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 260,
+      "label": "商品公开变化：自动交付"
+    },
+    {
+      "from": 265,
+      "to": 380,
+      "label": "访客：HTML 与实时 API"
+    },
+    {
+      "from": 385,
+      "to": 500,
+      "label": "Blog：发布后直接可读"
+    },
+    {
+      "from": 505,
+      "to": 590,
+      "label": "抓取与技术恢复"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-1",
+      "from": "editor",
+      "to": "public",
+      "y": 160,
+      "label": "批准商品当前公开版本",
+      "variant": "default"
+    },
+    {
+      "id": "step-2",
+      "from": "public",
+      "to": "ssg",
+      "y": 188,
+      "label": "真实变化进入待办并唤醒",
+      "variant": "dashed"
+    },
+    {
+      "id": "step-3",
+      "from": "ssg",
+      "to": "public",
+      "y": 216,
+      "label": "读取同版商品、分类和图片",
+      "variant": "default"
+    },
+    {
+      "id": "step-4",
+      "from": "ssg",
+      "to": "hosting",
+      "y": 244,
+      "label": "交付 HTML 与地图；校验后接受",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-5",
+      "from": "reader",
+      "to": "hosting",
+      "y": 280,
+      "label": "打开商品或分类",
+      "variant": "default"
+    },
+    {
+      "id": "step-6",
+      "from": "hosting",
+      "to": "reader",
+      "y": 308,
+      "label": "返回初始正文和真实商品链接",
+      "variant": "return"
+    },
+    {
+      "id": "step-7",
+      "from": "reader",
+      "to": "public",
+      "y": 336,
+      "label": "React 读取实时公开 API",
+      "variant": "default"
+    },
+    {
+      "id": "step-8",
+      "from": "public",
+      "to": "reader",
+      "y": 364,
+      "label": "当前数据；沿用变体与询盘",
+      "variant": "return"
+    },
+    {
+      "id": "step-9",
+      "from": "editor",
+      "to": "public",
+      "y": 400,
+      "label": "人工发布文章的公开版本",
+      "variant": "default"
+    },
+    {
+      "id": "step-10",
+      "from": "reader",
+      "to": "blog",
+      "y": 428,
+      "label": "打开文章或 Blog 列表",
+      "variant": "default"
+    },
+    {
+      "id": "step-11",
+      "from": "blog",
+      "to": "public",
+      "y": 456,
+      "label": "读取当前公开版本",
+      "variant": "default"
+    },
+    {
+      "id": "step-12",
+      "from": "blog",
+      "to": "reader",
+      "y": 484,
+      "label": "返回文章 HTML；不运行 GitHub",
+      "variant": "return"
+    },
+    {
+      "id": "step-13",
+      "from": "google",
+      "to": "hosting",
+      "y": 520,
+      "label": "抓取商品、分类和地图",
+      "variant": "default"
+    },
+    {
+      "id": "step-14",
+      "from": "google",
+      "to": "blog",
+      "y": 548,
+      "label": "抓取文章和文章地图",
+      "variant": "default"
+    },
+    {
+      "id": "step-15",
+      "from": "ssg",
+      "to": "hosting",
+      "y": 576,
+      "label": "恢复程序时用当前商品重建",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "新增在现有链路上",
+      "items": [
+        "分类补初始链接和分页；图片先准备可用版本",
+        "CDN 首期只分发脚本样式，不接管 HTML"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "两种内容分别处理",
+      "items": [
+        "商品变化更新初始 HTML；浏览器仍查实时 API",
+        "Blog 发布不等 GitHub，也不等五分钟定时器"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "恢复与搜索分开",
+      "items": [
+        "技术恢复保留当前文章、商品和发布状态",
+        "地图/重抓是提示，不是主动把网页送入索引"
+      ]
+    }
+  ]
+}
