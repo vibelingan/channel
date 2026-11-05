@@ -36,3 +36,17 @@ export async function readCompleteFunctionInventory(functions, envId) {
   }
   return [...names];
 }
+
+// CloudBase can list a deleted function for longer than a few seconds. Checks back off from
+// 250 ms to 5 s, about one minute in all, before an absence is called unconfirmed.
+export const FUNCTION_ABSENCE_CHECKS = 16;
+export const functionAbsenceDelayMs = (check) => Math.min(250 * 2 ** (check - 1), 5000);
+
+/** True once a complete inventory omits the name; false if it is still listed after every check. */
+export async function waitForFunctionAbsence(inventory, name, wait) {
+  for (let check = 0; check < FUNCTION_ABSENCE_CHECKS; check++) {
+    if (check) await wait(functionAbsenceDelayMs(check));
+    if (!(await inventory()).includes(name)) return true;
+  }
+  return false;
+}

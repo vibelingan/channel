@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
 import { buildCatalogRegional } from './catalog-regional-build.mjs';
-import { readCompleteFunctionInventory } from './release/function-inventory.mjs';
+import {
+  readCompleteFunctionInventory,
+  waitForFunctionAbsence,
+} from './release/function-inventory.mjs';
 
 const purpose = 'catalog-seo-regional-v1';
 const description = 'channel-catalog-regional-v1';
@@ -284,14 +287,7 @@ export async function createCatalogRegionalClient({
         } catch {
           deletionFailed = true;
         }
-        let removed = false;
-        for (let n = 0; n < 6; n++) {
-          if (n) await wait(250 * 2 ** (n - 1));
-          if (!(await inventory()).includes(name)) {
-            removed = true;
-            break;
-          }
-        }
+        const removed = await waitForFunctionAbsence(inventory, name, wait);
         receipt.cleaned = removed;
         await persist();
         assert.ok(
