@@ -23,7 +23,7 @@ import type {
   TurnRequest,
 } from './model';
 import type { AssistantAnchor, AssistantPersistence } from './persistence';
-import { initialAssistantState, isTurnWorking, reduceAssistant } from './state';
+import { initialAssistantState, isTurnWorking, reduceAssistant, resumableRequest } from './state';
 import { AssistantTransportError } from './transport-error';
 
 export interface AssistantSeed {
@@ -320,10 +320,7 @@ export function useAssistantSession(adapter: AssistantAdapter, seed: AssistantSe
   }
   // The tab record mirrors what a refresh needs: the conversation key, whether
   // the panel was open, an unfinished question and an unsent or uncertain inquiry.
-  const resumable =
-    state.turn && (isTurnWorking(state.turn.phase) || state.turn.phase === 'reconnecting')
-      ? state.turn.request
-      : undefined;
+  const resumable = resumableRequest(state.turn);
   useEffect(() => {
     if (!seed.persistence || pendingRestore.current) return;
     seed.persistence.update({

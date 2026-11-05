@@ -496,6 +496,8 @@ function applyCors(
   response.setHeader('Vary', 'Origin');
   response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Last-Event-ID');
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // The widget reads Retry-After on 429/503; browsers hide it cross-origin unless exposed.
+  response.setHeader('Access-Control-Expose-Headers', 'Retry-After');
   return true;
 }
 
