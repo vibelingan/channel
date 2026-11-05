@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-11-05T08:35:35.524Z",
+  "observations": [
+    {
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 318,
+      "ms": 9586
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 318,
+      "ms": 6660
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 318,
+      "ms": 2850
+    }
+  ]
+}

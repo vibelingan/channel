@@ -1,0 +1,292 @@
+- banner:
+  - button "Main menu" [expanded]:
+  - link "Google Search Console":
+    - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - search:
+    - textbox [disabled]: Inspect any URL in "https://supplychainsai.com/"
+    - combobox "Inspect any URL in"
+    - button "Search":
+  - button "Help":
+    - generic: help_outline
+  - tooltip: Help
+  - button "User settings":
+    - generic: manage_accounts
+  - tooltip: User settings
+  - 'button "Unread messages: 3"':
+    - generic: notifications
+  - tooltip: Messages
+  - generic: "3"
+  - button "Google apps":
+  - 'button "Google Account: Lingan Vibe ([account redacted])"':
+- dialog "navigational drawer":
+  - navigation "Primary":
+    - button "Search property":
+      - img "favicon"
+      - combobox "https://supplychainsai.com/"
+      - generic: 
+    - link "Overview":
+      - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: home
+      - generic: Overview
+    - link "Insights":
+      - /url: ./search-console/performance/insights?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lightbulb_2
+      - generic: Insights
+    - link "Performance":
+      - /url: ./search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Performance
+    - button "Performance report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Generative AI on Search results":
+      - /url: ./search-console/performance/search-analytics/ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Generative AI
+    - button "URL inspection":
+      - generic: search
+      - generic: URL inspection
+    - generic: Indexing
+    - button "Indexing report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Pages":
+      - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: file_copy
+      - generic: Pages
+    - link "Videos":
+      - /url: ./search-console/video-index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: video_library
+      - generic: Videos
+    - link "Sitemaps":
+      - /url: ./search-console/sitemaps?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: account_tree
+      - generic: Sitemaps
+    - link "Removals":
+      - /url: ./search-console/removals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: visibility_off
+      - generic: Removals
+    - generic: Experience
+    - button "Experience report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Core Web Vitals":
+      - /url: ./search-console/core-web-vitals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: speed
+      - generic: Core Web Vitals
+    - link "HTTPS":
+      - /url: ./search-console/https?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lock
+      - generic: HTTPS
+    - generic: Enhancements
+    - button "Enhancements report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Breadcrumbs":
+      - /url: ./search-console/r/breadcrumbs?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: layers
+      - generic: Breadcrumbs
+    - generic: Security & Manual Actions
+    - button "Security & Manual Actions report section":
+      - generic: keyboard_arrow_down
+    - link "Links report":
+      - /url: ./search-console/links?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: link_2
+      - generic: Links
+    - link "Achievements":
+      - /url: ./search-console/achievements?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trophy
+      - generic: Achievements
+    - link "Settings":
+      - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: settings
+      - generic: Settings
+    - button "Submit feedback":
+      - generic: feedback
+      - generic: Submit feedback
+    - button "About Search Console":
+      - generic: info
+      - generic: About Search Console
+    - link "Privacy":
+      - /url: https://myaccount.google.com/privacypolicy?hl=en
+    - link "Terms":
+      - /url: https://myaccount.google.com/termsofservice?hl=en
+- navigation "Breadcrumbs":
+  - heading "Performance" [level=1]
+- button "EXPORT":
+  - generic: 
+  - generic: EXPORT
+- radiogroup "Select time range":
+  - radio "24 hours":
+    - generic: 24 hours
+  - radio "7 days":
+    - generic: 7 days
+  - radio "28 days":
+    - generic: 28 days
+  - radio "3 months" [checked]:
+    - generic: 3 months
+- button "More time ranges":
+  - generic: More
+  - generic: arrow_drop_down
+- list:
+  - 'button "Search type: Web"':
+    - generic: "Search type: Web"
+    - generic: arrow_drop_down
+  - tooltip: "Search type: Web"
+  - button "Add filter":
+    - generic: add
+    - generic: Add filter
+  - tooltip: Add filter
+  - button "Customize your Performance report using AI":
+    - generic: filter_list_spark
+  - tooltip: Customize your Performance report using AI
+- generic: "Last update: 3.5 hours ago"
+- main:
+  - button "Total clicks 2":
+    - generic "Total clicks":
+      - generic: 
+      - generic: Total clicks
+    - generic "2"
+  - button "null":
+    - generic: 
+  - button "Total impressions 21":
+    - generic "Total impressions":
+      - generic: 
+      - generic: Total impressions
+    - generic "21"
+  - button "null":
+    - generic: 
+  - button "Average CTR 9.5%":
+    - generic "Average CTR":
+      - generic: Average CTR
+    - generic "9.5%"
+  - button "null":
+    - generic: 
+  - button "Average position 20.8":
+    - generic "Average position":
+      - generic: Average position
+    - generic "20.8"
+  - button "null":
+    - generic: 
+  - 'button "Selected Time Granularity: Daily"':
+    - generic: Daily
+  - generic: Clicks
+  - generic: Impressions
+  - application "chart" [active]:
+    - generic: Tuesday, Oct 20
+    - generic: ". Clicks : 0 ."
+    - generic: ". Impressions : 0 ."
+    - text: Right-click or use ⌘ + Enter to add an annotation .
+  - generic: info
+  - generic: Get more details on your site’s performance in generative AI features on Google Search
+  - generic: Open report
+  - generic: chevron_forward
+  - link "Open the Google Search generative AI features performance report.":
+    - /url: ./search-console/performance/search-analytics/ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - tablist:
+    - tab "Queries" [selected]:
+      - generic: Queries
+    - tab "Pages":
+      - generic: Pages
+    - tab "Countries":
+      - generic: Countries
+    - tab "Devices":
+      - generic: Devices
+    - tab "Search appearance":
+      - generic: Search appearance
+    - tab "Days":
+      - generic: Days
+  - tabpanel:
+    - button "Filter table rows":
+      - generic: 
+    - table:
+      - rowgroup:
+        - row "Top queries Sort Top queries Sort Clicks Clicks Sort Impressions Impressions":
+          - columnheader "Top queries Sort Top queries":
+            - generic: Top queries
+            - button "Sort Top queries":
+          - columnheader "Sort Clicks Clicks":
+            - button "Sort Clicks":
+            - generic: Clicks
+          - columnheader "Sort Impressions Impressions":
+            - button "Sort Impressions":
+            - generic: Impressions
+      - rowgroup:
+        - row "whx 6 0 1":
+          - cell "whx 6":
+            - generic: whx 6
+          - cell "0":
+            - generic: "0"
+          - cell "1":
+            - generic: "1"
+        - row "headset oem manufacturer 0 1":
+          - cell "headset oem manufacturer":
+            - generic: headset oem manufacturer
+          - cell "0":
+            - generic: "0"
+          - cell "1":
+            - generic: "1"
+        - row "shared earphones oem supplier china 0 1":
+          - cell "shared earphones oem supplier china":
+            - generic: shared earphones oem supplier china
+          - cell "0":
+            - generic: "0"
+          - cell "1":
+            - generic: "1"
+        - row "oem headphone manufacturer 0 1":
+          - cell "oem headphone manufacturer":
+            - generic: oem headphone manufacturer
+          - cell "0":
+            - generic: "0"
+          - cell "1":
+            - generic: "1"
+    - generic: "Rows per page:"
+    - listbox "Number of rows per page":
+      - option "5"
+      - option "10" [selected]
+      - option "25"
+      - option "50"
+      - option "100"
+      - option "250"
+      - option "500"
+    - generic: 1-4 of 4
+    - button "Previous page" [disabled]:
+    - tooltip: Previous page
+    - button "Next page" [disabled]:
+    - tooltip: Next page
+- main:
+  - generic "若有干扰，可在「设置」关闭悬浮球"
+  - button:
+  - text: 👋 Hi，想聊点什么～
+  - generic: 下笔没话说？
+  - generic: 告诉我主题，文案、标题、Slogan我都行
+  - generic: 名词听不懂？
+  - generic: 别自己搜了，直接问我，三秒给你讲明白
+  - generic: 脑袋空空了？
+  - generic: 一起脑暴，给产品起名、给活动想点子
+  - generic: 方案没头绪？
+  - generic: 思路我来理，框架我来搭，你来做决策
+  - generic: 新会话
+  - generic: 历史
+  - textbox "输入您的问题... (Enter 发送，Shift+Enter 换行)"
+  - generic: DeepSeek V4
+  - button "联网" [pressed]:
+    - generic: 联网
+  - generic: 内容由AI生成，仅供参考
+  - generic: Chat
+  - generic: 云笔记
+  - generic: 账号
+  - generic: 互动
+  - generic: 通知
+  - generic: 设置
+  - link:
+    - /url: https://yiban.io/style_center?from=side-panel
+  - link:
+    - /url: https://yiban.io/dashboard?from=side-panel
+  - link:
+    - /url: https://yiban.io/pricing?from=side-panel
+  - img "avatar"
+  - button "开通"
+- list
+- generic: Tuesday, Oct 20
+- generic: "0"
+- text: Clicks
+- generic: "0"
+- text: Impressions
+- generic: Right-click or use ⌘ + Enter to add an annotation

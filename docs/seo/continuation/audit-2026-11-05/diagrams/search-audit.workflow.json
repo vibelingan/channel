@@ -1,0 +1,217 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "从 Google 的提示到网站修复与收录观察",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "网站页面"
+        },
+        "backend": {
+          "label": "技术处理"
+        },
+        "database": {
+          "label": "证据记录"
+        },
+        "security": {
+          "label": "实际验收"
+        },
+        "cloud": {
+          "label": "交付设施"
+        },
+        "external": {
+          "label": "Google 报告"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "audit",
+      "label": "先查事实"
+    },
+    {
+      "id": "delivery",
+      "label": "分模块交付"
+    },
+    {
+      "id": "verify",
+      "label": "验证结果"
+    }
+  ],
+  "mainPath": [
+    "summary",
+    "url",
+    "evidence",
+    "discovery",
+    "structured",
+    "video",
+    "performance",
+    "live"
+  ],
+  "nodes": [
+    {
+      "id": "summary",
+      "lane": "audit",
+      "col": 0,
+      "type": "external",
+      "label": "报告里的 7 个网址",
+      "sublabel": "汇总截至 10 月 23 日",
+      "width": 142
+    },
+    {
+      "id": "url",
+      "lane": "audit",
+      "col": 1,
+      "type": "backend",
+      "label": "逐个查当前状态",
+      "sublabel": "Google 检查 + 实际网页",
+      "width": 142
+    },
+    {
+      "id": "evidence",
+      "lane": "audit",
+      "col": 2,
+      "type": "database",
+      "label": "保留可核对的证据",
+      "sublabel": "正常排除与真实问题分开",
+      "width": 142
+    },
+    {
+      "id": "discovery",
+      "lane": "delivery",
+      "col": 2,
+      "type": "frontend",
+      "label": "分类发现与图片",
+      "sublabel": "初始商品链接、图片错误",
+      "width": 142
+    },
+    {
+      "id": "structured",
+      "lane": "delivery",
+      "col": 3,
+      "type": "backend",
+      "label": "真实商品信息",
+      "sublabel": "报价规则与搜索增强展示",
+      "width": 142
+    },
+    {
+      "id": "video",
+      "lane": "delivery",
+      "col": 4,
+      "type": "frontend",
+      "label": "视频与内容",
+      "sublabel": "观看页、文章、明确内链",
+      "width": 142
+    },
+    {
+      "id": "performance",
+      "lane": "delivery",
+      "col": 5,
+      "type": "cloud",
+      "label": "性能与海外分发",
+      "sublabel": "先审方案，再测前后差异",
+      "width": 142
+    },
+    {
+      "id": "live",
+      "lane": "verify",
+      "col": 5,
+      "type": "security",
+      "label": "网站实际验收",
+      "sublabel": "正文、权限、交互、恢复",
+      "width": 142
+    },
+    {
+      "id": "google",
+      "lane": "verify",
+      "col": 4,
+      "type": "external",
+      "label": "Google 重新抓取",
+      "sublabel": "逐页索引与真实搜索数据",
+      "width": 142
+    },
+    {
+      "id": "normal",
+      "lane": "verify",
+      "col": 1,
+      "type": "database",
+      "label": "重复地址继续排除",
+      "sublabel": "不追求未收录数量归零",
+      "width": 142
+    }
+  ],
+  "edges": [
+    {
+      "id": "read",
+      "from": "summary",
+      "to": "url"
+    },
+    {
+      "id": "check",
+      "from": "url",
+      "to": "evidence"
+    },
+    {
+      "id": "scope",
+      "from": "evidence",
+      "to": "discovery",
+      "label": "确定修复范围"
+    },
+    {
+      "id": "next-one",
+      "from": "discovery",
+      "to": "structured"
+    },
+    {
+      "id": "next-two",
+      "from": "structured",
+      "to": "video"
+    },
+    {
+      "id": "next-three",
+      "from": "video",
+      "to": "performance"
+    },
+    {
+      "id": "accept",
+      "from": "performance",
+      "to": "live",
+      "label": "每项上线后检查"
+    },
+    {
+      "id": "observe",
+      "from": "live",
+      "to": "google",
+      "label": "网站验收与索引分开"
+    },
+    {
+      "id": "keep",
+      "from": "url",
+      "to": "normal",
+      "label": "参数重复页",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "优先处理",
+      "items": [
+        "分类初始链接、三张错误图片、商品增强展示",
+        "视频独立观看页及真实文章内链"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "如实判断结果",
+      "items": [
+        "已有性能基准；优化仍须先审方案",
+        "地图成功、允许抓取、已经收录分别记录"
+      ]
+    }
+  ]
+}

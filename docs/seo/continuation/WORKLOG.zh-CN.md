@@ -744,3 +744,21 @@ e45b753c 修复清单中关闭 webhook 时仍须提供 URL 的问题：hook_attr
 回执、38项公开请求、单次自动运行清单、两辅助函数清理、GitHub和CloudBase读回均存evidence/2026-11-04-clock；完整浏览器截图与运行明细也保留在Actions artifact。主域301仍未完成，7项只读复核确认www301、主域HTTP200、HTTPS200及缺失404。控制台读取空白，未改配置或购买边缘套餐。18分47秒不满足8分钟目标；本轮按用户要求未做性能调优。
 
 表达复核实际对照两份humanizer规则、完整Actions回执、公开内容前后JSON、CloudBase最终状态和函数目录。将“构建已启动”与“完整验收通过”分开；将“商品未回退”写成可检查的清单hash、代表HTML及API修订，把本次未修改客户商品的验证范围写明。所有后续文档与证据仍提交原SEO分支，不修改main/test分支。
+
+
+## 2026-11-05：逐项核查Google，按模块补后续计划
+
+范围是搜索平台诊断与设计，沿用feat/seo-foundation和9a785802源码；不部署、不改商品/Blog、不改其他app，也不调整CI速度。使用已登录Chrome的独立核查标签，不另起登录实例。没有向同事/群聊发送消息。
+
+- 完整列出历史7条：3条单页已索引、2条正式页尚未索引、2条参数页合并；另查代表商品、Blog列表和两篇文章。OEM单页状态曾在“已发现”和“未知”间变化，但两次均未索引、无抓取日期；实时抓取另列，不推断Google排队内部原因。
+- Google实际抓取统计、视频原因、HTTPS、面包屑、人工处罚、安全、移除、链接、搜索表现和AI报告逐项读取。部分早期截图保存到了用户正在浏览的另一页；核对标题时发现，已移除错名证据，改成显式传入固定标签并检查报告标题后保存，不把错页当证据。
+- 匿名HTTP读取完整地图清单与代表页，不把初始HTML检查冒充浏览器渲染或Google实际索引。地图540唯一网址、528商品；本轮没有对528商品逐条运行Google检查。
+- 三张Google报告中的图片在本轮再次GET均400；三条错误正文都为函数响应超过6MB。对照实际Event函数Base64返回、10MiB上传上限与CloudBase官方6MB文档，定位上传/读取边界不一致；未修改SDK或线上图片。
+- 阅读的实际源码：apps/site/src/pages/ai-gadgets.astro、electronics-toys.astro，CatalogFamilyPage.tsx、CatalogFamilyGrid.tsx、CatalogPagination.tsx，lib/seo/product-page.ts及catalog-seo.ts；apps/functions/public-api/src/index.ts、handler.ts、http-adapter.ts；packages/media-storage/src/cloudbase.ts及shared/src/media.ts。确认初始分类无商品链接、分页按钮、Product缺增强数据的实现边界。
+- 实际阅读humanizer/SKILL.md、plain-technical-writing.md、SEO与web-quality-audit固定版本、performance/MEASUREMENT、CWV、CloudBase与cloud-functions及SDK契约规范。措辞修正：将“7个noindex问题”改为“3条已收录、2条正式页待收录、2条参数页正常合并”；保留单篇Blog确有旧noindex记录的例外，未说所有noindex都不存在。将“等待Google”拆成可复现图片故障、可改发现路径、尚缺业务报价与平台排队，避免用等待覆盖工程欠项。
+- 新增六个模块的需求、实施段、验收和恢复；复用已保存的美国/本机性能基准，After仍未实施。Archify交付与多桌面尺寸容纳检查通过；人工查看大小桌面截图，未改写HTML假造检查结果。
+- OEM实时测试抓取成功且允许收录；申请重新收录失败，Google明确报告reCAPTCHA服务无法连接。无成功回执，不重复点击、不绕过验证码，也不声称已提交成功。
+
+详细产物统一放在audit-2026-11-05/，最新进度入口已更新；历史阶段记录保留日期，不再被当作今天的状态。
+
+交付前发现远端SEO分支新增fad64a28（公司名称修正#70）。核对12个变更文件后，使用ff-only同步，保留全部已有未提交文件；它没有修改本轮定位的图片、分类分页或商品报价实现。本轮文档以此为提交基线，未另开分支或worktree。再次GET确认主域HTTP仍200、www保留路径和查询串301、favicon.ico仍404而SVG200。

@@ -1,0 +1,214 @@
+Observed URL: https://search.google.com/u/3/search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=eOJ6tMZf0Ss7Xt4ay3QmFA&alt_id=sC885HCQp_WSWw4sNsRZGA
+- banner:
+  - button:
+  - link:
+    - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - search:
+    - textbox [disabled]: Inspect any URL in "https://supplychainsai.com/"
+    - combobox
+    - button:
+  - button:
+    - generic: help_outline
+  - tooltip: Help
+  - button:
+    - generic: manage_accounts
+  - tooltip: User settings
+  - button:
+    - generic: notifications
+  - tooltip: Messages
+  - button:
+  - button:
+- dialog:
+  - navigation:
+    - button:
+      - combobox: https://supplychainsai.com/
+      - generic: 
+    - link:
+      - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: home
+      - generic: Overview
+    - link:
+      - /url: ./search-console/performance/insights?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lightbulb_2
+      - generic: Insights
+    - link:
+      - /url: ./search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Performance
+    - button [expanded]:
+      - generic: keyboard_arrow_up
+    - link:
+      - /url: ./search-console/performance/search-analytics/ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Generative AI
+    - button:
+      - generic: search
+      - generic: URL inspection
+    - generic: Indexing
+    - button [expanded]:
+      - generic: keyboard_arrow_up
+    - link:
+      - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: file_copy
+      - generic: Pages
+    - link:
+      - /url: ./search-console/video-index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: video_library
+      - generic: Videos
+    - link:
+      - /url: ./search-console/sitemaps?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: account_tree
+      - generic: Sitemaps
+    - link:
+      - /url: ./search-console/removals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: visibility_off
+      - generic: Removals
+    - generic: Experience
+    - button [expanded]:
+      - generic: keyboard_arrow_up
+    - link:
+      - /url: ./search-console/core-web-vitals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: speed
+      - generic: Core Web Vitals
+    - link:
+      - /url: ./search-console/https?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lock
+      - generic: HTTPS
+    - generic: Enhancements
+    - button [expanded]:
+      - generic: keyboard_arrow_up
+    - link:
+      - /url: ./search-console/r/breadcrumbs?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: layers
+      - generic: Breadcrumbs
+    - generic: Security & Manual Actions
+    - button:
+      - generic: keyboard_arrow_down
+    - link:
+      - /url: ./search-console/links?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: link_2
+      - generic: Links
+    - link:
+      - /url: ./search-console/achievements?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trophy
+      - generic: Achievements
+    - link:
+      - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: settings
+      - generic: Settings
+    - button:
+      - generic: feedback
+      - generic: Submit feedback
+    - button:
+      - generic: info
+      - generic: About Search Console
+    - link:
+      - /url: https://myaccount.google.com/privacypolicy?hl=en
+      - text: Privacy
+    - link:
+      - /url: https://myaccount.google.com/termsofservice?hl=en
+      - text: Terms
+- generic: https://supplychainsai.com/oem/
+- navigation:
+  - heading [level=1]: URL Inspection
+- link:
+  - /url: ./search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=sC885HCQp_WSWw4sNsRZGA&alt_id=eOJ6tMZf0Ss7Xt4ay3QmFA
+  - generic: Google index
+- button [disabled]:
+  - generic: Live test
+- main:
+  - generic: "Tested on: Nov 5, 2026, 5:55 PM"
+  - button:
+    - generic: 
+  - generic: check_circle
+  - generic: URL is available to Google
+  - text: If it gets indexed and selected as canonical, it could appear in Google Search results with all relevant enhancements.
+  - link:
+    - /url: https://support.google.com/webmasters/answer/9012289#url_can_be_on_google
+    - text: Learn more
+  - button:
+    - generic: View tested page
+  - generic: Page changed?
+  - button:
+    - generic: Request indexing
+  - button [expanded]:
+    - generic: check_circle
+    - generic: Page availability
+    - generic: Page can be indexed
+    - generic: 
+  - text: URL will be indexed only if
+  - link:
+    - /url: https://support.google.com/webmasters/answer/9012289#will_i_be_indexed
+    - text: certain conditions
+  - text: are met
+  - generic: Discovery
+  - generic: Not checked in live tests
+  - generic: Crawl
+  - generic: Time
+  - generic: Nov 5, 2026, 5:55:30 PM
+  - generic: Crawled as
+  - generic: Google Inspection Tool smartphone
+  - generic: Crawl allowed?
+  - generic: "Yes"
+  - generic: Page fetch
+  - generic: Successful
+  - generic: Indexing allowed?
+  - generic: "Yes"
+  - generic: Indexing
+  - generic: User-declared canonical
+  - generic: https://supplychainsai.com/oem/
+  - generic: Google-selected canonical
+  - button:
+    - generic: 
+  - generic: Only determined after indexing
+  - link:
+    - /url: https://support.google.com/webmasters/answer/9012289#url_can_be_on_google
+    - generic: Learn More
+  - button [disabled]:
+    - generic: check_circle
+    - generic: Video discovery
+    - generic: Video detected
+  - generic: Enhancements & Experience
+  - generic: URL has no enhancements
+- alertdialog "Oops! Something went wrong":
+  - heading "Oops! Something went wrong" [level=2]:
+    - generic: error_outline
+    - generic: Oops! Something went wrong
+  - generic: We had a problem submitting your indexing request. Please try again later.
+  - button "Dismiss" [active]:
+    - generic: Dismiss
+- main:
+  - generic "若有干扰，可在「设置」关闭悬浮球"
+  - button:
+  - text: 👋 Hi，想聊点什么～
+  - generic: 下笔没话说？
+  - generic: 告诉我主题，文案、标题、Slogan我都行
+  - generic: 名词听不懂？
+  - generic: 别自己搜了，直接问我，三秒给你讲明白
+  - generic: 脑袋空空了？
+  - generic: 一起脑暴，给产品起名、给活动想点子
+  - generic: 方案没头绪？
+  - generic: 思路我来理，框架我来搭，你来做决策
+  - generic: 新会话
+  - generic: 历史
+  - textbox "输入您的问题... (Enter 发送，Shift+Enter 换行)"
+  - generic: DeepSeek V4
+  - button "联网" [pressed]:
+    - generic: 联网
+  - generic: 内容由AI生成，仅供参考
+  - generic: Chat
+  - generic: 云笔记
+  - generic: 账号
+  - generic: 互动
+  - generic: 通知
+  - generic: 设置
+  - link:
+    - /url: https://yiban.io/style_center?from=side-panel
+  - link:
+    - /url: https://yiban.io/dashboard?from=side-panel
+  - link:
+    - /url: https://yiban.io/pricing?from=side-panel
+  - img "avatar"
+  - button "开通"
+- list
+- generic: Could not connect to the reCAPTCHA service. Please check your internet connection and reload to get a reCAPTCHA challenge.

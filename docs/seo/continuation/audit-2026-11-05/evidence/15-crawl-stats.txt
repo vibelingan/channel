@@ -1,0 +1,364 @@
+Observed URL: https://search.google.com/u/3/search-console/settings/crawl-stats?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+- banner:
+  - button "Main menu":
+  - link "Google Search Console":
+    - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - search:
+    - textbox [disabled]: Inspect any URL in "https://supplychainsai.com/"
+    - combobox "Inspect any URL in https://supplychainsai.com/"
+    - button "Search":
+  - button "Help":
+    - generic: help_outline
+  - tooltip: Help
+  - button "User settings":
+    - generic: manage_accounts
+  - tooltip: User settings
+  - button "Messages":
+    - generic: notifications
+  - tooltip: Messages
+  - button "Google apps":
+  - 'button "Google Account: Lingan Vibe ([account redacted])"':
+- dialog "navigational drawer":
+  - navigation "Primary":
+    - button "Search property":
+      - img "favicon"
+      - combobox "https://supplychainsai.com/"
+      - generic: 
+    - link "Overview":
+      - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: home
+      - generic: Overview
+    - link "Insights":
+      - /url: ./search-console/performance/insights?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lightbulb_2
+      - generic: Insights
+    - link "Performance":
+      - /url: ./search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Performance
+    - button "Performance report section":
+      - generic: keyboard_arrow_down
+    - button "URL inspection":
+      - generic: search
+      - generic: URL inspection
+    - generic: Indexing
+    - button "Indexing report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Pages":
+      - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: file_copy
+      - generic: Pages
+    - link "Videos":
+      - /url: ./search-console/video-index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: video_library
+      - generic: Videos
+    - link "Sitemaps":
+      - /url: ./search-console/sitemaps?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: account_tree
+      - generic: Sitemaps
+    - link "Removals":
+      - /url: ./search-console/removals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: visibility_off
+      - generic: Removals
+    - generic: Experience
+    - button "Experience report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Core Web Vitals":
+      - /url: ./search-console/core-web-vitals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: speed
+      - generic: Core Web Vitals
+    - link "HTTPS":
+      - /url: ./search-console/https?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lock
+      - generic: HTTPS
+    - generic: Enhancements
+    - button "Enhancements report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Breadcrumbs":
+      - /url: ./search-console/r/breadcrumbs?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: layers
+      - generic: Breadcrumbs
+    - generic: Security & Manual Actions
+    - button "Security & Manual Actions report section":
+      - generic: keyboard_arrow_down
+    - link "Links report":
+      - /url: ./search-console/links?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: link_2
+      - generic: Links
+    - link "Achievements":
+      - /url: ./search-console/achievements?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trophy
+      - generic: Achievements
+    - link "Settings":
+      - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: settings
+      - generic: Settings
+    - button "Submit feedback":
+      - generic: feedback
+      - generic: Submit feedback
+    - button "About Search Console":
+      - generic: info
+      - generic: About Search Console
+    - link "Privacy":
+      - /url: https://myaccount.google.com/privacypolicy?hl=en
+    - link "Terms":
+      - /url: https://myaccount.google.com/termsofservice?hl=en
+- navigation:
+  - heading [level=1]: Settings
+- main:
+  - generic: General settings
+  - link:
+    - /url: ./search-console/ownership?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Ownership verification
+    - generic: 
+    - generic: You are a verified owner
+    - generic: 
+  - link:
+    - /url: ./search-console/users?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Users and permissions
+    - generic: Lingan Vibe
+    - generic: 
+  - link:
+    - /url: ./search-console/settings/associations?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Associations
+    - generic: Associate a service with this property
+    - generic: 
+  - link:
+    - /url: ./search-console/settings/change-address?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Change of address
+    - generic: Inform Google when your site moves to a new address
+    - generic: 
+  - link:
+    - /url: ./search-console/settings/bulk-data-export?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Bulk data export
+    - generic: Daily export of performance data to BigQuery
+    - generic: 
+  - generic: AI controls
+  - link:
+    - /url: ./search-console/settings/search-gen-ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Search generative AI
+    - generic: subdirectory_arrow_right
+    - generic: "Inherit from: supplychainsai.com"
+    - generic: 
+  - generic: Crawling
+  - generic: robots.txt
+  - generic: Valid
+  - link:
+    - /url: ./search-console/settings/robots-txt?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Open report
+  - generic: Crawl stats
+  - generic: 2.35K crawl requests (last 90 days)
+  - link:
+    - /url: ./search-console/settings/crawl-stats?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: Open report
+  - generic: About
+  - generic: Property added to account
+  - generic: October 15, 2026
+  - button:
+    - generic: Remove property
+- navigation "Breadcrumbs":
+  - link "Settings":
+    - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - generic: 
+  - heading "Crawl stats" [level=1]
+- button "EXPORT":
+  - generic: 
+  - generic: EXPORT
+- generic: "Last updated: 11/3/26"
+- main:
+  - button "Total crawl requests 2.35K":
+    - generic "Total crawl requests":
+      - generic: 
+      - generic: Total crawl requests
+    - generic "2,346": 2.35K
+  - button "null":
+    - generic: 
+  - button "Total download size (Bytes) 395M":
+    - generic "Total download size (Bytes)":
+      - generic: Total download size (Bytes)
+    - generic "394,820,923": 395M
+  - button "null":
+    - generic: 
+  - button "Average response time (ms) 1.43K":
+    - generic "Average response time (ms)":
+      - generic: Average response time (ms)
+    - generic "1,426": 1.43K
+  - button "null":
+    - generic: 
+  - generic: Crawl requests
+  - generic: Loading…
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+    - generic: 
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - link "Host status":
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - link:
+    - /url: ./search-console/settings/crawl-stats/host-status?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - button "null":
+    - generic: 
+  - generic: Host had no problems in the last 90 days
+  - generic: 
+  - generic: Crawl requests breakdown
+  - generic: By response
+  - table:
+    - rowgroup:
+      - row "OK (200) 100%":
+        - cell "OK (200)"
+        - cell "100%"
+        - cell:
+      - row "Not found (404) < 1%":
+        - cell "Not found (404)"
+        - cell "< 1%"
+        - cell:
+      - row "Other client error (4XX) < 1%":
+        - cell "Other client error (4XX)"
+        - cell "< 1%"
+        - cell:
+  - generic: "Rows per page:"
+  - listbox "Number of rows per page":
+    - option "5" [selected]
+    - option "10"
+    - option "25"
+    - option "50"
+    - option "100"
+    - option "250"
+    - option "500"
+  - generic: 1-3 of 3
+  - generic: 
+  - generic: 
+  - generic: By purpose
+  - table:
+    - rowgroup:
+      - row "Discovery 57%":
+        - cell "Discovery"
+        - cell "57%"
+        - cell:
+      - row "Refresh 43%":
+        - cell "Refresh"
+        - cell "43%"
+        - cell:
+  - generic: "Rows per page:"
+  - listbox "Number of rows per page":
+    - option "5" [selected]
+    - option "10"
+    - option "25"
+    - option "50"
+    - option "100"
+    - option "250"
+    - option "500"
+  - generic: 1-2 of 2
+  - generic: 
+  - generic: 
+  - generic: By file type
+  - table:
+    - rowgroup:
+      - row "Image 43%":
+        - cell "Image"
+        - cell "43%"
+        - cell:
+      - row "HTML 28%":
+        - cell "HTML"
+        - cell "28%"
+        - cell:
+      - row "JavaScript 27%":
+        - cell "JavaScript"
+        - cell "27%"
+        - cell:
+      - row "CSS 1%":
+        - cell "CSS"
+        - cell "1%"
+        - cell:
+      - row "Unknown (failed requests) < 1%":
+        - cell "Unknown (failed requests)"
+        - cell "< 1%"
+        - cell:
+  - generic: "Rows per page:"
+  - listbox "Number of rows per page":
+    - option "5" [selected]
+    - option "10"
+    - option "25"
+    - option "50"
+    - option "100"
+    - option "250"
+    - option "500"
+  - generic: 1-5 of 5
+  - generic: 
+  - generic: 
+  - generic: By Googlebot type
+  - table:
+    - rowgroup:
+      - row "Smartphone 53%":
+        - cell "Smartphone"
+        - cell "53%"
+        - cell:
+      - row "Page resource load 25%":
+        - cell "Page resource load"
+        - cell "25%"
+        - cell:
+      - row "Other agent type 11%":
+        - cell "Other agent type"
+        - cell "11%"
+        - cell:
+      - row "Desktop 5%":
+        - cell "Desktop"
+        - cell "5%"
+        - cell:
+      - row "Image 5%":
+        - cell "Image"
+        - cell "5%"
+        - cell:
+  - generic: "Rows per page:"
+  - listbox "Number of rows per page":
+    - option "5" [selected]
+    - option "10"
+    - option "25"
+    - option "50"
+    - option "100"
+    - option "250"
+    - option "500"
+  - generic: 1-5 of 5
+  - generic: 
+  - generic: 
+- main:
+  - generic "若有干扰，可在「设置」关闭悬浮球"
+  - button:
+  - text: 👋 Hi，想聊点什么～
+  - generic: 下笔没话说？
+  - generic: 告诉我主题，文案、标题、Slogan我都行
+  - generic: 名词听不懂？
+  - generic: 别自己搜了，直接问我，三秒给你讲明白
+  - generic: 脑袋空空了？
+  - generic: 一起脑暴，给产品起名、给活动想点子
+  - generic: 方案没头绪？
+  - generic: 思路我来理，框架我来搭，你来做决策
+  - generic: 新会话
+  - generic: 历史
+  - textbox "输入您的问题... (Enter 发送，Shift+Enter 换行)"
+  - generic: DeepSeek V4
+  - button "联网" [pressed]:
+    - generic: 联网
+  - generic: 内容由AI生成，仅供参考
+  - generic: Chat
+  - generic: 云笔记
+  - generic: 账号
+  - generic: 互动
+  - generic: 通知
+  - generic: 设置
+  - link:
+    - /url: https://yiban.io/style_center?from=side-panel
+  - link:
+    - /url: https://yiban.io/dashboard?from=side-panel
+  - link:
+    - /url: https://yiban.io/pricing?from=side-panel
+  - img "avatar"
+  - button "开通"
+- list
+- generic: Loading...

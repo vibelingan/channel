@@ -1,0 +1,18 @@
+{
+  "scope": "audit evidence and design artifacts only; no application code tests or deployment in this round",
+  "checks": {
+    "json": true,
+    "documentLinks": true,
+    "reportTitles": 19,
+    "accountEmailRedaction": true,
+    "readOnlyScriptGuards": 2,
+    "sitemapUnique": 540,
+    "sitemapProducts": 528,
+    "image6MbFailuresVerified": 3,
+    "pinnedSkillHashes": true,
+    "diagramDeliveryNineChecks": true,
+    "diagramDesktopContainment": true,
+    "gitDiffCheck": true
+  },
+  "remoteCi": "recorded separately from local evidence checks"
+}

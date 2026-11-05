@@ -1,0 +1,15 @@
+# Diversity Innovations Limited — supplychainsai.com
+# Auth, admin, and form-result pages are private: keep them out of the index.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /account
+Disallow: /reset
+Disallow: /oem_submit_result
+Disallow: /api/
+# Public product images remain permission-checked by the image endpoint.
+Allow: /api/images/
+
+Sitemap: https://supplychainsai.com/sitemap-index.xml

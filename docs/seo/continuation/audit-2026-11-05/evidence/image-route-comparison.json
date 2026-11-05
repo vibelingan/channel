@@ -1,0 +1,21 @@
+[
+  {
+    "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+    "status": 400,
+    "type": "application/json; charset=utf-8",
+    "bytes": 318,
+    "errorBody": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (2948c557-d8f4-11f1-a20e-52540038063b). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"7975a8a5-f53d-4818-9df1-fa56fa4598e6\"}",
+    "cache": null
+  },
+  {
+    "url": "https://supplychainsai.com/api/images/ea7765a56aaa0aa70015ef4e20f9eed8",
+    "error": "TimeoutError: The operation was aborted due to timeout"
+  },
+  {
+    "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0aa70015ef4e20f9eed8",
+    "status": 200,
+    "type": "image/jpeg",
+    "bytes": 220114,
+    "cache": "no-store, no-cache, must-revalidate, max-age=0"
+  }
+]
