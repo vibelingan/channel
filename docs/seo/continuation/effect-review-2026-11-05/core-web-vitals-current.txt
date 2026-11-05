@@ -1,0 +1,67 @@
+help_outline
+Help
+manage_accounts
+User settings
+	
+notifications
+Messages
+
+home
+Overview
+lightbulb_2
+Insights
+trending_up
+Performance
+keyboard_arrow_down
+search
+URL inspection
+Indexing
+keyboard_arrow_up
+file_copy
+Pages
+video_library
+Videos
+account_tree
+Sitemaps
+visibility_off
+Removals
+Experience
+keyboard_arrow_up
+speed
+Core Web Vitals
+lock
+HTTPS
+Enhancements
+keyboard_arrow_up
+layers
+Breadcrumbs
+Security & Manual Actions
+keyboard_arrow_down
+link_2
+Links
+trophy
+Achievements
+settings
+Settings
+feedback
+Submit feedback
+info
+About Search Console
+PrivacyTerms
+Core Web Vitals
+Source: Chrome UX report
+
+Last updated: 11/2/26
+Mobile
+OPEN REPORT
+
+Not enough usage data in the last 90 days for this device type.
+Learn more
+Try PageSpeed Insights
+Desktop
+OPEN REPORT
+
+Not enough usage data in the last 90 days for this device type.
+Learn more
+Try PageSpeed Insights
+Core Web Vitals

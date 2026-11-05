@@ -1,0 +1,71 @@
+{
+  "observedAt": "2026-11-05T09:44:19.483Z",
+  "dataThrough": "2026-11-03",
+  "source": "Google Search Console visible daily table, Web, HTTPS URL-prefix property",
+  "weeks": [
+    {
+      "from": "2026-10-21",
+      "to": "2026-10-27",
+      "days": 7,
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0.0
+    },
+    {
+      "from": "2026-10-28",
+      "to": "2026-11-03",
+      "days": 7,
+      "clicks": 2,
+      "impressions": 16,
+      "ctr": 0.125
+    }
+  ],
+  "totalObserved": {
+    "clicks": 2,
+    "impressions": 21
+  },
+  "clickDays": [
+    {
+      "date": "2026-10-29",
+      "clicks": 2,
+      "impressions": 8
+    }
+  ],
+  "productUrlsWithImpressions": 4,
+  "productPageRows": [
+    [
+      "https://supplychainsai.com/products/p-28f0d1e6-07ee-4953-a99a-eb64054bd77c/",
+      "0",
+      "3",
+      "0%",
+      "55.7"
+    ],
+    [
+      "https://supplychainsai.com/products/p-8936cf4c-19a7-4684-a1cc-ce3295b48a52/",
+      "0",
+      "1",
+      "0%",
+      "6.0"
+    ],
+    [
+      "https://supplychainsai.com/products/p-74a34d8c-f697-4c03-a5eb-33af470c4740/",
+      "0",
+      "1",
+      "0%",
+      "52.0"
+    ],
+    [
+      "https://supplychainsai.com/products/p-faf2cc7a-d352-4790-a84c-f57df4df0952/",
+      "0",
+      "1",
+      "0%",
+      "88.0"
+    ]
+  ],
+  "limits": [
+    "Not proof of causal lift from SEO",
+    "Very small sample; all clicks on one day",
+    "Page aggregation differs from property totals",
+    "No verified enquiry attribution"
+  ]
+}
