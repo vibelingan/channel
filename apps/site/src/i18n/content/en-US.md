@@ -233,6 +233,10 @@ footer:
         - { label: 'Email: sales@supplychainsai.com', href: 'mailto:sales@supplychainsai.com' }
         - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
+      manufacturingPartner:
+        name: Channel Technology Limited
+        url: 'https://www.channel-hk.com/'
+        domain: channel-hk.com
   legal: © 2026 Diversity Innovations Limited. All rights reserved.
   filingNumber: 粤ICP备2026092477号-1
   filingUrl: 'https://beian.miit.gov.cn/'
