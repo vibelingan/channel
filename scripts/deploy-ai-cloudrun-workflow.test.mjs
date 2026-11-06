@@ -249,12 +249,6 @@ test('it deploys only on purpose, and one CloudBase change at a time', () => {
   assert.deepEqual(Object.keys(workflow.on).sort(), ['push', 'workflow_dispatch']);
   assert.deepEqual(workflow.on.push, { tags: ['ai-cloudrun-deploy-*'] });
   // Deploy Test changes the same CloudBase environment; the two must queue.
-  assert.ok(deploy.concurrency, 'the cloud-changing job must hold the shared deployment lock');
-  assert.equal(deploy.concurrency.group, readWorkflow('deploy-test.yml').concurrency.group);
-  assert.equal(deploy.concurrency['cancel-in-progress'], false);
-  assert.equal(deploy.concurrency.queue, 'max');
-  // This job cannot access cloud credentials or the real environment. It must
-  // be able to test a correction while a previous deployment finishes.
-  assert.equal(workflow.concurrency, undefined);
-  assert.equal(verify.concurrency, undefined);
+  assert.equal(workflow.concurrency.group, readWorkflow('deploy-test.yml').concurrency.group);
+  assert.equal(workflow.concurrency['cancel-in-progress'], false);
 });

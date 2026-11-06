@@ -181,7 +181,9 @@ export function AssistantExperience({
           (state.sessionStatus === 'welcome' || state.sessionStatus === 'ready') && (
             <section className="rounded-xl bg-white p-4 text-sm leading-relaxed shadow-sm">
               <p>
-                Find product options, understand OEM details, or prepare an inquiry for our team.
+                {capabilities.inquiries
+                  ? 'Find product options, understand OEM details, or prepare an inquiry for our team.'
+                  : 'Find product options and understand OEM details. For a quote, use the website inquiry form below.'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -349,8 +351,10 @@ export function AssistantExperience({
           </button>
         )}
         {state.sessionStatus === 'unavailable' ? (
+          // biome-ignore lint/a11y/useValidAnchor: This link navigates normally; the handler only closes the overlay.
           <a
             href="/#oem-inquiry"
+            onClick={() => session.setOpen(false)}
             className="flex min-h-11 items-center justify-center rounded-lg bg-accent-500 p-3 text-sm font-semibold text-brand-950"
           >
             Send your project to our team
@@ -367,6 +371,16 @@ export function AssistantExperience({
               disabled={blocked || session.retrySeconds > 0}
               textareaRef={composer}
             />
+            {!capabilities.inquiries && (
+              // biome-ignore lint/a11y/useValidAnchor: This link navigates normally; the handler only closes the overlay.
+              <a
+                href="/#oem-inquiry"
+                onClick={() => session.setOpen(false)}
+                className="mt-1 flex min-h-11 w-full items-center justify-center text-xs font-semibold text-brand-700 underline"
+              >
+                Request a quote · Website inquiry form
+              </a>
+            )}
             {!blocked && capabilities.inquiries && (
               <button
                 type="button"
