@@ -131,7 +131,7 @@ flowchart LR
 
 先调查 Channel PR [73](https://github.com/vibelingan/channel/pull/73)～[76](https://github.com/vibelingan/channel/pull/76)：不变集合重复读取、每文件单独SDK上传、只读阶段重复查询run/status、续租频率与180秒租约不相称，是实际重复工作；不是只凭“网络慢”提高超时。SDK初始化也不是最大的耗时，日志显示单连接上传及集合检查更值得优先解决。保留权威授权/写前围栏，在不变步骤间减少重复远端调用。
 
-本机全局Codex AGENTS与现有agentic-delivery-loop已更新，通用修订推到 orocsy/symphony 的 docs/proportional-engineering-20261106（3ff3fdf）。工程知识安装engineering-craft的PR #5快照99c4302（PR仍OPEN），仅规范化一处description中的比较符以通过Codex技能校验，规则内容不变；CloudBase专用skill来自Channel release fa8c8cd1已合并PR #78。旧Claude skill、其他工作区未修改。当前三个相关skill的结构校验通过。其他电脑/云端不会因同一登录账号自动获得本机文件，需安装同版本。
+本机全局Codex AGENTS与现有agentic-delivery-loop已更新，通用修订推到 orocsy/symphony 的 docs/proportional-engineering-20261106（3ff3fdf）。工程知识安装engineering-craft的PR #5快照99c4302（PR仍OPEN），仅规范化两处description中的角括号写法以通过Codex技能校验，规则内容不变；CloudBase专用skill来自Channel release fa8c8cd1已合并PR #78。旧Claude skill、其他工作区未修改。当前三个相关skill的结构校验通过。其他电脑/云端不会因同一登录账号自动获得本机文件，需安装同版本。
 
 原则有一手来源：[Google SRE](https://sre.google/workbook/eliminating-toil/)强调度量投入收益；[NIST](https://csrc.nist.gov/Projects/automated-combinatorial-testing-for-software/combinatorial-methods-in-testing/interactions-involved-in-software-failures)支持有意义的交互覆盖，也明确二元组合不能保证覆盖高阶故障；[Google Testing](https://testing.googleblog.com/2017/04/where-do-our-flaky-tests-come-from.html)记录大型测试更易不稳定；[Anthropic](https://www.anthropic.com/research/building-effective-agents)建议简单方案不够时才增加复杂性。落实为：MIU按业务行为切片；先测普通路径；有因果联系的重试/并发/撤权再组合；关键门禁做针对性缺陷注入；不遍历全部内部函数，不为绿灯反复跑测试，不靠新增防御层掩盖未知根因。适用的强制检查仍保留。
 
@@ -144,3 +144,5 @@ Apollo实际用作验证：Key安全接收，身份接口200且账号匹配；�
 设计与MIU见modules/SG6-apollo.md。流程图源见diagrams/apollo-readonly.json，生成查看页output/apollo/flow.html；9项结构检查无错误/警告，四种桌面尺寸及浅/深主题包含检查通过，并人工检查截图。运行产物不提交。原图及旧讨论文件不覆盖，整体架构仍可看HIGH-LEVEL.md与diagrams/modules.html。
 
 已核对SG6模块、HIGH-LEVEL、Hermes boundary/resend/model错误处理、client-bindings合同、Sales服务/CI、Claude提速文档及相关skill。措辞修正：“接通Apollo”改为“身份通过、搜索403”，避免以Key有效代替业务可用。
+
+远端验收：Hermes a294eb16f204c22ce728204e6b4e416a94d33671 的 [Apollo只读CI](https://github.com/vibelingan/hermesinfra/actions/runs/42172865175) 已成功；未合并、未部署。
