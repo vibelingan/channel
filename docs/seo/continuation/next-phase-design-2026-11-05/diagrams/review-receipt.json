@@ -22,10 +22,7 @@
       },
       "browserEvidence": "passed",
       "visualReview": "passed",
-      "visualReviewScope": [
-        "1440x900 light/dark screenshots",
-        "2048x1320 light screenshot"
-      ],
+      "visualReviewScope": ["1440x900 light/dark screenshots", "2048x1320 light screenshot"],
       "observations": [
         "No crossing routes or obscured node labels in inspected screenshots",
         "Desktop content and conclusion cards fit the viewport",
@@ -53,10 +50,7 @@
       },
       "browserEvidence": "passed",
       "visualReview": "passed",
-      "visualReviewScope": [
-        "1440x900 light/dark screenshots",
-        "2048x1320 light screenshot"
-      ],
+      "visualReviewScope": ["1440x900 light/dark screenshots", "2048x1320 light screenshot"],
       "observations": [
         "No crossing routes or obscured node labels in inspected screenshots",
         "Desktop content and conclusion cards fit the viewport",

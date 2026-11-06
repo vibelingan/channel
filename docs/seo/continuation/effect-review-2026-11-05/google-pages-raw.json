@@ -2,41 +2,11 @@
   "observedAt": "2026-11-05T09:45:44.193Z",
   "url": "https://search.google.com/u/3/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&breakdown=page",
   "rows": [
-    [
-      "Top pages",
-      "Clicks",
-      "Impressions",
-      "CTR",
-      "Position"
-    ],
-    [
-      "https://supplychainsai.com/",
-      "1",
-      "11",
-      "9.1%",
-      "1.2"
-    ],
-    [
-      "https://supplychainsai.com/blog/",
-      "1",
-      "1",
-      "100%",
-      "1.0"
-    ],
-    [
-      "https://supplychainsai.com/headphones/",
-      "0",
-      "7",
-      "0%",
-      "30.1"
-    ],
-    [
-      "https://supplychainsai.com/portfolio/",
-      "0",
-      "3",
-      "0%",
-      "2.0"
-    ],
+    ["Top pages", "Clicks", "Impressions", "CTR", "Position"],
+    ["https://supplychainsai.com/", "1", "11", "9.1%", "1.2"],
+    ["https://supplychainsai.com/blog/", "1", "1", "100%", "1.0"],
+    ["https://supplychainsai.com/headphones/", "0", "7", "0%", "30.1"],
+    ["https://supplychainsai.com/portfolio/", "0", "3", "0%", "2.0"],
     [
       "https://supplychainsai.com/products/p-28f0d1e6-07ee-4953-a99a-eb64054bd77c/",
       "0",

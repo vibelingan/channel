@@ -10,10 +10,7 @@
       "bytes": 5021685,
       "sha256": "fb0ea15a3153105632b674e7015200cf269f2cc3bc867bbba80b3cfc0e81f0ac",
       "finalUrl": "https://sc04.alicdn.com/kf/Sfb4701ec663c4bda8e77868cb9c2d0f45.png",
-      "dimensions": [
-        3000,
-        3000
-      ],
+      "dimensions": [3000, 3000],
       "pngSignatureValid": true,
       "durationSeconds": 20.038
     },
@@ -25,10 +22,7 @@
       "bytes": 4943448,
       "sha256": "ebee5cd061e17d5e3785244d2e4e8ac0ad2bd8ee9037424effb3aebbaf7dd7a1",
       "finalUrl": "https://sc04.alicdn.com/kf/H27f1e5ea3e724468b43fbf2f74509a6fl.png",
-      "dimensions": [
-        2755,
-        2755
-      ],
+      "dimensions": [2755, 2755],
       "pngSignatureValid": true,
       "durationSeconds": 18.039
     },
@@ -40,10 +34,7 @@
       "bytes": 5051781,
       "sha256": "d19e831af52b46794a442131c4060beb92ededfa616abb5b2b9af96b9e426885",
       "finalUrl": "https://sc04.alicdn.com/kf/H57f6fd4d151240b2a7f3467d66217717f.png",
-      "dimensions": [
-        2048,
-        2048
-      ],
+      "dimensions": [2048, 2048],
       "pngSignatureValid": true,
       "durationSeconds": 17.352
     },
