@@ -712,6 +712,59 @@ test(
 );
 
 test(
+  'uncited planner answers use fixed team follow-up while unapproved citations stay blocked',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { PublicCatalog } = await import('./product-workflow.ts');
+    const catalog = new PublicCatalog('https://catalog.invalid', async () => {
+      throw new Error('This fallback must not make another product request');
+    });
+    for (const [key, question, citations] of [
+      ['en', 'What is your MOQ?', []],
+      ['zh', '你们最低起订量是多少？', []],
+      ['unapproved', 'What is your MOQ?', [{ sourceId: 'private/secret', title: 'Private' }]],
+    ] as const) {
+      const c = await store.createConversation();
+      await store.appendVisitorMessage({
+        conversationId: c.id,
+        idempotencyKey: `uncited-followup-${key}`,
+        content: question,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      const engine = new FakeEngine({
+        script: ['{"kind":"answer","text":"UNVERIFIED commercial claim"}'],
+        citations: [...citations],
+      });
+      let modelCalls = 0;
+      const createRun = engine.createRun.bind(engine);
+      engine.createRun = async (...args) => {
+        modelCalls++;
+        return createRun(...args);
+      };
+      assert.equal(await processOne(store, engine, { ...config, catalog }), 'processed');
+      const events = await store.listEvents(c.id);
+      const terminal = events.at(-1);
+      assert.equal(JSON.stringify(events).includes('UNVERIFIED'), false);
+      assert.equal(modelCalls, 1);
+      if (key === 'unapproved') {
+        assert.equal(terminal?.type, 'error');
+        assert.equal(terminal.payload.category, PUBLICATION_BLOCKED);
+      } else {
+        assert.equal(terminal?.type, 'final');
+        assert.equal(terminal.payload.kind, 'team_followup');
+        assert.match(
+          String(terminal.payload.text),
+          key === 'zh' ? /团队进一步确认/ : /team needs to confirm/,
+        );
+      }
+      assert.equal((await store.getConversation(c.id))?.activeRunId, null);
+    }
+  },
+);
+
+test(
   'model inquiry suggestion cannot select an unseen product or submit anything',
   { skip },
   async () => {

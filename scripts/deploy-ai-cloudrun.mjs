@@ -391,10 +391,10 @@ async function smokeRoundTrip(url) {
     }
   }
   throw new Error(
-    'The BFF is ready but no answer came back, so the worker is not processing questions. ' +
-      'It keeps retrying rather than exiting, so CloudRun still shows it as running: open ai-worker ' +
-      'in the CloudRun console and look for knowledge_base_unreachable (it cannot reach the ' +
-      'knowledge base) or database_unavailable (it cannot reach PostgreSQL).',
+    'The BFF reached PostgreSQL, but the post-deploy question did not pass. ' +
+      'Check the error category above: an answer rejected by the publication policy does not ' +
+      'mean the worker stopped processing. If the stream timed out, also inspect worker startup ' +
+      'and database/knowledge connectivity before retrying the deployment.',
   );
 }
 
