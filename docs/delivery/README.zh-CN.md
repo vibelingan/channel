@@ -1,6 +1,6 @@
 # SEO / Blog：当前进度与执行入口
 
-2026-11-06 页脚合作方：用户允许将 main `16c86ed5` 的同一页脚补丁同步到现用发布来源，保留现站功能。网站主体在 test `ca348d93` 上启动 Deploy Test `42203918830`；文章服务仍为 `fad64a28`，本分支 `298e0781` 相比该运行版本的应用源码和相关依赖无差异，现仅添加三份源码中的 23 行页脚说明与官网链接。本地 Blog 构建及 41 项相关测试通过，尚待远端完整 CI、Blog HTTP 构建和独立服务发布。记录见[页脚工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
+2026-11-06 页脚合作方已上线并线上验收：main 源码 `16c86ed5`；网站发布源码 test `ca348d93`，Deploy Test `42203918830` 第3次运行成功；文章发布源码 feat/seo-foundation `cdd7225f`，完整 CI、Blog HTTP 及服务更新 `42218313506` 成功，正式健康检查返回同一提交，服务正常并承接100%流量。手机与电脑共14组页面检查通过，保留现站功能。用户另行授权的14份既有文件格式修正已提交，13份 JSON 数据核对不变。最终证据和历史见[页脚工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
 
 2026-11-05 当前入口：[实际搜索效果](../seo/continuation/effect-review-2026-11-05/README.zh-CN.md)、[平台逐项核查](../seo/continuation/audit-2026-11-05/README.zh-CN.md)、[下一阶段九模块高层设计](../seo/continuation/next-phase-design-2026-11-05/README.zh-CN.md)。商品自动更新已于11月4日启用并真实验收；www 301已上线，主域HTTP 301仍待完成；美国与本机各54次优化前基准完成，性能和海外CDN尚未实施。三张原图正常、网站传输超限；先前Blog分类400诊断依据不足，已在新设计更正。下方保留历史记录，不能把其中的“当前”当作今日状态。
 

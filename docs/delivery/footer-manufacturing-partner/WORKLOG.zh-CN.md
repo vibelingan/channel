@@ -1,5 +1,18 @@
 # 页脚制造合作方
 
+## 最终交付（2026-11-06）
+
+已上线并完成独立线上检查，无待处理的发布阻塞。以下为最终状态；后文保留执行时的历史快照。
+
+- main 源码提交 `16c86ed54f52fb21fda4a1a8b457acdf7f941e35`，记录提交 `8d3dca6b5cac0237ab1ee8ab7290a8fac0071af8`；未合并其他功能。
+- 网站发布源码 `ca348d93c5751ef7c9ee49251904374479014fb0`（test）。[Deploy Test 42203918830](https://github.com/vibelingan/channel/actions/runs/42203918830) 第3次运行成功；交付 `site-42203918830-3` 于 12:20:29 UTC accepted，产物摘要 `c12e6a965ca4f7ff787554cc938fa836de78da2a9eb7c8bebf04adf819a6cfda`。云端状态 SUCCEEDED，48项检查、47次页面写入，使用528件当前商品；发布锁、脏状态均为空，本次临时函数已清理。
+- 文章程序源码 `cdd7225f968f0e54c99197e629076ba666b616a3`（feat/seo-foundation）。[完整 CI 42216398832](https://github.com/vibelingan/channel/actions/runs/42216398832)、[Blog HTTP 42216398819](https://github.com/vibelingan/channel/actions/runs/42216398819) 均成功后，[独立服务更新 42218313506](https://github.com/vibelingan/channel/actions/runs/42218313506) 成功。另行读回提供商：blog-pages-010 状态 normal、100%流量、发布已结束；正式 health.json 返回同一 cdd7225f 提交及允许收录状态。CPU 0.25、内存0.5、实例上下限1、端口3000与更新前一致。
+- 已获用户明确授权的14文件格式修正包含在 cdd7225f：13份 JSON 逐份解析比较相等，只读脚本为排版、导入顺序及等价字符串修改。没有改变应用行为、业务数据或检查门禁。
+- 独立浏览器于12:38:36 UTC检查首页、OEM、案例、隐私、耳机分类、文章列表和一个实际商品页，各390/1440像素，共14组全部通过：状态200、初始HTML含合作方与官网链接、标题保持原值、外链安全属性正确、无横向溢出，网站原有 Privacy 链接保留。文章页原本没有 Privacy 链接，此次保持原样。线上手机/桌面截图已检查。
+- 本机证据：`output/partner-footer-release/after.json`、`live-home-{390,1440}.png`、`live-blog-{390,1440}.png`；网站正式回执在 `website-evidence/site-delivery/result.json`，文章更新前配置与恢复镜像在 `blog-evidence/result.json`。后者的 submitted 仅是提交阶段回执，最终成功以提供商状态和正式健康检查为准。
+
+交付只新增 Contact Us 下方的制造合作方说明与官网链接，保留公司主体、原有页面与现站功能，不修改商品和文章业务数据。后续文档提交仅保存验收记录，不改变上述已验证的运行源码。
+
 ## 经用户确认的发布续作
 
 用户现已明确授权“允许提交纯格式修正，继续完成文章页脚上线”。暂存前再次核对13份 JSON 解析值未变，全库1893文件 Lint 通过，只读脚本语法通过。将提交下述14文件格式修正并重新通过精确提交的完整 CI、Blog HTTP 构建后再发布。网站第3次发布已完成44/48项检查；此前辅助归档已由原流程完整读回、校验并登记，摘要为1eb1980ca3f9bf76741a0ffeeb331801cb21908f4df617d1a8934df5d2913f5f，83432639字节。
