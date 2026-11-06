@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+2026-11-06 页脚合作方：按用户要求直接基于远端 main `27fd3d10` 实现 Contact Us 下的 `Manufacturing partner: Channel Technology Limited` 官网链接，保留既有设计。完整网站测试 1476 通过、0 失败、1 跳过；类型检查和本地构建通过，320/390/768/1440 宽度的可见性、键盘焦点及溢出检查通过。代码完成不等于上线：现站已发布 `test=fa8c8cd1`（Deploy Test `42110373909`），包含 main 尚未收纳的助手、隐私页等内容。正式发布方式等待用户确认，避免旧 main 整站覆盖现站。详见[页脚工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
+
 2026-10-26。本页是当前进度入口，后续会话先读这里，再看工作记录。沿用原 `feat/seo-foundation`，pricing 已合入 main 的内容已整合，未创建新分支或 worktree。
 
 ## 目前有什么结果
