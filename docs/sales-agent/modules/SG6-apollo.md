@@ -30,9 +30,11 @@ flowchart LR
 
 ## SG6.0 / SG6.1 详细设计与 MIU
 
-现有代码：Hermes 的 `sales_flow/resend_drafts.py` 已采用 httpx、固定服务地址、不跟重定向、受限响应和安全错误；复用相同依赖及 strict JSON parser。网站询盘的授权协议绑定 inquiry，不能伪造一条询盘来承载获客活动。
+现有代码：Hermes 的 `sales_flow/resend_drafts.py` 已采用 httpx、固定服务地址、不跟重定向、受限响应和安全错误；复用相同依赖及固定服务/错误处理惯例；合同 parser 禁止所有小数，Apollo响应另用标准库 Decimal 解码并验证输出字段。网站询盘的授权协议绑定 inquiry，不能伪造一条询盘来承载获客活动。
 
-目标接口：`ApolloReadClient(expected_workspace_id, credential)`，显式 `authenticate()` 一次确认 profile.team_id；随后 `search_people(filters)` / `search_companies(filters)` 每页仅一次 POST。Key 与 workspace 不进入模型参数。每个客户/工作单独创建实例，不跨客户复用；既有宿主认证/客户绑定必须先完成，才可把查询函数注册为工具。本单元不新增对公众开放的 HTTP 路由。
+实现代码位于 Hermes `feat/apollo-readonly-20261106`（a294eb1）。当前低层连接/查询已有代码，岗位任务接线仍待后续；不把下面接口当成业务已上线。
+
+目标接口：`ApolloReadClient(expected_workspace_id, credential)`，显式 `authenticate()` 一次确认 profile.team_id；随后 `search_people(filters)` / `search_companies(filters)` 每页仅一次 POST；人员关键词用 `q_keywords`，公司关键词用 `q_organization_keyword_tags`。Key 与 workspace 不进入模型参数。每个客户/工作单独创建实例，不跨客户复用；既有宿主认证/客户绑定必须先完成，才可把查询函数注册为工具。本单元不新增对公众开放的 HTTP 路由。
 
 | MIU | 用户能得到什么 | 关键数据/约束 | 验证与停止条件 |
 |---|---|---|---|
