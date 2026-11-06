@@ -83,6 +83,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Root tests include real Chromium/WebKit component tests, just like
+      # CI's site unit group. A fresh runner has no Playwright browsers.
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
+          fi
+
+      - name: Install browsers for component unit tests
+        run: pnpm exec playwright install --with-deps chromium webkit
+
       - name: Unit tests, including the deployment contracts
         run: pnpm test
 

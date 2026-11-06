@@ -193,6 +193,13 @@ test('nothing is deployed until the commit has passed lint, typecheck and every 
   assert.equal(verify.services?.postgres?.image, 'postgres:16');
 });
 
+test('fresh AI deployment runners install the browsers before the root tests', () => {
+  const browsers = stepRunning(verify, 'pnpm exec playwright install --with-deps chromium webkit');
+  const tests = stepRunning(verify, 'pnpm test');
+  assert.equal(browsers.if, undefined, 'root tests always include browser component tests');
+  assert.ok(verify.steps.indexOf(browsers) < verify.steps.indexOf(tests));
+});
+
 test('the deploy step is given every setting the deploy reads, from the right store', () => {
   const deployStep = stepRunning(deploy, 'pnpm deploy:ai:cloudrun');
   const given = { ...deploy.env, ...deployStep.env };

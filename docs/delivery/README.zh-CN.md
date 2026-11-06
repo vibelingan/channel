@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+2026-11-07 AI 独立发布：继续使用 Claude 的整合发布线，保留已上线页脚。本次只发布 `ai-bff`／`ai-worker`，不重启现有 Hermes Agent。第一轮发布前 CI 因缺少浏览器测试依赖停止，尚未替换线上服务；已复用普通 CI 的浏览器安装步骤，重新验证后继续。真实库、新引擎设置、Sales 部署限制和后续收信范围统一见[助手发布记录 §7.1](../ai-platform/assistant-ui/ROADMAP.md#71-现在本轮按顺序不需要再决定)。
+
 2026-11-06 页脚合作方发布：main 已有代码提交 `16c86ed5` 和交接记录 `8d3dca6b`。用户确认允许只将页脚补丁同步到现用发布版本，保留现站助手、隐私页及其他行为。本次在 `test=fa8c8cd1` 上仅增加 Contact Us 下的 Manufacturing partner 说明与 Channel Technology Limited 官网链接，既有 Privacy 入口保留；34 项相关测试通过。准备经正常 Deploy Test 运行完整检查和发布，文章服务另走既有独立发布入口；此时尚未上线。恢复来源是本次写入前对 fa8c8cd1 的备份及现用 Blog 镜像，不回灌数据库。详见[工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
 
 2026-11-06 最终测试发布：release/assistant-seo-20261104 在 a7ee7b90 之后又合入 #72（docs 证据归档到标签 archive/docs-evidence-2026-11-05）、#73–#76（部署提速）、#77（函数备份名带重跑次数）、#78（CloudBase 项目技能 .claude/skills/cloudbase-engineering）、#79（Codex 在 #71 的三条发现：BFF 暴露 Retry-After、worker 自身超时会终止运行、刷新保留可续接的回答；外加 sales-integration 冻结时钟导致的 CI 偶发失败）。test 快进到 3984f6b5，Deploy Test 42101386132 一次通过，总用时 31.4 分钟（11月4日含重跑为 127.6 分钟）：CloudBase 步骤 4.8 分钟，网页送达 4.3 分钟；网页产物与上一版相同（52a8a8b2…），因此仍是 0 页上传，大量页面变化时的耗时尚未实测。线上读回：三个函数 deployedReleaseId 均为 3984f6b5（代码未变，releaseId 保持 f2226549）；11 个页面及 sitemap/robots 为 200；首页新主体名 15 处、旧名 0 处；区域临时函数两次清理均已确认；函数备份名为 function-backup-before-3984f6b5…-42101386132-1。AI 新聊天仍关闭，BFF/worker 的修复需新 DATABASE_URL 后经 ai-cloudrun-deploy 标签单独发布。经验已提交 engineering-craft #4、#5（待 Nina 审核）。回滚点不变：标签 rollback/test-live-before-20261105 → 91443842。
