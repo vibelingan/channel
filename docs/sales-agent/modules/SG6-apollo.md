@@ -5,7 +5,7 @@
 ## 当前真实结果与决定
 
 - 专用 Key 已安全接收；auth/health 和 users/api_profile 均返回 200，账号匹配预期登录邮箱。
-- 人员搜索 mixed_people/api_search、新公司搜索 mixed_companies/search 各做一次最小查询，均返回 403。原因暂不能仅凭状态码区分 Key 范围与账号资格；不反复重试、不改用其他客户凭据、不自动开试用/付费。
+- 人员搜索 mixed_people/api_search、新公司搜索 mixed_companies/search 各做一次最小查询，均返回 403。进一步核对错误类别为 `API_INACCESSIBLE`，错误明确提到当前 Free 计划及升级要求；当前Free计划不能完成搜索。Key范围也必须匹配相应接口；不反复重试、不改用其他客户凭据、不自动开试用/付费。
 - 官网询盘与主动获客独立。官网提交成功仍走 Channel → Hermes 销售准备 → Resend 草稿/审阅；不会为了 Apollo 403 阻塞这条线。
 - Apollo 首期只负责发现候选，不接邮箱、不启动 Sequence、不发邮件。客户已询价的后续邮件与陌生人冷开发的发送资格分开；Resend 的反垃圾规则不能因接通 Apollo 被绕过。
 
