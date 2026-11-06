@@ -49,6 +49,20 @@ const { brand, footer } = Astro.props;
                 </li>
               ))}
             </ul>
+            {column.manufacturingPartner && (
+              <p class="mt-6 text-sm leading-relaxed text-white/65">
+                <span class="block text-white/90">Manufacturing partner:</span>
+                <a
+                  href={column.manufacturingPartner.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="underline decoration-white/30 underline-offset-4 transition hover:text-white hover:decoration-white focus-visible:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                >
+                  {column.manufacturingPartner.name}
+                  <span class="block">{column.manufacturingPartner.domain}</span>
+                </a>
+              </p>
+            )}
           </div>
         ))
       }

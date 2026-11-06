@@ -30,6 +30,11 @@ export interface ContentSection {
 export interface FooterColumn {
   heading: string;
   links: CtaLink[];
+  manufacturingPartner?: {
+    name: string;
+    url: string;
+    domain: string;
+  };
 }
 
 export interface WorkflowComparisonStep {
