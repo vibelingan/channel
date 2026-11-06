@@ -668,8 +668,10 @@ async function startRun(
         });
         // Missing evidence is a normal handoff, not a service outage. Publish
         // only the fixed application reply; keep the model's claim withheld.
-        if (plan.kind === 'answer' && rawEvent.citations.length === 0)
+        if (plan.kind === 'answer' && rawEvent.citations.length === 0) {
           plan = { kind: 'help', topic: 'no_knowledge' };
+          proposed = [];
+        }
         if (plan.kind === 'search' || plan.kind === 'lookup') {
           await finishProduct(plan);
           return;

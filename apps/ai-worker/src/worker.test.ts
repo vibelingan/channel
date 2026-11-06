@@ -734,7 +734,15 @@ test(
         engineVersion: '0.1.0',
       });
       const engine = new FakeEngine({
-        script: ['{"kind":"answer","text":"UNVERIFIED commercial claim"}'],
+        script: [
+          JSON.stringify({
+            kind: 'answer',
+            text: 'UNVERIFIED commercial claim',
+            suggestions: [
+              { label: 'MOQ is 50 units', utterance: 'Your MOQ is 50 units.', kind: 'ask' },
+            ],
+          }),
+        ],
         citations: [...citations],
       });
       let modelCalls = 0;
@@ -754,6 +762,7 @@ test(
       } else {
         assert.equal(terminal?.type, 'final');
         assert.equal(terminal.payload.kind, 'team_followup');
+        assert.equal(terminal.payload.suggestions, undefined);
         assert.match(
           String(terminal.payload.text),
           key === 'zh' ? /团队进一步确认/ : /team needs to confirm/,

@@ -21,12 +21,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # The same key as Deploy Test: both change the one CloudBase environment.
-  group: cloudbase-deploy-test
-  cancel-in-progress: false
-  queue: max
-
 jobs:
   # CI runs these checks as well, but separately: a tag push neither waits for CI
   # nor stops when CI fails. Running them here, in a job the deploy needs, is
@@ -107,6 +101,12 @@ jobs:
   deploy:
     name: Deploy and verify ai-bff and ai-worker
     needs: verify
+    # Tests have no cloud access. Only the cloud-changing job holds the same
+    # lock as Deploy Test, so both writers remain serialized.
+    concurrency:
+      group: cloudbase-deploy-test
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     # Room for the deploy script's own limits: 40 minutes of builds, 5 for
     # readiness and three round trips, on top of install and the probe.
