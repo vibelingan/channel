@@ -1,5 +1,7 @@
 # 整体设计
 
+2026-11-06：Apollo 只读试点以 [SG6 当前接入设计](modules/SG6-apollo.md) 为准。官网询盘与获客目标是两个入口，复用 Hermes 平台与岗位能力，数据/产品/营销资格保持各自范围。当前真实 Key 身份验收成功，两个搜索接口仍403；不启用 Apollo 发信或新获客客户的 Resend 自动推广。
+
 2026-10-30 最新 SG3.2：Hermes 自动消费与真实模型接线已完成开发、独立复核和合成验收，跨仓库及真实模型 62 项通过；代码 `05b17224` 已推送。未部署或发送邮件。见[本轮交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)。下面较早日期的记录保留其当时状态。
 
 2026-10-28 实施进度：用户已授权分步实施D1；[SG0.3共同协议](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG0.3-VALIDATION.md)及[SG1.3读取门禁](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG1.3-VALIDATION.md)已有代码与验证。Hermes持久读取授权已完成本地与远端验证，见[SG2.4报告](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG2.4-REPORT.md)。自动来源核验／授权签发、任务独立上下文及真实模型工具循环仍待接入，live仍关闭。下文10/26暂停／待确认描述为当时状态。
