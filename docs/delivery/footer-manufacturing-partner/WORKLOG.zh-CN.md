@@ -25,4 +25,12 @@
 - 本地测试快照构建通过：19 个 HTML 的 SEO 检查通过；首页、OEM、案例、产品页初始 HTML 含关系、公司名和链接。本地产物为两件合成商品，仅供预览，不能用于正式发布。
 - Playwright 实测 viewport=320/390/768/1440：合作方链接可见，可键盘聚焦，无横向溢出；预览截图 output/partner-footer-{width}.png。
 - 裸域名在一次浏览器访问中返回 Got New Host 占位页；HTTP 跟随跳转和 www 地址均返回 200，标题 Channel Technology Limited。链接使用直接可用的 www 地址，显示域名不变。此结论只涉及本次可访问性，不证明企业隶属关系。
-- 裸域名改为直接 www 后重新构建通过；真实浏览器实际点击链接的新窗口验收单独记录。
+- 裸域名改为直接 www 后重新构建通过；390 像素浏览器实际点击页脚链接，新窗口打开 https://www.channel-hk.com/，标题为 Channel Technology Limited。
+
+## 代码交付与待确认事项
+
+代码提交 `16c86ed54f52fb21fda4a1a8b457acdf7f941e35` 已从远端 main `27fd3d10` 直接快进推送到 main；没有合并其他功能分支，也没有改写已有本地 main 引用。当前工作区保留该 main 来源的 detached checkout。
+
+该代码提交的 GitHub [CI](https://github.com/vibelingan/channel/actions/runs/42202307297) 与 [浏览器回归](https://github.com/vibelingan/channel/actions/runs/42202307222) 已启动，截至本次记录仍在运行，不能记为通过。
+
+尚未发布到正式网站。已向用户询问：代码仍直接落 main，上线时是否允许只把本次页脚补丁同步到现用发布版本，以保留当前助手、隐私页等功能；此举不把其他功能合并到 main。等待回答期间不更新其他分支、不写云端。
