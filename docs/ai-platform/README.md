@@ -29,6 +29,8 @@ the architecture above wins and the specifying document is corrected.
 | [MIU-0-RUNBOOK.md](./MIU-0-RUNBOOK.md) | The executable preflight for local Docker, cloud integration probes, credentials, external providers, and human decisions | Starting infrastructure or MIU 0 work |
 | [PRODUCTION-KB-CLOUDRUN-RUNBOOK.md](./PRODUCTION-KB-CLOUDRUN-RUNBOOK.md) | Live AnythingLLM-compatible KB probe, secret audit, reproducible local setup, and CloudBase Run + TencentDB PostgreSQL deployment gate | Connecting a real KB or preparing the first cloud integration window |
 | [MIU-IMPLEMENTATION-TRACE.md](./MIU-IMPLEMENTATION-TRACE.md) | Implemented BFF, worker, store, widget, engine adapter and deployment-preparation trace with checks | Reviewing or continuing the current implementation |
+| [ADR-003-TOOL-CALLING-SALES-AGENT.md](./ADR-003-TOOL-CALLING-SALES-AGENT.md) | **Proposed.** Phase 2: worker-run tool-calling loop, catalog index in PostgreSQL, and the SECURITY/LLD amendments it requires | Any Phase 2 agent, catalog or tool work |
+| [Phase 2 plan](../ai-assistant-phase2/PLAN.md) and [spec](../ai-assistant-phase2/SPEC.md) | **Proposed.** Status evaluation, product-aware agent design, memory model, MIUs A0–D4, owner decisions D1–D7 | Starting Phase 2 |
 
 ## Historical and Supporting Documents
 

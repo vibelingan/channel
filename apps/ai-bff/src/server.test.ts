@@ -180,6 +180,48 @@ test('SSE Last-Event-ID resumes with no duplicate committed event', { skip }, as
   assert.match(body, /id: 2\nevent: token\ndata: .*"two"/);
 });
 
+test('SSE answer events name the message they reply to', { skip }, async () => {
+  assert.ok(store);
+  const created = await createConversation();
+  const acceptedResponse = await fetch(
+    `${baseUrl}/api/ai/conversations/${created.conversationId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${created.credential}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ message: 'hello', idempotencyKey: 'message-reply-to' }),
+    },
+  );
+  const accepted = (await acceptedResponse.json()) as { messageId: string; runId: string };
+  const claim = await store.claimRun(accepted.runId);
+  assert.ok(claim);
+  await store.appendEventFenced({
+    conversationId: created.conversationId,
+    runId: accepted.runId,
+    expectedControlVersion: claim.controlVersion,
+    claimEpoch: claim.claimEpoch,
+    type: 'token',
+    payload: { text: 'hello back' },
+  });
+
+  const response = await fetch(`${baseUrl}/api/ai/conversations/${created.conversationId}/events`, {
+    headers: { authorization: `Bearer ${created.credential}`, 'last-event-id': '0' },
+  });
+  const data = /\ndata: (.*)\n/.exec(await response.text())?.[1];
+  assert.ok(data);
+  // The widget matches this against the messageId it got when posting, so an
+  // answer that finishes while nobody is listening never lands under a newer
+  // question.
+  assert.deepEqual(JSON.parse(data), {
+    type: 'token',
+    sequence: 1,
+    replyTo: accepted.messageId,
+    text: 'hello back',
+  });
+});
+
 async function createConversation(): Promise<{ conversationId: string; credential: string }> {
   const response = await fetch(`${baseUrl}/api/ai/conversations`, {
     method: 'POST',
