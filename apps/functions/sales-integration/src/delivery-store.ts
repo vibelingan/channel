@@ -1,4 +1,5 @@
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
+import { createCatalogTransactionReads } from '@vibelingan-channel/db/cloudbase-transaction-reads';
 import {
   assertSalesSdkWrite,
   normalizeSalesSdkDocument,
@@ -38,19 +39,21 @@ export function createDeliveryStore(db: DeliveryDatabase): DeliveryStore {
     transaction: (operation) =>
       db.runTransaction(async (transaction) => {
         let writing = false;
+        // The native transaction already fixes a snapshot; repeated gates reuse its rows.
+        const reads = createCatalogTransactionReads(async (collection, id) =>
+          normalizeSalesSdkDocument(await transaction.collection(collection).doc(id).get(), id),
+        );
         return operation({
           read: async (collection, id) => {
             if (writing) throw new Error('Delivery transaction read after write');
             validTarget(collection, id, false);
-            return normalizeSalesSdkDocument(
-              await transaction.collection(collection).doc(id).get(),
-              id,
-            );
+            return reads.get(collection, id);
           },
           write: async (collection, id, data) => {
             validTarget(collection, id, true);
             if (Object.hasOwn(data, '_id')) throw new Error('Delivery data contains document id');
             writing = true;
+            reads.beforeWrite();
             assertSalesSdkWrite(await transaction.collection(collection).doc(id).set(data), id);
           },
         });

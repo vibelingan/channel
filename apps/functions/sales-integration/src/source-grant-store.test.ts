@@ -13,6 +13,7 @@ function sdkFixture() {
     code?: string;
     error?: string;
   } = { upserted: [{ _id: 'one' }] };
+  const reads: Array<[string, string]> = [];
   const writes: Array<{
     collection: string;
     id: string;
@@ -24,11 +25,14 @@ function sdkFixture() {
       operation({
         collection: (collection) => ({
           doc: (id) => ({
-            get: async () => ({
-              data,
-              ...(code === undefined ? {} : { code }),
-              ...(error ? { error: 'synthetic' } : {}),
-            }),
+            get: async () => {
+              reads.push([collection, id]);
+              return {
+                data,
+                ...(code === undefined ? {} : { code }),
+                ...(error ? { error: 'synthetic' } : {}),
+              };
+            },
             set: async (value) => {
               writes.push({ collection, id, data: value });
               return acknowledgement;
@@ -46,6 +50,7 @@ function sdkFixture() {
   return {
     store: createCloudBaseSourceGrantStore(db),
     writes,
+    reads,
     setData: (value: unknown) => {
       data = value;
     },
@@ -138,4 +143,58 @@ test('CloudBase grant adapter rejects ambiguous documents, unacknowledged writes
       await tx.read('channelSalesInstallations', 'one');
     }),
   );
+});
+
+test('snapshot reuse avoids sequential and concurrent duplicate reads without sharing returned objects', async () => {
+  const s = sdkFixture();
+  s.setData({ _id: 'one', record: { state: 'active' } });
+  await s.store.transaction(async (tx) => {
+    const first = await tx.read('channelSalesBindings', 'one');
+    assert.ok(first && typeof first === 'object');
+    const record: unknown = Reflect.get(first, 'record');
+    assert.ok(record && typeof record === 'object');
+    Reflect.set(record, 'state', 'changed by caller');
+    const [second, third] = await Promise.all([
+      tx.read('channelSalesBindings', 'one'),
+      tx.read('channelSalesBindings', 'one'),
+    ]);
+    assert.deepEqual(second, { _id: 'one', record: { state: 'active' } });
+    assert.deepEqual(third, second);
+    assert.notEqual(second, third);
+    assert.equal(s.reads.length, 1);
+    await tx.read('channelSalesInstallations', 'one');
+    assert.equal(s.reads.length, 2, 'Same ID in another collection is a different document');
+  });
+  s.setData({ _id: 'one', record: { state: 'revoked' } });
+  assert.deepEqual(await s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')), {
+    _id: 'one',
+    record: { state: 'revoked' },
+  });
+  assert.equal(s.reads.length, 3, 'A new transaction must read current authority');
+});
+
+test('snapshot reuse includes missing documents and cannot bypass the write barrier', async () => {
+  const s = sdkFixture();
+  s.setData(null);
+  await s.store.transaction(async (tx) => {
+    assert.equal(await tx.read('channelSalesBindings', 'one'), null);
+    assert.equal(await tx.read('channelSalesBindings', 'one'), null);
+    assert.equal(s.reads.length, 1);
+    await tx.write('channelSalesTaskLeases', 'one', { record: {} });
+    await assert.rejects(tx.read('channelSalesBindings', 'one'), /read after write/);
+    assert.equal(s.reads.length, 1, 'No cached or native read is allowed after a write');
+  });
+});
+
+test('a failed transaction cannot supply cached authority to its retry', async () => {
+  const s = sdkFixture();
+  s.setCode('SYNTHETIC_FAILURE');
+  await assert.rejects(s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')));
+  s.setCode(undefined);
+  s.setData({ _id: 'one', record: { state: 'revoked' } });
+  assert.deepEqual(await s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')), {
+    _id: 'one',
+    record: { state: 'revoked' },
+  });
+  assert.equal(s.reads.length, 2);
 });

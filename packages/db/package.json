@@ -17,6 +17,7 @@
     "./article-repository": "./src/article-repository.ts",
     "./article-dummy": "./src/article-dummy.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts",
+    "./cloudbase-transaction-reads": "./src/cloudbase-transaction-reads.ts",
     "./article-release-source": "./src/article-release-source.ts",
     "./article-build-assets": "./src/article-build-assets.ts",
     "./catalog-image-reference-store": "./src/catalog-image-reference-store.ts",

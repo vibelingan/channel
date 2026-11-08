@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import type { NodeSdkDatabase } from '@vibelingan-channel/db/cloudbase';
 import { type DeliveryDatabase, createDeliveryStore } from './delivery-store.ts';
+import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
 
 const owner = {
   client_id: 'client_a',
@@ -15,11 +16,15 @@ function probe() {
   let scan: unknown = { data: [] };
   let acknowledgement: unknown = { updated: 1 };
   const calls: Array<[string, unknown]> = [];
+  const reads: Array<[string, string]> = [];
   const transactions: NodeSdkDatabase['runTransaction'] = async (operation) =>
     operation({
-      collection: () => ({
-        doc: () => ({
-          get: async () => read as { data: unknown },
+      collection: (collection) => ({
+        doc: (id) => ({
+          get: async () => {
+            reads.push([collection, id]);
+            return read as { data: unknown };
+          },
           set: async (data) => {
             calls.push(['set', data]);
             return acknowledgement as { updated?: number };
@@ -56,6 +61,7 @@ function probe() {
   return {
     store: createDeliveryStore(db),
     calls,
+    reads,
     setRead: (value: unknown) => {
       read = value;
     },
@@ -185,6 +191,132 @@ test('installed database SDK serializes the scoped active queue query without ne
       'record.status': { $in: ['pending', 'retry', 'inflight'] },
       _id: { $gt: 'a'.repeat(64) },
     });
+  } finally {
+    Reflect.set(Constructor, 'reqClass', original);
+  }
+});
+
+test('snapshot reuse avoids sequential and concurrent duplicate reads without sharing returned objects', async () => {
+  const s = probe();
+  s.setRead({ data: { _id: 'one', record: { state: 'active' } } });
+  await s.store.transaction(async (tx) => {
+    const first = await tx.read('channelSalesBindings', 'one');
+    assert.ok(first && typeof first === 'object');
+    const record: unknown = Reflect.get(first, 'record');
+    assert.ok(record && typeof record === 'object');
+    Reflect.set(record, 'state', 'changed by caller');
+    const [second, third] = await Promise.all([
+      tx.read('channelSalesBindings', 'one'),
+      tx.read('channelSalesBindings', 'one'),
+    ]);
+    assert.deepEqual(second, { _id: 'one', record: { state: 'active' } });
+    assert.deepEqual(third, second);
+    assert.notEqual(second, third);
+    assert.equal(s.reads.length, 1);
+    await tx.read('channelSalesInstallations', 'one');
+    assert.equal(s.reads.length, 2, 'Same ID in another collection is a different document');
+  });
+  s.setRead({ data: { _id: 'one', record: { state: 'revoked' } } });
+  assert.deepEqual(await s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')), {
+    _id: 'one',
+    record: { state: 'revoked' },
+  });
+  assert.equal(s.reads.length, 3, 'A new transaction must read current authority');
+});
+
+test('snapshot reuse includes missing documents and cannot bypass the write barrier', async () => {
+  const s = probe();
+  s.setRead({ data: null });
+  await s.store.transaction(async (tx) => {
+    assert.equal(await tx.read('channelSalesBindings', 'one'), null);
+    assert.equal(await tx.read('channelSalesBindings', 'one'), null);
+    assert.equal(s.reads.length, 1);
+    await tx.write('channelSalesSourceDeliveries', 'one', { record: {} });
+    await assert.rejects(tx.read('channelSalesBindings', 'one'), /read after write/);
+    assert.equal(s.reads.length, 1, 'No cached or native read is allowed after a write');
+  });
+});
+
+test('a failed transaction cannot supply cached authority to its retry', async () => {
+  const s = probe();
+  s.setRead({ data: null, code: 'SYNTHETIC_FAILURE' });
+  await assert.rejects(s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')));
+  s.setRead({ data: { _id: 'one', record: { state: 'revoked' } } });
+  assert.deepEqual(await s.store.transaction((tx) => tx.read('channelSalesBindings', 'one')), {
+    _id: 'one',
+    record: { state: 'revoked' },
+  });
+  assert.equal(s.reads.length, 2);
+});
+
+test('installed SDK conflict retries start both adapters with fresh transaction snapshots', async () => {
+  const localRequire = createRequire(
+    new URL('../../../../packages/db/package.json', import.meta.url),
+  );
+  const sdkRequire = createRequire(localRequire.resolve('@cloudbase/node-sdk'));
+  const installed: unknown = sdkRequire('@cloudbase/database');
+  assert.ok(installed && typeof installed === 'object');
+  const Constructor: unknown = Reflect.get(installed, 'Db');
+  assert.ok(typeof Constructor === 'function');
+  const original: unknown = Reflect.get(Constructor, 'reqClass');
+  let starts = 0;
+  const reads: unknown[] = [];
+  class OfflineRequest {
+    async send(method: unknown, payload: unknown) {
+      if (method === 'database.startTransaction') return { transactionId: `snapshot-${++starts}` };
+      if (method === 'database.commitTransaction') {
+        return starts === 1 ? { code: 'DATABASE_TRANSACTION_CONFLICT' } : {};
+      }
+      if (method === 'database.abortTransaction') return {};
+      assert.equal(method, 'database.getDocument');
+      assert.ok(payload && typeof payload === 'object');
+      assert.equal(Reflect.get(payload, 'transactionId'), `snapshot-${starts}`);
+      reads.push(payload);
+      return {
+        data: {
+          list: [
+            JSON.stringify({
+              _id: 'one',
+              record: {
+                state: starts === 1 ? 'active' : 'revoked',
+              },
+            }),
+          ],
+        },
+      };
+    }
+  }
+  function databaseShape(value: unknown): value is DeliveryDatabase & NodeSdkDatabase {
+    if (!value || typeof value !== 'object') return false;
+    const command: unknown = Reflect.get(value, 'command');
+    return (
+      typeof Reflect.get(value, 'collection') === 'function' &&
+      typeof Reflect.get(value, 'runTransaction') === 'function' &&
+      !!command &&
+      typeof command === 'object' &&
+      ['gt', 'in', 'set'].every((key) => typeof Reflect.get(command, key) === 'function')
+    );
+  }
+  Reflect.set(Constructor, 'reqClass', OfflineRequest);
+  try {
+    for (const factory of [createDeliveryStore, createCloudBaseSourceGrantStore]) {
+      starts = 0;
+      reads.length = 0;
+      const db: unknown = Reflect.construct(Constructor, [
+        { envName: 'offline-sales-retry-probe' },
+      ]);
+      assert.ok(databaseShape(db));
+      let callbacks = 0;
+      const result = await factory(db).transaction(async (tx) => {
+        callbacks++;
+        const first = await tx.read('channelSalesBindings', 'one');
+        assert.deepEqual(await tx.read('channelSalesBindings', 'one'), first);
+        return first;
+      });
+      assert.equal(callbacks, 2);
+      assert.equal(reads.length, 2, 'Each native snapshot performs its own single read');
+      assert.deepEqual(result, { _id: 'one', record: { state: 'revoked' } });
+    }
   } finally {
     Reflect.set(Constructor, 'reqClass', original);
   }
