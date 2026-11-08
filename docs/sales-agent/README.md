@@ -1,9 +1,10 @@
 # Sales Agent 设计与实施
 
-## 当前状态（2026-11-02）
+## 当前状态（2026-11-08）
 
-- 代码在 channel 整合分支 `feat/sales-assistant`（官网助手＋Channel 侧 Sales 落盘，见 [第二轮设计 §12](../ai-platform/assistant-ui/ROUND2-DESIGN.md)）与 hermesinfra `feat/sales-agent-runtime`（Sales 运行时）。
-- SG1.2 询盘统一保存、SG2/SG3 Hermes 自动准备已有代码与本地／合成验收；真实上线、Resend 发送与 SG8 生产部署尚未完成。剩余工作统一列在第二轮设计 §8。
+- 官网助手与 SEO 已汇入 `release/assistant-seo-20261104`；本次 Sales 事务读取修复从其 `dcffdff6` 建立独立分支 `fix/sales-live-wiring-20261108`，代码 `3310f34e` 已推送，未修改其他人的工作目录。Hermes 继续使用 `feat/sales-agent-runtime`，运行代码 `cfc7bf6`。
+- 已用现有 CloudBase 中真实保存的两条合成询盘，验证 Hermes 来源授权、读取、真实模型、成果归档和 Resend 未发送草稿；重复导出复用原草稿。第二条在完整受限服务配置下一次完成，107.204 秒、模型 1 次、内存峰值约 101 MiB。任务进度与草稿编号保存在 Hermes 专库，Channel 只保存询盘、来源和可靠投递回执。
+- 这仍是受控试运行：新 Channel 云函数创建被账户余额不足拒绝，本轮通过本机服务和 SSH 回环隧道验收；Hub 的两个固定 HTTPS 入口已配置并验证，没有启用正式客户自动消费、企微审批、真实发送或回信处理。官网发布按负责人要求等待充值。实际部署与剩余条件见 [Hermes 实施记录](https://github.com/vibelingan/hermesinfra/blob/feat/sales-agent-runtime/docs/sales-agent/IMPLEMENTATION.md)，本次性能修复与测试见 [事务读取核对](verification/LIVE-TRANSACTION-READS-20261108.zh-CN.md)。
 - 逐轮的计划、交付、验收记录、证据 JSON 与截图已于 2026-11-02 归档到 tag [`archive/process-evidence-2026-11-02`](https://github.com/vibelingan/channel/tree/archive/process-evidence-2026-11-02/docs/sales-agent)，本目录只保留设计、合同与模块文档。取回单个文件：`git show archive/process-evidence-2026-11-02:docs/sales-agent/<path>`。
 - 文档一致性检查脚本 `check_design.py`、`check_source_snapshot.py` 检查的是归档快照，一并归档。
 
@@ -20,7 +21,7 @@
 6. [实施交接说明](handoff/START-HERE.md)：下一步从哪个模块开始、哪些文件可写、怎样交付。
 7. [可查看的模块图](diagrams/modules.html) · [核对依据](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/BASELINE.md) · [文档检查记录](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/VERIFICATION.md)。
 
-## 工作区
+## 历史工作区（10 月实施记录）
 
 - 新 worktree：`${SALES_WORKTREE}`
 - 内置盘反复ENOSPC后，当前在外置盘的独立销售检出继续同一分支；原设计worktree保留为备份。后续以当前检出及远端为准，不从旧副本继续编辑/推送。
