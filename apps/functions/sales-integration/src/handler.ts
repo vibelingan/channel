@@ -37,6 +37,7 @@ export interface SalesDependencies extends AccessDependencies {
   cloud_env_id: string;
   sourceGrants?: SourceGrantDependencies;
   assistantIntake?: (request: SalesRequest) => Promise<SalesResponse>;
+  deliveryReconcile?: (request: SalesRequest) => Promise<SalesResponse>;
   taskAccess: TaskGateDependencies;
   readDoc(
     collection: 'oemProjects' | 'catalogQuoteRequests' | 'files',
@@ -149,6 +150,10 @@ export function createSalesHandler(dependencies: SalesDependencies) {
       if (url.search) return response(400, { code: 'INVALID_REQUEST' });
       const path = salesPath(request.url);
       if (path === null) return response(404, { code: 'NOT_FOUND' });
+      if (path === '/source-deliveries/reconcile')
+        return dependencies.deliveryReconcile
+          ? dependencies.deliveryReconcile(request)
+          : response(404, { code: 'NOT_FOUND' });
       if (path === '/assistant-inquiries')
         return dependencies.assistantIntake
           ? dependencies.assistantIntake(request)

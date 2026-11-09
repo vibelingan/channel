@@ -3,8 +3,53 @@ import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import test from 'node:test';
 import { z } from 'zod';
+import { createDeliveryReconcileRoute } from './delivery-reconcile-route.ts';
+import { createSalesHandler } from './handler.ts';
 import { createSalesServer } from './server.ts';
 import { setup } from './test-fixtures.ts';
+
+test('real HTTP reconciliation route is separately authorized, bounded and has no task-read access', async () => {
+  const s = await setup();
+  let calls = 0;
+  const handler = createSalesHandler({
+    ...s.dependencies,
+    deliveryReconcile: createDeliveryReconcileRoute(
+      {
+        tick: async (limit) => {
+          assert.equal(limit, 5);
+          calls++;
+          return { state: 'scanned', wrapped: true, results: [] };
+        },
+      },
+      'z'.repeat(48),
+    ),
+  });
+  const server = createSalesServer(handler);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const url = `http://127.0.0.1:${address.port}/api/integrations/sales/source-deliveries/reconcile`;
+    const init = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${'z'.repeat(48)}` },
+      body: '{}',
+    };
+    assert.equal(
+      (await fetch(url, { ...init, headers: { 'content-type': 'application/json' } })).status,
+      401,
+    );
+    assert.equal((await fetch(url, { ...init, body: '{"customer":"other"}' })).status, 400);
+    const reply = await fetch(url, init);
+    assert.equal(reply.status, 200);
+    assert.deepEqual(await reply.json(), { state: 'scanned', wrapped: true, results: [] });
+    assert.equal(calls, 1);
+    assert.equal((await fetch(`${url}?client_id=other`, init)).status, 400);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  }
+});
 
 test('loopback HTTP exercises authentication, source projection and binary download', async () => {
   const s = await setup();

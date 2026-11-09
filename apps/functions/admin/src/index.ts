@@ -15,6 +15,10 @@ import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submis
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import {
+  configuredWebsiteDelivery,
+  submissionDelivery,
+} from '../../sales-integration/src/runtime-delivery.ts';
 import { createCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { handleAdminRequest } from './handler.ts';
 import {
@@ -31,10 +35,12 @@ const articleDeliveryMode = ArticlePublicationModeSchema.parse(
   optionalEnv('ARTICLE_DELIVERY_MODE') || undefined,
 );
 const salesCapture = salesCaptureFromEnv(process.env);
+const salesAfterSave = submissionDelivery(configuredWebsiteDelivery());
 const config: AdminHttpConfig = {
   catalogSeoRecording: Boolean(readCatalogSeoRecordingConfig(process.env)),
   articleDeliveryMode,
   ...(salesCapture ? { salesCapture } : {}),
+  salesAfterSave,
   jwtSecret: requireEnv('JWT_SECRET'),
   enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
   articleQueueStatusKeyHash: optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),

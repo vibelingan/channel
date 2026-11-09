@@ -277,6 +277,17 @@ export class WebsiteDelivery {
       throw new Error('Wrong delivery identity');
     return state;
   }
+  /** Find only the outbox row for the committed submission, never a public event body. */
+  async deliverSource(kind: 'oem' | 'product', id: string): Promise<DeliveryOutcome> {
+    if (!/^[A-Za-z0-9_-]{1,200}$/.test(id)) throw new Error('Invalid source identity');
+    const row = await this.options.store.transaction((tx) =>
+      tx.read(kind === 'oem' ? 'oemProjects' : 'catalogQuoteRequests', id),
+    );
+    if (!row || typeof row !== 'object') throw new Error('Source unavailable');
+    const revision = hash.parse(Reflect.get(row, 'salesSubmittedRevision'));
+    const key = hashCanonicalJson({ ...this.owner, source: { kind, id, revision } });
+    return this.deliver(key);
+  }
   async deliver(key: string): Promise<DeliveryOutcome> {
     hash.parse(key);
     if (!this.options.enabled) return { key, state: 'rejected' };
@@ -417,7 +428,17 @@ export class WebsiteDelivery {
     const results: DeliveryOutcome[] = [];
     let previous = after;
     for (const row of rows) {
-      results.push(await this.deliver(row.key));
+      // A page contains only active deliveries. Do not reread the full source and
+      // connection gates for work that is already leased or still in backoff.
+      const parsed = stateSchema.safeParse(row.record);
+      const pending = parsed.success ? parsed.data : null;
+      const now = timestamp(this.options.now);
+      const waiting =
+        pending &&
+        same(ownerOf(pending), this.owner) &&
+        ((pending.status === 'inflight' && pending.lease_until > now) ||
+          (pending.status === 'retry' && pending.next_attempt_at > now));
+      results.push(waiting ? { key: row.key, state: 'busy' } : await this.deliver(row.key));
       await this.options.store.transaction(async (tx) => {
         const raw = await tx.read('channelSalesDeliveryCursors', this.cursorKey);
         const cursor = raw === null ? null : cursorSchema.parse(field(raw, 'record'));

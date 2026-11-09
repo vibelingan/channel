@@ -193,6 +193,7 @@ import { cleanupSourceMediaImage } from './source-media-cleanup.ts';
 import type { OwnedFinalContinuationStep } from './catalog-operation-final-continue.ts';
 export interface AdminConfig {
   salesCapture?: SalesCaptureScope;
+  salesAfterSave?: (kind: 'oem' | 'product', id: string) => Promise<void>;
   jwtSecret: string;
   articleRepository?: ArticleRepository;
   articleQueueStatusKeyHash?: string;
@@ -648,7 +649,7 @@ export async function handleAdminRequest(
       case 'articleQueueStatus':
         return await readArticleQueueStatusRequest(req, config);
       case 'submitProject':
-        return await submitProject(req, context, config.salesCapture);
+        return await submitProject(req, context, config.salesCapture, config.salesAfterSave);
       case 'createOemFileUploadIntent':
         return await createOemFileUploadIntentAction(req, context, config.salesCapture);
     }
@@ -1376,6 +1377,7 @@ async function submitProject(
   req: AdminRequest,
   context?: RequestContext,
   captureConfig?: SalesCaptureScope,
+  afterSaved?: AdminConfig['salesAfterSave'],
 ): Promise<ApiResult<unknown>> {
   const capture =
     captureConfig && Math.floor(Date.now() / 1000) >= captureConfig.cutover_at
@@ -1523,6 +1525,13 @@ async function submitProject(
     }
   }
 
+  if (capture && project.salesSubmissionState === 'finalized') {
+    try {
+      await afterSaved?.('oem', project._id);
+    } catch {
+      console.warn('Sales immediate delivery deferred to reconciliation');
+    }
+  }
   // Best-effort acknowledgement; never block the submission on email delivery.
   await sendOemConfirmationEmail({
     to: email.toLowerCase(),

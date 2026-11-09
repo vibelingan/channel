@@ -103,6 +103,13 @@ test('the actual admin cloud entry injects its CloudBase article repository with
     '@vibelingan-channel/db/sales-inquiry-submission': {
       salesCaptureFromEnv: () => undefined,
     },
+    '../../sales-integration/src/runtime-delivery.ts': {
+      configuredWebsiteDelivery: () => null,
+      submissionDelivery: (worker) => {
+        assert.equal(worker, null);
+        return async () => {};
+      },
+    },
     './catalog-preparation-invoker.ts': {
       createCatalogPreparationInvoker: (value) => {
         assert.equal(value, sdk);

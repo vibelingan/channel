@@ -15,6 +15,7 @@ import { handleQuoteEvent } from '../../public-api/src/catalog-quote-http.ts';
 
 /** Synthetic transactional documents; real producer functions use this mechanical SDK port. */
 export function createWebsiteFixture() {
+  let salesAfterSave: ((kind: 'oem' | 'product', id: string) => Promise<void>) | undefined;
   const rows = new Map<string, CollectionDoc>();
   const objects = new Map<string, Buffer>();
   const scope: SalesCaptureScope = {
@@ -205,6 +206,7 @@ export function createWebsiteFixture() {
     const config: AdminConfig = {
       jwtSecret: 'offline-synthetic-secret',
       ...(capture ? { salesCapture: capture } : {}),
+      ...(salesAfterSave ? { salesAfterSave } : {}),
     };
     return handleAdminRequest({ action, data }, config, { sourceIp: '192.0.2.1' });
   };
@@ -238,6 +240,7 @@ export function createWebsiteFixture() {
         enableInquiries: true,
         corsAllowedOrigins: ['https://website.example.invalid'],
         ...(capture ? { salesCapture: capture } : {}),
+        ...(salesAfterSave ? { salesAfterSave } : {}),
       },
       (body, owner) => saveQuoteInCloud(database, body, owner),
     );
@@ -259,6 +262,9 @@ export function createWebsiteFixture() {
     quoteInput,
     submitProduct,
     registrations,
+    setAfterSave: (callback: typeof salesAfterSave) => {
+      salesAfterSave = callback;
+    },
     setFailAtWrite: (value: number | undefined) => {
       failAtWrite = value;
     },

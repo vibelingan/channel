@@ -16,6 +16,80 @@
 
 export const FUNCTION_NAMES = ['admin', 'public-api', 'alibaba-catalog-sync'];
 
+export const SALES_CAPTURE_ENV_KEYS = [
+  'SALES_CLIENT_ID',
+  'SALES_BUSINESS_LINE',
+  'SALES_INSTALLATION_ID',
+  'SALES_ENVIRONMENT',
+  'SALES_SOURCE_CUTOVER_AT',
+];
+export const SALES_DELIVERY_ENV_KEYS = [
+  'SALES_CONTROL_EPOCH',
+  'SALES_RUNTIME_ID',
+  'SALES_CHANNEL_CONNECTION_ID',
+  'SALES_HERMES_EVENTS_URL',
+  'SALES_HERMES_SOURCE_TOKEN',
+  'SALES_RUNTIME_TOKEN',
+];
+
+/** Function config is replaced on every release, so opted-in Sales wiring travels with it. */
+export function salesSourceEnvironment(ctx) {
+  const flag = (key) => {
+    const value = ctx.optionalEnv(key);
+    if (!value || value === '0') return false;
+    if (value !== '1') throw new Error(`Invalid ${key}`);
+    return true;
+  };
+  const capture = flag('SALES_SOURCE_CAPTURE_ENABLED');
+  const delivery = flag('SALES_SOURCE_DELIVERY_ENABLED');
+  if (!capture && !delivery) return {};
+  if (!capture) throw new Error('Sales delivery requires source capture');
+  const required = (key) => {
+    const value = ctx.optionalEnv(key);
+    if (typeof value !== 'string' || !value.trim()) throw new Error(`Missing ${key}`);
+    return value;
+  };
+  const names = delivery
+    ? [...SALES_CAPTURE_ENV_KEYS, ...SALES_DELIVERY_ENV_KEYS]
+    : SALES_CAPTURE_ENV_KEYS;
+  const env = Object.fromEntries(names.map((key) => [key, required(key)]));
+  // A GitHub environment named "test" can serve the real website. Keep the
+  // business environment explicit instead of deriving it from APP_ENV.
+  if (!['test', 'production'].includes(env.SALES_ENVIRONMENT))
+    throw new Error('Invalid SALES_ENVIRONMENT');
+  for (const key of ['SALES_SOURCE_CUTOVER_AT', ...(delivery ? ['SALES_CONTROL_EPOCH'] : [])])
+    if (!/^(0|[1-9][0-9]*)$/.test(env[key]) || !Number.isSafeInteger(Number(env[key])))
+      throw new Error(`Invalid ${key}`);
+  for (const key of [
+    'SALES_CLIENT_ID',
+    'SALES_BUSINESS_LINE',
+    'SALES_INSTALLATION_ID',
+    ...(delivery ? ['SALES_RUNTIME_ID', 'SALES_CHANNEL_CONNECTION_ID'] : []),
+  ])
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/.test(env[key])) throw new Error(`Invalid ${key}`);
+  if (delivery) {
+    const url = new URL(env.SALES_HERMES_EVENTS_URL);
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      url.pathname !== '/sales/events'
+    )
+      throw new Error('Invalid SALES_HERMES_EVENTS_URL');
+    for (const key of ['SALES_HERMES_SOURCE_TOKEN', 'SALES_RUNTIME_TOKEN'])
+      if (!/^[A-Za-z0-9_-]{32,512}$/.test(env[key])) throw new Error(`Invalid ${key}`);
+    if (env.SALES_HERMES_SOURCE_TOKEN === env.SALES_RUNTIME_TOKEN)
+      throw new Error('Sales source credential reused');
+  }
+  return {
+    SALES_SOURCE_CAPTURE_ENABLED: '1',
+    ...(delivery ? { SALES_SOURCE_DELIVERY_ENABLED: '1' } : {}),
+    ...env,
+  };
+}
+
 /** Drop undefined values so optional env vars are omitted, not set to "undefined". */
 export function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
@@ -27,6 +101,7 @@ export function envEntries(record) {
  *   resetPasswordUrl, requireEnv, optionalEnv }.
  */
 export function buildFunctionDefs(ctx) {
+  const sales = salesSourceEnvironment(ctx);
   return [
     {
       name: 'admin',
@@ -36,6 +111,7 @@ export function buildFunctionDefs(ctx) {
       envVariables: envEntries({
         TCB_ENV: ctx.envId,
         APP_ENV: ctx.appEnv,
+        ...sales,
         ADMIN_EMAIL: ctx.adminEmail,
         CATALOG_SEO_RECORDING: ctx.optionalEnv('CATALOG_SEO_RECORDING'),
         CATALOG_SEO_SITE_ORIGIN: ctx.optionalEnv('CATALOG_SEO_SITE_ORIGIN'),
@@ -67,6 +143,7 @@ export function buildFunctionDefs(ctx) {
       envVariables: envEntries({
         TCB_ENV: ctx.envId,
         APP_ENV: ctx.appEnv,
+        ...sales,
         ARTICLE_PUBLIC_READ_ENABLED: ctx.optionalEnv('ARTICLE_PUBLIC_READ_ENABLED'),
         PUBLIC_API_BASE_URL: ctx.apiUrl,
         CATALOG_SEO_PAGE_READINESS: ctx.optionalEnv('CATALOG_SEO_PAGE_READINESS'),

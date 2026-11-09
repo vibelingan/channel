@@ -195,6 +195,17 @@ jobs:
       # and lets it send inquiries. Both stay off until the AI runtime serves it.
       PUBLIC_AI_CHAT_V2: ${{ vars.PUBLIC_AI_CHAT_V2 || '0' }}
       PUBLIC_AI_INQUIRIES: ${{ vars.PUBLIC_AI_INQUIRIES || '0' }}
+      SALES_SOURCE_CAPTURE_ENABLED: ${{ vars.SALES_SOURCE_CAPTURE_ENABLED || '0' }}
+      SALES_SOURCE_DELIVERY_ENABLED: ${{ vars.SALES_SOURCE_DELIVERY_ENABLED || '0' }}
+      SALES_CLIENT_ID: ${{ vars.SALES_CLIENT_ID }}
+      SALES_BUSINESS_LINE: ${{ vars.SALES_BUSINESS_LINE }}
+      SALES_INSTALLATION_ID: ${{ vars.SALES_INSTALLATION_ID }}
+      SALES_ENVIRONMENT: ${{ vars.SALES_ENVIRONMENT }}
+      SALES_SOURCE_CUTOVER_AT: ${{ vars.SALES_SOURCE_CUTOVER_AT }}
+      SALES_CONTROL_EPOCH: ${{ vars.SALES_CONTROL_EPOCH }}
+      SALES_RUNTIME_ID: ${{ vars.SALES_RUNTIME_ID }}
+      SALES_CHANNEL_CONNECTION_ID: ${{ vars.SALES_CHANNEL_CONNECTION_ID }}
+      SALES_HERMES_EVENTS_URL: ${{ vars.SALES_HERMES_EVENTS_URL }}
       SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
       LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
@@ -238,6 +249,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # One stamp for every bundle, known to the deploy step, so it can prove a build unchanged.
+      - name: Validate opted-in Sales wiring before cloud writes
+        env:
+          SALES_HERMES_SOURCE_TOKEN: ${{ secrets.SALES_HERMES_SOURCE_TOKEN }}
+          SALES_RUNTIME_TOKEN: ${{ secrets.SALES_RUNTIME_TOKEN }}
+        run: |
+          node --input-type=module -e 'import { salesSourceEnvironment } from "./scripts/cloudbase-function-manifest.mjs"; salesSourceEnvironment({ optionalEnv: key => process.env[key] || undefined });'
+
       - name: Fix the function build stamp to the commit time
         run: echo "CHANNEL_BUILD_TIME=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
 
@@ -368,6 +386,8 @@ jobs:
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          SALES_HERMES_SOURCE_TOKEN: ${{ secrets.SALES_HERMES_SOURCE_TOKEN }}
+          SALES_RUNTIME_TOKEN: ${{ secrets.SALES_RUNTIME_TOKEN }}
           BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_PORT: ${{ secrets.EMAIL_PORT }}

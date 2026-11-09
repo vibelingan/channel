@@ -7,9 +7,11 @@ import { resolveSalesCredential } from '@vibelingan-channel/db/sales-inquiry-sub
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { getProductDetail } from '../../public-api/src/catalog-detail.ts';
 import { createAssistantIntake } from './assistant-intake.ts';
+import { createDeliveryReconcileRoute } from './delivery-reconcile-route.ts';
 import { type SalesRequest, type SalesResponse, createSalesHandler } from './handler.ts';
 import { createPermitClient } from './permit-client.ts';
 import { readPrivateFile } from './private-file.ts';
+import { configuredWebsiteDelivery, submissionDelivery } from './runtime-delivery.ts';
 import { createSalesServer } from './server.ts';
 import { createCloudBaseSourceGrantStore } from './source-grant-store.ts';
 
@@ -47,12 +49,29 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
   initCloudBase(envId);
   setAdapter(cloudBaseAdapter);
   const storage = createCloudBaseMediaStorage(cloudStorageSdk());
+  const delivery = configuredWebsiteDelivery();
   return createSalesHandler({
     client_id: clientId,
     business_line: businessLine,
     installation_id: installationId,
     environment: environment === 'test' ? 'test' : 'production',
     cloud_env_id: envId,
+    ...(delivery
+      ? {
+          deliveryReconcile: createDeliveryReconcileRoute(
+            delivery,
+            required('SALES_SOURCE_DELIVERY_TOKEN'),
+            [
+              process.env.SALES_ASSISTANT_INTAKE_TOKEN,
+              process.env.SALES_SOURCE_GRANT_TOKEN,
+              process.env.SALES_HERMES_AUTH_TOKEN,
+              process.env.SALES_HERMES_SOURCE_TOKEN,
+              process.env.SALES_RUNTIME_TOKEN,
+              process.env.SALES_SOURCE_ACTIVATION_TOKEN,
+            ],
+          ),
+        }
+      : {}),
     ...(process.env.SALES_ASSISTANT_INTAKE_ENABLED === '1'
       ? {
           assistantIntake: createAssistantIntake(
@@ -80,6 +99,7 @@ export function createSalesRuntime(): (request: SalesRequest) => Promise<SalesRe
               },
             ),
             required('SALES_ASSISTANT_INTAKE_TOKEN'),
+            submissionDelivery(delivery),
           ),
         }
       : {}),

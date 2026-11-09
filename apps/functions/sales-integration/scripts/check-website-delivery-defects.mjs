@@ -17,6 +17,24 @@ const target = join(temporary, 'apps/functions/sales-integration');
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const cases = [
   {
+    id: 'assistant_commit_never_wakes_delivery',
+    file: 'assistant-intake.ts',
+    from: "await afterSaved?.('oem', result.reference);",
+    to: 'await Promise.resolve();',
+    testFile: 'assistant-intake.test.ts',
+    test: 'assistant wakes the exact committed source and a wakeup failure preserves its saved receipt',
+    assertion: 'false !== true',
+  },
+  {
+    id: 'reconcile_accepts_unbounded_batch',
+    file: 'delivery-reconcile-route.ts',
+    from: 'await worker.tick(5)',
+    to: 'await worker.tick(50)',
+    testFile: 'delivery-reconcile-route.test.ts',
+    test: 'reconciliation only accepts its dedicated token, empty strict JSON and a fixed bounded page',
+    assertion: '503 !== 200',
+  },
+  {
     id: 'wrong_source_receipt',
     file: 'inquiry-sender.ts',
     from: "reply.headers['x-sales-source-sha256'] !== digest",

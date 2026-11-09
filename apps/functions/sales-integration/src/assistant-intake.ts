@@ -19,7 +19,11 @@ export function testScopeInquiryStore(
   if (scope.environment !== 'test') throw new Error('Test intake requires a test installation');
   return store;
 }
-export function createAssistantIntake(store: AssistantInquiryStore, token: string) {
+export function createAssistantIntake(
+  store: AssistantInquiryStore,
+  token: string,
+  afterSaved?: (kind: 'oem' | 'product', id: string) => Promise<void>,
+) {
   if (!/^[A-Za-z0-9_-]{32,512}$/.test(token)) throw new Error('Invalid assistant intake token');
   const digest = (v: string) => createHash('sha256').update(v).digest();
   const reply = (status: number, body: unknown): SalesResponse => ({
@@ -57,7 +61,13 @@ export function createAssistantIntake(store: AssistantInquiryStore, token: strin
     }
     if (!isInternalInquirySubmission(input)) return reply(400, invalid);
     try {
-      return reply(200, await store.submit(input));
+      const result = await store.submit(input);
+      try {
+        await afterSaved?.('oem', result.reference);
+      } catch {
+        console.warn('Sales immediate delivery deferred to reconciliation');
+      }
+      return reply(200, result);
     } catch (e) {
       // Only a refusal raised before any write may say "not saved"; anything
       // else might have committed and is reported as unknown.

@@ -3,10 +3,87 @@ import { test } from 'node:test';
 import { registrationKey } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { hashCanonicalJson } from '@vibelingan-channel/sales-contracts';
 import { createWebsiteDeliveryFixture } from './delivery-fixtures.ts';
+import { createDeliveryReconcileRoute } from './delivery-reconcile-route.ts';
 import type { IntakeReceipt } from './inquiry-sender.ts';
+import { submissionDelivery } from './runtime-delivery.ts';
 import { createWebsiteFixture } from './website-test-fixtures.ts';
 
 const receipt: IntakeReceipt = { task_id: 1, run_id: 'a'.repeat(32), state: 'queued' };
+test('both website forms deliver their committed outbox immediately, without scanning or duplicates', async () => {
+  for (const kind of ['oem', 'product'] as const) {
+    const fixture = createWebsiteFixture();
+    let sends = 0;
+    const worker = createWebsiteDeliveryFixture(fixture, {
+      sender: {
+        send: async () => {
+          sends++;
+          return receipt;
+        },
+      },
+    });
+    worker.store.scan = async () => {
+      throw new Error('Immediate delivery must not scan');
+    };
+    fixture.setAfterSave(submissionDelivery(worker.delivery));
+    if (kind === 'oem') {
+      const result = await fixture.callOem('submitProject', {
+        company: 'Buyer',
+        contact: 'Alex',
+        email: 'buyer@example.invalid',
+        category: 'Headphones',
+        quantity: 500,
+      });
+      assert.equal(result.ok, true);
+    } else {
+      const input = fixture.quoteInput();
+      assert.equal((await fixture.submitProduct(input)).statusCode, 200);
+      assert.equal((await fixture.submitProduct(input)).statusCode, 200);
+    }
+    const source = fixture.registrations()[0];
+    assert.ok(source);
+    assert.equal(sends, 1);
+    assert.equal(Reflect.get(state(fixture, registrationKey(source)), 'status'), 'accepted');
+  }
+});
+test('failed immediate delivery preserves the saved receipt and reconciliation recovers once', async () => {
+  const fixture = createWebsiteFixture();
+  let failing = true;
+  const now = Math.floor(Date.now() / 1000);
+  const worker = createWebsiteDeliveryFixture(fixture, {
+    now: () => (failing ? now : now + 10),
+    sender: {
+      send: async () => {
+        if (failing) throw new Error('Offline');
+        return receipt;
+      },
+    },
+  });
+  fixture.setAfterSave(submissionDelivery(worker.delivery));
+  const result = await fixture.submitProduct();
+  assert.equal(result.statusCode, 200);
+  const source = fixture.registrations()[0];
+  assert.ok(source);
+  assert.equal(Reflect.get(state(fixture, registrationKey(source)), 'status'), 'retry');
+  failing = false;
+  const route = createDeliveryReconcileRoute(worker.delivery, 'z'.repeat(48));
+  const reply = await route({
+    method: 'POST',
+    url: '/source-deliveries/reconcile',
+    headers: { authorization: `Bearer ${'z'.repeat(48)}`, 'content-type': 'application/json' },
+    body: Buffer.from('{}'),
+  });
+  assert.equal(reply.status, 200);
+  assert.equal(JSON.parse(reply.body.toString()).results[0].state, 'accepted');
+});
+test('concurrent immediate attempts claim the source once', async () => {
+  const f = await prepared();
+  await Promise.allSettled([
+    f.delivery.deliverSource('product', f.record.source.id),
+    f.delivery.deliverSource('product', f.record.source.id),
+  ]);
+  assert.equal(f.calls(), 1);
+  assert.equal(Reflect.get(state(f, f.key), 'status'), 'accepted');
+});
 async function prepared() {
   const fixture = createWebsiteFixture();
   const result = await fixture.submitProduct();

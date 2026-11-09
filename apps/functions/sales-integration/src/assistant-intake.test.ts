@@ -6,6 +6,37 @@ import {
 } from '@vibelingan-channel/db/assistant-inquiry';
 import { createAssistantIntake, testScopeInquiryStore } from './assistant-intake.ts';
 import type { SalesRequest } from './handler.ts';
+test('assistant wakes the exact committed source and a wakeup failure preserves its saved receipt', async () => {
+  const reference = `ai_${'a'.repeat(64)}`;
+  let saved = false;
+  let called = false;
+  const handle = createAssistantIntake(
+    {
+      submit: async (input) => {
+        saved = true;
+        return {
+          schemaVersion: '1',
+          conversationId: input.conversationId,
+          submissionKey: input.submission.submissionKey,
+          reference,
+          submittedAt: '2026-11-09T00:00:00Z',
+        };
+      },
+    },
+    't'.repeat(40),
+    async (kind, id) => {
+      assert.equal(saved, true);
+      assert.equal(kind, 'oem');
+      assert.equal(id, reference);
+      called = true;
+      throw new Error('Hermes unavailable');
+    },
+  );
+  const result = await handle(confirmed('Buyer', 'buyer@example.invalid'));
+  assert.equal(called, true);
+  assert.equal(result.status, 200);
+  assert.equal(JSON.parse(result.body.toString()).reference, reference);
+});
 test('dedicated credential and strict confirmed form gate precede saving', async () => {
   let saves = 0;
   const handle = createAssistantIntake(
