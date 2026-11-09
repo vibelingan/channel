@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,41 @@ const artifactRoot = resolve(
   process.env.CHANNEL_FUNCTION_ARTIFACT_ROOT ?? join(root, '.cloudbase-artifacts', 'functions'),
 );
 const functions = FUNCTION_NAMES;
+
+/** Artifact probes are offline fixtures, independent of the deploy job's switches and secrets. */
+export function artifactSmokeEnvironment(parent = process.env, overrides = {}) {
+  const inherited = Object.fromEntries(
+    Object.entries(parent).filter(
+      ([key]) => !key.startsWith('SALES_') && !key.startsWith('TENCENTCLOUD_'),
+    ),
+  );
+  return {
+    ...inherited,
+    TCB_ENV: 'artifact-smoke-env',
+    SCF_NAMESPACE: 'artifact-smoke-env',
+    JWT_SECRET: 'artifact-smoke-jwt-secret',
+    BOOTSTRAP_ENABLED: '0',
+    TENCENTCLOUD_SECRETID: 'artifact-fake-id',
+    TENCENTCLOUD_SECRETKEY: 'artifact-fake-key',
+    TENCENTCLOUD_SESSIONTOKEN: 'artifact-fake-session',
+    // Exercise the enabled production transport configuration without a real
+    // customer identity, credential, endpoint or external request.
+    SALES_SOURCE_CAPTURE_ENABLED: '1',
+    SALES_SOURCE_DELIVERY_ENABLED: '1',
+    SALES_CLIENT_ID: 'artifact-client',
+    SALES_BUSINESS_LINE: 'website_sales',
+    SALES_INSTALLATION_ID: 'artifact-site',
+    SALES_ENVIRONMENT: 'production',
+    SALES_SOURCE_CUTOVER_AT: '0',
+    SALES_CONTROL_EPOCH: '1',
+    SALES_RUNTIME_ID: 'artifact-runtime',
+    SALES_CHANNEL_CONNECTION_ID: 'artifact-read',
+    SALES_HERMES_EVENTS_URL: 'https://hermes.example.invalid/sales/events',
+    SALES_HERMES_SOURCE_TOKEN: `artifact-source-${'s'.repeat(48)}`,
+    SALES_RUNTIME_TOKEN: `artifact-runtime-${'r'.repeat(48)}`,
+    ...overrides,
+  };
+}
 
 function assertNoUnresolvedImports(name, indexFile) {
   const js = readFileSync(indexFile, 'utf8');
@@ -41,7 +76,7 @@ function assertNoUnresolvedImports(name, indexFile) {
   }
 }
 
-function smokeRequire(name, artifactDir) {
+export function smokeRequire(name, artifactDir) {
   const tempRoot = mkdtempSync(join(tmpdir(), `channel-${name}-artifact-`));
   const tempFunctionDir = join(tempRoot, name);
   cpSync(artifactDir, tempFunctionDir, { recursive: true });
@@ -50,17 +85,13 @@ function smokeRequire(name, artifactDir) {
     process.execPath,
     [
       '-e',
-      "const mod = require('./index.js'); if (typeof mod.main !== 'function') throw new Error('missing main export');",
+      "try { const mod = require('./index.js'); if (typeof mod.main !== 'function') throw new Error('missing main export'); } catch (error) { console.error(error.stack || String(error)); process.exitCode = 1; }",
     ],
     {
       cwd: tempFunctionDir,
-      env: {
-        ...process.env,
-        TCB_ENV: 'artifact-smoke-env',
-        JWT_SECRET: 'artifact-smoke-jwt-secret',
-        BOOTSTRAP_ENABLED: '0',
-      },
+      env: artifactSmokeEnvironment(),
       encoding: 'utf8',
+      timeout: 15000,
     },
   );
   rmSync(tempRoot, { force: true, recursive: true });
@@ -80,14 +111,12 @@ function smokePublicCatalog(artifactDir) {
       process.execPath,
       [join(root, 'scripts/function-artifact-probe.cjs'), join(tempRoot, 'index.js')],
       {
-        env: {
-          ...process.env,
-          TCB_ENV: 'artifact-smoke-env',
+        env: artifactSmokeEnvironment(process.env, {
           JWT_SECRET: 'artifact-smoke-jwt',
           CHANNEL_SMOKE_COLLECTIONS: JSON.stringify(
             REQUIRED_NOSQL_RESOURCES.map((r) => r.collectionName),
           ),
-        },
+        }),
         encoding: 'utf8',
         timeout: 15000,
       },
@@ -99,12 +128,10 @@ function smokePublicCatalog(artifactDir) {
       process.execPath,
       [join(root, 'scripts/function-artifact-probe.cjs'), join(tempRoot, 'index.js')],
       {
-        env: {
-          ...process.env,
-          TCB_ENV: 'artifact-smoke-env',
+        env: artifactSmokeEnvironment(process.env, {
           JWT_SECRET: 'artifact-smoke-jwt',
           CHANNEL_SMOKE_COLLECTIONS: JSON.stringify(['products']),
-        },
+        }),
         encoding: 'utf8',
         timeout: 15000,
       },
@@ -130,7 +157,7 @@ function smokeAdminProductList(artifactDir) {
     const result = spawnSync(
       process.execPath,
       [join(root, 'scripts/admin-list-artifact-probe.cjs'), join(tempRoot, 'index.js')],
-      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+      { env: artifactSmokeEnvironment(), encoding: 'utf8', timeout: 15000 },
     );
     if (result.status !== 0)
       throw new Error(
@@ -151,7 +178,7 @@ function smokeAdminProductWrites(artifactDir) {
     const result = spawnSync(
       process.execPath,
       [join(root, 'scripts/product-write-artifact-probe.cjs'), join(tempRoot, 'index.js')],
-      { env: { ...process.env }, encoding: 'utf8', timeout: 15000 },
+      { env: artifactSmokeEnvironment(), encoding: 'utf8', timeout: 15000 },
     );
     if (result.status !== 0)
       throw new Error(
@@ -165,28 +192,37 @@ function smokeAdminProductWrites(artifactDir) {
   }
 }
 
-for (const name of functions) {
-  const artifactDir = join(artifactRoot, name);
-  const indexFile = join(artifactDir, 'index.js');
-  const packageFile = join(artifactDir, 'package.json');
-  if (!existsSync(indexFile)) throw new Error(`Missing artifact entry: ${indexFile}`);
-  if (!existsSync(packageFile)) throw new Error(`Missing artifact package.json: ${packageFile}`);
+export function smokeFunctionArtifacts() {
+  for (const name of functions) {
+    const artifactDir = join(artifactRoot, name);
+    const indexFile = join(artifactDir, 'index.js');
+    const packageFile = join(artifactDir, 'package.json');
+    if (!existsSync(indexFile)) throw new Error(`Missing artifact entry: ${indexFile}`);
+    if (!existsSync(packageFile)) throw new Error(`Missing artifact package.json: ${packageFile}`);
 
-  assertNoUnresolvedImports(name, indexFile);
-  smokeRequire(name, artifactDir);
-  if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) {
-    const temp = mkdtempSync(join(tmpdir(), 'channel-pixel-smoke-'));
-    try {
-      cpSync(artifactDir, temp, { recursive: true });
-      smokeCatalogImageDecoder(temp);
-    } finally {
-      rmSync(temp, { recursive: true, force: true });
+    assertNoUnresolvedImports(name, indexFile);
+    smokeRequire(name, artifactDir);
+    if (usesCatalogImageDecoder(readFileSync(indexFile, 'utf8'))) {
+      const temp = mkdtempSync(join(tmpdir(), 'channel-pixel-smoke-'));
+      try {
+        cpSync(artifactDir, temp, { recursive: true });
+        smokeCatalogImageDecoder(temp);
+      } finally {
+        rmSync(temp, { recursive: true, force: true });
+      }
     }
+    if (name === 'admin') {
+      smokeAdminProductList(artifactDir);
+      smokeAdminProductWrites(artifactDir);
+    }
+    if (name === 'public-api') smokePublicCatalog(artifactDir);
+    console.log(`${name}: artifact smoke passed`);
   }
-  if (name === 'admin') {
-    smokeAdminProductList(artifactDir);
-    smokeAdminProductWrites(artifactDir);
-  }
-  if (name === 'public-api') smokePublicCatalog(artifactDir);
-  console.log(`${name}: artifact smoke passed`);
+}
+
+if (
+  process.argv[1] &&
+  realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url))
+) {
+  smokeFunctionArtifacts();
 }
