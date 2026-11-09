@@ -205,6 +205,20 @@ function LegacyAssistantWidget() {
           controller.abort();
           return;
         } else if (event.type === 'final') {
+          setMessages((current) =>
+            current.map((item) =>
+              item.id === assistantId
+                ? {
+                    ...item,
+                    text: event.text?.trim()
+                      ? event.text
+                      : item.text.trim()
+                        ? item.text
+                        : 'I could not find an answer for this question. Please ask our team.',
+                  }
+                : item,
+            ),
+          );
           setStatus('ready');
           controller.abort();
           return;
@@ -264,7 +278,9 @@ function LegacyAssistantWidget() {
                   : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
             }
           >
-            <p className="whitespace-pre-wrap">{message.text || '…'}</p>
+            <p className="whitespace-pre-wrap">
+              {message.text || 'Thinking… Checking your question.'}
+            </p>
             {message.citations && message.citations.length > 0 && (
               <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
                 {message.citations.map((citation, index) => (
@@ -287,6 +303,11 @@ function LegacyAssistantWidget() {
             )}
           </div>
         ))}
+        {busy && status !== 'streaming' && (
+          <output className="block rounded-xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950">
+            Thinking… Getting your question ready.
+          </output>
+        )}
       </div>
 
       <div className="border-t border-slate-200 bg-white p-3">

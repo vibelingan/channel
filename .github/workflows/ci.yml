@@ -259,6 +259,7 @@ jobs:
       - name: Build site
         env:
           SEO_CATALOG_SNAPSHOT: /tmp/channel-product-seo-fixture.json
+          PUBLIC_AI_API_BASE_URL: https://ai-bff-298020-11-1443560658.sh.run.tcloudbase.com
         run: pnpm build
 
       - name: Scan built site for server secret names
@@ -279,6 +280,9 @@ jobs:
       - name: Install Chromium for the product HTML check
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Verify final answer delivery in the built public widget
+        run: node scripts/verify-assistant-final-delivery.mjs
+
       - name: Exercise initial product HTML and existing buyer interactions
         run: node scripts/verify-product-seo.mjs apps/site/dist /tmp/channel-product-seo-fixture.json output/playwright/product-seo
 
@@ -290,6 +294,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: catalog-local-browser-${{ github.sha }}
-          path: output/playwright/
+          path: |
+            output/playwright/
+            output/assistant-final-delivery/
           retention-days: 7
           if-no-files-found: ignore
