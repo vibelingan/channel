@@ -15,6 +15,8 @@
 
 验证：52 项单元/组件测试通过；桌面和 Chromium 手机模拟共 110 项浏览器测试通过，覆盖发送后即时反馈、工具状态、同一气泡逐段增长、断线恢复、停止确认、产品轮播与询盘提交。四处状态门禁的缺陷注入均能使测试失败；类型检查、静态构建和构建后真实路由检查通过。浏览器接口使用模拟 IO，不能代替线上模型、实际手机和部署后验收。最后仅调整了等待提示的文字及测试名称，行为代码未变。
 
+**真实后端的限制：** 独立复查发现，当前 VibeKB 模型请求仍是 `stream:false`；Worker 会等完整回答通过来源校验，再把整段正文作为一个事件保存。因此这里只完成了客户端接收片段的能力，真实模型正文连续输出尚未完成。旧版接口还会跳过 `tool.progress`，真实连接中只显示 Thinking；V2 才能显示真实查询阶段。本轮没有改这些后端行为。以后要实现真正连续输出，必须一起调整模型请求、内容校验和事件传递，不能用前端打字动画或拆成几百次数据库写入冒充。证据位于 `packages/ai-engine-vibekb/src/index.ts` 的模型调用、`apps/ai-worker/src/worker.ts` 的 `approvedEvents` 与 `apps/ai-bff/src/server.ts` 的 `streamEvents`。
+
 截图保存在 `output/assistant-ui/screens/`；设计图保存在 `output/assistant-feedback-20261109/imagegen-visual-direction.png`。独立 CI 会把浏览器截图和结果作为该次 SHA 的 artifact 留存。审阅发现并修正了“断线恢复按钮被隐藏”和“提交受理前取消存在竞态”两处问题。
 
 写作核对：本轮阅读 `humanizer/SKILL.md` 与 `references/plain-technical-writing.md`，并核对本页、`AssistantWidget.tsx`、`AssistantExperience.tsx` 和浏览器断言。将“接通流式接口”改为“收到片段后在同一条回答追加”；只有实际 DOM 增长测试通过才说明界面连续输出。
