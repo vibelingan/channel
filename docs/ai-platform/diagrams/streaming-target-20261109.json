@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "待实现：真实查询阶段与分段正文如何到达网页",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      640
+    ]
+  },
+  "participants": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "官网聊天",
+      "sublabel": "浏览器"
+    },
+    {
+      "id": "bff",
+      "type": "backend",
+      "label": "AI BFF",
+      "sublabel": "转发与访问检查"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "聊天事件库",
+      "sublabel": "PostgreSQL"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "AI Worker",
+      "sublabel": "执行与内容检查"
+    },
+    {
+      "id": "kb",
+      "type": "external",
+      "label": "VibeKB",
+      "sublabel": "获准公开资料"
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "模型服务",
+      "sublabel": "生成回答"
+    }
+  ],
+  "messages": [
+    {
+      "from": "web",
+      "to": "bff",
+      "y": 160,
+      "label": "提交问题"
+    },
+    {
+      "from": "bff",
+      "to": "db",
+      "y": 188,
+      "label": "保存任务（已有队列）"
+    },
+    {
+      "from": "worker",
+      "to": "db",
+      "y": 216,
+      "label": "领取同一任务"
+    },
+    {
+      "from": "worker",
+      "to": "db",
+      "y": 244,
+      "label": "保存真实查询阶段"
+    },
+    {
+      "from": "bff",
+      "to": "db",
+      "label": "读取阶段事件",
+      "y": 272
+    },
+    {
+      "from": "bff",
+      "to": "web",
+      "label": "SSE 显示查询阶段",
+      "y": 300
+    },
+    {
+      "from": "worker",
+      "to": "kb",
+      "y": 328,
+      "label": "查询获准资料"
+    },
+    {
+      "from": "kb",
+      "to": "worker",
+      "y": 356,
+      "label": "返回资料与来源"
+    },
+    {
+      "from": "worker",
+      "to": "model",
+      "y": 384,
+      "label": "基于资料开始生成"
+    },
+    {
+      "from": "model",
+      "to": "worker",
+      "y": 412,
+      "label": "持续返回片段"
+    },
+    {
+      "from": "worker",
+      "to": "db",
+      "y": 440,
+      "label": "逐块检查后按序保存"
+    },
+    {
+      "from": "bff",
+      "to": "db",
+      "y": 468,
+      "label": "读取新增事件"
+    },
+    {
+      "from": "bff",
+      "to": "web",
+      "y": 496,
+      "label": "SSE 逐块追加正文"
+    },
+    {
+      "from": "worker",
+      "to": "db",
+      "y": 524,
+      "label": "保存完成或中断状态"
+    },
+    {
+      "from": "bff",
+      "to": "web",
+      "y": 552,
+      "label": "通知完成或中断"
+    }
+  ]
+}

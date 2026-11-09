@@ -2,6 +2,10 @@
 
 These project rules apply in addition to the user's global Codex instructions.
 
+## AI 工作待办回顾
+
+仅在官网助手、询盘 Sales 或 Apollo 工作中：开始前读取 `docs/ai-platform/BACKLOG.zh-CN.md`；记录新的暂缓事项时，写责任类别、重新评估条件和完成依据。阶段交付后回看哪些依赖已解除，并在交付中提出下一项建议；不得把依赖解除等同于获得实施、合并、部署、费用或真实发送授权。详细设计和旧编号保留原处，当前待办状态只在统一入口维护。此规则不启动其他工作流，也不覆盖 Agent 专属规则的适用范围。
+
 ## Temporary cloud handoff and current workstream
 
 When continuing the SEO / Blog session, start at `CLOUD_HANDOFF.md` and

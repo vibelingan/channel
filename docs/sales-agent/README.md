@@ -1,5 +1,7 @@
 # Sales Agent 设计与实施
 
+2026-11-09：官网助手、Sales、Apollo 的跨模块后续工作统一在 [AI 待办入口](../ai-platform/BACKLOG.zh-CN.md)回顾。此链接只提供后续工作索引，不替代本目录的模块设计及各仓库实际验收证据。
+
 ## 当前状态（2026-11-02）
 
 - 代码在 channel 整合分支 `feat/sales-assistant`（官网助手＋Channel 侧 Sales 落盘，见 [第二轮设计 §12](../ai-platform/assistant-ui/ROUND2-DESIGN.md)）与 hermesinfra `feat/sales-agent-runtime`（Sales 运行时）。
