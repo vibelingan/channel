@@ -1,5 +1,7 @@
 # 整体设计
 
+2026-11-09 核对更新：Apollo 旧公司查询路由已真实可用，原任务适配器仍需调整；获客执行／客户成果继续归 Hermes 独立流程包，Channel 提供官网业务资料。原生 Apollo Assistant／官方 MCP 是另一条需要评估的能力，不等同现有自建 MCP 包装。详见[当前核对](verification/APOLLO-READINESS-20261109.zh-CN.md)。
+
 2026-11-06：Apollo 只读试点以 [SG6 当前接入设计](modules/SG6-apollo.md) 为准。官网询盘与获客目标是两个入口，复用 Hermes 平台与岗位能力，数据/产品/营销资格保持各自范围。当前真实 Key 身份验收成功，两个搜索接口仍403；不启用 Apollo 发信或新获客客户的 Resend 自动推广。
 
 2026-10-30 最新 SG3.2：Hermes 自动消费与真实模型接线已完成开发、独立复核和合成验收，跨仓库及真实模型 62 项通过；代码 `05b17224` 已推送。未部署或发送邮件。见[本轮交付](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/docs/sales-agent/evidence/SG3.2-AUTOMATIC-EXECUTION-REPORT.md)。下面较早日期的记录保留其当时状态。

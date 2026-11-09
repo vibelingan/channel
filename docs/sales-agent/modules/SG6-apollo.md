@@ -4,6 +4,8 @@
 
 ## 当前真实结果与决定
 
+2026-11-09 再核对：当前 Key 调用官方控制台列出的 `POST /api/v1/organizations/search` **已真实返回公司名单**；两个新端点被拒不等于整体无法搜索。当前任务代码仍固定新路由，尚未采用这一可用入口。本轮仅核对，不改代码／部署。具体参数、结果质量、费用和跨项目分工见[当前核对记录](../verification/APOLLO-READINESS-20261109.zh-CN.md)。
+
 - 专用 Key 已安全接收；auth/health 和 users/api_profile 均返回 200，账号匹配预期登录邮箱。
 - 2026-11-09 实测：人员搜索 mixed_people/api_search、公司搜索 mixed_companies/search 各返回 403。两者正文明确写明不包含在 **Professional (Trial)** 套餐，结构化原因均为 AUTH.AUTHORIZATION.ENDPOINT_ACCESS_DENIED。身份和空间已匹配，不再将原因猜成 Free 账号或腾讯云欠费。当前空间的 Key 创建页也不能勾选这两项；不扩大 Master Key、不改用其他客户凭据、不自动付费。具体请求号及依据见[核对记录](../verification/APOLLO-READINESS-20261109.zh-CN.md)。
 - 官网询盘与主动获客独立。官网提交成功仍走 Channel → Hermes 销售准备 → Resend 草稿/审阅；不会为了 Apollo 403 阻塞这条线。
@@ -32,7 +34,7 @@ flowchart LR
 
 现有代码：Hermes 的 `sales_flow/resend_drafts.py` 已采用 httpx、固定服务地址、不跟重定向、受限响应和安全错误；复用相同依赖及固定服务/错误处理惯例；合同 parser 禁止所有小数，Apollo响应另用标准库 Decimal 解码并验证输出字段。网站询盘的授权协议绑定 inquiry，不能伪造一条询盘来承载获客活动。
 
-低层适配器复用 Hermes `feat/apollo-readonly-20261106@a294eb1`。当前补齐的获客任务位于 `feat/apollo-prospecting-flow-20261109@41523e4`：固定客户授权 → 真实模型生成条件 → Apollo 查询 → 匹配理由／未发送文案 → Hermes Sales 客户库 → 私有 HTML 预览。CLI 与官方 MCP stdio 工具入口已有实现；MCP 不包含客户身份、Key、收件人或发送参数。真实搜索仍受本账号套餐限制，企微／定海在线注册尚未启用。不得把可调用工具当成群聊已上线。
+低层适配器复用 Hermes `feat/apollo-readonly-20261106@a294eb1`。当前补齐的获客任务位于 `feat/apollo-prospecting-flow-20261109@41523e4`：固定客户授权 → 真实模型生成条件 → Apollo 查询 → 匹配理由／未发送文案 → Hermes Sales 客户库 → 私有 HTML 预览。CLI 与使用 MCP 官方协议 SDK 的**自建** stdio 工具入口已有实现；MCP 不包含客户身份、Key、收件人或发送参数。当前固定的新搜索路由受套餐限制；旧公司路由已单独实测可用，尚需接入适配器。企微／定海在线注册未启用。不得把可调用工具当成群聊已上线。
 
 目标接口：`ApolloReadClient(expected_workspace_id, credential)`，显式 `authenticate()` 一次确认 profile.team_id；随后 `search_people(filters)` / `search_companies(filters)` 每页仅一次 POST；人员关键词用 `q_keywords`，公司关键词用 `q_organization_keyword_tags`。Key 与 workspace 不进入模型参数。每个客户/工作单独创建实例，不跨客户复用；既有宿主认证/客户绑定必须先完成，才可把查询函数注册为工具。本单元不新增对公众开放的 HTTP 路由。
 
@@ -40,7 +42,7 @@ flowchart LR
 |---|---|---|---|
 | SG6.0 连接 | 确认 Key 对应指定空间，错误空间不能查 | workspace_id 来自宿主；凭据 repr 隐藏；固定 HTTPS | 正常 profile、错空间、401/403、输入错误；真实 profile 通过即停止健康轮询 |
 | SG6.1 只读查询 | 根据明确条件取一页候选 | 每页最多25，页码最多5；单实例最多5次查询尝试；无自动翻页/补邮箱 | 两页仅2次 POST；403 不再重复同接口；429/超时不自动重试；结果只投影最小字段 |
-| SG6.1 岗位接线 | 目标 → 独立任务 → 查询 → 匹配理由／未发送文案 → 保存／预览 | 复用模型与 Sales 客户库；官方 MCP prepare/get 和 CLI 入口；稳定编号避免重复消耗 | 已实现并通过真实 MySQL CI，见 Hermes 实施记录；真实 API 与群聊注册仍分别待验收 |
+| SG6.1 岗位接线 | 目标 → 独立任务 → 查询 → 匹配理由／未发送文案 → 保存／预览 | 复用模型与 Sales 客户库；自建 MCP prepare/get 和 CLI 入口；稳定编号避免重复消耗 | 已实现并通过真实 MySQL CI，见 Hermes 实施记录；真实 API 与群聊注册仍分别待验收 |
 | SG6.2 交接（后续） | 有真实回复的联系人进入适当跟进 | 原文、停发、业务、同意资格分别核对 | 不从当前只读接口推导收信/营销授权 |
 
 性能预算按调用数验证：每个短任务最多 1 次身份读取 + 5 次查询，不为每个 helper 加健康读取；查询拒绝不重试。每次网络操作 socket timeout 10秒、connect 5秒；响应最多262144字节，读取过程另检查15秒截止（允许最多一个正在等待的 socket read 收尾）。这些是小规模试点的上限，不是吞吐承诺；无需另建缓存、分布式限流或队列。收到权限错误先结束当前查询，后续明确恢复权限再创建新的连接实例。

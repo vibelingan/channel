@@ -35,4 +35,4 @@
 
 2026-11-06：[Apollo 当前设计和 MIU](modules/SG6-apollo.md) 已补齐；Key 连接成功、搜索权限未通过。整体图继续见 diagrams/modules.html；新流程以 SG6 文档的 Mermaid 图为当前范围，不把历史图中的发送/暂停当成本轮上线内容。
 
-2026-11-09：[Apollo 试用权限实测和接线计划](verification/APOLLO-READINESS-20261109.zh-CN.md)。Professional 试用已确认；现有 Key 身份通过，但人员／公司搜索均 403，两个 API 在试用空间也不可授权。与官网欠费分开处理。获客目标、模型、客户库保存、CLI／MCP 工具和私有预览已在 Hermes `feat/apollo-prospecting-flow-20261109` 补齐，最终测试提交 `e1f112b` 的 67 项 CI 通过，并完成 Hub 真实模型／真实测试库验收；真实搜索、在线群聊注册、联系人补全与冷开发／回复交接仍未验收或实施。
+2026-11-09：[Apollo 能力、跨项目归属与当前缺口](verification/APOLLO-READINESS-20261109.zh-CN.md)。已实测 `organizations/search` 返回真实公司；原任务代码固定的新路由被拒，需修正接入选择。执行代码在 Hermes，方案文档／官网接入在 Channel。已有 67 项程序 CI 不代表合格客户或 Apollo 官方智能研究已完成；自建 MCP 包装与 Apollo 官方 MCP 分开说明。详见记录中的真实结果、三机核对和下一轮建议。
