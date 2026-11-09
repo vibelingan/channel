@@ -34,3 +34,5 @@
 10/26的图与PDF保留为设计快照；最新代码进度及未接线项以本轮验证记录为准。
 
 2026-11-06：[Apollo 当前设计和 MIU](modules/SG6-apollo.md) 已补齐；Key 连接成功、搜索权限未通过。整体图继续见 diagrams/modules.html；新流程以 SG6 文档的 Mermaid 图为当前范围，不把历史图中的发送/暂停当成本轮上线内容。
+
+2026-11-09：[Apollo 试用权限实测和接线计划](verification/APOLLO-READINESS-20261109.zh-CN.md)。Professional 试用已确认；现有 Key 身份通过，但人员／公司搜索均 403，两个 API 在试用空间也不可授权。与官网欠费分开处理；获客岗位、补全、冷开发与回复交接仍未完成。
