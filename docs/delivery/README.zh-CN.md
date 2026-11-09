@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+2026-11-09 官网旧版聊天回复修复：代码 `0b9a78f6` 已经正常发布到 supplychainsai.com，[42582880958](https://github.com/vibelingan/channel/actions/runs/42582880958) 的部署、托管读回和后台冒烟作业成功，受控交付 `site-42582880958-1` 已接受。根因是后台只返回最终正文时，旧组件没有显示它，留下省略号；本次补齐最终正文、空答案提示和立即显示的 Thinking。官网真实桌面／手机尺寸五项问答均收到回复（3.4–10.1 秒），用户原 Chrome 标签页也已复测；未使用本地 API 或数据库替代线上。为保留既有入口，`PUBLIC_AI_CHAT_V2` 从待发布的 `1` 改为 `0`；询盘和 Sales 开关保留原值，没有启用整套新 UI、重启 AI／Hermes Agent 或发邮件。新卡片、询盘交互及完整 Sales 流程仍须分别验收。详见[修复及真实官网结果](../ai-platform/assistant-ui/README.md#已发布与真实官网复验)。下方 11 月 7 日及更早状态保留作历史记录，不能覆盖本次上线结果。
+
 2026-11-07 AI 发布：继续沿用 Claude 整合的发布分支，业务源码 `25f2ddfe`。AI BFF／worker 的 [42274705769](https://github.com/vibelingan/channel/actions/runs/42274705769) 已成功，两项服务版本 014 正常，真实库、模型和 VibeKB 问答已验收。网站发布 [42278206855](https://github.com/vibelingan/channel/actions/runs/42278206855) 的完整 CI 通过，但创建临时区域函数被腾讯云以“账户余额不足”拒绝，尚未上传新版网页；原网站保持现状。负责人充值后，核对最新改动并只重跑失败的发布任务。新界面在本机接真实后端的八项检查通过；手机刷新后卡片图片及正式域名下的新界面仍待验收。Hermes Sales 的 `6d9793a` 已推远端，真实 MySQL／容器／缺陷注入 CI 成功，但实际中枢的合法 SSH 入口未核实，未安装或重启生产 Agent。Resend 仅验证未发送草稿，未发邮件。当前结果、恢复材料、两项外部条件及下一步统一见[助手发布记录 §7.1](../ai-platform/assistant-ui/ROADMAP.md#71-现在本轮按顺序不需要再决定)。
 
 2026-11-06 页脚合作方发布：main 已有代码提交 `16c86ed5` 和交接记录 `8d3dca6b`。用户确认允许只将页脚补丁同步到现用发布版本，保留现站助手、隐私页及其他行为。本次在 `test=fa8c8cd1` 上仅增加 Contact Us 下的 Manufacturing partner 说明与 Channel Technology Limited 官网链接，既有 Privacy 入口保留；34 项相关测试通过。准备经正常 Deploy Test 运行完整检查和发布，文章服务另走既有独立发布入口；此时尚未上线。恢复来源是本次写入前对 fa8c8cd1 的备份及现用 Blog 镜像，不回灌数据库。详见[工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
