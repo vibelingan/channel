@@ -74,14 +74,29 @@ export function ChatPanel({
           open
           aria-modal="false"
           aria-labelledby={titleId}
-          className="relative mb-3 ml-0 flex h-[min(38rem,calc(100svh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white p-0 text-ink shadow-2xl"
+          className="assistant-panel relative mb-3 ml-0 flex h-[min(42rem,calc(100svh-7rem))] w-[min(26rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white p-0 text-ink shadow-2xl"
         >
           <header className="flex shrink-0 items-center justify-between bg-brand-950 px-4 py-3 text-white">
-            <div>
-              <h2 id={titleId} className="font-display text-sm font-semibold">
-                Product assistant
-              </h2>
-              <p className="text-xs text-slate-300">AI answers from approved public sources</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                className="h-6 w-6 shrink-0 text-brand-200"
+              >
+                <path
+                  d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <div>
+                <h2 id={titleId} className="font-display text-sm font-semibold">
+                  Product assistant
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-300">
+                  Find products. Shape your project.
+                </p>
+              </div>
             </div>
             <div className="flex items-center">
               {headerActions}

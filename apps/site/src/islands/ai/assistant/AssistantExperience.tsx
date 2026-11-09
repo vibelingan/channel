@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChatComposer } from '../../../components/chat/ChatComposer';
 import { ChatPanel } from '../../../components/chat/ChatPanel';
 import { useChatViewport } from '../../../components/chat/useChatViewport';
+import { AssistantActivity } from './AssistantActivity';
 import { AssistantMessages } from './AssistantMessages';
 import { InquiryCard } from './InquiryCard';
 import { currentPublicProducts } from './inquiry';
-import type { AssistantAdapter, PublicProduct, TurnView } from './model';
+import type { AssistantAdapter, TurnView } from './model';
 import { isTurnWorking } from './state';
 import { type AssistantSeed, useAssistantSession } from './useAssistantSession';
 import { waitText } from './wait-text';
@@ -79,7 +80,7 @@ export function AssistantExperience({
         `${message.id}:${message.text.length}:${message.products?.length ?? 0}:${message.citations?.length ?? 0}`,
     )
     .join('|');
-  const revision = `${messageRevision}:${state.turn?.phase}:${inquiry.phase}:${session.inquiryExpanded}:${inquiry.phase === 'editing' && Boolean(inquiry.pending)}`;
+  const revision = `${messageRevision}:${state.turn?.phase}:${state.turn?.steps.at(-1)}:${inquiry.phase}:${session.inquiryExpanded}:${inquiry.phase === 'editing' && Boolean(inquiry.pending)}`;
   // Arriving from a product page: open at the card the visitor left from. When
   // that card is no longer in the restored history, open at the latest and say so.
   const anchor = session.anchor;
@@ -96,6 +97,11 @@ export function AssistantExperience({
   }, [anchor, anchorMissing]);
   const viewport = useChatViewport(state.open, revision, anchorSelectors);
   const working = isTurnWorking(state.turn?.phase);
+  const activeAnswer = state.messages.find(
+    (message) => message.id === `answer:${state.turn?.request.turnKey}`,
+  );
+  const activityVisible =
+    state.turn && ['queued', 'reading', 'streaming', 'stopping'].includes(state.turn.phase);
   const blocked =
     state.sessionStatus === 'restoring' ||
     state.sessionStatus === 'expired' ||
@@ -179,7 +185,10 @@ export function AssistantExperience({
         )}
         {state.messages.length === 0 &&
           (state.sessionStatus === 'welcome' || state.sessionStatus === 'ready') && (
-            <section className="rounded-xl bg-white p-4 text-sm leading-relaxed shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 text-sm leading-relaxed shadow-sm">
+              <p className="mb-2 text-base font-semibold tracking-tight text-brand-950">
+                What are you working on?
+              </p>
               <p>
                 Find product options, understand OEM details, or prepare an inquiry for our team.
               </p>
@@ -203,6 +212,9 @@ export function AssistantExperience({
           )}
         <AssistantMessages
           messages={state.messages}
+          {...(state.turn?.phase === 'streaming'
+            ? { streamingMessageId: `answer:${state.turn.request.turnKey}` }
+            : {})}
           currentProducts={products}
           inquiriesEnabled={capabilities.inquiries}
           onInquiry={session.beginInquiry}
@@ -233,20 +245,22 @@ export function AssistantExperience({
             the latest messages.
           </output>
         )}
-        {state.turn?.steps.length ? (
-          <ol
-            aria-label="Product checks"
-            className="space-y-1 rounded-lg border border-slate-200 p-3 text-xs text-ink-muted"
-          >
-            {[...new Set(state.turn.steps)].map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        ) : null}
-        {state.turn && (
+        {activityVisible && state.turn && (
+          <AssistantActivity
+            key={state.turn.request.turnKey}
+            phase={state.turn.phase}
+            activity={state.turn.steps.at(-1)}
+            hasContent={Boolean(activeAnswer?.text)}
+          />
+        )}
+        {state.turn && !activityVisible && (
           <section
             aria-label="Answer status"
-            className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-ink-soft"
+            className={
+              state.turn.phase === 'complete'
+                ? 'px-1 text-xs text-ink-muted'
+                : 'rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-5 text-ink-soft'
+            }
           >
             <output aria-live="polite">{turnStatus(state.turn)}</output>
             {session.retrySeconds > 0 && state.turn.phase === 'rate_limited' && (

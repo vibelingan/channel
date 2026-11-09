@@ -167,6 +167,31 @@ test('IME and Shift+Enter preserve input; Enter creates one turn and cards brows
   );
 });
 
+test('pending feedback is immediate; received activity and streamed text replace an empty answer', async ({
+  page,
+}) => {
+  await select(page, 'tool_progress', true);
+  await send(page);
+  await expect(page.getByTestId('assistant-activity')).toContainText('Thinking…', { timeout: 100 });
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(0);
+  await expect(page.getByTestId('assistant-activity')).toContainText('Finding matching products…');
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveCount(0);
+  const answer = page.locator('[data-message-role="assistant"]');
+  await expect(answer).toContainText('Here are two sample product directions');
+  await expect(page.getByTestId('assistant-activity')).toContainText('Writing your answer…');
+  await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
+  await expect(answer).toHaveCount(1);
+  await expect(answer).toContainText('Which style suits your brief?');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await select(page, 'queued');
+  expect(
+    await page
+      .locator('.assistant-activity-dots i')
+      .first()
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none');
+});
+
 test('closing during a turn preserves its answer without issuing stop', async ({ page }) => {
   await select(page, 'queued', true);
   await send(page);
@@ -470,7 +495,14 @@ test('capture actual component screens for visual review', async ({ page }, info
   const { mkdir } = await import('node:fs/promises');
   const directory = 'output/assistant-ui/screens';
   await mkdir(directory, { recursive: true });
-  for (const scenario of ['welcome', 'product_results', 'inquiry_review']) {
+  for (const scenario of [
+    'welcome',
+    'queued',
+    'tool_progress',
+    'streaming',
+    'product_results',
+    'inquiry_review',
+  ]) {
     await select(page, scenario);
     await expect(page.getByRole('dialog')).toBeVisible();
     await page

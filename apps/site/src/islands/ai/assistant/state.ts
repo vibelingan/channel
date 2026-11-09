@@ -138,7 +138,14 @@ export function reduceAssistant(state: AssistantState, action: AssistantAction):
       case 'reading':
         return { ...state, turn: { ...next, phase: keepStop ? turn.phase : 'reading' } };
       case 'tool':
-        return { ...state, turn: { ...next, steps: [...turn.steps, event.label] } };
+        return {
+          ...state,
+          turn: {
+            ...next,
+            phase: keepStop ? turn.phase : 'reading',
+            steps: [...turn.steps, event.label],
+          },
+        };
       case 'token':
         return {
           ...state,

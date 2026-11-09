@@ -1,6 +1,47 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+/* Shared by both chat transports. Motion never stands in for task progress. */
+.assistant-activity-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+  opacity: 0.5;
+  animation: assistant-dot 1.3s ease-in-out infinite;
+}
+.assistant-activity-dots i:nth-child(2) { animation-delay: 0.16s; }
+.assistant-activity-dots i:nth-child(3) { animation-delay: 0.32s; }
+.assistant-writing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  background: var(--color-brand-600);
+  vertical-align: -0.12em;
+  animation: assistant-cursor 1s steps(2, start) infinite;
+}
+@keyframes assistant-dot {
+  0%, 65%, 100% { opacity: 0.4; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+@keyframes assistant-cursor { to { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .assistant-panel { animation: assistant-panel-in 180ms var(--ease-out-soft) both; }
+  .assistant-message { animation: assistant-message-in 160ms ease-out both; }
+}
+@keyframes assistant-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes assistant-message-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-activity-dots i, .assistant-writing-cursor { animation: none; }
+}
+
 /*
  * Base layer — global element defaults built on top of the design tokens.
  * Component/page visual choices stay in markup via utility classes; this file
