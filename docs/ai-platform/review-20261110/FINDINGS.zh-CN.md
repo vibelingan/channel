@@ -100,7 +100,7 @@
 
 人工客服Eko先确认人员API资格方面Trial仍视作免费空间，额外资格未满足；随后明确OAuth／MCP连接本身支持Free计划，限制在具体受保护端点。公司补全文档价每家公司1 credit，但本Key须具备正确范围；AI Research是否带来源URL，客服表示文档尚不能确认。
 
-人工刷新权限后，本轮只重试原两项搜索各一次、page=1/per_page=1，均403／API_INACCESSIBLE。正文不再写Professional Trial未包含，而改成Key未获该端点授权；结构化错误仍为 `AUTH.AUTHORIZATION.ENDPOINT_ACCESS_DENIED`／团队无权访问。请求号分别为 `35069e42-098d-4809-8b3d-54fc9a937c16` 和 `42044f1d-6366-4888-8f8d-eef55a7fc135`，已交人工继续查。没有重复盲试，没有修改Key、开Master或消费联系人解锁；不能把错误文字变化说成权限已解决。
+人工刷新权限后，本轮只重试原两项搜索各一次、page=1/per_page=1，均403／API_INACCESSIBLE。正文不再写Professional Trial未包含，而改成Key未获该端点授权；结构化错误仍为 `AUTH.AUTHORIZATION.ENDPOINT_ACCESS_DENIED`／团队无权访问。请求号分别为 `35069e42-098d-4809-8b3d-54fc9a937c16` 和 `42044f1d-6366-4888-8f8d-eef55a7fc135`，已交人工继续查。人工查看新请求号后确认：他已重新开启Trial API访问，现在被现有Key缺端点范围拦截；目前Key仅覆盖已确认的身份和旧公司查询。没有重复盲试，没有修改Key、开Master或解锁联系人；人工解释仍需用正确范围Key的成功响应验证。已接受其提出的技术支持升级，要求确认三个限定范围现在能否选择并提供升级编号，原聊天保持打开。
 
 ## 本次表达与规则核对
 
