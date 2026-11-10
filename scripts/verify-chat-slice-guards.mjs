@@ -41,7 +41,7 @@ const checks = [
     before: '--budget.remaining < 0',
     after: 'false',
     test: 'src/index.test.ts',
-    pattern: 'empty scope is refused',
+    pattern: 'insufficient budget cannot call the next tool',
     env: false,
   },
   {
