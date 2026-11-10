@@ -36,3 +36,5 @@
 远端SHA与CI以最终交付回复和相应GitHub Actions运行链接为准。测试通过、推分支和正式发布分别报告；此表不宣称完整官网→Hermes→Resend生产验收通过。
 
 远端检查：产品代码与主设计提交 `f332fd4decfc00260771fc99be2b997daab3b23d` 已推Channel；[UI检查](https://github.com/vibelingan/channel/actions/runs/42759645810)和[Sales合同](https://github.com/vibelingan/channel/actions/runs/42759646029)按该SHA核对。Hermes `bc18dffc51ed0fafb11aa0b7bd3ce23eaee402f7` 已推，[Apollo含真实MySQL检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641178)成功；[Sales运行检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641195)按该SHA核对。后续客服事实更新是文档变化，不改已经测试的产品代码；最终结果以交付回复注明的状态为准。
+
+最终读回：上述四项GitHub Actions均成功。Channel产品代码SHA为f332fd4d（UI、Sales合同）；Hermes为bc18dff（Apollo、Sales runtime，含真实MySQL及既有容器边界验收）。Channel客服事实追加后的453af1e4只改文档，没有重跑相同产品测试，也没有把旧SHA的结果改写成另一SHA的CI结果。
