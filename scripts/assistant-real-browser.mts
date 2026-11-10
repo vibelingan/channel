@@ -87,10 +87,8 @@ const engine = new VibeKbEngine({
   provenance,
   knowledge: {
     url: metadata.mcp,
-    apiKey: 'ssh',
-    workspaceId: metadata.workspace_id,
-    publicDocumentIds: metadata.public_document_ids,
-    publicTag: '对外公开',
+    // Placeholder only: the relay on the host supplies the real read-only key.
+    apiKey: 'kbpub_supplied-by-the-ssh-relay-on-host',
     sourcePrefix: 'channelkb',
     fetch: api,
     allowLocalHttp: true,

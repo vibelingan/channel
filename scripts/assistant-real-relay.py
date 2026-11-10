@@ -1,4 +1,4 @@
-"""One SSH request to the existing model or a fixed public VibeKB scope. No credential export."""
+"""One SSH request to the existing model or the public read-only VibeKB scope. No credential export."""
 import hashlib
 import json
 import sys
@@ -9,9 +9,8 @@ from pathlib import Path
 import yaml
 
 BASE = Path("/opt/vibekb/mcp-kb")
-WORKSPACE = 2
-PUBLIC_IDS = {12}
-PUBLIC_TAG = "对外公开"
+PUBLIC_WORKSPACE = "diversity-public"
+READ_TOOLS = {"search_documents", "list_documents", "get_document"}
 
 def env_file(path):
     result = {}
@@ -21,13 +20,13 @@ def env_file(path):
             result[key.strip()] = value.strip().strip('"').strip("'")
     return result
 
-def public(doc):
-    tags = doc.get("tags", [])
-    if isinstance(tags, str):
-        tags = json.loads(tags)
-    return doc.get("id") in PUBLIC_IDS and PUBLIC_TAG in tags and not any(
-        tag in tags for tag in ["内部", "internal", "private", "channel-blog-private-draft"]
-    )
+def public_key(kb_env):
+    """The read-only key the KB server binds to the public workspace (KB_PUBLIC_KEYS)."""
+    for item in kb_env.get("KB_PUBLIC_KEYS", "").split(","):
+        name, _, key = item.strip().partition("=")
+        if name.strip() == PUBLIC_WORKSPACE and key.strip().startswith("kbpub_"):
+            return key.strip()
+    raise ValueError("public knowledge key missing")
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -39,11 +38,10 @@ def main():
     kb_env = env_file(BASE/".env")
     model = config["model"]
     model_key = hermes_env.get("CUSTOM_TENCENT_API_KEY") or model["api_key"]
-    kb_key = kb_env["KB_API_KEY"]
+    kb_key = public_key(kb_env)
     if sys.argv[1:] == ["--describe"]:
         print(json.dumps({"model": model["default"], "model_base_url": model["base_url"],
-            "mcp": "http://127.0.0.1:9021/mcp", "workspace_id": WORKSPACE,
-            "public_document_ids": sorted(PUBLIC_IDS),
+            "mcp": "http://127.0.0.1:9021/mcp", "public_workspace": PUBLIC_WORKSPACE,
             "knowledge_credential_id": hashlib.sha256(kb_key.encode()).hexdigest()}))
         return
     raw = sys.stdin.buffer.read(131073)
@@ -81,16 +79,10 @@ def main():
             if rpc == "tools/call":
                 params = data.get("params", {})
                 name, args = params.get("name"), params.get("arguments", {})
-                if name in {"search_documents", "list_documents"}:
-                    if str(args.get("workspace")) != str(WORKSPACE):
-                        raise ValueError("workspace denied")
-                    if name == "list_documents" and args.get("tag") != PUBLIC_TAG:
-                        raise ValueError("public tag required")
-                elif name == "get_document":
-                    if args.get("document_id") not in PUBLIC_IDS:
-                        raise ValueError("document denied")
-                else:
+                if name not in READ_TOOLS:
                     raise ValueError("write or unknown tool denied")
+                if "workspace" in args:
+                    raise ValueError("workspace argument denied")
             elif rpc not in {"initialize","notifications/initialized","notifications/cancelled","ping","tools/list"}:
                 raise ValueError("MCP method denied")
         elif method != "DELETE":
@@ -123,28 +115,11 @@ def main():
             if len(body) > 524288:
                 raise ValueError("response limit")
             text = body.decode("utf-8")
-            # Restrict retrieved documents before they leave the remote host.
-            if request["kind"] == "mcp" and data and data.get("method") in {"tools/call","tools/list"}:
+            # The server scopes documents to the public workspace; only trim the tool list here.
+            if request["kind"] == "mcp" and data and data.get("method") == "tools/list":
                 def project(frame):
                     result = frame.get("result", {})
-                    if data["method"] == "tools/list":
-                        result["tools"] = [t for t in result.get("tools", []) if t.get("name") in {"search_documents","list_documents","get_document"}]
-                    else:
-                        for block in result.get("content", []):
-                            if block.get("type") != "text":
-                                continue
-                            try:
-                                value = json.loads(block["text"])
-                            except json.JSONDecodeError:
-                                continue
-                            if isinstance(value,dict):
-                                for key in ["results", "documents"]:
-                                    if key in value:
-                                        value[key] = [d for d in value[key] if public(d)]
-                                        value["count"] = len(value[key])
-                                if "workspace_id" in value and (value["workspace_id"] != WORKSPACE or not public(value)):
-                                    raise ValueError("document scope changed")
-                            block["text"] = json.dumps(value, ensure_ascii=False)
+                    result["tools"] = [t for t in result.get("tools", []) if t.get("name") in READ_TOOLS]
                     return frame
                 if "event-stream" in response.headers.get("Content-Type", ""):
                     text = "\n".join("data: " + json.dumps(project(json.loads(line[6:])), ensure_ascii=False)
