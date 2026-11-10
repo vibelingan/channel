@@ -275,9 +275,7 @@ test('a vibekb worker gets the model, the MCP knowledge scope and the catalog, n
     'AI_MODEL_ID',
     'AI_MODEL_API_KEY',
     'VIBEKB_MCP_URL',
-    'VIBEKB_MCP_API_KEY',
-    'VIBEKB_PUBLIC_WORKSPACE_ID',
-    'VIBEKB_PUBLIC_DOCUMENT_IDS',
+    'VIBEKB_PUBLIC_API_KEY',
     'AI_PUBLIC_CATALOG_ORIGIN',
   ]) {
     assert.notEqual(worker.envVariables[key], undefined, `ai-worker is missing ${key}`);
@@ -285,6 +283,19 @@ test('a vibekb worker gets the model, the MCP knowledge scope and the catalog, n
   for (const key of ['KB_BASE_URL', 'KB_API_KEY', 'AI_KB_EVIDENCE_JSON', 'KB_WORKSPACE_ID']) {
     assert.equal(worker.envVariables[key], undefined, `a vibekb worker must not carry ${key}`);
   }
+  // What is public is decided inside the knowledge base. The deployment carries
+  // neither the management key nor any list of documents, tags or workspaces.
+  for (const def of vibekb()) {
+    for (const key of [
+      'VIBEKB_MCP_API_KEY',
+      'VIBEKB_PUBLIC_DOCUMENT_IDS',
+      'VIBEKB_PUBLIC_TAG',
+      'VIBEKB_PUBLIC_WORKSPACE_ID',
+    ]) {
+      assert.equal(def.envVariables[key], undefined, `${def.name} must not carry ${key}`);
+    }
+  }
+  assert.equal(byName(vibekb(), 'ai-bff').envVariables.VIBEKB_PUBLIC_API_KEY, undefined);
   assert.equal(worker.envVariables.AI_ENGINE_ID, 'vibekb');
   assert.equal(byName(vibekb(), 'ai-bff').envVariables.AI_ENGINE_ID, 'vibekb');
   // Optional settings are left out when unset, and passed through when set.
@@ -294,7 +305,7 @@ test('a vibekb worker gets the model, the MCP knowledge scope and the catalog, n
 });
 
 test('the model and MCP keys are secrets, never literals', () => {
-  for (const key of ['AI_MODEL_API_KEY', 'VIBEKB_MCP_API_KEY', 'AI_INQUIRY_TOKEN']) {
+  for (const key of ['AI_MODEL_API_KEY', 'VIBEKB_PUBLIC_API_KEY', 'AI_INQUIRY_TOKEN']) {
     assert.ok(SECRET_ENV_KEYS.includes(key), `${key} must be a secret`);
   }
   for (const def of vibekb({ AI_INQUIRY_ENABLED: '1' })) {

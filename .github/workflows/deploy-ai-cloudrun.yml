@@ -148,15 +148,12 @@ jobs:
       KB_WORKSPACE_ID: ${{ vars.KB_WORKSPACE_ID }}
       KB_CITATIONS_VERIFIED: ${{ vars.KB_CITATIONS_VERIFIED }}
       KB_CREDENTIAL_ROTATION: ${{ vars.KB_CREDENTIAL_ROTATION }}
-      # vibekb: the worker calls the model itself and reads approved documents
-      # through the knowledge base's MCP tools.
+      # vibekb: the worker calls the model itself and reads the public workspace
+      # through the knowledge base's read-only MCP tools.
       AI_MODEL_BASE_URL: ${{ vars.AI_MODEL_BASE_URL }}
       AI_MODEL_ID: ${{ vars.AI_MODEL_ID }}
       AI_MODEL_THINKING_MODE: ${{ vars.AI_MODEL_THINKING_MODE }}
       VIBEKB_MCP_URL: ${{ vars.VIBEKB_MCP_URL }}
-      VIBEKB_PUBLIC_WORKSPACE_ID: ${{ vars.VIBEKB_PUBLIC_WORKSPACE_ID }}
-      VIBEKB_PUBLIC_DOCUMENT_IDS: ${{ vars.VIBEKB_PUBLIC_DOCUMENT_IDS }}
-      VIBEKB_PUBLIC_TAG: ${{ vars.VIBEKB_PUBLIC_TAG }}
       AI_PUBLIC_CATALOG_ORIGIN: ${{ vars.AI_PUBLIC_CATALOG_ORIGIN }}
       AI_INQUIRY_ENABLED: ${{ vars.AI_INQUIRY_ENABLED }}
       AI_INQUIRY_BASE_URL: ${{ vars.AI_INQUIRY_BASE_URL }}
@@ -199,7 +196,7 @@ jobs:
           KB_API_KEY: ${{ secrets.KB_API_KEY }}
           AI_IP_HASH_SECRET: ${{ secrets.AI_IP_HASH_SECRET }}
           AI_MODEL_API_KEY: ${{ secrets.AI_MODEL_API_KEY }}
-          VIBEKB_MCP_API_KEY: ${{ secrets.VIBEKB_MCP_API_KEY }}
+          VIBEKB_PUBLIC_API_KEY: ${{ secrets.VIBEKB_PUBLIC_API_KEY }}
           AI_INQUIRY_TOKEN: ${{ secrets.AI_INQUIRY_TOKEN }}
           AI_KB_EVIDENCE_FILE: ${{ runner.temp }}/kb-evidence.json
         run: pnpm deploy:ai:cloudrun

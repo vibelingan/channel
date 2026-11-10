@@ -20,8 +20,12 @@ const request: EngineRunRequest = {
 };
 function setup(
   options: {
-    foreign?: boolean;
-    secretHit?: boolean;
+    /** What the server calls itself: the public read-only server unless a test says otherwise. */
+    serverName?: string;
+    /** A second hit that the server reports from a different workspace. */
+    mixed?: boolean;
+    /** The search matches nothing, so the newest public documents are listed instead. */
+    noHit?: boolean;
     plans?: string[];
     delay?: boolean;
     finishReason?: string;
@@ -63,54 +67,45 @@ function setup(
       result = {
         protocolVersion: '2025-11-25',
         capabilities: { tools: {} },
-        serverInfo: { name: 'kb', version: '1' },
+        serverInfo: { name: options.serverName ?? 'knowledge-base-public', version: '1' },
       };
     else if (body.method === 'notifications/initialized')
       return new Response(null, { status: 202 });
     else if (body.method === 'tools/call') {
       const name = params?.name;
       const args = params?.arguments;
-      if (name !== 'get_document') assert.equal(args?.workspace, '2');
+      // The key alone decides the scope: this side names no workspace, tag or document list.
+      assert.ok(['search_documents', 'list_documents', 'get_document'].includes(String(name)));
+      for (const scope of ['workspace', 'tag']) assert.equal(args?.[scope], undefined);
       const publicRow = {
         id: 12,
         title: 'Public company',
-        tags: ['对外公开'],
-        workspace_id: options.foreign ? 99 : 2,
+        tags: [],
+        workspace_id: 6,
         content: options.documentText ?? 'We are a manufacturing partner.',
       };
-      const unapproved = {
+      const elsewhere = {
         id: 13,
-        title: 'Unapproved public label',
-        tags: ['对外公开'],
+        title: 'From another workspace',
+        tags: [],
         workspace_id: 2,
-        content: 'UNAPPROVED CANARY',
+        content: 'OTHER WORKSPACE CANARY',
       };
-      const data =
+      const text =
         name === 'get_document'
-          ? args?.document_id === 13
-            ? unapproved
-            : publicRow
+          ? JSON.stringify(args?.document_id === 13 ? elsewhere : publicRow)
           : name === 'list_documents'
-            ? { documents: [publicRow] }
-            : {
-                results: options.secretHit
-                  ? [
-                      { id: 114, title: 'Internal', tags: ['内部'], snippet: 'PRIVATE CANARY' },
-                      unapproved,
-                      publicRow,
-                    ]
-                  : [publicRow],
-              };
-      result = { content: [{ type: 'text', text: JSON.stringify(data) }] };
+            ? JSON.stringify({ documents: [publicRow] })
+            : options.noHit
+              ? '（无命中）知识库中没有检索到相关内容。'
+              : JSON.stringify({ results: options.mixed ? [publicRow, elsewhere] : [publicRow] });
+      result = { content: [{ type: 'text', text }] };
     } else throw new Error('Unexpected MCP method');
     return Response.json({ jsonrpc: '2.0', id: body.id, result });
   };
   const knowledge = {
     url: 'https://kb.invalid/mcp',
-    apiKey: 'dummy',
-    workspaceId: 2,
-    publicDocumentIds: [12],
-    publicTag: '对外公开',
+    apiKey: `kbpub_${'k'.repeat(40)}`,
     sourcePrefix: 'channelkb',
     fetch: api,
   };
@@ -130,8 +125,8 @@ function setup(
   });
   return { engine, calls, knowledge };
 }
-test('official MCP client performs real handshake and fixed scoped tools; model sees only approved evidence', async () => {
-  const f = setup({ secretHit: true });
+test('official MCP client performs a real handshake and sends no scope of its own; the model sees the public evidence', async () => {
+  const f = setup();
   const handle = await f.engine.createRun(request, new AbortController().signal);
   const events = [];
   for await (const e of f.engine.streamRun(handle, new AbortController().signal))
@@ -144,8 +139,10 @@ test('official MCP client performs real handshake and fixed scoped tools; model 
   const model = f.calls.filter((c) => c.url.includes('model.invalid'));
   assert.equal(model.length, 2);
   assert.ok(JSON.stringify(model[1]).includes('manufacturing partner'));
-  assert.ok(!JSON.stringify(model).includes('PRIVATE CANARY'));
-  assert.ok(!JSON.stringify(model).includes('UNAPPROVED CANARY'));
+  const tools = f.calls
+    .filter((c) => c.body.method === 'tools/call')
+    .map((c) => (c.body.params as { name: string }).name);
+  assert.deepEqual(tools, ['search_documents', 'get_document']);
   assert.equal(await f.engine.cancelRun(handle), 'unknown_run');
 });
 
@@ -206,18 +203,49 @@ test('provider deltas expose complete answer sentences before the completion end
     ['usage', 'final'],
   );
 });
-test('changed document workspace never reaches the model, even when an approved ID was returned', async () => {
-  const f = setup({ foreign: true });
+test('documents from two workspaces under one key never reach the model', async () => {
+  const f = setup({ mixed: true });
   const h = await f.engine.createRun(request, new AbortController().signal);
   await assert.rejects(async () => {
     for await (const _ of f.engine.streamRun(h, new AbortController().signal)) {
     }
   });
-  assert.equal(f.calls.filter((c) => c.url.includes('model.invalid')).length, 1);
+  const model = f.calls.filter((c) => c.url.includes('model.invalid'));
+  assert.equal(model.length, 1);
+  assert.ok(!JSON.stringify(model).includes('OTHER WORKSPACE CANARY'));
 });
-test('empty scope is refused; insufficient budget cannot call the next tool', async () => {
+test('a server that is not the public read-only scope is refused before any document is read', async () => {
+  // What a management key would reach: the full server, under its own name.
+  const f = setup({ serverName: 'knowledge-base' });
+  await assert.rejects(
+    new PublicKnowledge(f.knowledge).search('company', new AbortController().signal, {
+      remaining: 6,
+    }),
+    /not the public read-only scope/,
+  );
+  assert.ok(f.calls.some((c) => c.body.method === 'initialize'));
+  assert.ok(!f.calls.some((c) => c.body.method === 'tools/call'));
+});
+test('a question that matches nothing is answered from the newest public documents', async () => {
+  const f = setup({ noHit: true });
+  const sources = await new PublicKnowledge(f.knowledge).search(
+    'company',
+    new AbortController().signal,
+    { remaining: 6 },
+  );
+  assert.deepEqual(
+    sources.map((s) => s.sourceId),
+    ['channelkb/vibekb/12'],
+  );
+  const tools = f.calls
+    .filter((c) => c.body.method === 'tools/call')
+    .map((c) => (c.body.params as { name: string }).name);
+  assert.deepEqual(tools, ['search_documents', 'list_documents', 'get_document']);
+});
+test('a key without the public prefix is refused; insufficient budget cannot call the next tool', async () => {
   const f = setup();
-  assert.throws(() => new PublicKnowledge({ ...f.knowledge, publicDocumentIds: [] }));
+  for (const apiKey of ['', 'dummy', 'm'.repeat(48), 'kbpub_short'])
+    assert.throws(() => new PublicKnowledge({ ...f.knowledge, apiKey }), /public read-only/);
   await assert.rejects(
     new PublicKnowledge(f.knowledge).search('company', new AbortController().signal, {
       remaining: 0,

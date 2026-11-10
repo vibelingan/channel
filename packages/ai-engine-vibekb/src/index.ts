@@ -21,10 +21,14 @@ import {
 import { completeAnswerPrefix } from './answer-prefix.ts';
 import { completionFrames } from './completion-stream.ts';
 import { boundedFetch, endpoint, record } from './http.ts';
-import { type KnowledgeConfig, PublicKnowledge } from './knowledge.ts';
+import { type KnowledgeConfig, PUBLIC_KNOWLEDGE_SERVER, PublicKnowledge } from './knowledge.ts';
 import { WEBSITE_SALES_PROMPT } from './prompt.ts';
 
-export { PublicKnowledge } from './knowledge.ts';
+export {
+  PUBLIC_KNOWLEDGE_KEY_PREFIX,
+  PUBLIC_KNOWLEDGE_SERVER,
+  PublicKnowledge,
+} from './knowledge.ts';
 export interface VibeKbEngineConfig {
   modelBaseUrl: string;
   model: string;
@@ -213,16 +217,14 @@ export class VibeKbEngine implements ConversationEngine {
     return {
       credentialId: createHash('sha256').update(this.config.knowledge.apiKey).digest('hex'),
       rotationCounter: 1,
-      spaceId: String(this.config.knowledge.workspaceId),
+      // The key is bound to its public workspace by the knowledge base, which is all this side knows.
+      spaceId: PUBLIC_KNOWLEDGE_SERVER,
     };
   }
   async verifyKnowledge(signal = AbortSignal.timeout(45000)) {
     const sources = await this.knowledge.search('Diversity', signal, { remaining: 6 });
-    if (!sources.length) throw new Error('No approved public VibeKB documents');
-    return {
-      workspaceId: this.config.knowledge.workspaceId,
-      sourceIds: sources.map((c) => c.sourceId),
-    };
+    if (!sources.length) throw new Error('The public knowledge workspace is empty');
+    return { sourceIds: sources.map((c) => c.sourceId) };
   }
   /**
    * The request for the next call, inside `limits.maxInputTokens`: retrieved
