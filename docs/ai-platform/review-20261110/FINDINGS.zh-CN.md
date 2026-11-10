@@ -116,6 +116,8 @@
 
 2. **P1，Channel正式集成检查失败，旧验收程序未迁移。** `scripts/assistant-real-browser.mts:91` 和 `scripts/assistant-real-smoke.mts:27` 还向已修改的 `KnowledgeConfig` 传 `workspaceId`／白名单／标签；`pnpm exec tsc -p tsconfig.assistant-chat.json` 本地复现两处TS2353。远端[Assistant chat integration](https://github.com/vibelingan/channel/actions/runs/42826230581)也是这两处失败。不能只删属性消掉类型错误：两脚本还传占位Key `ssh`，而新构造器要求 `kbpub_`；`assistant-real-relay.py`仍从服务器取管理Key并执行旧的ID／标签过滤。应迁移整个真实验收通路，使用正确公开Key／服务身份，再验证合法和非法资料读取，不能关闭检查或冒充只读服务名。
 
+   后续更新：Channel已推32bd80d6和21b347dc，移除了两脚本旧配置、改用relay占位标识，并把服务器relay迁到diversity-public只读Key。上述失败结论针对6df1b04d快照保留，不能直接判定21b仍然同样失败。本轮已核对远端差异；新提交的完整验收需以其检查结果为准。
+
 3. **P2，门户可能错误显示“对外公开”。** Hermes `deploy/hub/hubkit/vibekb_client.py:110–113` 从工作区名称后缀直接设置public=true，忽略服务端真实启用状态。若已存在 `<客户>-public` 但尚未绑定Key，或后来撤销配置，仍显示已公开。合成lister明确返回public=false时，复现输出被覆盖为true。建议由服务端在列表中返回真实公开状态并由Hub保留；如改用工作区目录核对，应在本次列表中批取一次，不为每篇文档重复远端查询。
 
 Hermes内部助手／Hub共用管理Key、主要靠提示词约束客户和写入范围，是实现文档已经承认的现有缺口；本次公开只读Key机制不能被汇报为整个Hermes内部权限已强制隔离。
@@ -128,7 +130,9 @@ Hermes内部助手／Hub共用管理Key、主要靠提示词约束客户和写�
 
 文档285晚间已增加“对外公开”标签（09:00:13更新），但仍在内部工作区2；新方案不以标签决定权限。它有26471字符、Pending Company Confirmation和9.1销售联系人章节，不能未经确认把整篇移入公开空间；篇幅也超过官网每篇读取的10000字符。应确认公开内容并分篇，旧官网仍需读取的文档12在切换验收前保留。
 
-已在本机仓库外生成待启用的独立kbpub_随机Key，文件0600；尚未写入服务器、GitHub Secret，也没有激活范围。GitHub test环境目前只有旧VIBEKB_MCP_API_KEY。Claude交接说明包含准确主机、三仓提交、失败复现、最小修法、现有改动保护及后续接线顺序，不含明文Key。
+已在本机仓库外生成待启用的独立kbpub_随机Key，文件0600；尚未写入服务器、GitHub Secret，也没有激活范围。GitHub test环境在本轮读取时只有旧VIBEKB_MCP_API_KEY。该本机文件为权限受限的明文，不能称为加密保存。
+
+23时交接纠正：用户正在另一执行者的加密页交接已有Key，本次以那一把为唯一待配置来源，不使用本会话额外生成的候选Key。服务器KB_PUBLIC_KEYS与Channel VIBEKB_PUBLIC_API_KEY必须写同一值；加密交接不等于服务器已经登记。Claude剪贴板交接已缩为7行并读回确认，不含本机路径和实际Key。先前长版交接错误假设执行者可访问本机文件，不再使用。VibeKB PR #1已核对，仍为bb02ebe，与本轮审查快照相同。
 
 ## 本次表达与规则核对
 
