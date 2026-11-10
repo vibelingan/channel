@@ -125,3 +125,24 @@ flowchart LR
 ## 交付状态
 
 整体设计和实施图已完成。SG0.1、SG0.2、SG1.0、SG1.1已完成合同/假服务、连接授权、源码核对和受控读取；SG2.1、SG2.2在独立Hermes分支完成客户执行边界和可靠接收，隔离Docker/MySQL CI通过。尚未全部验收的单元按plan.json继续：SG2.3已有归档切片，仍缺生产新run与重调度；SG3.1离线范围本轮已完成。未部署、未接通线上Hermes或真实邮件；后续仍按实际线上Infra执行分层验收。
+
+
+## 2026-11-06：工程流程校正与 Apollo 首个试点
+
+先调查 Channel PR [73](https://github.com/vibelingan/channel/pull/73)～[76](https://github.com/vibelingan/channel/pull/76)：不变集合重复读取、每文件单独SDK上传、只读阶段重复查询run/status、续租频率与180秒租约不相称，是实际重复工作；不是只凭“网络慢”提高超时。SDK初始化也不是最大的耗时，日志显示单连接上传及集合检查更值得优先解决。保留权威授权/写前围栏，在不变步骤间减少重复远端调用。
+
+本机全局Codex AGENTS与现有agentic-delivery-loop已更新，通用修订推到 orocsy/symphony 的 docs/proportional-engineering-20261106（3ff3fdf）。工程知识安装engineering-craft的PR #5快照99c4302（PR仍OPEN），仅将description精简至Codex的1024字符限制并去掉角括号，完成Codex适配校验，规则内容不变；CloudBase专用skill来自Channel release fa8c8cd1已合并PR #78。旧Claude skill、其他工作区未修改。当前三个相关skill的结构校验通过。其他电脑/云端不会因同一登录账号自动获得本机文件，需安装同版本。
+
+原则有一手来源：[Google SRE](https://sre.google/workbook/eliminating-toil/)强调度量投入收益；[NIST](https://csrc.nist.gov/Projects/automated-combinatorial-testing-for-software/combinatorial-methods-in-testing/interactions-involved-in-software-failures)支持有意义的交互覆盖，也明确二元组合不能保证覆盖高阶故障；[Google Testing](https://testing.googleblog.com/2017/04/where-do-our-flaky-tests-come-from.html)记录大型测试更易不稳定；[Anthropic](https://www.anthropic.com/research/building-effective-agents)建议简单方案不够时才增加复杂性。落实为：MIU按业务行为切片；先测普通路径；有因果联系的重试/并发/撤权再组合；关键门禁做针对性缺陷注入；不遍历全部内部函数，不为绿灯反复跑测试，不靠新增防御层掩盖未知根因。适用的强制检查仍保留。
+
+Apollo实际用作验证：Key安全接收，身份接口200且账号匹配；两种搜索接口各一次最小查询均403。没有开试用、使用其他客户Key或发信。新Hermes适配器基于84f1900，提交a294eb1；不改Hub/现有Agent。连接一次后两页查询恰好3个请求；同接口403不再请求；每短任务最多5次查询尝试。不新增数据库、队列、缓存或Channel控制页。
+
+12个针对性测试（含真实本机HTTP往返）通过，2个缺陷注入由目标断言捕获，pyflakes通过。初次403缺陷注入仅触发模拟响应耗尽，不计捕获；补足合法重复403后，调用数断言抓到多余请求。不是12个业务全链路E2E。本机单元/HTTP测试此次约0.6秒，不是线上时延承诺。本会话完成源码复核与故障实验；没有独立模型review，不冒称别人审过。
+
+新适配器真实验证：身份通过、人员查询403；真实候选返回、企微任务派发与客户预览未完成。进一步核对安全错误类别为API_INACCESSIBLE，错误明确提到Free计划及升级；当前Free搜索能力受限。用户可决定是否使用预留的免费试用，不能由我们擅自开通或付费；开通后还要核对期限/续费条件和专用Key接口范围。支持请求只描述企业邮箱注册、profile200和两个搜索403，不给Key。收到有效权限后才安排真实名单验收。SG6.2邮件/回复交接不在本轮实现范围。
+
+设计与MIU见modules/SG6-apollo.md。流程图源见diagrams/apollo-readonly.json，生成查看页output/apollo/flow.html；9项结构检查无错误/警告，四种桌面尺寸及浅/深主题包含检查通过，并人工检查截图。运行产物不提交。原图及旧讨论文件不覆盖，整体架构仍可看HIGH-LEVEL.md与diagrams/modules.html。
+
+已核对SG6模块、HIGH-LEVEL、Hermes boundary/resend/model错误处理、client-bindings合同、Sales服务/CI、Claude提速文档及相关skill。措辞修正：“接通Apollo”改为“身份通过、搜索403”，避免以Key有效代替业务可用。
+
+远端验收：Hermes a294eb16f204c22ce728204e6b4e416a94d33671 的 [Apollo只读CI](https://github.com/vibelingan/hermesinfra/actions/runs/42172865175) 已成功；未合并、未部署。

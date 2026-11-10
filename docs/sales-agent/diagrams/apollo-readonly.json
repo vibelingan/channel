@@ -1,0 +1,186 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "官网询盘与 Apollo 获客：共用平台，流程独立",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "website",
+      "label": "官网询盘：自动准备，人工审阅"
+    },
+    {
+      "id": "prospect",
+      "label": "主动获客：本期只接只读查询"
+    },
+    {
+      "id": "failure",
+      "label": "权限与外发边界",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "web",
+    "channel",
+    "sales",
+    "draft",
+    "review"
+  ],
+  "nodes": [
+    {
+      "id": "web",
+      "lane": "website",
+      "col": 0,
+      "type": "frontend",
+      "label": "官网询盘",
+      "sublabel": "OEM / 单品 / 客服确认",
+      "width": 184
+    },
+    {
+      "id": "channel",
+      "lane": "website",
+      "col": 1,
+      "type": "database",
+      "label": "Channel",
+      "sublabel": "保存正式需求",
+      "width": 184
+    },
+    {
+      "id": "sales",
+      "lane": "website",
+      "col": 2,
+      "type": "backend",
+      "label": "Hermes Sales",
+      "sublabel": "准备方案与邮件",
+      "width": 184
+    },
+    {
+      "id": "draft",
+      "lane": "website",
+      "col": 3,
+      "type": "external",
+      "label": "Resend",
+      "sublabel": "草稿与完整预览",
+      "width": 184
+    },
+    {
+      "id": "review",
+      "lane": "website",
+      "col": 4,
+      "type": "security",
+      "label": "客户销售",
+      "sublabel": "审阅后决定外发",
+      "width": 184
+    },
+    {
+      "id": "goal",
+      "lane": "prospect",
+      "col": 0,
+      "type": "frontend",
+      "label": "企微获客目标",
+      "sublabel": "与官网询盘分开",
+      "width": 184
+    },
+    {
+      "id": "job",
+      "lane": "prospect",
+      "col": 1,
+      "type": "backend",
+      "label": "Hermes 获客任务",
+      "sublabel": "宿主固定客户与空间",
+      "width": 184
+    },
+    {
+      "id": "apollo",
+      "lane": "prospect",
+      "col": 2,
+      "type": "external",
+      "label": "Apollo 只读查询",
+      "sublabel": "不连接发信邮箱",
+      "width": 184
+    },
+    {
+      "id": "list",
+      "lane": "prospect",
+      "col": 3,
+      "type": "backend",
+      "label": "候选名单",
+      "sublabel": "权限允许后才能生成",
+      "width": 184
+    },
+    {
+      "id": "denied",
+      "lane": "failure",
+      "col": 2,
+      "type": "security",
+      "label": "权限不足则结束",
+      "sublabel": "当前搜索403，不自动重试",
+      "width": 184
+    }
+  ],
+  "edges": [
+    {
+      "id": "web-channel",
+      "from": "web",
+      "to": "channel"
+    },
+    {
+      "id": "channel-sales",
+      "from": "channel",
+      "to": "sales"
+    },
+    {
+      "id": "sales-draft",
+      "from": "sales",
+      "to": "draft"
+    },
+    {
+      "id": "draft-review",
+      "from": "draft",
+      "to": "review"
+    },
+    {
+      "id": "goal-job",
+      "from": "goal",
+      "to": "job"
+    },
+    {
+      "id": "job-apollo",
+      "from": "job",
+      "to": "apollo"
+    },
+    {
+      "id": "apollo-list",
+      "from": "apollo",
+      "to": "list"
+    },
+    {
+      "id": "apollo-denied",
+      "from": "apollo",
+      "to": "denied",
+      "variant": "security",
+      "role": "error",
+      "label": "拒绝"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "共用能力",
+      "items": [
+        "定海调度、内容能力、工具与客户身份",
+        "当前不修改在线 Agent，也不真实发信"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "保持独立",
+      "items": [
+        "客户、业务、产品与营销资格分别保留",
+        "Apollo Key 身份通过；搜索权限仍未通过"
+      ]
+    }
+  ]
+}
