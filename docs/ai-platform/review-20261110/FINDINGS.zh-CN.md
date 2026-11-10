@@ -116,7 +116,7 @@
 
 2. **P1，Channel正式集成检查失败，旧验收程序未迁移。** `scripts/assistant-real-browser.mts:91` 和 `scripts/assistant-real-smoke.mts:27` 还向已修改的 `KnowledgeConfig` 传 `workspaceId`／白名单／标签；`pnpm exec tsc -p tsconfig.assistant-chat.json` 本地复现两处TS2353。远端[Assistant chat integration](https://github.com/vibelingan/channel/actions/runs/42826230581)也是这两处失败。不能只删属性消掉类型错误：两脚本还传占位Key `ssh`，而新构造器要求 `kbpub_`；`assistant-real-relay.py`仍从服务器取管理Key并执行旧的ID／标签过滤。应迁移整个真实验收通路，使用正确公开Key／服务身份，再验证合法和非法资料读取，不能关闭检查或冒充只读服务名。
 
-   后续更新：Channel已推32bd80d6和21b347dc，移除了两脚本旧配置、改用relay占位标识，并把服务器relay迁到diversity-public只读Key。上述失败结论针对6df1b04d快照保留，不能直接判定21b仍然同样失败。本轮已核对远端差异；新提交的完整验收需以其检查结果为准。
+   后续更新：Channel已推32bd80d6和21b347dc，移除了两脚本旧配置、改用relay占位标识，并把服务器relay迁到diversity-public只读Key。又推c09179fe修正守卫调用的测试名称，该SHA的CI、Browser regression、Assistant chat integration均已成功。上述失败结论针对6df1b04d快照保留，不能沿用为新提交仍失败。
 
 3. **P2，门户可能错误显示“对外公开”。** Hermes `deploy/hub/hubkit/vibekb_client.py:110–113` 从工作区名称后缀直接设置public=true，忽略服务端真实启用状态。若已存在 `<客户>-public` 但尚未绑定Key，或后来撤销配置，仍显示已公开。合成lister明确返回public=false时，复现输出被覆盖为true。建议由服务端在列表中返回真实公开状态并由Hub保留；如改用工作区目录核对，应在本次列表中批取一次，不为每篇文档重复远端查询。
 
@@ -136,7 +136,15 @@ Hermes内部助手／Hub共用管理Key、主要靠提示词约束客户和写�
 
 代码核对：普通ai-worker读取本地VIBEKB_PUBLIC_API_KEY及VIBEKB_MCP_URL；专用SSH验收脚本则由远端assistant-real-relay.py从KB_PUBLIC_KEYS读真实Key，本机代码只用占位标识，不必取得原值。临时库19项权限测试使用合成Key，本就不需要用户交接的真实Key。必须先确认测试入口与知识库地址，不能把单元测试、本地真实联调和线上部署混在一起。加密交接只保护传递，不证明任何服务配置已生效。
 
-Claude剪贴板已改为本地测试范围说明并读回确认，不含本机路径和实际Key，不包含部署服务器、设置GitHub Secret或重启Agent的指令。先前长版交接错误假设执行者可访问本机文件，随后短版又错误提前引入生产配置，均不再使用。VibeKB PR #1已核对，仍为bb02ebe，与本轮审查快照相同。
+此前Claude剪贴板曾改为本地测试范围说明，不含本机路径和实际Key。先前长版交接错误假设执行者可访问本机文件，随后短版又错误提前引入官网生产配置，均不再使用。VibeKB PR #1已核对，仍为bb02ebe，与本轮审查快照相同。
+
+### 23:45按负责人明确要求完成Key登记
+
+负责人再次明确要求“只review代码，Key设置好给”，本次实际完成内容机公开只读Key支持和登记，没有再生成第二把。仅把Fable的公开Key功能差异应用到运行源码，保留原有本地改动与当前字面检索实现；不把它宣称为bb02ebe整份源码／语义检索升级。运行文件SHA256为523b4ca87cd67d3a68f8c6ca6aa1b07535a403f0f7571006fdaa28381fa0b01b。新分支语义路径的竞态意见仍保留，但现有运行程序没有该向量补取路径。
+
+在服务器实际mcp1.26.0环境的隔离临时库中先跑19项公开范围测试，通过后备份原程序、环境和SQLite，再仅重启vibekb-kb-mcp。备份位于/opt/vibekb/mcp-kb/.backups/public-key-20261110T144545Z，敏感文件0600；没有用旧数据库覆盖现有业务记录。原管理Key及9项工具保持不变，没有重启Hub或其他Agent。
+
+同一把Key已绑定diversity-public（id=6）。真实本机MCP验证返回knowledge-base-public且只有search_documents/list_documents/get_document；读取其他工作区和调用写工具被拒绝，管理REST入口404，缺失／错误Key均401。公开区目前0篇文档，未移动285或12。未设置GitHub Secret、未部署官网；此登记供本地小助手真实联调使用。实际Key只通过受控程序交到用户剪贴板，用于粘入用户已有加密页，不写本报告或聊天。
 
 ## 本次表达与规则核对
 
