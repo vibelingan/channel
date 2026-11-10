@@ -6,6 +6,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatPanel } from '../../components/chat/ChatPanel';
 import { safePublicChatLink } from '../../components/chat/public-link';
+import { AnswerAttribution } from './assistant/AnswerAttribution';
 import { AssistantActivity } from './assistant/AssistantActivity';
 import type { TurnPhase } from './assistant/model';
 
@@ -425,43 +426,25 @@ export function LegacyTranscript({
       {messages
         .filter((message) => message.text.trim())
         .map((message) => (
-          <div
-            key={message.id}
-            data-message-role={message.role}
-            className={
-              message.role === 'visitor'
-                ? 'assistant-message ml-8 rounded-2xl rounded-br-md bg-brand-700 px-4 py-3 text-sm leading-relaxed text-white'
-                : message.role === 'status'
-                  ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
-                  : 'assistant-message mr-2 rounded-2xl rounded-bl-md border border-slate-200/80 bg-white p-4 text-sm leading-7 text-ink shadow-sm'
-            }
-          >
-            <p className="whitespace-pre-wrap break-words">
-              {message.text}
-              {message.id === streamingMessageId && (
-                <span className="assistant-writing-cursor" aria-hidden="true" />
-              )}
-            </p>
-            {message.citations && message.citations.length > 0 && (
-              <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
-                {message.citations.map((citation, index) => (
-                  <li key={`${citation.title}-${index}`}>
-                    {citation.url ? (
-                      <a
-                        href={citation.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-brand-700 underline"
-                      >
-                        {citation.title} ↗
-                      </a>
-                    ) : (
-                      citation.title
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div key={message.id}>
+            <div
+              data-message-role={message.role}
+              className={
+                message.role === 'visitor'
+                  ? 'assistant-message ml-8 rounded-2xl rounded-br-md bg-brand-700 px-4 py-3 text-sm leading-relaxed text-white'
+                  : message.role === 'status'
+                    ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+                    : 'assistant-message mr-2 rounded-2xl rounded-bl-md border border-slate-200/80 bg-white p-4 text-sm leading-7 text-ink shadow-sm'
+              }
+            >
+              <p className="whitespace-pre-wrap break-words">
+                {message.text}
+                {message.id === streamingMessageId && (
+                  <span className="assistant-writing-cursor" aria-hidden="true" />
+                )}
+              </p>
+            </div>
+            {message.role === 'assistant' && <AnswerAttribution citations={message.citations} />}
           </div>
         ))}
     </>

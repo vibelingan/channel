@@ -3,7 +3,7 @@ name: Assistant UI foundation
 on:
   workflow_dispatch:
   push:
-    branches: [main, feat/sales-assistant]
+    branches: [main, feat/sales-assistant, release/assistant-seo-20261104]
     paths:
       - 'apps/site/**'
       - 'docs/ai-platform/assistant-ui/screens.json'

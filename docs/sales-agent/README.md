@@ -1,5 +1,7 @@
 # Sales Agent 设计与实施
 
+> 2026-11-10 当前评审入口：[官网助手／Sales／Apollo统一设计与调查](../ai-platform/review-20261110/README.zh-CN.md)。下文带日期的结果保留为历史，不代表本轮已上线。
+
 2026-11-09：官网助手、Sales、Apollo 的跨模块后续工作统一在 [AI 待办入口](../ai-platform/BACKLOG.zh-CN.md)回顾。此链接只提供后续工作索引，不替代本目录的模块设计及各仓库实际验收证据。
 
 ## 当前状态（2026-11-09）

@@ -2,7 +2,7 @@ name: Sales contracts
 
 on:
   push:
-    branches: [feat/sales-agent-modular-design, feat/sales-agent-integration]
+    branches: [feat/sales-agent-modular-design, feat/sales-agent-integration, release/assistant-seo-20261104]
     paths:
       - 'packages/ai-contracts/**'
       - 'packages/sales-contracts/**'

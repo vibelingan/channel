@@ -6,6 +6,10 @@ These project rules apply in addition to the user's global Codex instructions.
 
 仅在官网助手、询盘 Sales 或 Apollo 工作中：开始前读取 `docs/ai-platform/BACKLOG.zh-CN.md`；记录新的暂缓事项时，写责任类别、重新评估条件和完成依据。阶段交付后回看哪些依赖已解除，并在交付中提出下一项建议；不得把依赖解除等同于获得实施、合并、部署、费用或真实发送授权。详细设计和旧编号保留原处，当前待办状态只在统一入口维护。此规则不启动其他工作流，也不覆盖 Agent 专属规则的适用范围。
 
+## 本轮 AI／Sales／Apollo 统一交付（2026-11-10）
+
+本轮规整、评审与后续同业务协作统一使用 Channel `release/assistant-seo-20261104`；HermesInfra使用 `feat/apollo-prospecting-flow-20261109`。先读 `docs/ai-platform/review-20261110/README.zh-CN.md` 与 `docs/ai-platform/BACKLOG.zh-CN.md`。不要再为UI、Resend、Sales修复或Apollo另开分支；不要把其他业务或他人未提交内容并进来。当前是设计评审，主体实现／部署／发送暂停；只有已明确批准的小署名样式在本轮直接修改。原SEO继续规则只适用于实际继续SEO任务。
+
 ## Temporary cloud handoff and current workstream
 
 When continuing the SEO / Blog session, start at `CLOUD_HANDOFF.md` and

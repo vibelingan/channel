@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "当前代码：共享 Apollo 额度，客户结果分别保存",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1230,
+      590
+    ]
+  },
+  "components": [
+    {
+      "id": "entry_a",
+      "type": "backend",
+      "label": "A 专用执行入口",
+      "sublabel": "Hermes：启动时绑定 A 的身份",
+      "pos": [
+        35,
+        45
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "entry_b",
+      "type": "backend",
+      "label": "B 专用执行入口",
+      "sublabel": "Hermes：启动时绑定 B 的身份",
+      "pos": [
+        905,
+        45
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "gate_a",
+      "type": "security",
+      "label": "A 的工具与存储门禁",
+      "sublabel": "代码核对客户、任务与配置版本",
+      "pos": [
+        35,
+        260
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "gate_b",
+      "type": "security",
+      "label": "B 的工具与存储门禁",
+      "sublabel": "代码核对客户、任务与配置版本",
+      "pos": [
+        905,
+        260
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "apollo",
+      "type": "external",
+      "label": "共用 Apollo 账号",
+      "sublabel": "共享额度；不能提供 Hermes 客户隔离",
+      "pos": [
+        470,
+        260
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "store_a",
+      "type": "database",
+      "label": "A 的专库与目录",
+      "sublabel": "保存 A 的名单、任务、文案",
+      "pos": [
+        35,
+        480
+      ],
+      "size": [
+        290,
+        85
+      ]
+    },
+    {
+      "id": "store_b",
+      "type": "database",
+      "label": "B 的专库与目录",
+      "sublabel": "保存 B 的名单、任务、文案",
+      "pos": [
+        905,
+        480
+      ],
+      "size": [
+        290,
+        85
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "entry_a",
+      "to": "gate_a",
+      "label": "模型只提交获准动作",
+      "labelDy": 60
+    },
+    {
+      "from": "entry_b",
+      "to": "gate_b",
+      "label": "模型只提交获准动作",
+      "labelDy": 60
+    },
+    {
+      "from": "gate_a",
+      "to": "apollo",
+      "label": "查询 A 的目标"
+    },
+    {
+      "from": "gate_b",
+      "to": "apollo",
+      "label": "查询 B 的目标"
+    },
+    {
+      "from": "gate_a",
+      "to": "store_a",
+      "label": "只读写 A 的结果",
+      "labelDy": 60
+    },
+    {
+      "from": "gate_b",
+      "to": "store_b",
+      "label": "只读写 B 的结果",
+      "labelDy": 60
+    }
+  ]
+}

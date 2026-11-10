@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "建议流程：Apollo 查公司，Hermes 核实并整理建议",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1230,
+      590
+    ]
+  },
+  "components": [
+    {
+      "id": "brief",
+      "type": "backend",
+      "label": "① Hermes 理解获客要求",
+      "sublabel": "客户规则固定；模型解释自然语言",
+      "pos": [
+        25,
+        50
+      ],
+      "size": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "search",
+      "type": "external",
+      "label": "② Apollo 按条件查公司",
+      "sublabel": "首批 25 家；不足再取下一页",
+      "pos": [
+        455,
+        50
+      ],
+      "size": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "screen",
+      "type": "backend",
+      "label": "③ Hermes 初筛与去重",
+      "sublabel": "匹配／待核实／明确不适合",
+      "pos": [
+        885,
+        50
+      ],
+      "size": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "backend",
+      "label": "④ 核实优先候选的证据",
+      "sublabel": "官网产品、公司角色、资料冲突",
+      "pos": [
+        885,
+        445
+      ],
+      "size": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "review",
+      "type": "frontend",
+      "label": "⑤ 展示建议联系的公司",
+      "sublabel": "适合原因、依据链接、未知项",
+      "pos": [
+        455,
+        445
+      ],
+      "size": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "copy",
+      "type": "backend",
+      "label": "⑥ Hermes 准备文案",
+      "sublabel": "获准候选才补联系人；发送另审批",
+      "pos": [
+        25,
+        445
+      ],
+      "size": [
+        300,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "brief",
+      "to": "search"
+    },
+    {
+      "from": "search",
+      "to": "screen"
+    },
+    {
+      "from": "screen",
+      "to": "evidence",
+      "label": "优先核实一批候选",
+      "labelDy": 130
+    },
+    {
+      "from": "evidence",
+      "to": "review"
+    },
+    {
+      "from": "review",
+      "to": "copy"
+    }
+  ]
+}

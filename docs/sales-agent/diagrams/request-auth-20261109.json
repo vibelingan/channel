@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "拟接线：Hermes 读取资料时，三种检查分别在哪里",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1050,
+      580
+    ]
+  },
+  "participants": [
+    {
+      "id": "hermes",
+      "type": "backend",
+      "label": "Hub 上的 Sales 后台",
+      "sublabel": "含读取工具和任务权限接口"
+    },
+    {
+      "id": "tencent",
+      "type": "security",
+      "label": "腾讯云调用认证",
+      "sublabel": "位于 Channel 函数之前"
+    },
+    {
+      "id": "channel",
+      "type": "backend",
+      "label": "Channel 资料接口",
+      "sublabel": "普通程序；核对客户和任务"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "Channel 云数据库",
+      "sublabel": "接口凭自己的运行权限访问"
+    }
+  ],
+  "messages": [
+    {
+      "id": "request",
+      "from": "hermes",
+      "to": "tencent",
+      "y": 160,
+      "label": "1 请求资料：云签名＋服务凭据＋任务标识",
+      "variant": "security"
+    },
+    {
+      "id": "invoke",
+      "from": "tencent",
+      "to": "channel",
+      "y": 196,
+      "label": "2 该云身份有权调用此函数，才转交请求",
+      "variant": "security"
+    },
+    {
+      "id": "binding",
+      "from": "channel",
+      "to": "database",
+      "y": 232,
+      "label": "3 查服务端连接登记及任务读取授权"
+    },
+    {
+      "id": "record",
+      "from": "database",
+      "to": "channel",
+      "y": 268,
+      "label": "4 返回客户、动作、资源范围和有效期",
+      "variant": "return"
+    },
+    {
+      "id": "read",
+      "from": "channel",
+      "to": "database",
+      "y": 304,
+      "label": "5 读取这条询盘和关联公开产品"
+    },
+    {
+      "id": "data",
+      "from": "database",
+      "to": "channel",
+      "y": 340,
+      "label": "6 返回受控资料；尚未交给 Hermes",
+      "variant": "return"
+    },
+    {
+      "id": "permit",
+      "from": "channel",
+      "to": "hermes",
+      "y": 376,
+      "label": "7 放行前核对当前任务许可（目标一次）",
+      "variant": "security"
+    },
+    {
+      "id": "permit_ok",
+      "from": "hermes",
+      "to": "channel",
+      "y": 412,
+      "label": "8 服务端任务仍有效，返回许可",
+      "variant": "return"
+    },
+    {
+      "id": "response",
+      "from": "channel",
+      "to": "hermes",
+      "y": 448,
+      "label": "9 条件都通过才返回资料",
+      "variant": "return"
+    }
+  ]
+}

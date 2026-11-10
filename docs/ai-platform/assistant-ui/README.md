@@ -1,5 +1,7 @@
 # 官网助手前端与后端交接
 
+> 2026-11-10 当前评审入口：[官网助手／Sales／Apollo统一设计与调查](../review-20261110/README.zh-CN.md)。下文带日期的结果保留为历史，不代表本轮已上线。
+
 ## 官网旧版回复显示热修复（2026-11-09）
 
 用户原句 `Helo, what does your company provide` 已在真实 v1 接口复现：5,853 ms 返回一个非空 `final`，没有 `token`。用户 Chrome 原标签页显示省略号，但输入框已经解锁。旧 `AssistantWidget` 收到 `final` 只恢复输入，没有把 `final.text` 写进回答，因此不是这条请求仍在排队，也不是据此需要再次充值。

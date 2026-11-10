@@ -1,5 +1,7 @@
 # AI Architecture Documentation Index
 
+> 2026-11-10 当前评审入口：[官网助手／Sales／Apollo统一设计与调查](review-20261110/README.zh-CN.md)。下文带日期的结果保留为历史，不代表本轮已上线。
+
 2026-11-09：官网助手、询盘 Sales 与 Apollo 的后续工作统一从 [AI 待办入口](BACKLOG.zh-CN.md) 回顾；真实查询阶段与正文连续输出的待评审设计见 [连续输出方案](STREAMING-DESIGN.zh-CN.md)。当前暂缓实施连续输出，先完成 Resend／Apollo 稳定验收。下文历史架构和设计入口保留，不代表所有状态已重新现场核实。
 
 **Status:** Canonical documentation index  
