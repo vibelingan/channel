@@ -3,9 +3,11 @@ import type {
   CreateConversationResponse,
   PublicSseEvent,
 } from '@vibelingan-channel/ai-contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatPanel } from '../../components/chat/ChatPanel';
 import { safePublicChatLink } from '../../components/chat/public-link';
+import { AssistantActivity } from './assistant/AssistantActivity';
+import type { TurnPhase } from './assistant/model';
 
 interface StoredConversation {
   conversationId: string;
@@ -33,12 +35,17 @@ export function AssistantWidget() {
   );
 }
 
-function LegacyAssistantWidget() {
-  const apiBase = (import.meta.env.PUBLIC_AI_API_BASE_URL ?? '').replace(/\/$/, '');
+export function LegacyAssistantWidget({
+  apiBase: configuredApiBase = import.meta.env.PUBLIC_AI_API_BASE_URL ?? '',
+}: { apiBase?: string } = {}) {
+  const apiBase = configuredApiBase.replace(/\/$/, '');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [phase, setPhase] = useState<TurnPhase>('queued');
+  const [activity, setActivity] = useState<string>();
+  const [answerId, setAnswerId] = useState<string>();
   const [status, setStatus] = useState<'ready' | 'streaming' | 'unavailable'>(
     apiBase ? 'ready' : 'unavailable',
   );
@@ -49,15 +56,15 @@ function LegacyAssistantWidget() {
     0,
   );
   const abortRef = useRef<AbortController | null>(null);
+  const stoppingRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
-  function closeAssistant() {
-    abortRef.current?.abort();
+  const closeAssistant = useCallback(() => {
     setOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
-  }
+  }, []);
 
   useEffect(() => {
     const saved = readConversation();
@@ -74,14 +81,12 @@ function LegacyAssistantWidget() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && open) {
-        abortRef.current?.abort();
-        setOpen(false);
-        requestAnimationFrame(() => triggerRef.current?.focus());
+        closeAssistant();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
+  }, [open, closeAssistant]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -100,15 +105,23 @@ function LegacyAssistantWidget() {
 
   async function submit() {
     const message = draft.trim();
-    if (!message || busy || !apiBase) return;
+    if (!message || busy || abortRef.current || !apiBase) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const assistantId = crypto.randomUUID();
+    setAnswerId(assistantId);
+    setPhase('queued');
+    setActivity(undefined);
     setBusy(true);
     setDraft('');
     setMessages((current) => [
       ...current,
       { id: crypto.randomUUID(), role: 'visitor', text: message },
+      { id: assistantId, role: 'assistant', text: '' },
     ]);
     try {
-      const active = conversation ?? (await createConversation(apiBase));
+      const active = conversation ?? (await createConversation(apiBase, controller.signal));
+      controller.signal.throwIfAborted();
       if (!conversation) {
         setConversation(active);
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(active));
@@ -123,14 +136,19 @@ function LegacyAssistantWidget() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ message, idempotencyKey: crypto.randomUUID() }),
+          signal: controller.signal,
         },
       );
+      controller.signal.throwIfAborted();
       if (!response.ok) throw new Error('message_failed');
-      const accepted = parseAppendMessage(await response.json());
-      if (accepted.disposition !== 'replayed') await stream(active);
+      parseAppendMessage(await response.json());
+      controller.signal.throwIfAborted();
+      await stream(active, controller, assistantId);
     } catch (caught) {
-      if (isAbortError(caught)) return;
+      if (isAbortError(caught) || controller.signal.aborted || abortRef.current !== controller)
+        return;
       setStatus('unavailable');
+      setPhase('failed');
       setMessages((current) => [
         ...current,
         {
@@ -140,18 +158,21 @@ function LegacyAssistantWidget() {
         },
       ]);
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
+      if (stoppingRef.current === controller) stoppingRef.current = null;
     }
   }
 
-  async function stream(active: StoredConversation) {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  async function stream(
+    active: StoredConversation,
+    controller: AbortController,
+    assistantId: string,
+  ) {
     setStatus('streaming');
-    const assistantId = crypto.randomUUID();
     let cursor = lastSequence;
-    setMessages((current) => [...current, { id: assistantId, role: 'assistant', text: '' }]);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await fetch(
         `${apiBase}/api/ai/conversations/${active.conversationId}/events`,
@@ -165,10 +186,19 @@ function LegacyAssistantWidget() {
       );
       if (!response.ok || !response.body) throw new Error('stream_failed');
       for await (const event of eventStream(response.body)) {
+        if (controller.signal.aborted || abortRef.current !== controller) return;
         cursor = Math.max(cursor, event.sequence);
         setLastSequence(cursor);
         sessionStorage.setItem(SEQUENCE_KEY, String(cursor));
-        if (event.type === 'token') {
+        if (event.type === 'tool.progress') {
+          if (['knowledge_search', 'product_search', 'model_answer'].includes(event.action)) {
+            setPhase('reading');
+            setActivity(event.action);
+          }
+        } else if (event.type === 'token') {
+          if (!event.text) continue;
+          setPhase('streaming');
+          setActivity(undefined);
           setMessages((current) =>
             current.map((item) =>
               item.id === assistantId ? { ...item, text: item.text + event.text } : item,
@@ -202,6 +232,7 @@ function LegacyAssistantWidget() {
             ),
           );
           setStatus('unavailable');
+          setPhase('failed');
           controller.abort();
           return;
         } else if (event.type === 'final') {
@@ -219,10 +250,12 @@ function LegacyAssistantWidget() {
                 : item,
             ),
           );
+          setPhase('complete');
           setStatus('ready');
           controller.abort();
           return;
         } else if (event.type === 'assistant.cancelled' || event.type === 'handoff.started') {
+          setPhase('stopped');
           setStatus('ready');
           controller.abort();
           return;
@@ -235,16 +268,47 @@ function LegacyAssistantWidget() {
   }
 
   async function stop() {
-    abortRef.current?.abort();
+    const controller = abortRef.current;
     const active = conversation;
-    if (active) {
-      await fetch(`${apiBase}/api/ai/conversations/${active.conversationId}/cancel`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${active.credential}` },
-      }).catch(() => undefined);
+    if (status !== 'streaming' || !controller || !active || stoppingRef.current) return;
+    stoppingRef.current = controller;
+    setPhase('stopping');
+    try {
+      const response = await fetch(
+        `${apiBase}/api/ai/conversations/${active.conversationId}/cancel`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${active.credential}` },
+        },
+      );
+      const result: unknown = response.ok ? await response.json() : undefined;
+      if (abortRef.current !== controller || controller.signal.aborted) return;
+      if (
+        typeof result !== 'object' ||
+        result === null ||
+        !('cancelled' in result) ||
+        result.cancelled !== true
+      )
+        throw new Error('cancellation_unconfirmed');
+      controller.abort();
+      abortRef.current = null;
+      setPhase('stopped');
+      setStatus('ready');
+      setBusy(false);
+    } catch {
+      if (abortRef.current !== controller || controller.signal.aborted) return;
+      setPhase((current) => (current === 'stopping' ? phase : current));
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: 'status',
+          text: 'I could not confirm stopping this answer. It may still arrive.',
+        },
+      ]);
+    } finally {
+      if (stoppingRef.current === controller) stoppingRef.current = null;
     }
-    setStatus('ready');
-    setBusy(false);
   }
 
   return (
@@ -262,51 +326,24 @@ function LegacyAssistantWidget() {
         aria-live="polite"
       >
         {messages.length === 0 && (
-          <div className="rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-soft shadow-sm">
-            Ask about our OEM process, products, MOQ, quality controls, or certifications. I will
-            refuse rather than guess when no approved source supports an answer.
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 text-sm leading-relaxed text-ink-soft shadow-sm">
+            <p className="mb-2 text-base font-semibold tracking-tight text-brand-950">
+              What are you working on?
+            </p>
+            Ask about our products, OEM process or quality standards. If a detail needs confirming,
+            we will help you reach our team.
           </div>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={
-              message.role === 'visitor'
-                ? 'ml-8 rounded-xl bg-brand-700 px-4 py-3 text-sm text-white'
-                : message.role === 'status'
-                  ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
-                  : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
-            }
-          >
-            <p className="whitespace-pre-wrap">
-              {message.text || 'Thinking… Checking your question.'}
-            </p>
-            {message.citations && message.citations.length > 0 && (
-              <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
-                {message.citations.map((citation, index) => (
-                  <li key={`${citation.title}-${index}`}>
-                    {citation.url ? (
-                      <a
-                        href={citation.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-brand-700 underline"
-                      >
-                        {citation.title} ↗
-                      </a>
-                    ) : (
-                      citation.title
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-        {busy && status !== 'streaming' && (
-          <output className="block rounded-xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950">
-            Thinking… Getting your question ready.
-          </output>
+        <LegacyTranscript
+          messages={messages}
+          {...(busy && phase === 'streaming' && answerId ? { streamingMessageId: answerId } : {})}
+        />
+        {busy && (
+          <AssistantActivity
+            phase={phase}
+            activity={activity}
+            hasContent={Boolean(messages.find((message) => message.id === answerId)?.text.trim())}
+          />
         )}
       </div>
 
@@ -345,22 +382,23 @@ function LegacyAssistantWidget() {
               rows={2}
               maxLength={8000}
               disabled={busy}
-              placeholder="Ask a product question…"
-              className="min-h-11 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
+              placeholder="Ask about products or your project…"
+              className="min-h-12 min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 bg-surface-alt px-3.5 py-3 text-sm leading-5 focus:border-brand-400 focus:outline-2 focus:outline-offset-1 focus:outline-brand-500 disabled:bg-slate-100"
             />
             {status === 'streaming' ? (
               <button
                 type="button"
                 onClick={() => void stop()}
-                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-ink"
+                disabled={phase === 'stopping'}
+                className="min-h-12 min-w-[4.5rem] rounded-xl border border-brand-200 bg-brand-50 px-3 text-xs font-semibold text-brand-900 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50"
               >
-                Stop
+                {phase === 'stopping' ? 'Stopping…' : 'Stop'}
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={busy || !draft.trim()}
-                className="rounded-lg bg-brand-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
+                className="min-h-12 min-w-[4.5rem] rounded-xl bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-40"
               >
                 Send
               </button>
@@ -378,11 +416,67 @@ function LegacyAssistantWidget() {
   );
 }
 
-async function createConversation(apiBase: string): Promise<StoredConversation> {
+export function LegacyTranscript({
+  messages,
+  streamingMessageId,
+}: { messages: ChatMessage[]; streamingMessageId?: string }) {
+  return (
+    <>
+      {messages
+        .filter((message) => message.text.trim())
+        .map((message) => (
+          <div
+            key={message.id}
+            data-message-role={message.role}
+            className={
+              message.role === 'visitor'
+                ? 'assistant-message ml-8 rounded-2xl rounded-br-md bg-brand-700 px-4 py-3 text-sm leading-relaxed text-white'
+                : message.role === 'status'
+                  ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+                  : 'assistant-message mr-2 rounded-2xl rounded-bl-md border border-slate-200/80 bg-white p-4 text-sm leading-7 text-ink shadow-sm'
+            }
+          >
+            <p className="whitespace-pre-wrap break-words">
+              {message.text}
+              {message.id === streamingMessageId && (
+                <span className="assistant-writing-cursor" aria-hidden="true" />
+              )}
+            </p>
+            {message.citations && message.citations.length > 0 && (
+              <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
+                {message.citations.map((citation, index) => (
+                  <li key={`${citation.title}-${index}`}>
+                    {citation.url ? (
+                      <a
+                        href={citation.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-700 underline"
+                      >
+                        {citation.title} ↗
+                      </a>
+                    ) : (
+                      citation.title
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+    </>
+  );
+}
+
+async function createConversation(
+  apiBase: string,
+  signal: AbortSignal,
+): Promise<StoredConversation> {
   const response = await fetch(`${apiBase}/api/ai/conversations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locale: 'en' }),
+    signal,
   });
   if (!response.ok) throw new Error('conversation_failed');
   return parseCreateConversation(await response.json());

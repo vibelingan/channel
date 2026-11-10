@@ -87,9 +87,7 @@ export function seedFor(id: string): AssistantSeed {
       turn: {
         ...state.turn,
         phase: phase[id] ?? 'complete',
-        ...(id === 'tool_progress'
-          ? { steps: ['Checked the approved product catalog', 'Comparing the published options'] }
-          : {}),
+        ...(id === 'tool_progress' ? { steps: ['Checking current published products'] } : {}),
         ...(id === 'rate_limit' ? { retryAt: Date.now() + 12000 } : {}),
       },
     };

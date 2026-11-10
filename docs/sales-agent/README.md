@@ -1,6 +1,8 @@
 # Sales Agent 设计与实施
 
-## 当前状态（2026-11-08）
+2026-11-09：官网助手、Sales、Apollo 的跨模块后续工作统一在 [AI 待办入口](../ai-platform/BACKLOG.zh-CN.md)回顾。此链接只提供后续工作索引，不替代本目录的模块设计及各仓库实际验收证据。
+
+## 当前状态（2026-11-08 历史记录）
 
 - 官网助手与 SEO 已汇入 `release/assistant-seo-20261104`；本次 Sales 事务读取修复从其 `dcffdff6` 建立独立分支 `fix/sales-live-wiring-20261108`，代码 `3310f34e` 已推送，未修改其他人的工作目录。Hermes 继续使用 `feat/sales-agent-runtime`，运行代码 `cfc7bf6`。
 - 已用现有 CloudBase 中真实保存的两条合成询盘，验证 Hermes 来源授权、读取、真实模型、成果归档和 Resend 未发送草稿；重复导出复用原草稿。第二条在完整受限服务配置下一次完成，107.204 秒、模型 1 次、内存峰值约 101 MiB。任务进度与草稿编号保存在 Hermes 专库，Channel 只保存询盘、来源和可靠投递回执。

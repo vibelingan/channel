@@ -58,7 +58,7 @@ export function createPreviewAdapter(scenario: string) {
       lastRequest = request;
       const base = { conversationKey: request.conversationKey, turnKey: request.turnKey };
       const push = (event: EventPayload) => emit({ ...base, ...event } as TurnEvent);
-      if (scenario === 'queued') await wait(1500, signal);
+      if (['queued', 'tool_progress'].includes(scenario)) await wait(1500, signal);
       push({ type: 'reading', sequence: 1 });
       await wait(180, signal);
       if (
@@ -106,7 +106,8 @@ export function createPreviewAdapter(scenario: string) {
         push({ type: 'finished', sequence: 2, ...alternate });
         return;
       }
-      push({ type: 'tool', sequence: 2, label: 'Checked the approved product catalog' });
+      push({ type: 'tool', sequence: 2, label: 'Checking current published products' });
+      if (scenario === 'tool_progress') await wait(800, signal);
       push({ type: 'token', sequence: 3, text: 'Here are two sample product directions ' });
       await wait(220, signal);
       push({

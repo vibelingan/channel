@@ -32,6 +32,18 @@ test('duplicate event cannot append the same token twice', () => {
   const first = reduceAssistant(started(), { type: 'event', event: event(1) });
   assert.deepEqual(reduceAssistant(first, { type: 'event', event: event(1) }), first);
 });
+test('a real tool event advances the visible activity without overriding a pending stop', () => {
+  const tool = {
+    ...event(1),
+    type: 'tool',
+    label: 'Checking current published products',
+  } as TurnEvent;
+  const reading = reduceAssistant(started(), { type: 'event', event: tool });
+  assert.equal(reading.turn?.phase, 'reading');
+  assert.deepEqual(reading.turn?.steps, ['Checking current published products']);
+  const stopping = reduceAssistant(started(), { type: 'stop_requested' });
+  assert.equal(reduceAssistant(stopping, { type: 'event', event: tool }).turn?.phase, 'stopping');
+});
 test('foreign conversation and old turn events cannot modify current answer', () => {
   const state = started();
   for (const patch of [{ conversationKey: 'foreign' }, { turnKey: 'old-turn' }])
