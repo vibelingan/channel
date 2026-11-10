@@ -34,3 +34,5 @@
 - 常规拒答没有来源时应保留输入框，已列修复设计；本轮未用取消依据检查来让问答看起来成功。
 
 远端SHA与CI以最终交付回复和相应GitHub Actions运行链接为准。测试通过、推分支和正式发布分别报告；此表不宣称完整官网→Hermes→Resend生产验收通过。
+
+远端检查：产品代码与主设计提交 `f332fd4decfc00260771fc99be2b997daab3b23d` 已推Channel；[UI检查](https://github.com/vibelingan/channel/actions/runs/42759645810)和[Sales合同](https://github.com/vibelingan/channel/actions/runs/42759646029)按该SHA核对。Hermes `bc18dffc51ed0fafb11aa0b7bd3ce23eaee402f7` 已推，[Apollo含真实MySQL检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641178)成功；[Sales运行检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641195)按该SHA核对。后续客服事实更新是文档变化，不改已经测试的产品代码；最终结果以交付回复注明的状态为准。
