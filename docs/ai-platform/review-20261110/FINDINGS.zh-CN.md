@@ -102,6 +102,8 @@
 
 人工刷新权限后，本轮只重试原两项搜索各一次、page=1/per_page=1，均403／API_INACCESSIBLE。正文不再写Professional Trial未包含，而改成Key未获该端点授权；结构化错误仍为 `AUTH.AUTHORIZATION.ENDPOINT_ACCESS_DENIED`／团队无权访问。请求号分别为 `35069e42-098d-4809-8b3d-54fc9a937c16` 和 `42044f1d-6366-4888-8f8d-eef55a7fc135`，已交人工继续查。人工查看新请求号后确认：他已重新开启Trial API访问，现在被现有Key缺端点范围拦截；目前Key仅覆盖已确认的身份和旧公司查询。没有重复盲试，没有修改Key、开Master或解锁联系人；人工解释仍需用正确范围Key的成功响应验证。已接受其提出的技术支持升级，要求确认三个限定范围现在能否选择并提供升级编号，原聊天保持打开。
 
+技术支持已接受转接，Francis在同一会话加入，并建议屏幕共享；本轮请其继续书面确认三个只读范围是否可选及MCP连接规则，没有开始共享屏幕、创建Key或扩大授权。独立升级编号尚未提供，沿用会话215476778741332追踪。
+
 ## 本次表达与规则核对
 
 实际审查：`AssistantWidget`、`AssistantMessages`、`PublicKnowledge`、`VibeKbEngine`、`ai-policy`、Worker、BFF、`runtime-source-wiring.test.ts`、Hermes `service.py`／`http.py`／消费者与部署记录，以及Apollo／腾讯／Resend官方资料。
