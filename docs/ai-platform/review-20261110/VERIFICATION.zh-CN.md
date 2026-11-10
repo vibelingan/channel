@@ -38,3 +38,13 @@
 远端检查：产品代码与主设计提交 `f332fd4decfc00260771fc99be2b997daab3b23d` 已推Channel；[UI检查](https://github.com/vibelingan/channel/actions/runs/42759645810)和[Sales合同](https://github.com/vibelingan/channel/actions/runs/42759646029)按该SHA核对。Hermes `bc18dffc51ed0fafb11aa0b7bd3ce23eaee402f7` 已推，[Apollo含真实MySQL检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641178)成功；[Sales运行检查](https://github.com/vibelingan/hermesinfra/actions/runs/42759641195)按该SHA核对。后续客服事实更新是文档变化，不改已经测试的产品代码；最终结果以交付回复注明的状态为准。
 
 最终读回：上述四项GitHub Actions均成功。Channel产品代码SHA为f332fd4d（UI、Sales合同）；Hermes为bc18dff（Apollo、Sales runtime，含真实MySQL及既有容器边界验收）。Channel客服事实追加后的453af1e4只改文档，没有重跑相同产品测试，也没有把旧SHA的结果改写成另一SHA的CI结果。
+
+## 晚间Fable公开工作区实现复核（独立于上面的CI）
+
+按FINDINGS§J固定三个新分支SHA，fetch后以隔离快照运行：VibeKB原19项通过、Hermes新9项通过、Channel知识引擎25项／工厂2项／部署manifest23项通过，知识引擎类型通过。完整聊天规格类型检查失败，与远端Assistant chat integration的两处TS2353一致。Channel该提交的常规CI和Browser regression成功，Hermes regression成功；VibeKB分支未找到远端运行。不能因此称三仓全绿。
+
+新增两个针对性复现均在原实现失败：向量结果补取正文的工作区竞态、门户public状态被名称推导覆盖。仅在临时源码拷贝修正第一处SQL后，竞态复现及原19项均通过；未修改Fable分支或线上服务。一次独立保护脚本因缺隔离DATABASE_URL而停止，未记通过；没有为它启动OrbStack或使用生产库。
+
+服务器只读检查与局部／完整三方合并检查发现运行源码漂移；没有重启KB、Hub或任何现有Agent，没有移动公开资料。已准备一把未激活Key和Claude交接。源程序最初不支持KB_PUBLIC_KEYS，直接增加环境变量不等于配置生效。
+
+跨项目公共包方案更新主稿§5并补Archify图。最终9项产物检查通过；实际浏览器四种桌面尺寸及浅深主题检查无溢出，实际查看1440和2048截图，未遮字。首次候选过长后合并重复的资料方框并保留文字含义，没有通过隐藏内容或缩字伪造通过。

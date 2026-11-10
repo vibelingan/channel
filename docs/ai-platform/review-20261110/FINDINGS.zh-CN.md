@@ -104,6 +104,32 @@
 
 技术支持已接受转接，Francis在同一会话加入，并建议屏幕共享；本轮请其继续书面确认三个只读范围是否可选及MCP连接规则，没有开始共享屏幕、创建Key或扩大授权。独立升级编号尚未提供，沿用会话215476778741332追踪。
 
+## J. Fable公开Key三仓实现：晚间独立复核
+
+实际取得并固定：VibeKB `feat/public-workspace-readonly-key@bb02ebe0f32ac28dc90a6715974882d535f76bcd`（对main）；Channel `fix/kb-public-workspace-20261110@6df1b04d49e55f4270960708f8247d4586019a71`（对test）；HermesInfra `feat/kb-public-workspace-20261110@7b5bb9e775411115d7488ea30dab75e96d270841`（对main）。最初远端不存在，后续推送已到达；本轮已fetch，使用隔离源码快照验证，未把未通过的分支合入统一发布分支，也未改Fable的分支。
+
+### 必须修正的代码问题
+
+1. **P1，公开搜索可能在并发取消公开时读到新的内部正文。** 新公开工具复用 `_search_in()`。其中VibeKB `mcp-kb/kb_server.py:716–719` 对向量候选重新取正文时只按id，不按工作区；向量检索与正文读取之间没有同一快照。复现：先通过真实的、限定工作区的向量SQL取得公开文档编号；暂停在下一次SQL前，把文档移到内部并改为合成的PRIVATE_CANARY正文；恢复公开MCP查询，结果snippet含该内部正文。使用临时SQLite及TestClient，嵌入／排序为合成数据，不访问供应商或线上内容。不是声称普通请求必然泄漏，更不是线上已经发生了泄漏。
+
+   修法是在补取当前正文的同一条SQL中追加 `workspace_id = ?`，不增加HTTP或数据库往返。在仅用于审查的源码副本做此修改后，原本失败的竞态复现通过，原19项公开范围测试也通过。修正补丁保留在本机审查材料；没有提交到Fable分支或替换生产程序。上线前应把此并发回归纳入正式测试，并覆盖语义通道，不能只测关闭embedding后的字面路径。
+
+2. **P1，Channel正式集成检查失败，旧验收程序未迁移。** `scripts/assistant-real-browser.mts:91` 和 `scripts/assistant-real-smoke.mts:27` 还向已修改的 `KnowledgeConfig` 传 `workspaceId`／白名单／标签；`pnpm exec tsc -p tsconfig.assistant-chat.json` 本地复现两处TS2353。远端[Assistant chat integration](https://github.com/vibelingan/channel/actions/runs/42826230581)也是这两处失败。不能只删属性消掉类型错误：两脚本还传占位Key `ssh`，而新构造器要求 `kbpub_`；`assistant-real-relay.py`仍从服务器取管理Key并执行旧的ID／标签过滤。应迁移整个真实验收通路，使用正确公开Key／服务身份，再验证合法和非法资料读取，不能关闭检查或冒充只读服务名。
+
+3. **P2，门户可能错误显示“对外公开”。** Hermes `deploy/hub/hubkit/vibekb_client.py:110–113` 从工作区名称后缀直接设置public=true，忽略服务端真实启用状态。若已存在 `<客户>-public` 但尚未绑定Key，或后来撤销配置，仍显示已公开。合成lister明确返回public=false时，复现输出被覆盖为true。建议由服务端在列表中返回真实公开状态并由Hub保留；如改用工作区目录核对，应在本次列表中批取一次，不为每篇文档重复远端查询。
+
+Hermes内部助手／Hub共用管理Key、主要靠提示词约束客户和写入范围，是实现文档已经承认的现有缺口；本次公开只读Key机制不能被汇报为整个Hermes内部权限已强制隔离。
+
+### 服务器权限和部署前置
+
+本轮真实SSH：用原有 `hermes-content` 配置经Hub进入43.157.53.132，ubuntu及sudo可用。实际服务为 `vibekb-kb-mcp.service`，目录 `/opt/vibekb/mcp-kb`，监听9021；本机和HTTPS入口缺凭据／错凭据均返回401。现有程序不识别KB_PUBLIC_KEYS，环境中未配置；工作区尚无diversity-public。
+
+生产检出HEAD仍为76b94c2，源码却有本地改动；运行源码SHA256为 `db7d3606b996cfe3b23a93d1b44c646e1ac5f3133bd9a1b511367be584eab475`，不含新分支基线的 `_semantic_scores`。隔离拷贝上，单独公开Key差异可以应用且19项测试通过，但那不会自动带来main的全部检索改动；把运行源码、76b基线与Fable目标做完整三方合并产生12处冲突。因此不能直接git pull、整文件覆盖或把部分补丁称为bb02ebe完整部署。须先保留和审查服务器改动，得到确定的发布文件与恢复方案。
+
+文档285晚间已增加“对外公开”标签（09:00:13更新），但仍在内部工作区2；新方案不以标签决定权限。它有26471字符、Pending Company Confirmation和9.1销售联系人章节，不能未经确认把整篇移入公开空间；篇幅也超过官网每篇读取的10000字符。应确认公开内容并分篇，旧官网仍需读取的文档12在切换验收前保留。
+
+已在本机仓库外生成待启用的独立kbpub_随机Key，文件0600；尚未写入服务器、GitHub Secret，也没有激活范围。GitHub test环境目前只有旧VIBEKB_MCP_API_KEY。Claude交接说明包含准确主机、三仓提交、失败复现、最小修法、现有改动保护及后续接线顺序，不含明文Key。
+
 ## 本次表达与规则核对
 
 实际审查：`AssistantWidget`、`AssistantMessages`、`PublicKnowledge`、`VibeKbEngine`、`ai-policy`、Worker、BFF、`runtime-source-wiring.test.ts`、Hermes `service.py`／`http.py`／消费者与部署记录，以及Apollo／腾讯／Resend官方资料。
