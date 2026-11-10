@@ -52,9 +52,14 @@ def main():
     method = request.get("method", "POST")
     headers = {"Content-Type": "application/json"}
     if request["kind"] == "model":
-        if method != "POST" or not isinstance(data, dict) or data.get("stream") is not False:
+        if method != "POST" or not isinstance(data, dict) or data.get("stream") not in (True, False):
             raise ValueError("unsupported model request")
-        if set(data) - {"model","messages","stream","max_tokens","temperature","response_format","thinking"}:
+        allowed = {"model","messages","stream","max_tokens","temperature","response_format","thinking"}
+        if data["stream"]:  # the engine streams its answer; usage arrives in the last frame
+            allowed.add("stream_options")
+            if data.get("stream_options", {"include_usage": True}) != {"include_usage": True}:
+                raise ValueError("unsupported stream options")
+        if set(data) - allowed:
             raise ValueError("unsupported model fields")
         if "thinking" in data and data["thinking"] not in [{"type":"disabled"},{"type":"enabled"}]:
             raise ValueError("unsupported thinking mode")
@@ -94,7 +99,7 @@ def main():
     opener = urllib.request.build_opener(NoRedirect)
     try:
         with opener.open(req, timeout=100) as response:
-            if "event-stream" in response.headers.get("Content-Type", ""):
+            if request["kind"] == "mcp" and "event-stream" in response.headers.get("Content-Type", ""):
                 parts, size = [], 0
                 while True:
                     line = response.readline(65537)
