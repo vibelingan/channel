@@ -185,10 +185,22 @@ test('provider deltas expose complete answer sentences before the completion end
   });
   const h = await engine.createRun(request, AbortSignal.timeout(3000));
   const iterator = engine.streamRun(h, AbortSignal.timeout(3000))[Symbol.asyncIterator]();
-  assert.equal((await iterator.next()).value?.type, 'activity');
+  // The first draft has no evidence yet: none of it is shown, and it is looked up.
+  const before = [];
+  for (let i = 0; i < 4; i++) before.push((await iterator.next()).value);
+  assert.deepEqual(
+    before.map((e) => (e?.type === 'activity' ? e.action : e?.type)),
+    ['model_answer', 'usage', 'knowledge_search', 'model_answer'],
+  );
   const first = (await iterator.next()).value;
   assert.equal(first?.type, 'token');
-  if (first?.type === 'token') assert.equal(first.text, 'First sentence.');
+  if (first?.type === 'token') {
+    assert.equal(first.text, 'First sentence.');
+    assert.deepEqual(
+      first.citations.map((c: { sourceId: string }) => c.sourceId),
+      ['channelkb/vibekb/12'],
+    );
+  }
   const second = (await iterator.next()).value;
   assert.equal(second?.type, 'token');
   if (second?.type === 'token') assert.equal(second.text, ' Second sentence.');
@@ -415,12 +427,75 @@ test('a provider body with no answer choice records no invented usage', async ()
 });
 
 test('the requirement summary is sent as data ahead of the dialogue', async () => {
-  const f = setup({ plans: ['{"kind":"answer","text":"Noted."}'] });
+  const f = setup({
+    plans: ['{"kind":"answer","text":"Noted."}', '{"kind":"answer","text":"Noted."}'],
+  });
   await drain(f.engine, { ...request, memory: 'Requirements DATA: {"quantity":"700"}' });
   const messages = f.calls[0]?.body.messages as Array<{ role: string; content: string }>;
   assert.equal(messages[0]?.role, 'system');
   assert.deepEqual(messages[1], { role: 'user', content: 'Requirements DATA: {"quantity":"700"}' });
   assert.equal(messages.at(-1)?.content, 'Who is Diversity?');
+});
+
+/** Every event of a run except usage, activities included. */
+async function steps(engine: VibeKbEngine, run: EngineRunRequest) {
+  const handle = await engine.createRun(run, new AbortController().signal);
+  const events: EngineEvent[] = [];
+  for await (const e of engine.streamRun(handle, new AbortController().signal))
+    if (e.type !== 'usage') events.push(e);
+  return events;
+}
+
+test('an answer drafted without evidence is looked up once and written again over public documents', async () => {
+  // The live model answered "Can I get a sample first?" from general knowledge,
+  // with no knowledge step; the publication gate then refused it for citing nothing.
+  const f = setup({
+    plans: [
+      '{"kind":"answer","text":"Yes, samples are usually possible.","need":{"product":"earbuds"}}',
+      '{"kind":"answer","text":"Samples are available; the fee is confirmed by sales."}',
+    ],
+  });
+  const asked = 'Can I get a sample before placing an order?';
+  const events = await steps(f.engine, { ...request, turns: [{ role: 'visitor', text: asked }] });
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'knowledge_search', 'model_answer', 'final'],
+  );
+  const search = f.calls.find(
+    (c) => (c.body.params as { name?: string } | undefined)?.name === 'search_documents',
+  );
+  assert.deepEqual((search?.body.params as { arguments: unknown }).arguments, {
+    query: asked,
+    limit: 10,
+  });
+  const final = events.at(-1);
+  assert.equal(final?.type, 'final');
+  if (final?.type === 'final') {
+    // The second answer is the one delivered, with the evidence and the requirement kept.
+    assert.deepEqual(JSON.parse(final.text), {
+      kind: 'answer',
+      text: 'Samples are available; the fee is confirmed by sales.',
+      need: { product: 'earbuds' },
+    });
+    assert.deepEqual(
+      final.citations.map((c) => c.sourceId),
+      ['channelkb/vibekb/12'],
+    );
+  }
+  // The model was asked twice and the knowledge base once: no second lookup, no loop.
+  assert.equal(f.calls.filter((c) => c.url.includes('model.invalid')).length, 2);
+  const secondAsk = f.calls.filter((c) => c.url.includes('model.invalid'))[1];
+  assert.match(JSON.stringify(secondAsk?.body.messages), /Diversity|DATA/);
+});
+
+test('plans that are not answers are never looked up on the model’s behalf', async () => {
+  const f = setup({ plans: ['{"kind":"clarify","text":"Which product do you mean?"}'] });
+  const events = await steps(f.engine, request);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'final'],
+  );
+  assert.equal(f.calls.filter((c) => !c.url.includes('model.invalid')).length, 0);
 });
 
 test('long retrieved documents are cut so a call stays under its input ceiling', async () => {

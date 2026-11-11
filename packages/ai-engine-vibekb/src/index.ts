@@ -148,7 +148,12 @@ export class VibeKbEngine implements ConversationEngine {
             )
               throw new EngineError('invalid_request', { safeDetail: 'model_output_too_large' });
             const prefix = completeAnswerPrefix(part.partial);
-            if (prefix.length > delivered.length && prefix.startsWith(delivered)) {
+            // Nothing is shown before there is evidence: an answer drafted without
+            // any is looked up and written again (see below), and the worker's
+            // stream gate, once it has refused a sentence, stays closed.
+            const showable =
+              retrieval.length > 0 || run.request.profileId === PRODUCT_ANSWER_PROFILE_ID;
+            if (showable && prefix.length > delivered.length && prefix.startsWith(delivered)) {
               yield {
                 type: 'token',
                 text: prefix.slice(delivered.length),
@@ -185,6 +190,30 @@ export class VibeKbEngine implements ConversationEngine {
           for (const source of sources)
             if (!citations.some((c) => c.sourceId === source.sourceId)) citations.push(source);
           retrieval.push({ query: plan.query, sources });
+          continue;
+        }
+        // A factual answer must rest on public evidence, and the publication gate
+        // refuses one that cites none. The model sometimes answers a service
+        // question (samples, lead time) from the conversation or from what it
+        // knows in general, without asking for knowledge first. Look the
+        // visitor's question up once and let it answer again over that DATA,
+        // instead of handing the gate an answer it can only refuse.
+        const asked = run.request.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text;
+        if (
+          record(plan) &&
+          plan.kind === 'answer' &&
+          retrieval.length === 0 &&
+          round < 2 &&
+          run.request.profileId !== PRODUCT_ANSWER_PROFILE_ID &&
+          asked?.trim()
+        ) {
+          need = plan.need ?? need;
+          const query = asked.trim().slice(0, 200);
+          yield { type: 'activity', action: 'knowledge_search' };
+          const sources = await this.knowledge.search(query, bounded, budget);
+          for (const source of sources)
+            if (!citations.some((c) => c.sourceId === source.sourceId)) citations.push(source);
+          retrieval.push({ query, sources });
           continue;
         }
         const final =
