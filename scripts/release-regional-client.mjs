@@ -276,7 +276,15 @@ export async function createReleaseRegionalClient({
   };
   await persist();
   try {
-    assert.equal((await inventory()).includes(name), false, 'Release regional name is occupied');
+    const existing = await inventory();
+    assert.equal(existing.includes(name), false, 'Release regional name is occupied');
+    // Earlier runs whose cleanup stayed unconfirmed leave their helper behind; record the
+    // names only (read-only) so an operator can remove them deliberately.
+    receipt.leftoverHelpers = existing.filter(
+      (other) => other !== name && /^seo-release-region-\d+-\d+$/.test(other),
+    );
+    if (receipt.leftoverHelpers.length)
+      notify({ method: 'inventory', state: 'leftover-helpers', names: receipt.leftoverHelpers });
     await build(join(directory, 'function'), codeSha);
     creationStarted = true;
     try {
