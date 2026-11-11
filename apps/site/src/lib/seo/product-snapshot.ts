@@ -200,12 +200,19 @@ async function inventory(api: typeof fetch): Promise<SeoPublicProduct[]> {
   }
 }
 
+/**
+ * Each public read from a CI runner outside mainland China waits 0.6–3 s in the gateway,
+ * and a snapshot makes two per product. Twelve at a time keeps that wait from adding up
+ * while the load on the public API stays small and bounded.
+ */
+export const PUBLIC_SNAPSHOT_READS = 12;
+
 async function mapPublic<T, U>(items: readonly T[], work: (item: T) => Promise<U>): Promise<U[]> {
   const output: U[] = new Array(items.length);
   let cursor = 0;
   // Keep read pressure bounded. A failed item aborts the complete snapshot.
   await Promise.all(
-    Array.from({ length: Math.min(4, items.length) }, async () => {
+    Array.from({ length: Math.min(PUBLIC_SNAPSHOT_READS, items.length) }, async () => {
       while (cursor < items.length) {
         const index = cursor++;
         const item = items[index];

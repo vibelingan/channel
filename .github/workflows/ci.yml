@@ -163,10 +163,11 @@ jobs:
   # Listed after ai-store on purpose. Other branches add steps to the end of this
   # job, and a job appended after it here collided with them at the end of the
   # file on every merge. Job order does not affect how the jobs run.
+  # Runs beside the unit groups: it needs nothing they produce, and every caller that
+  # deploys waits for the whole workflow, so both must pass before anything is released.
   checks:
     name: Build and smoke
     runs-on: ubuntu-latest
-    needs: unit
     timeout-minutes: 15
 
     env:

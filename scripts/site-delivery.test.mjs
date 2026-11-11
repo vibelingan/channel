@@ -493,3 +493,26 @@ test('an unknown cloud write cannot use the known-failure release shortcut', asy
   );
   assert.ok((await f.coordinator.status({ scopeKey: 'site' })).pendingStep);
 });
+
+test('batch readbacks overlap beyond the write bound but never above the read bound', async (t) => {
+  const f = await setup(t);
+  const paths = Array.from({ length: 30 }, (_, n) => `/products/p-${n}/`);
+  const b = f.source('Many products', { products: paths });
+  let active = 0;
+  let peak = 0;
+  const request = async (method, url, options) => {
+    active++;
+    peak = Math.max(peak, active);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return await f.request(method, url, options);
+    } finally {
+      active--;
+    }
+  };
+  const result = await f.deliver(b.input, 'publish', { publicProductPaths: paths, request });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  for (const path of paths) assert(f.files.has(`${path.slice(1)}index.html`));
+  assert(peak > 4, `readbacks overlapped only ${peak} at a time`);
+  assert(peak <= 12, `readbacks overlapped ${peak} at a time`);
+});

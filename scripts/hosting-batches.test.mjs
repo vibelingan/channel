@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
+  HOSTING_READ_PARALLEL,
   assertHostingBatchMembers,
   assertHostingRemovals,
   hostingBatchBeforeHash,
   hostingBatchHash,
   hostingRemovalHash,
   mapHostingBounded,
+  mapHostingReads,
   siteRemovalBatches,
   siteUploadBatches,
   withSiteUploadBatches,
@@ -150,4 +152,38 @@ test('bounded checks reject invalid limits and retain even a non-Error failure',
     assert.equal(error, null);
   }
   assert.equal(calls, 1);
+});
+test('public readbacks overlap twelve at a time, drain on failure, and writes keep their bound', async () => {
+  const items = Array.from({ length: 30 }, (_, n) => n);
+  let active = 0;
+  let maximum = 0;
+  const result = await mapHostingReads(items, async (n) => {
+    active++;
+    maximum = Math.max(maximum, active);
+    await delay(3);
+    active--;
+    return n + 1;
+  });
+  assert.equal(HOSTING_READ_PARALLEL, 12);
+  assert.equal(maximum, 12);
+  assert.deepEqual(
+    result,
+    items.map((n) => n + 1),
+  );
+  const started = [];
+  await assert.rejects(
+    mapHostingReads(items, async (n) => {
+      started.push(n);
+      active++;
+      await delay(n === 0 ? 1 : 10);
+      active--;
+      if (n === 0) throw Error('readback failed');
+    }),
+  );
+  assert.equal(active, 0, 'reads already started finish before the failure is reported');
+  assert.equal(started.length, 12);
+  await assert.rejects(
+    mapHostingBounded([1], 12, async () => true),
+    /Invalid hosting parallel/,
+  );
 });

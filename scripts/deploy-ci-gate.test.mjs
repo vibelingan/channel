@@ -231,7 +231,9 @@ function assertReleaseGate(ci, release) {
       'build the triggering SHA, not branch HEAD',
     );
   }
-  assert.deepEqual([ci.jobs.checks.needs].flat(), ['unit']);
+  // The build runs beside the unit groups; both still gate release because the deploy
+  // needs the whole reusable workflow (see `complete.jobs.ready.needs` above).
+  assert.equal(ci.jobs.checks.needs, undefined);
   assert.equal(ci.jobs.unit['continue-on-error'], undefined);
   const groups = ci.jobs.unit.strategy.matrix.include;
   assert.deepEqual(groups.map((group) => group.suite).sort(), [
@@ -446,7 +448,7 @@ test('release guard detects missing dependencies, success bypass, moving refs an
       candidate.jobs.checks['continue-on-error'] = true;
     },
     (candidate) => {
-      candidate.jobs.checks.needs = undefined;
+      candidate.jobs.checks.needs = 'unit';
     },
     (candidate) => {
       candidate.jobs.unit['continue-on-error'] = true;

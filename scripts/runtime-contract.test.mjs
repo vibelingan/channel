@@ -308,11 +308,12 @@ test('code checks have a bounded budget without whole business browser journeys'
     ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
     0,
   );
-  assert.deepEqual([ciJob.needs].flat(), ['unit']);
+  // The build runs beside the unit groups; the release gate waits for the whole workflow.
+  assert.equal(ciJob.needs, undefined);
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
-  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
+  assert.equal(ciJob.needs, undefined, 'the build does not wait for the unit groups');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,

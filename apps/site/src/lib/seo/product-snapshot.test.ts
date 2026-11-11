@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import {
+  PUBLIC_SNAPSHOT_READS,
   collectProductRefresh,
   collectProductSnapshot,
   collectPublicProductPaths,
@@ -224,4 +225,35 @@ test('new public IDs need a tracked version before they enter a complete candida
     refreshTransport([row, next], new Map()),
   );
   assert.equal(result.total, 2);
+});
+
+test('a snapshot overlaps public reads up to its fixed bound and still reads every product twice', async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ ...row, _id: `product-${i}` }));
+  let inFlight = 0;
+  let peak = 0;
+  const reads = new Map<string, number>();
+  const api: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/products')
+      return Response.json({ ok: true, data: { items: rows, page: 1, pageSize: 48, total: 30 } });
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (url.pathname.endsWith('/detail'))
+        return new Response(JSON.stringify({ ok: false, data: null }), { status: 404 });
+      const id = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
+      reads.set(id, (reads.get(id) ?? 0) + 1);
+      return Response.json({ ok: true, data: rows.find((r) => r._id === id) });
+    } finally {
+      inFlight--;
+    }
+  };
+  const snapshot = await collectProductSnapshot(origin, origin, api);
+  assert.equal(snapshot.products.length, 30);
+  assert.equal(PUBLIC_SNAPSHOT_READS, 12);
+  assert.equal(peak, PUBLIC_SNAPSHOT_READS);
+  // One capture read and one verification read per product, never fewer.
+  assert.deepEqual([...new Set(reads.values())], [2]);
+  assert.equal(reads.size, 30);
 });
