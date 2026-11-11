@@ -58,6 +58,30 @@ upload/cleanup timings for making a deploy faster: the project skill
 - The `test` environment only accepts runs from `test` (and two other refs):
   dispatch E2E with `--ref test`.
 
+## Site recovery copies
+
+- Every site delivery keeps a private copy of the release payload under
+  `seo-recovery/objects/<sha256>.bin` in the environment's storage, registered
+  in `catalogSeoArchives`, so a rollback works after the 90-day GitHub
+  artifact expires. Schema 1 records (doc id = artifact id) hold one ZIP.
+  Schema 2 records (doc id `site-v2-<artifact id>`, from Nov 2026) list a head,
+  large files alone and 32 packs; see
+  `docs/delivery/2026-11-12/RECOVERY-ARCHIVE-V2.md`.
+- Schema 2 objects are shared by every record with the same members. Never
+  delete anything under `seo-recovery/` and never add an expiry rule (the code
+  refuses one). A cleanup must first count references across all records of
+  both schemas.
+- Each deploy reads the accepted record in full: it prefers the private copy
+  over the GitHub artifact. A broken copy therefore fails the next deploy while
+  the accepted site is loaded (`Retained release ZIP differs`,
+  `ARCHIVE_OBJECT_NOT_FOUND` in the `private-archive-transfer` lines), not a
+  later rollback. Fix (owner's call, it deletes a record): remove that one
+  `site-v2-<id>` document. The next delivery then falls back to the GitHub
+  artifact (while it is under 90 days old) and writes the record again,
+  re-uploading the missing objects.
+- The `site-retention` log line of each delivery says how many objects were
+  reused or uploaded, and how many bytes were uploaded.
+
 ## Latency
 
 - Every request from outside mainland China spends 0.6–3 s in the CloudBase
