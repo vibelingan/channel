@@ -257,3 +257,38 @@ test('a snapshot overlaps public reads up to its fixed bound and still reads eve
   assert.deepEqual([...new Set(reads.values())], [2]);
   assert.equal(reads.size, 30);
 });
+
+test('inventory pages after the first are read together and must all agree on the totals', async () => {
+  const rows = Array.from({ length: 100 }, (_, i) => ({
+    ...row,
+    _id: `item-${String(i).padStart(3, '0')}`,
+  }));
+  const page = (n: number, overrides: Record<string, unknown> = {}) => ({
+    items: rows.slice((n - 1) * 48, n * 48),
+    page: n,
+    pageSize: 48,
+    total: 100,
+    ...overrides,
+  });
+  let inFlight = 0;
+  let peak = 0;
+  const pagesRead: number[] = [];
+  const api =
+    (broken?: number): typeof fetch =>
+    async (input) => {
+      const url = new URL(String(input));
+      const n = Number(url.searchParams.get('page'));
+      pagesRead.push(n);
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight--;
+      return Response.json({ ok: true, data: page(n, n === broken ? { total: 101 } : {}) });
+    };
+  const paths = await collectPublicProductPaths(origin, api());
+  assert.equal(paths.length, 100);
+  assert.deepEqual([...pagesRead].sort(), [1, 2, 3]);
+  // Pages 2 and 3 overlap once page 1 named the total.
+  assert.equal(peak, 2);
+  await assert.rejects(collectPublicProductPaths(origin, api(3)), /pagination changed/);
+});
