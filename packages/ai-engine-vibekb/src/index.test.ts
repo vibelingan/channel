@@ -498,6 +498,49 @@ test('plans that are not answers are never looked up on the model’s behalf', a
   assert.equal(f.calls.filter((c) => !c.url.includes('model.invalid')).length, 0);
 });
 
+test('our earlier replies go back to the model in the JSON form it must write', async () => {
+  // Sent as prose, three or four of them made the live model answer with whitespace only.
+  const f = setup();
+  await drain(f.engine, {
+    ...request,
+    turns: [
+      { role: 'visitor', text: 'Who is Diversity?' },
+      { role: 'assistant', text: 'We are a manufacturing partner.' },
+      { role: 'visitor', text: 'Do you make "custom" toys?' },
+    ],
+  });
+  const messages = f.calls[0]?.body.messages as Array<{ role: string; content: string }>;
+  const past = messages.filter((m) => m.role === 'assistant');
+  assert.equal(past.length, 1);
+  assert.deepEqual(JSON.parse(past[0]?.content ?? ''), {
+    kind: 'answer',
+    text: 'We are a manufacturing partner.',
+  });
+  // The visitor's own words are never rewritten.
+  assert.equal(messages.at(-1)?.content, 'Do you make "custom" toys?');
+});
+
+test('a whitespace-only model reply is asked for again once, then fails', async () => {
+  const blank = ' '.repeat(400);
+  const recovered = setup({
+    plans: [
+      blank,
+      '{"kind":"knowledge","query":"Diversity"}',
+      '{"kind":"answer","text":"We are."}',
+    ],
+  });
+  const events = await steps(recovered.engine, request);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'model_answer', 'knowledge_search', 'model_answer', 'final'],
+  );
+  assert.equal(recovered.calls.filter((c) => c.url.includes('model.invalid')).length, 3);
+
+  const stuck = setup({ plans: [blank, blank, '{"kind":"answer","text":"never reached"}'] });
+  await assert.rejects(drain(stuck.engine, request), /invalid_request/);
+  assert.equal(stuck.calls.filter((c) => c.url.includes('model.invalid')).length, 2);
+});
+
 test('long retrieved documents are cut so a call stays under its input ceiling', async () => {
   const f = setup({
     documentText: `Manufacturing partner. ${'Long public detail. '.repeat(1500)}`,
