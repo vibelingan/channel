@@ -193,6 +193,16 @@ test('a later run with the same pages uploads only its head and reuses the rest 
     onEvent: (e) => x.events.push(e),
   });
   await fresh.download('111', join(x.root, 'baseline'));
+  assert.deepEqual(
+    { ...x.events.at(-1), elapsedMs: 0 },
+    {
+      action: 'loaded',
+      schemaVersion: 2,
+      objects: first.objects.length,
+      bytes: first.bytes,
+      elapsedMs: 0,
+    },
+  );
   const puts = x.count('put');
   await fresh.save(payload(x.root, { runId: '102', artifactId: '112' }));
   const second = x.records.get('site-v2-112');

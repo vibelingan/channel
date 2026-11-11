@@ -246,10 +246,20 @@ export function createSiteRetention({
   };
   return {
     async download(id, directory) {
-      const record = await rowV2(String(id));
-      if (record) return loadV2(record, directory);
-      const previous = await row(String(id));
-      return previous ? loadV1(previous, directory) : null;
+      const started = Date.now();
+      const v2 = await rowV2(String(id));
+      const record = v2 ?? (await row(String(id)));
+      if (!record) return null;
+      const result = await (v2 ? loadV2 : loadV1)(record, directory);
+      // The accepted site is read this way at the start of every delivery: a full restore.
+      onEvent({
+        action: 'loaded',
+        schemaVersion: record.schemaVersion,
+        objects: record.schemaVersion === 2 ? record.objects.length : 1,
+        bytes: record.bytes,
+        elapsedMs: Date.now() - started,
+      });
+      return result;
     },
     async save(input) {
       const { envelope: e, run, directory } = input;
