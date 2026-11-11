@@ -9,6 +9,7 @@ import {
   hostingBatchHash,
   hostingRemovalHash,
   mapHostingBounded,
+  mapHostingReads,
   siteRemovalBatches,
   siteUploadBatches,
 } from './hosting-batches.mjs';
@@ -312,7 +313,7 @@ export function createHostingRecoveryAdapters({
       let step;
       try {
         return await leased(async (activeSignal) => {
-          const members = await mapHostingBounded(batch, 4, async (entry) => ({
+          const members = await mapHostingReads(batch, async (entry) => ({
             ...entry,
             beforeHash: await beforeHash(entry.path, activeSignal),
           }));
@@ -378,7 +379,7 @@ export function createHostingRecoveryAdapters({
         // confirmStep rechecks lease, fence, run state and the pending step in its transaction.
         return await leased(
           async (activeSignal) => {
-            const evidence = await mapHostingBounded(batch, 4, (entry) =>
+            const evidence = await mapHostingReads(batch, (entry) =>
               verify(entry, entry.path, 200, activeSignal),
             );
             activeSignal.throwIfAborted();
@@ -485,7 +486,7 @@ export function createHostingRecoveryAdapters({
       let step;
       try {
         return await leased(async (activeSignal) => {
-          const removals = await mapHostingBounded(paths, 4, async (path) => ({
+          const removals = await mapHostingReads(paths, async (path) => ({
             path,
             beforeHash: await beforeHash(path, activeSignal),
           }));
@@ -513,7 +514,7 @@ export function createHostingRecoveryAdapters({
               receipt: ledgerReceipt(step, 'submitted'),
             });
           }
-          const evidence = await mapHostingBounded(paths, 4, (path) =>
+          const evidence = await mapHostingReads(paths, (path) =>
             verify(errorDocument, path, 404, activeSignal),
           );
           activeSignal.throwIfAborted();
@@ -656,17 +657,15 @@ export function createHostingRecoveryAdapters({
             'accept',
             activeSignal,
           );
-          const files = await mapHostingBounded(
-            plan.uploads,
-            plan.delivery ? 4 : 1,
-            async (entry) => {
-              const observed = await verify(entry, entry.path, 200, activeSignal);
-              return { ...entry, sha256: observed.sha256 };
-            },
-          );
-          await mapHostingBounded(plan.deletes, plan.delivery ? 4 : 1, (path) =>
-            verify(errorDocument, path, 404, activeSignal),
-          );
+          // Batched site plans read back in parallel; older per-file plans keep one at a time.
+          const read = plan.delivery
+            ? mapHostingReads
+            : (items, callback) => mapHostingBounded(items, 1, callback);
+          const files = await read(plan.uploads, async (entry) => {
+            const observed = await verify(entry, entry.path, 200, activeSignal);
+            return { ...entry, sha256: observed.sha256 };
+          });
+          await read(plan.deletes, (path) => verify(errorDocument, path, 404, activeSignal));
           const config = await provider.readConfiguration();
           activeSignal.throwIfAborted();
           if (configurationStateHash(config) !== configurationStateHash(configurationPlan.after))

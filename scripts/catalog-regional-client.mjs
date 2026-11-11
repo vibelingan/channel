@@ -6,8 +6,8 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
 import { buildCatalogRegional } from './catalog-regional-build.mjs';
 import {
+  deleteFunctionUntilAbsent,
   readCompleteFunctionInventory,
-  waitForFunctionAbsence,
 } from './release/function-inventory.mjs';
 
 const purpose = 'catalog-seo-regional-v1';
@@ -281,18 +281,18 @@ export async function createCatalogRegionalClient({
     try {
       if (created) {
         own(await manager.functions.getFunctionDetail(name));
-        let deletionFailed = false;
-        try {
-          await manager.functions.deleteFunction(name);
-        } catch {
-          deletionFailed = true;
-        }
-        const removed = await waitForFunctionAbsence(inventory, name, wait);
-        receipt.cleaned = removed;
+        const deletion = await deleteFunctionUntilAbsent({
+          remove: (target) => manager.functions.deleteFunction(target),
+          inventory,
+          name,
+          wait,
+        });
+        receipt.cleaned = deletion.absent;
+        receipt.deletion = { attempts: deletion.attempts, errors: deletion.errors };
         await persist();
         assert.ok(
-          removed,
-          deletionFailed
+          deletion.absent,
+          deletion.errors.length
             ? 'Regional deletion needs readback'
             : 'Regional deletion is not confirmed',
         );

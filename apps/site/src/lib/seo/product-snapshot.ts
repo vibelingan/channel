@@ -166,23 +166,34 @@ async function publicJson(path: string, api: typeof fetch): Promise<unknown> {
   return envelope.data;
 }
 
+async function inventoryPage(page: number, api: typeof fetch) {
+  return z
+    .object({
+      items: z.array(z.unknown()),
+      total: z.number().int().nonnegative().safe().max(50000),
+      page: z.number().int().positive(),
+      pageSize: z.number().int().min(1).max(100),
+    })
+    .parse(await publicJson(`/api/products?page=${page}&pageSize=48`, api));
+}
+
+/**
+ * The first page names the total; the remaining pages are read together. Every page must
+ * report the same total and page size and hold exactly its share, as when they were read
+ * one at a time.
+ */
 async function inventory(api: typeof fetch): Promise<SeoPublicProduct[]> {
+  const first = await inventoryPage(1, api);
+  const { total, pageSize } = first;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const rest = await mapPublic(
+    Array.from({ length: pages - 1 }, (_, index) => index + 2),
+    (page) => inventoryPage(page, api),
+  );
   const rows: SeoPublicProduct[] = [];
   const ids = new Set<string>();
-  let total: number | undefined;
-  let pageSize: number | undefined;
-  for (let page = 1; ; page++) {
-    const value = await publicJson(`/api/products?page=${page}&pageSize=48`, api);
-    const result = z
-      .object({
-        items: z.array(z.unknown()),
-        total: z.number().int().nonnegative().safe().max(50000),
-        page: z.number().int().positive(),
-        pageSize: z.number().int().min(1).max(100),
-      })
-      .parse(value);
-    total ??= result.total;
-    pageSize ??= result.pageSize;
+  for (const [index, result] of [first, ...rest].entries()) {
+    const page = index + 1;
     if (
       result.page !== page ||
       result.total !== total ||
@@ -196,16 +207,25 @@ async function inventory(api: typeof fetch): Promise<SeoPublicProduct[]> {
       ids.add(product._id);
       rows.push(product);
     }
-    if (rows.length === total) return rows.sort((a, b) => a._id.localeCompare(b._id));
   }
+  if (rows.length !== total)
+    throw new Error('Public inventory pagination changed or is incomplete');
+  return rows.sort((a, b) => a._id.localeCompare(b._id));
 }
+
+/**
+ * Each public read from a CI runner outside mainland China waits 0.6–3 s in the gateway,
+ * and a snapshot makes two per product. Twelve at a time keeps that wait from adding up
+ * while the load on the public API stays small and bounded.
+ */
+export const PUBLIC_SNAPSHOT_READS = 12;
 
 async function mapPublic<T, U>(items: readonly T[], work: (item: T) => Promise<U>): Promise<U[]> {
   const output: U[] = new Array(items.length);
   let cursor = 0;
   // Keep read pressure bounded. A failed item aborts the complete snapshot.
   await Promise.all(
-    Array.from({ length: Math.min(4, items.length) }, async () => {
+    Array.from({ length: Math.min(PUBLIC_SNAPSHOT_READS, items.length) }, async () => {
       while (cursor < items.length) {
         const index = cursor++;
         const item = items[index];

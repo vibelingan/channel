@@ -49,7 +49,7 @@ jobs:
       fail-fast: false
       matrix:
         formal: ['0', '1']
-        group: [storefront, admin, taxonomy]
+        group: [storefront, sku-detail, admin, taxonomy]
         include:
           - formal: '1'
             group: admin-workflows
@@ -78,6 +78,12 @@ jobs:
           if [ -f /etc/apt/apt-mirrors.txt ]; then
             sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
           fi
+      # Browser downloads (~45 s) come from the cache; system packages are still installed.
+      - name: Restore Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Exercise the built site and isolated local services
         run: pnpm test:e2e:catalog-admin-local

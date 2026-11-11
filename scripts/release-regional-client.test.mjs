@@ -66,6 +66,12 @@ async function fixture(t) {
       getFunctionDetail: async (name) => functions.get(name),
       async deleteFunction(name) {
         f.deleted.push(name);
+        if (f.failDeletes > 0) {
+          f.failDeletes--;
+          throw Object.assign(Error('secret delete failure detail'), {
+            code: 'ResourceInUse.Function',
+          });
+        }
         if (!f.keepFunction && !f.listedAfterDelete) functions.delete(name);
         if (f.lostDelete) throw Error('secret delete response');
       },
@@ -466,18 +472,85 @@ test('a deleted function that stays listed for a while is still confirmed absent
   assert.ok(waits.reduce((total, ms) => total + ms, 0) < 60_000);
 });
 
-test('a function still listed after every absence check stays unconfirmed after about a minute', async (t) => {
+test('leftover helpers from earlier runs are recorded by name and never touched', async (t) => {
+  const f = await fixture(t);
+  f.functions.set('seo-release-region-41878896329-1', {
+    FunctionName: 'seo-release-region-41878896329-1',
+    Description: 'channel-release-regional-v1',
+  });
+  f.functions.set('public-api', { FunctionName: 'public-api' });
+  const client = await f.start();
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.deepEqual(receipt.leftoverHelpers, ['seo-release-region-41878896329-1']);
+  await client.close();
+  assert.ok(f.functions.has('seo-release-region-41878896329-1'));
+  assert.ok(!f.deleted.includes('seo-release-region-41878896329-1'));
+});
+
+test('a delete that failed is sent again while the function is still listed', async (t) => {
+  const f = await fixture(t);
+  const client = await f.start();
+  // Run 42956995872: the site was committed, then cleanup stayed unconfirmed after ~58 s.
+  f.failDeletes = 1;
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+  assert.equal(f.functions.size, 0);
+  assert.equal(f.deleted.length, 2);
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.deepEqual(receipt.deletion, { attempts: 2, errors: ['ResourceInUse.Function'] });
+  assert.equal(JSON.stringify(receipt).includes('secret delete failure detail'), false);
+});
+
+test('a function still listed after every absence check stays unconfirmed after about two minutes', async (t) => {
   const f = await fixture(t);
   const waits = [];
   const client = await f.start({ wait: async (ms) => waits.push(ms) });
   f.keepFunction = true;
   await assert.rejects(client.close(), { code: 'RELEASE_REGIONAL_UNCONFIRMED' });
-  assert.equal(waits.length, 15);
+  assert.equal(waits.length, 27);
   assert.equal(
     waits.reduce((total, ms) => total + ms, 0),
-    57_750,
+    117_750,
   );
   assert.equal(f.functions.size, 1);
+});
+
+test('deletes refused for about a minute after the last call are still confirmed', async (t) => {
+  const f = await fixture(t);
+  const waits = [];
+  const client = await f.start({ wait: async (ms) => waits.push(ms) });
+  // Run 42968456325: FailedOperation.DeleteFunction four times, the fifth accepted at ~58 s,
+  // and the client stopped checking right after it.
+  f.failDeletes = 4;
+  assert.deepEqual(await client.close(), { cleaned: true, unconfirmed: false });
+  assert.equal(f.functions.size, 0);
+  const receipt = JSON.parse(await readFile(join(f.directory, 'result.json'), 'utf8'));
+  assert.equal(receipt.deletion.attempts, 5);
+  assert.deepEqual(receipt.deletion.errors, Array(4).fill('ResourceInUse.Function'));
+});
+
+test('a delete refused through the whole window is never sent on the final checks', async (t) => {
+  const f = await fixture(t);
+  const sentAt = [];
+  let checks = 0;
+  const client = await f.start({ wait: async () => {} });
+  const list = f.manager.functions.getFunctionList;
+  f.manager.functions.getFunctionList = async (...args) => {
+    checks++;
+    return list(...args);
+  };
+  const remove = f.manager.functions.deleteFunction;
+  f.manager.functions.deleteFunction = async (name) => {
+    sentAt.push(checks);
+    return remove(name);
+  };
+  f.failDeletes = 1000;
+  await assert.rejects(client.close(), { code: 'RELEASE_REGIONAL_UNCONFIRMED' });
+  // Every delete leaves at least four more complete inventory reads to observe it.
+  assert.ok(
+    sentAt.every((at) => checks - at >= 4),
+    JSON.stringify({ sentAt, checks }),
+  );
+  assert.ok(sentAt.length >= 10);
 });
 
 test('cleanup uncertainty is explicit and retains the original function', async (t) => {
