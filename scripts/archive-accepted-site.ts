@@ -60,6 +60,7 @@ try {
     policy,
     readLifecycle: (params: COS.GetBucketLifecycleParams) => cos.getBucketLifecycle(params),
     onTransfer: (event: object) => diagnostic.observe({ kind: 'transfer', ...event }),
+    policyCacheMs: 10 * 60 * 1000,
   });
   const retention = createSiteRetention({ db, objects, policy });
   const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });

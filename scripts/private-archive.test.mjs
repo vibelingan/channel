@@ -821,3 +821,55 @@ test('read retries during upload continuation cannot extend its original deadlin
     assert.equal(presentReads, exhausted ? 1 : 2);
   }
 });
+test('stat reads only the stored size and version, after the same bucket checks', async () => {
+  const x = setup();
+  const versions = new Map();
+  const head = async (_sdk, id) => {
+    x.calls.push(['head', id]);
+    if (!x.objects.has(id))
+      throw Object.assign(Error('absent'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+    return { bytes: x.objects.get(id).length, etag: versions.get(id) ?? '"v1"' };
+  };
+  const archive = createPrivateArchive({ ...x, head, policy });
+  const ref = await archive.put(Buffer.from('program bytes'));
+  assert.deepEqual(await archive.stat(ref), { bytes: 13, etag: '"v1"' });
+  versions.set(ref.fileID, '"v2"');
+  assert.equal((await archive.stat(ref)).etag, '"v2"');
+  x.objects.delete(ref.fileID);
+  await assert.rejects(archive.stat(ref), (error) => error.code === 'ARCHIVE_OBJECT_NOT_FOUND');
+  await assert.rejects(
+    createPrivateArchive({ ...x, policy }).stat(ref),
+    /version check unavailable/,
+  );
+});
+test('the opt-in policy window checks the bucket once, again after the window, and never keeps a failure', async () => {
+  const x = setup();
+  let clock = 0;
+  const archive = createPrivateArchive({ ...x, policy, now: () => clock, policyCacheMs: 600000 });
+  const first = await archive.put(Buffer.from('one'));
+  await archive.put(Buffer.from('two'));
+  await archive.get(first);
+  const checks = () => x.calls.filter((c) => c[0] === 'permission').length;
+  assert.equal(checks(), 1);
+  clock = 600000;
+  await archive.get(first);
+  assert.equal(checks(), 2);
+  clock = 1200000;
+  const allowed = x.manager.permission.describeResourcePermission;
+  x.manager.permission.describeResourcePermission = async () => ({
+    Data: {
+      PermissionList: [
+        { Resource: 'fixture-bucket', ResourceType: 'storage', Permission: 'PUBLICREAD' },
+      ],
+    },
+  });
+  await assert.rejects(archive.get(first), /already be private/);
+  x.manager.permission.describeResourcePermission = allowed;
+  await archive.get(first);
+  assert.equal(checks(), 3);
+  assert.throws(() => createPrivateArchive({ ...x, policy, policyCacheMs: 3600000 }), /15 minutes/);
+  const always = createPrivateArchive({ ...x, policy });
+  await always.get(first);
+  await always.get(first);
+  assert.equal(checks(), 5);
+});

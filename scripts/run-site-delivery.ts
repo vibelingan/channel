@@ -141,8 +141,15 @@ const objects = createPrivateArchive({
   readLifecycle: (params: COS.GetBucketLifecycleParams) => archiveCos.getBucketLifecycle(params),
   onTransfer: (event: object) =>
     console.log(JSON.stringify({ event: 'private-archive-transfer', ...event })),
+  // One delivery moves ~40 recovery objects; check the bucket once per 10 minutes, not per object.
+  policyCacheMs: 10 * 60 * 1000,
 });
-const retention = createSiteRetention({ db, objects, policy });
+const retention = createSiteRetention({
+  db,
+  objects,
+  policy,
+  onEvent: (event: object) => console.log(JSON.stringify({ event: 'site-retention', ...event })),
+});
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
 const catalogConfig = readCatalogSeoRecordingConfig(env);
 if (catalogConfig) {

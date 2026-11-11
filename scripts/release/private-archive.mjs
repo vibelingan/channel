@@ -11,13 +11,49 @@ export function createPrivateArchive({
   readLifecycle,
   put,
   read,
+  head = null,
   onTransfer = (_event) => {},
   now = () => performance.now(),
+  policyCacheMs = 0,
 }) {
   if (typeof put !== 'function' || typeof read !== 'function')
     throw Error('An explicit verified archive transport is required');
   if (!/^[-a-z0-9]+$/.test(policy.archiveBucket ?? ''))
     throw Error('The exact private archive bucket is required');
+  if (!Number.isSafeInteger(policyCacheMs) || policyCacheMs < 0 || policyCacheMs > 15 * 60000)
+    throw Error('Archive policy cache window must be at most 15 minutes');
+  // Opt-in: a caller moving many objects in one process re-checks the bucket's privacy
+  // and lifecycle once per window instead of twice per object. A failed check is never kept.
+  let checkedPolicy = null;
+  const bucketPolicy = (bucket) => {
+    const at = now();
+    if (checkedPolicy && checkedPolicy.bucket === bucket && at - checkedPolicy.at < policyCacheMs)
+      return checkedPolicy.lifecycle;
+    const lifecycle = (async () => {
+      const result = await manager.permission.describeResourcePermission({
+        resourceType: 'storage',
+        resources: [bucket],
+      });
+      const entries = result.Data?.PermissionList;
+      if (
+        !Array.isArray(entries) ||
+        entries.filter(
+          (e) =>
+            e.Resource === bucket && e.ResourceType === 'storage' && e.Permission === 'PRIVATE',
+        ).length !== 1
+      )
+        throw Error('Archive bucket must already be private; permissions were not changed');
+      return readLifecycle({ Bucket: bucket, Region: policy.region });
+    })();
+    if (policyCacheMs > 0) {
+      const entry = { bucket, at, lifecycle };
+      checkedPolicy = entry;
+      lifecycle.catch(() => {
+        if (checkedPolicy === entry) checkedPolicy = null;
+      });
+    }
+    return lifecycle;
+  };
   const target = async (ref) => {
     if (
       !ref ||
@@ -43,20 +79,7 @@ export function createPrivateArchive({
       throw Error('Archive object escapes its content key');
     if (bucket !== policy.archiveBucket)
       throw Error('Wrong archive bucket; no other resource was queried');
-    const result = await manager.permission.describeResourcePermission({
-      resourceType: 'storage',
-      resources: [bucket],
-    });
-    const entries = result.Data?.PermissionList;
-    if (
-      !Array.isArray(entries) ||
-      entries.filter(
-        (e) => e.Resource === bucket && e.ResourceType === 'storage' && e.Permission === 'PRIVATE',
-      ).length !== 1
-    )
-      throw Error('Archive bucket must already be private; permissions were not changed');
-    const lifecycle = await readLifecycle({ Bucket: bucket, Region: policy.region });
-    assertArchiveLifecycle(lifecycle, path);
+    assertArchiveLifecycle(await bucketPolicy(bucket), path);
     return { bucket, path };
   };
   const timeout = (bytes) => (bytes > 8 * 1024 * 1024 ? 300000 : 60000);
@@ -141,6 +164,20 @@ export function createPrivateArchive({
   };
   return {
     get,
+    /** Size and version of a stored object without its bytes; absent → ARCHIVE_OBJECT_NOT_FOUND. */
+    async stat(ref) {
+      if (typeof head !== 'function') throw Error('Archive object version check unavailable');
+      await target(ref);
+      const value = await observe('stat', ref, () => head(sdk, ref.fileID));
+      if (
+        !Number.isSafeInteger(value?.bytes) ||
+        value.bytes < 0 ||
+        typeof value.etag !== 'string' ||
+        !value.etag
+      )
+        throw Error('Archive object version is incomplete');
+      return { bytes: value.bytes, etag: value.etag };
+    },
     async put(input) {
       if (!Buffer.isBuffer(input) || input.length < 1 || input.length > limit)
         throw Error('Private archive size exceeds bound');

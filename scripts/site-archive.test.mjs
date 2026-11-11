@@ -130,6 +130,12 @@ async function fixture(t) {
       if (!body) throw Error('Missing object');
       return Buffer.from(body);
     },
+    async stat(ref) {
+      calls.push('stat');
+      const body = blobs.get(ref.fileID);
+      if (!body) throw Object.assign(Error('Missing object'), { code: 'ARCHIVE_OBJECT_NOT_FOUND' });
+      return { bytes: body.length, etag: '"fixture"' };
+    },
   };
   const retention = createSiteRetention({ db, objects, policy });
   const source = {
@@ -472,7 +478,13 @@ test('archives the current sealed site through real retention packaging and full
   assert.equal(result.sourceRunId, 'site-101-1');
   assert.equal(result.websiteWrites, 0);
   assert.equal(result.businessWrites, 0);
-  assert.deepEqual(f.calls, ['download', 'put', 'get', 'register', 'get']);
+  // Schema 2: each new object is uploaded and versioned once; the readback is the full restore.
+  const objects = f.records.get('site-v2-111').objects.length;
+  assert.deepEqual(
+    f.calls.filter((call) => call !== 'put' && call !== 'stat'),
+    ['download', 'register', ...Array(objects).fill('get')],
+  );
+  assert.equal(f.calls.filter((call) => call === 'put').length, objects);
   assert.equal(f.records.size, 1);
   assert.equal((await f.coordinator.status()).state, 'idle');
   assert.equal((await f.coordinator.status()).scope.baseline.sourceRunId, 'site-101-1');
@@ -563,10 +575,13 @@ test('archive-only execution also passes through the installed COS HTTP client a
   });
   const retention = createSiteRetention({ db: f.db, objects, policy });
   await archiveAcceptedSite({ ...f.options, retention });
-  assert.equal(requests.filter((method) => method === 'PUT').length, 1);
+  const saved = f.records.get('site-v2-111').objects;
+  assert.equal(requests.filter((method) => method === 'PUT').length, saved.length);
   assert(requests.includes('HEAD') && requests.includes('GET'));
-  const ref = f.records.get('111').archiveObject;
-  assert.equal(sha256([...stored.values()][0]), ref.sha256);
+  assert.deepEqual(
+    saved.map((item) => sha256(stored.get(`/seo-recovery/objects/${item.object.sha256}.bin`))),
+    saved.map((item) => item.object.sha256),
+  );
   assert.equal(JSON.parse(readFileSync(f.file)).status, 'complete');
 });
 
@@ -576,7 +591,10 @@ test('a retained registration still requires a complete archive read, with no se
   const second = { ...f.options, directory: join(f.root, 'second') };
   f.calls.length = 0;
   await archiveAcceptedSite(second);
-  assert.deepEqual(f.calls, ['download', 'get']);
+  assert.deepEqual(f.calls, [
+    'download',
+    ...Array(f.records.get('site-v2-111').objects.length).fill('get'),
+  ]);
 });
 
 test('a failed upload leaves diagnostics from the beginning, releases the lease and hides raw errors', async (t) => {
@@ -652,7 +670,7 @@ test('a baseline change during private upload rejects success and retains the ne
 test('a corrupt retained object cannot pass even when its registry already exists', async (t) => {
   const f = await fixture(t);
   await archiveAcceptedSite(f.options);
-  const ref = f.records.get('111').archiveObject;
+  const ref = f.records.get('site-v2-111').objects[0].object;
   const bytes = Buffer.from(f.blobs.get(ref.fileID));
   bytes[0] ^= 1;
   f.blobs.set(ref.fileID, bytes);
