@@ -42,9 +42,10 @@ upload/cleanup timings for making a deploy faster: the project skill
 
 ## Deploy timing and failure modes
 
-- A deploy takes about an hour (42–78 min, average 52 in October 2026): CI
-  runs the full suite, then the deploy job runs it again, deploys functions
-  (about 25 minutes in), then the site.
+- A deploy with no page changes takes about 20 minutes from push to done
+  (November 2026; it took about an hour in October): CI and read-only
+  preparation ~6 min, then the deploy job ~12–14 min (functions, then the
+  site). A deploy that changes every page adds ~15–20 min of site upload.
 - Watch in the background and keep working; say the expected wait.
 - Not every red run is your code:
   - the "Install Playwright" step has hung for 31 minutes and been cancelled;

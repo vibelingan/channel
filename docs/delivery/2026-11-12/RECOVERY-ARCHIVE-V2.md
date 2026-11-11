@@ -1,7 +1,7 @@
 # Recovery archive v2: store only what changed
 
-Status: final design, implemented on `feat/recovery-archive-v2`. Owner decisions are not
-needed unless the review questions below are reopened.
+Status: implemented and verified on `test` (PR #84). Owner decisions are not needed unless
+the review questions below are reopened.
 
 ## Problem
 
@@ -225,3 +225,18 @@ log lines (reused / uploaded objects, bytes, ms) compared to run 42973739468.
 | First schema 2 deploy | — | about today's cost, once |
 
 Storage per no-change deploy: ~60 KB instead of 83 MB.
+
+## Results on `test`
+
+| Run | What it proved | Archive | Deploy job | Run (push → done) |
+|---|---|---|---|---|
+| 42973739468 (before) | schema 1 | 83 MB upload + 2 readbacks: 4.5 min | 20 min | 26.2 min |
+| 43078023025 | read a schema 1 baseline (83 MB in 13.7 s); first schema 2 save | 42 objects, 83.4 MB uploaded in 98 s; object upload median 5.3 s, max 9.3 s | 14.0 min | 25.5 min |
+| 43082348067 | full read of a schema 2 baseline (the restore a rollback uses); save with unchanged pages | baseline read 42 objects, 83.4 MB in 13.7 s; save reused 41, uploaded the 111 KB head: 5.1 s | 12.5 min | ~18 min (5.8 min CI and preparation + 12.5 min) |
+
+Deploy 2's first attempt stopped before any write: the delivery's first read (the
+functions' runtime health) hit a network connect timeout to the CloudBase gateway. The
+failed job was re-run on the same commit.
+The site delivery step went from 8.7 min (before) to 4.2 min (first schema 2 save) to
+2.9 min (unchanged pages). Per no-change deploy the recovery copy now costs a 5 s save
+plus the 13.7 s full read of the accepted copy, which schema 1 also did.
