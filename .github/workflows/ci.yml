@@ -110,7 +110,7 @@ jobs:
         run: pnpm smoke:ai
 
   unit:
-    name: Unit tests (${{ matrix.suite }})
+    name: Unit tests (${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -123,8 +123,14 @@ jobs:
             command: pnpm -r --filter './packages/**' --filter '!@vibelingan-channel/ai-store' test
           - suite: services
             command: pnpm -r --filter './apps/**' --filter '!@vibelingan-channel/site' --filter '!@vibelingan-channel/ai-bff' --filter '!@vibelingan-channel/ai-worker' test
+          # Two shards balanced by measured time (apps/site/scripts/test-shard.mjs): the two
+          # slowest files, and every other file. The test type check runs once.
           - suite: site
-            command: pnpm --filter @vibelingan-channel/site test
+            shard: heavy
+            command: pnpm --filter @vibelingan-channel/site exec tsc -p tsconfig.test.json --noEmit && pnpm --filter @vibelingan-channel/site exec node scripts/test-shard.mjs heavy
+          - suite: site
+            shard: rest
+            command: pnpm --filter @vibelingan-channel/site exec node scripts/test-shard.mjs rest
     env:
       CI: 'true'
       PUBLIC_CB_PROXY: '0'
@@ -148,6 +154,12 @@ jobs:
           if [ -f /etc/apt/apt-mirrors.txt ]; then
             sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
           fi
+      - name: Restore Playwright browsers
+        if: ${{ matrix.suite == 'site' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install browsers for component unit tests
         if: ${{ matrix.suite == 'site' }}
         run: pnpm exec playwright install --with-deps chromium webkit
