@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { buildReleaseRegional } from './release-regional-build.mjs';
 import {
+  deleteFunctionUntilAbsent,
   readCompleteFunctionInventory,
-  waitForFunctionAbsence,
 } from './release/function-inventory.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import {
@@ -257,10 +257,14 @@ export async function createReleaseRegionalClient({
     try {
       if (created) {
         own(await manager.functions.getFunctionDetail(name));
-        try {
-          await manager.functions.deleteFunction(name);
-        } catch {}
-        assert.ok(await waitForFunctionAbsence(inventory, name, wait));
+        const deletion = await deleteFunctionUntilAbsent({
+          remove: (target) => manager.functions.deleteFunction(target),
+          inventory,
+          name,
+          wait,
+        });
+        receipt.deletion = { attempts: deletion.attempts, errors: deletion.errors };
+        assert.ok(deletion.absent);
         receipt.cleaned = true;
       }
       closed = true;

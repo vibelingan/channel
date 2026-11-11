@@ -42,11 +42,35 @@ export async function readCompleteFunctionInventory(functions, envId) {
 export const FUNCTION_ABSENCE_CHECKS = 16;
 export const functionAbsenceDelayMs = (check) => Math.min(250 * 2 ** (check - 1), 5000);
 
-/** True once a complete inventory omits the name; false if it is still listed after every check. */
-export async function waitForFunctionAbsence(inventory, name, wait) {
+// SDK deleteFunction makes two remote calls (gateway bindings, then DeleteFunction); from
+// outside mainland China either can fail. A failed attempt deletes nothing, so waiting alone
+// cannot succeed: the delete is sent again every fourth check while the name is still listed.
+const DELETE_RETRY_EVERY = 4;
+const safeErrorCode = (error) => {
+  const code = error?.code ?? error?.name;
+  return typeof code === 'string' && /^[A-Za-z][A-Za-z0-9._-]{0,80}$/.test(code) ? code : 'error';
+};
+
+/**
+ * Deletes an exact, already-verified function and waits for a complete inventory to omit
+ * it. Returns how many deletes were sent and their error codes; never error messages.
+ */
+export async function deleteFunctionUntilAbsent({ remove, inventory, name, wait }) {
+  const errors = [];
+  let attempts = 0;
+  const attempt = async () => {
+    attempts++;
+    try {
+      await remove(name);
+    } catch (error) {
+      errors.push(safeErrorCode(error));
+    }
+  };
+  await attempt();
   for (let check = 0; check < FUNCTION_ABSENCE_CHECKS; check++) {
     if (check) await wait(functionAbsenceDelayMs(check));
-    if (!(await inventory()).includes(name)) return true;
+    if (!(await inventory()).includes(name)) return { absent: true, attempts, errors };
+    if (check % DELETE_RETRY_EVERY === DELETE_RETRY_EVERY - 1) await attempt();
   }
-  return false;
+  return { absent: false, attempts, errors };
 }
