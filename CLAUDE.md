@@ -17,6 +17,10 @@ Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 One environment serves supplychainsai.com and is the owner's test environment; deploy by fast-forwarding `test`. Release ids, deploy timing and failure modes, gateway latency, SDK result shapes, provisioning, admin calls from the signed-in page. See `docs/agents/cloudbase.md`.
 
+### Intermittent CI test failures
+
+A test that fails on CI and passes on rerun: known causes with the log lines that identify them, and the steps (failed-attempt log, CI loop with monitors, probes, A/B) that find a new one. Do not create or edit files under `apps/site` while its browser unit tests run. See `docs/agents/ci-test-flakes.md`.
+
 ### Domain docs
 
 Single-context repo — `CONTEXT.md` at root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
