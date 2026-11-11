@@ -186,7 +186,6 @@ function assertReleaseGate(ci, release) {
     prepare.steps.filter((step) => step.run).map((step) => step.run.split('\n')[0]),
     [
       'pnpm install --frozen-lockfile',
-      'pnpm test:deploy-smoke',
       'if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then',
       'node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before',
     ],
