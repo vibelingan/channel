@@ -13,6 +13,9 @@ export const ARCHIVE_COS_OPTIONS = Object.freeze({
 // The SDK queues whole files at FileParallelLimit, while each transfer's deadline starts
 // when it is handed over. A caller running several transfers at once must let the SDK run
 // them all, or the queued ones time out before they start (run 43212545234).
+/** No single archive transfer may run longer; callers' deadlines must stay within it. */
+export const ARCHIVE_TRANSFER_MAX_MS = 300000;
+
 export const PARALLEL_ARCHIVE_COS_OPTIONS = Object.freeze({
   ...ARCHIVE_COS_OPTIONS,
   FileParallelLimit: 8,
@@ -279,7 +282,7 @@ function traceTransfer(cos, params, totalBytes, observe) {
 
 /** Failed or timed-out SDK tasks release local ownership; late results cannot extend the budget. */
 function boundedTransfer(timeoutMs, start, cancel = () => {}) {
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000)
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > ARCHIVE_TRANSFER_MAX_MS)
     throw Error('Invalid archive transfer time limit');
   return new Promise((resolve, reject) => {
     let finished = false;

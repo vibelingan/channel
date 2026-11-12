@@ -93,6 +93,10 @@ upload/cleanup timings for making a deploy faster: the project skill
   file at a time (`FileParallelLimit: 1`) while every deadline was already
   running. Callers moving several objects use `PARALLEL_ARCHIVE_COS_OPTIONS` and
   `slowLinkBytesPerSecond`; a failed object is tried once more.
+- Any archive deadline must stay within the transfer layer's 300 s maximum
+  (`ARCHIVE_TRANSFER_MAX_MS`), or the transfer is refused as `Invalid archive
+  transfer time limit` (run 43217655741). Test deadline changes through the real
+  transfer layer (`scripts/cos-archive-network.test.mjs`), not a fake.
 
 - *Deploy AI CloudRun* (tag `ai-cloudrun-deploy-*`) can fail at
   `cloudbase.manageCloudRun deploy` with nothing wrong in the commit. On

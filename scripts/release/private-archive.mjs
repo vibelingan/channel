@@ -1,5 +1,6 @@
 import { checkedUploadUrl } from '../../packages/media-storage/src/cloudbase-put.ts';
 import { mintCloudBaseUploadCredential } from '../../packages/media-storage/src/cloudbase.ts';
+import { ARCHIVE_TRANSFER_MAX_MS } from './cos-archive-transfer.mjs';
 import { sha256 } from './input.mjs';
 const limit = 128 * 1024 * 1024;
 
@@ -89,12 +90,13 @@ export function createPrivateArchive({
     return { bucket, path };
   };
   // Opt-in: a deadline that grows with the object, so a slow but moving link (one connection
-  // from the US has carried ~8 KB/s) is not cut off at a fixed 60 s; capped at 15 minutes.
+  // from the US has carried ~8 KB/s) is not cut off at a fixed 60 s. It never exceeds the
+  // transfer layer's 300 s maximum, which refuses anything longer (run 43217655741).
   const timeout = (bytes) => {
     const fixed = bytes > 8 * 1024 * 1024 ? 300000 : 60000;
     if (!slowLinkBytesPerSecond) return fixed;
     const sized = 60000 + Math.ceil((bytes / slowLinkBytesPerSecond) * 1000);
-    return Math.min(15 * 60000, Math.max(fixed, sized));
+    return Math.min(ARCHIVE_TRANSFER_MAX_MS, Math.max(fixed, sized));
   };
   const observe = async (action, ref, operation) => {
     const started = Date.now();
