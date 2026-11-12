@@ -52,6 +52,9 @@ export function LegacyAssistantWidget({
   );
   const [conversation, setConversation] = useState<StoredConversation | null>(null);
   const [lastSequence, setLastSequence] = useState(0);
+  // True from a failed turn until the next question is sent. `status` stays
+  // 'ready': 'unavailable' is only for a page with no assistant service at all.
+  const [turnFailed, setTurnFailed] = useState(false);
   const transcriptVersion = messages.reduce(
     (size, message) => size + message.text.length + (message.citations?.length ?? 0),
     0,
@@ -112,6 +115,7 @@ export function LegacyAssistantWidget({
     const assistantId = crypto.randomUUID();
     setAnswerId(assistantId);
     setPhase('queued');
+    setTurnFailed(false);
     setActivity(undefined);
     setBusy(true);
     setDraft('');
@@ -148,14 +152,17 @@ export function LegacyAssistantWidget({
     } catch (caught) {
       if (isAbortError(caught) || controller.signal.aborted || abortRef.current !== controller)
         return;
-      setStatus('unavailable');
+      // One failed turn is not the end of the conversation: keep the composer
+      // so the visitor can ask again, and offer the team as the other way out.
+      setStatus('ready');
       setPhase('failed');
+      setTurnFailed(true);
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: 'status',
-          text: 'The assistant is unavailable right now. Please send us your project instead.',
+          text: 'The assistant could not be reached just now. Please try again, or send us your project.',
         },
       ]);
     } finally {
@@ -227,13 +234,14 @@ export function LegacyAssistantWidget({
                 ? {
                     ...item,
                     role: 'status',
-                    text: 'I could not ground an answer. Please ask our team.',
+                    text: 'I could not answer that just now. Please try again, or send us your project.',
                   }
                 : item,
             ),
           );
-          setStatus('unavailable');
+          setStatus('ready');
           setPhase('failed');
+          setTurnFailed(true);
           controller.abort();
           return;
         } else if (event.type === 'final') {
@@ -405,6 +413,14 @@ export function LegacyAssistantWidget({
               </button>
             )}
           </form>
+        )}
+        {status !== 'unavailable' && turnFailed && (
+          <a
+            href="/#oem-inquiry"
+            className="mt-2 block text-center text-sm font-semibold text-brand-700 underline"
+          >
+            Send your project to our team
+          </a>
         )}
         <p className="mt-2 text-center text-[11px] text-ink-muted">
           AI can make mistakes. Verify commercial terms with our team. ·{' '}
