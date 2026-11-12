@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "待实施：图片先准备，再按当前发布状态交付",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [1260, 660]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "受控操作入口"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "图片准备程序"
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "私有对象存储"
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "原图与公开引用"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "现有图片接口"
+    },
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "访客浏览器"
+    }
+  ],
+  "segments": [
+    {
+      "from": 325,
+      "to": 478,
+      "label": "目标：图片请求通过一次公开引用检查后读取小图"
+    },
+    {
+      "from": 492,
+      "to": 584,
+      "label": "目标：撤回后的新请求不继续提供图片"
+    }
+  ],
+  "messages": [
+    {
+      "id": "image-step-1",
+      "from": "operator",
+      "to": "worker",
+      "y": 160,
+      "label": "指定三张原图及生成规则",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-2",
+      "from": "worker",
+      "to": "registry",
+      "y": 188,
+      "label": "读取原图身份与已有产物",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-3",
+      "from": "worker",
+      "to": "storage",
+      "y": 216,
+      "label": "有界读取原图并生成网页版本",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-4",
+      "from": "worker",
+      "to": "storage",
+      "y": 244,
+      "label": "写入确定路径的三种尺寸",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-5",
+      "from": "worker",
+      "to": "storage",
+      "y": 272,
+      "label": "读回核对产物字节与格式",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-6",
+      "from": "worker",
+      "to": "registry",
+      "y": 300,
+      "label": "原图未变才登记就绪版本",
+      "variant": "emphasis"
+    },
+    {
+      "id": "image-step-7",
+      "from": "browser",
+      "to": "api",
+      "y": 340,
+      "label": "请求现有图片地址",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-8",
+      "from": "api",
+      "to": "registry",
+      "y": 368,
+      "label": "沿用当前公开引用检查",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-9",
+      "from": "api",
+      "to": "registry",
+      "y": 396,
+      "label": "取匹配来源的就绪产物",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-10",
+      "from": "api",
+      "to": "storage",
+      "y": 424,
+      "label": "读取受限尺寸的字节",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-11",
+      "from": "api",
+      "to": "browser",
+      "y": 452,
+      "label": "200 图片；准确 MIME 与宽高",
+      "variant": "return"
+    },
+    {
+      "id": "image-step-12",
+      "from": "browser",
+      "to": "api",
+      "y": 508,
+      "label": "撤回后再次请求",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-13",
+      "from": "api",
+      "to": "registry",
+      "y": 536,
+      "label": "核对当前公开引用",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-14",
+      "from": "api",
+      "to": "browser",
+      "y": 564,
+      "label": "无有效公开引用时 404",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "程序与凭据",
+      "items": [
+        "Channel 后端程序使用受控环境凭据；不调用模型",
+        "浏览器只读公开图片，不持有 COS 或管理密钥"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "本轮只设计",
+      "items": ["原图、alt、插图位置及客户内容保留", "复用现有存储封装与引用判断，新增网页图片版本"]
+    },
+    {
+      "dot": "amber",
+      "title": "必须真实验收",
+      "items": ["先处理三张已有图；不重新同步商品", "重试不重建；公开状态变化和版本竞争要验证"]
+    }
+  ]
+}

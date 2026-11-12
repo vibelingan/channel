@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Lexar-Mac/CodexCaches/channel-formal-validation-20261027/docs/seo/continuation/next-phase-design-2026-11-05/diagrams/runtime-20261112.architecture.json",
+  "output": "/Volumes/Lexar-Mac/CodexCaches/channel-formal-validation-20261027/docs/seo/continuation/next-phase-design-2026-11-05/diagrams/runtime-20261112.html",
+  "specification": {
+    "sha256": "c7e500913ac61d3dee58205e07d591ea21af655bdf550839940c158ecc05cda3",
+    "bytes": 3020
+  },
+  "artifact": {
+    "sha256": "2cf17d28bd12ac4e8dbc5c14e506ec0b6fce61fea4e7ba1494e79fd3b84794bc",
+    "bytes": 804406
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

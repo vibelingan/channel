@@ -1,0 +1,10 @@
+{
+  "observedOn": "2026-11-12",
+  "command": "pnpm verify:cloudbase-sdk",
+  "exitCode": 1,
+  "status": "failed",
+  "failure": "An existing child test process timed out",
+  "testFile": "apps/functions/admin/src/catalog-preparation-invoker.test.ts",
+  "errorCode": "ETIMEDOUT",
+  "scope": "No SDK source, declarations, runtime config or test limits changed. Full gate is not claimed passed."
+}

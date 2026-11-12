@@ -1,5 +1,7 @@
 # 04 商品搜索展示与真实报价
 
+> 2026-11-12：本模块解决搜索结果的商品信息准确性，不是页面速度优化；仍为设计，尚未完成富结果上线验收。
+
 ## 问题和目标
 
 代表商品已进入普通索引，同时 Product snippets 提示缺报价、评论或评分。两件事并不矛盾。目标是让有依据的商品得到正确的机器可读描述，不能为消除红色提示填 0 元、假评分或会员价格。
@@ -28,3 +30,24 @@ Google 商品摘要要求名称加 offers、review 或 aggregateRating 中至少
 失败只回退搜索描述生成程序，保留当前商品与报价；保守回到普通 WebPage、Breadcrumb 和完整商品正文，不泄露字段。验收承诺准确、可抓取和符合适用规范；是否展示价格或更高排名由搜索平台决定。
 
 依据：[Google 商品摘要规范](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)。与 [01 图片](01-images.zh-CN.md)共用可读取的公开图片地址，与 [03 分类](03-discovery-and-urls.zh-CN.md)共用稳定商品身份。
+
+## 底层设计：一处决定能否输出报价
+
+以现有 `packages/shared/src/catalog/offer-pricing.ts`、`resolve-pricing.ts` 和批准的公开报价为事实来源，在SEO适配层新增 `public-offer.ts`。不改pricing的保存、货币算法和同步结构。输入为当前页面身份、完整的匿名可见报价、数量/配置条件、币种与内容revision；输出为 `eligible` 或带固定原因的 `ineligible`，不能直接展开原始商品文档。
+
+金额继续用现有最小货币单位计算，格式化时一次转换。区间和阶梯价不能随意取最小数；只有页面可见条件明确且官方结构支持时输出对应Offer。缺币种、没有完整配置、仅会员可见或negotiable均不满足当前富结果输出规则。真实无价时页面仍正常200、可收录、可询盘。
+
+`product-page.ts` 的初始HTML描述、JSON-LD及React显示使用同一公开报价结果，构建快照不包含登录专用价格。新增页面描述的富结果模式时，同时修改 `lib/seo/page.ts` 及现有构建检查：`eligible`要求Product/Offer与可见报价、canonical一致；`ineligible`允许WebPage/Breadcrumb和完整正文，不再强求一个缺必需项的Product节点。schema删减不是页面noindex，也不是隐去商品。
+
+报价或条件真正变更，由已有公开revision推进并重建该商品；更新时间仍来自内容变化，不用构建时间。程序恢复从当前报价读取；旧程序不支持当前格式时拒绝恢复，不让它按旧字段误报低价。
+
+普通访问不为schema新增云请求：SSG使用已完整校验的快照。浏览器也不为JSON-LD单独拉一次价格；实时变更显示沿用现有业务请求。匿名字段与页面scope校验位于同一公开适配边界，不在金额格式化helper里反复查权限。
+
+## 小任务与验收
+
+| MIU | 结果 | 验证 | 依赖 |
+|---|---|---|---|
+| OFFER-1 报价适用性 | 一套明确的匿名报价规则及拒绝原因 | 固定价、阶梯、未读全配置、会员价、币种缺失、0/负数；注入泄露会员字段时检查必须失败 | 现有pricing契约 |
+| OFFER-2 页面与平台验证 | 构建检查支持有价/询价两类；代表页真实检测 | HTML/API/JSON-LD一致，Rich Results Test真实回执；询价商品普通抓取允许，询盘可用 | OFFER-1、IMG-2 |
+
+真实业务数据不足不通过补假数据“修好”富结果。恢复仅回退这段SEO表达代码，当前商品价格和已发布内容保留。

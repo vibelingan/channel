@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+2026-11-12：按本轮“先设计、不实施优化”要求，已补[七个模块的高层/底层设计、22个可验收小任务和执行计划](../seo/continuation/next-phase-design-2026-11-05/EXECUTION.zh-CN.md)。[案例页现场核对](../seo/continuation/next-phase-design-2026-11-05/PORTFOLIO-CHECK.zh-CN.md)确认portfolio正常200、初始HTML与无JS手机/电脑均有完整两项案例，未复现截图所说缺陷，无代码热修。三张商品图仍400，修复尚未实施；原图校验正常不等于网站已修。CDN延后，发布提速交其他工作流，本次不改其代码或CI。已同步原SEO分支a298f1ef，未合并其他工作流。
+
 2026-11-06 页脚合作方已上线并线上验收：main 源码 `16c86ed5`；网站发布源码 test `ca348d93`，Deploy Test `42203918830` 第3次运行成功；文章发布源码 feat/seo-foundation `cdd7225f`，完整 CI、Blog HTTP 及服务更新 `42218313506` 成功，正式健康检查返回同一提交，服务正常并承接100%流量。手机与电脑共14组页面检查通过，保留现站功能。用户另行授权的14份既有文件格式修正已提交，13份 JSON 数据核对不变。最终证据和历史见[页脚工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
 
 2026-11-05 当前入口：[实际搜索效果](../seo/continuation/effect-review-2026-11-05/README.zh-CN.md)、[平台逐项核查](../seo/continuation/audit-2026-11-05/README.zh-CN.md)、[下一阶段九模块高层设计](../seo/continuation/next-phase-design-2026-11-05/README.zh-CN.md)。商品自动更新已于11月4日启用并真实验收；www 301已上线，主域HTTP 301仍待完成；美国与本机各54次优化前基准完成，性能和海外CDN尚未实施。三张原图正常、网站传输超限；先前Blog分类400诊断依据不足，已在新设计更正。下方保留历史记录，不能把其中的“当前”当作今日状态。

@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "当前网站部署分工：正文、接口与存储",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "viewBox": [1320, 700]
+  },
+  "components": [
+    {
+      "id": "reader",
+      "type": "external",
+      "label": "访客与搜索引擎",
+      "sublabel": "公网；不持有云端密钥",
+      "pos": [40, 290],
+      "size": [240, 90]
+    },
+    {
+      "id": "static",
+      "type": "cloud",
+      "label": "静态网页托管",
+      "sublabel": "CloudBase 上海；商品与案例 HTML",
+      "pos": [420, 80],
+      "size": [300, 90]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "公开资料与图片接口",
+      "sublabel": "Channel Event Function；不调用模型",
+      "pos": [420, 290],
+      "size": [300, 90]
+    },
+    {
+      "id": "blog",
+      "type": "backend",
+      "label": "文章 HTML 服务器",
+      "sublabel": "Channel blog-pages；上海容器",
+      "pos": [420, 500],
+      "size": [300, 90]
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "商品、文章与引用记录",
+      "sublabel": "CloudBase 上海；本网站业务数据",
+      "pos": [910, 290],
+      "size": [320, 90]
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "受保护的图片原件",
+      "sublabel": "CloudBase 存储；不公开整个桶",
+      "pos": [910, 500],
+      "size": [320, 90]
+    }
+  ],
+  "connections": [
+    {
+      "id": "html",
+      "from": "reader",
+      "to": "static",
+      "label": "读取初始 HTML",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "fresh",
+      "from": "reader",
+      "to": "api",
+      "label": "实时 API 与图片"
+    },
+    {
+      "id": "article",
+      "from": "reader",
+      "to": "blog",
+      "label": "读取文章 HTML",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "api-db",
+      "from": "api",
+      "to": "data",
+      "label": "核对公开字段与引用"
+    },
+    {
+      "id": "api-bytes",
+      "from": "api",
+      "to": "storage",
+      "label": "通过后读取图片"
+    },
+    {
+      "id": "blog-read",
+      "from": "blog",
+      "to": "api",
+      "label": "读取公开文章与图片",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "当前已验证",
+      "items": ["案例页原始 HTML 与无脚本正文均正常", "商品与 Blog 沿用已部署的两种正文交付"]
+    },
+    {
+      "dot": "rose",
+      "title": "当前仍有故障",
+      "items": ["三张商品大图仍返回 6MB 响应超限", "这不是原图损坏；修复尚未实施"]
+    },
+    {
+      "dot": "amber",
+      "title": "本轮边界",
+      "items": ["只核验和完善设计，不切换线上服务", "CDN 延后；发布提速由其他工作流负责"]
+    }
+  ]
+}

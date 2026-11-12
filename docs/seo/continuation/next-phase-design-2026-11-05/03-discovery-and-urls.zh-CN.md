@@ -1,5 +1,7 @@
 # 03 商品发现、分类分页与网址入口
 
+> 2026-11-12：本模块属于搜索发现与网址一致性，不等同于CWV。截图中的portfolio已通过真实HTML、无脚本电脑/手机、robots和sitemap核对，无对应代码修复。其余仍为待实施设计。
+
 ## 现状与目标
 
 商品详情已有独立 URL 和初始 HTML。缺口在分类：最初返回的页面没有商品详情链接，列表依赖 React；分页主要是按钮。Google 能运行脚本，但通常不会点击按钮发现下一页。目标是在保留现有筛选、图库、详情展开和询盘操作的同时，用普通链接找到所有公开商品。
@@ -36,3 +38,33 @@ www 301 已验收，不重复做。主域 HTTP 301 仍未完成：CloudBase 原�
 线上检查真实响应、标题、canonical、地图和当前 API；Google 实时可读与后续实际收录分开记录。程序恢复用当前商品内容重建相容产物，不恢复旧商品库。DNS 恢复不是瞬时操作，须在切换前留好源站与证书通路。
 
 依据：[Google 分页规范](https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading)、[JavaScript SEO](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)。
+
+## 底层设计：同一份数据生成分类和分页
+
+新增 `lib/seo/category-snapshot.ts`，从已校验的 `ProductSnapshot` 生成 `CategoryPageData`：`family`、`page`、`pageSize`、`total`、`pageCount`、当前页公开商品、集合revision、canonical路径和邻页路径。沿用现有页面大小和公开排序，增加唯一ID作为同序项的稳定次序，不另造与API不一致的排序。
+
+`headphones.astro` 等既有四个family页接收第一页数据；`electronics-toys.astro` 沿用聚合目录规则。后续页使用待新增 `pages/[family]/page/[page].astro`，`getStaticPaths()`只允许已知family与合法页码。第一页仍由原文件负责；`/page/1/`不再生成第二份正式内容，使用受控跳转到根分类。第N页有对应商品、独立canonical和普通前后页链接。
+
+将初始数据传给现有 `CatalogFamilyPage` / `CatalogFamilyGrid`；Astro服务端渲染与浏览器首轮使用相同数据，不能只在effect填。`CatalogPagination` 支持真实href，普通点击可由React接管，修饰键、新标签和无脚本导航仍使用链接。当前详情展开、筛选参数、价格显示和询盘流程不重做。任意筛选不生成无穷静态组合。
+
+自动交付已有商品变化记录。新增 `category-page-manifest` 列每页路径、内容摘要、商品ID集合和实际内容日期；从新旧快照计算受影响family，重建该family分页，而非尝试只改含某件商品的一页。排序和页码变化会影响后续多页，更新与删页要成同一受控交付单元。旧任务迟到仍按既有版本保护拒绝。恢复旧程序时从当前公开内容重建，不能拿旧分类清单覆盖新商品。
+
+## 底层设计：入口与状态
+
+复用 `lib/seo/page.ts`、`route-policy.ts` 与已有product身份函数；扩展构建检查，要求每个分类页的可见商品链接与清单相符，所有公开商品沿有限链接可发现。页数缩减后精确清理已有生成页，确认真实404；不能仅从新构建目录里消失就当旧托管文件已删除。
+
+主域HTTP跳转独立执行。11月4日原生HTTPS开关只得到307；已有专用跳转方案也必须重新核对线上路由后才能启用。目标是GET/HEAD保留路径和查询串的一跳301到正式HTTPS。POST/API/回调按现有入口处理，不把方法转换副作用扩散到后台。先保存当前网关/证书/托管配置和可恢复来源；规则不支持就明确保留未完成，不猜SDK方法、不改整站DNS来凑通过。CDN延后不阻止查清这个独立入口。
+
+`/favicon.ico` 为现有图标的兼容文件，保留SVG；真正未知网页仍404。`/portfolio`与`/portfolio/`今天均200且canonical一致，正文相同，属于正常可合并副本；不把截图改造成不存在的案例详情404任务。
+
+构建只读取一次已验收商品快照生成全部分类，新增运行期云调用为0。浏览器仍按模块02读取当前页API。分类整合验收遍历产物及有限链接，不为每件商品打开一遍真实后台。
+
+## 小任务与验收
+
+| MIU | 结果 | 验证 | 依赖 |
+|---|---|---|---|
+| DISC-1 分类首屏 | 真实初始卡片链接，现有UI和展开行为保留 | 禁用JS有商品链接；hydration无重复和闪回；同视口截图 | 现有快照，REQ-3接口兼容 |
+| DISC-2 分页与变化 | 独立页HTML、邻页链接、变化后相关页更新 | 页1/2不重复；移类、排序、撤回、最后页缩减；旧页真实404 | DISC-1 |
+| DISC-3 入口与图标 | HTTP方案现场核对后受控切换；兼容ICO | 路径/参数、证书、循环、API方法、缺失页、恢复；无支持则单列外部条件 | 独立，不等待CDN |
+
+案例页本轮证据见 [PORTFOLIO-CHECK](PORTFOLIO-CHECK.zh-CN.md)。普通网页、图片与结构化数据更新不等于Google已收录；平台后续结果由模块08记录。
