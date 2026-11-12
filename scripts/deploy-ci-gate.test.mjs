@@ -335,6 +335,18 @@ test('browser component units retain both required engines in the site unit grou
   );
   const tests = unit.steps.findIndex((step) => step.run === '${{ matrix.command }}');
   assert.ok(install >= 0 && install < tests);
+  // No core dumps while the browser unit groups run: a crashed WebKit helper otherwise makes
+  // systemd-coredump stall the runner's disk and time out an unrelated test
+  // (docs/agents/ci-test-flakes.md).
+  const cores = unit.steps.findIndex(
+    (step) => step.name === 'Keep crashed browser helpers from writing core dumps',
+  );
+  assert.ok(cores >= 0 && cores < tests);
+  assert.equal(unit.steps[cores].if, "${{ matrix.suite == 'site' }}");
+  assert.equal(
+    unit.steps[cores].run,
+    'sudo sysctl -w kernel.core_pattern=core\ntest "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }\n',
+  );
   const mirror = unit.steps.findIndex(
     (step) => step.name === 'Use the Ubuntu archive for browser dependencies',
   );

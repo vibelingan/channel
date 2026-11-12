@@ -50,6 +50,9 @@ upload/cleanup timings for making a deploy faster: the project skill
   - the "Install Playwright" step has hung for 31 minutes and been cancelled;
   - the post-deploy browser step can hit the deploy job's 45-minute limit
     while still passing.
+  - a browser unit test can time out because a crashed WebKit helper stalled
+    the runner's disk; see `docs/agents/ci-test-flakes.md` for that and for
+    any other test that fails only sometimes.
   Read step names and timings (`gh run view <id> --json jobs`) before
   touching code.
 - `Deploy Test` and the manual `E2E` workflow share the concurrency group
