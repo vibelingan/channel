@@ -51,6 +51,9 @@ upload/cleanup timings for making a deploy faster: the project skill
   - the "Install Playwright" step has hung for 31 minutes and been cancelled;
   - the post-deploy browser step can hit the deploy job's 45-minute limit
     while still passing.
+  - a browser unit test can time out because a crashed WebKit helper stalled
+    the runner's disk; see `docs/agents/ci-test-flakes.md` for that and for
+    any other test that fails only sometimes.
   Read step names and timings (`gh run view <id> --json jobs`) before
   touching code.
 - `Deploy Test` and the manual `E2E` workflow share the concurrency group
@@ -82,6 +85,19 @@ upload/cleanup timings for making a deploy faster: the project skill
   re-uploading the missing objects.
 - The `site-retention` log line of each delivery says how many objects were
   reused or uploaded, and how many bytes were uploaded.
+
+- *Deploy AI CloudRun* (tag `ai-cloudrun-deploy-*`) can fail at
+  `cloudbase.manageCloudRun deploy` with nothing wrong in the commit. On
+  2026-11-11 one deploy passed in the morning, then four in a row failed
+  there: twice "timed out after 240000ms", then "400 Bad Request HTTP ERROR"
+  after 8 and 5 minutes with no Tencent request id. The same commit deployed
+  cleanly the next morning (upload about 2 minutes). Deploy Test, running in
+  between, saw slow function creation and refused `DeleteFunction` calls in
+  the same hours. Before changing code: push a tag
+  `ai-cloudrun-deploy-inspect-<date>-<n>`, which only reads both services
+  (status, version, last deploy task); if both are `normal` with nothing
+  queued, wait and rerun the failed job. A failed attempt replaces neither
+  service. The upload is about 16 MB and normally takes 35 seconds.
 
 ## Latency
 

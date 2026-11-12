@@ -91,8 +91,7 @@ export function sshAccess(configFile: string, host: string) {
         model: string;
         model_base_url: string;
         mcp: string;
-        workspace_id: number;
-        public_document_ids: number[];
+        public_workspace: string;
         knowledge_credential_id: string;
       };
     },

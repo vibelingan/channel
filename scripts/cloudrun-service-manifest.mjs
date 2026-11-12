@@ -31,7 +31,7 @@ export const SECRET_ENV_KEYS = [
   'KB_API_KEY',
   'AI_IP_HASH_SECRET',
   'AI_MODEL_API_KEY',
-  'VIBEKB_MCP_API_KEY',
+  'VIBEKB_PUBLIC_API_KEY',
   'AI_INQUIRY_TOKEN',
 ];
 
@@ -136,10 +136,9 @@ export function engineEnv(ctx) {
       AI_MODEL_API_KEY: ctx.requireEnv('AI_MODEL_API_KEY'),
       AI_MODEL_THINKING_MODE: ctx.optionalEnv('AI_MODEL_THINKING_MODE'),
       VIBEKB_MCP_URL: ctx.requireEnv('VIBEKB_MCP_URL'),
-      VIBEKB_MCP_API_KEY: ctx.requireEnv('VIBEKB_MCP_API_KEY'),
-      VIBEKB_PUBLIC_WORKSPACE_ID: ctx.requireEnv('VIBEKB_PUBLIC_WORKSPACE_ID'),
-      VIBEKB_PUBLIC_DOCUMENT_IDS: ctx.requireEnv('VIBEKB_PUBLIC_DOCUMENT_IDS'),
-      VIBEKB_PUBLIC_TAG: ctx.optionalEnv('VIBEKB_PUBLIC_TAG'),
+      // A read-only key the knowledge base binds to one public workspace. Which
+      // documents are public is decided there, so nothing here lists them.
+      VIBEKB_PUBLIC_API_KEY: ctx.requireEnv('VIBEKB_PUBLIC_API_KEY'),
       AI_PUBLIC_CATALOG_ORIGIN: ctx.requireEnv('AI_PUBLIC_CATALOG_ORIGIN'),
     };
   }

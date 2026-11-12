@@ -9,10 +9,11 @@ checked at VibeKB commit `76b94c2f052d79685d2ccbc4e41456d412e3777b` on 2026-11-0
 
 Only `search_documents`, `list_documents` and `get_document` are called. The model can
 request a short search phrase; it cannot choose a workspace, document ID, destination or
-tool name. The application fixes the workspace, an explicit document allowlist and the
-public tag. Full document responses must repeat the correct ID, owner and public tag.
-Internal results are filtered before entering model context. A shared MCP token alone
-does not prove public-only access, and source-prefix labels are not authorization.
+tool name. What is public is decided by the knowledge base server, not here: the adapter
+holds a read-only `kbpub_` key that the server binds to one public workspace, sends no
+workspace or tag, refuses any server that does not identify as `knowledge-base-public`,
+and rejects results that span two workspaces. Source-prefix labels are not authorization.
+See `docs/ai-platform/PUBLIC-KNOWLEDGE-WORKSPACE.zh-CN.md`.
 
 Every operation is bounded by request size, elapsed time, tool count and three planning
 rounds. Public product prose uses one additional no-tool model call over current

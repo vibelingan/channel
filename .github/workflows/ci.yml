@@ -163,8 +163,30 @@ jobs:
       - name: Install browsers for component unit tests
         if: ${{ matrix.suite == 'site' }}
         run: pnpm exec playwright install --with-deps chromium webkit
+      # Playwright's WebKit helper (WPEWebProcess) sometimes segfaults when a browser test
+      # navigates. The test is unaffected, but the runner pipes every crash to
+      # systemd-coredump, which writes gigabytes for about 20 seconds; the disk stalls and
+      # whichever test is waiting on file writes times out (docs/agents/ci-test-flakes.md).
+      # The runner's core limit is already 0, but its piped core_pattern ignores that limit.
+      # A plain file pattern makes the kernel honour it, so no dump is written; the crash is
+      # still in the kernel log.
+      - name: Keep crashed browser helpers from writing core dumps
+        if: ${{ matrix.suite == 'site' }}
+        run: |
+          sudo sysctl -w kernel.core_pattern=core
+          test "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }
       - name: Run unit group
         run: ${{ matrix.command }}
+
+      - name: Report crashes and disk pressure after a failed unit group
+        if: ${{ failure() }}
+        run: |
+          echo "--- processes that crashed during this job (kernel log):"
+          sudo dmesg | grep -iE 'segfault|traps:|general protection' | tail -20 || true
+          echo "--- core dumps written during this job (expected: none):"
+          coredumpctl list --no-pager 2>&1 | tail -10 || true
+          echo "--- pressure stall information (share of time tasks waited, 10/60/300 s):"
+          grep -H . /proc/pressure/cpu /proc/pressure/io /proc/pressure/memory || true
 
       - name: Verify restricted content-assistant tools without cloud access
         if: ${{ matrix.suite == 'scripts' }}

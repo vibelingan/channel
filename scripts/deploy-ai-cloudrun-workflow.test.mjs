@@ -109,10 +109,15 @@ test('the infrastructure MCP can access staged builds from the repository root',
 test('the MCP upload deadline is explicit and shorter than its enclosing process deadline', () => {
   const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
   assert.match(script, /'--timeout',\s*String\(MCP_CALL_TIMEOUT_MS\)/);
-  const timeout = Number(
-    script.match(/const MCP_CALL_TIMEOUT_MS = ([\d_]+)/)?.[1].replaceAll('_', ''),
-  );
-  assert.ok(timeout >= 180_000 && timeout < 300_000);
+  const constant = (name) =>
+    Number(script.match(new RegExp(`const ${name} = ([\\d_]+)`))?.[1].replaceAll('_', ''));
+  const timeout = constant('MCP_CALL_TIMEOUT_MS');
+  const processDeadline = constant('MCP_PROCESS_TIMEOUT_MS');
+  assert.match(script, /timeout: MCP_PROCESS_TIMEOUT_MS,/);
+  // Long enough for a slow source upload, and reported by the call itself, not by a killed process.
+  assert.ok(timeout >= 480_000 && timeout + 30_000 <= processDeadline);
+  // Two services, one call each: both still fit inside the deploy job with room for the builds.
+  assert.ok(2 * processDeadline <= 25 * 60 * 1000);
 });
 
 test('inspection tags query existing services without uploading or probing the KB', () => {

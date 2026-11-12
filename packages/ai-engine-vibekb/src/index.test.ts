@@ -20,8 +20,12 @@ const request: EngineRunRequest = {
 };
 function setup(
   options: {
-    foreign?: boolean;
-    secretHit?: boolean;
+    /** What the server calls itself: the public read-only server unless a test says otherwise. */
+    serverName?: string;
+    /** A second hit that the server reports from a different workspace. */
+    mixed?: boolean;
+    /** The search matches nothing, so the newest public documents are listed instead. */
+    noHit?: boolean;
     plans?: string[];
     delay?: boolean;
     finishReason?: string;
@@ -63,54 +67,45 @@ function setup(
       result = {
         protocolVersion: '2025-11-25',
         capabilities: { tools: {} },
-        serverInfo: { name: 'kb', version: '1' },
+        serverInfo: { name: options.serverName ?? 'knowledge-base-public', version: '1' },
       };
     else if (body.method === 'notifications/initialized')
       return new Response(null, { status: 202 });
     else if (body.method === 'tools/call') {
       const name = params?.name;
       const args = params?.arguments;
-      if (name !== 'get_document') assert.equal(args?.workspace, '2');
+      // The key alone decides the scope: this side names no workspace, tag or document list.
+      assert.ok(['search_documents', 'list_documents', 'get_document'].includes(String(name)));
+      for (const scope of ['workspace', 'tag']) assert.equal(args?.[scope], undefined);
       const publicRow = {
         id: 12,
         title: 'Public company',
-        tags: ['对外公开'],
-        workspace_id: options.foreign ? 99 : 2,
+        tags: [],
+        workspace_id: 6,
         content: options.documentText ?? 'We are a manufacturing partner.',
       };
-      const unapproved = {
+      const elsewhere = {
         id: 13,
-        title: 'Unapproved public label',
-        tags: ['对外公开'],
+        title: 'From another workspace',
+        tags: [],
         workspace_id: 2,
-        content: 'UNAPPROVED CANARY',
+        content: 'OTHER WORKSPACE CANARY',
       };
-      const data =
+      const text =
         name === 'get_document'
-          ? args?.document_id === 13
-            ? unapproved
-            : publicRow
+          ? JSON.stringify(args?.document_id === 13 ? elsewhere : publicRow)
           : name === 'list_documents'
-            ? { documents: [publicRow] }
-            : {
-                results: options.secretHit
-                  ? [
-                      { id: 114, title: 'Internal', tags: ['内部'], snippet: 'PRIVATE CANARY' },
-                      unapproved,
-                      publicRow,
-                    ]
-                  : [publicRow],
-              };
-      result = { content: [{ type: 'text', text: JSON.stringify(data) }] };
+            ? JSON.stringify({ documents: [publicRow] })
+            : options.noHit
+              ? '（无命中）知识库中没有检索到相关内容。'
+              : JSON.stringify({ results: options.mixed ? [publicRow, elsewhere] : [publicRow] });
+      result = { content: [{ type: 'text', text }] };
     } else throw new Error('Unexpected MCP method');
     return Response.json({ jsonrpc: '2.0', id: body.id, result });
   };
   const knowledge = {
     url: 'https://kb.invalid/mcp',
-    apiKey: 'dummy',
-    workspaceId: 2,
-    publicDocumentIds: [12],
-    publicTag: '对外公开',
+    apiKey: `kbpub_${'k'.repeat(40)}`,
     sourcePrefix: 'channelkb',
     fetch: api,
   };
@@ -130,8 +125,8 @@ function setup(
   });
   return { engine, calls, knowledge };
 }
-test('official MCP client performs real handshake and fixed scoped tools; model sees only approved evidence', async () => {
-  const f = setup({ secretHit: true });
+test('official MCP client performs a real handshake and sends no scope of its own; the model sees the public evidence', async () => {
+  const f = setup();
   const handle = await f.engine.createRun(request, new AbortController().signal);
   const events = [];
   for await (const e of f.engine.streamRun(handle, new AbortController().signal))
@@ -144,8 +139,10 @@ test('official MCP client performs real handshake and fixed scoped tools; model 
   const model = f.calls.filter((c) => c.url.includes('model.invalid'));
   assert.equal(model.length, 2);
   assert.ok(JSON.stringify(model[1]).includes('manufacturing partner'));
-  assert.ok(!JSON.stringify(model).includes('PRIVATE CANARY'));
-  assert.ok(!JSON.stringify(model).includes('UNAPPROVED CANARY'));
+  const tools = f.calls
+    .filter((c) => c.body.method === 'tools/call')
+    .map((c) => (c.body.params as { name: string }).name);
+  assert.deepEqual(tools, ['search_documents', 'get_document']);
   assert.equal(await f.engine.cancelRun(handle), 'unknown_run');
 });
 
@@ -188,10 +185,22 @@ test('provider deltas expose complete answer sentences before the completion end
   });
   const h = await engine.createRun(request, AbortSignal.timeout(3000));
   const iterator = engine.streamRun(h, AbortSignal.timeout(3000))[Symbol.asyncIterator]();
-  assert.equal((await iterator.next()).value?.type, 'activity');
+  // The first draft has no evidence yet: none of it is shown, and it is looked up.
+  const before = [];
+  for (let i = 0; i < 4; i++) before.push((await iterator.next()).value);
+  assert.deepEqual(
+    before.map((e) => (e?.type === 'activity' ? e.action : e?.type)),
+    ['model_answer', 'usage', 'knowledge_search', 'model_answer'],
+  );
   const first = (await iterator.next()).value;
   assert.equal(first?.type, 'token');
-  if (first?.type === 'token') assert.equal(first.text, 'First sentence.');
+  if (first?.type === 'token') {
+    assert.equal(first.text, 'First sentence.');
+    assert.deepEqual(
+      first.citations.map((c: { sourceId: string }) => c.sourceId),
+      ['channelkb/vibekb/12'],
+    );
+  }
   const second = (await iterator.next()).value;
   assert.equal(second?.type, 'token');
   if (second?.type === 'token') assert.equal(second.text, ' Second sentence.');
@@ -206,18 +215,49 @@ test('provider deltas expose complete answer sentences before the completion end
     ['usage', 'final'],
   );
 });
-test('changed document workspace never reaches the model, even when an approved ID was returned', async () => {
-  const f = setup({ foreign: true });
+test('documents from two workspaces under one key never reach the model', async () => {
+  const f = setup({ mixed: true });
   const h = await f.engine.createRun(request, new AbortController().signal);
   await assert.rejects(async () => {
     for await (const _ of f.engine.streamRun(h, new AbortController().signal)) {
     }
   });
-  assert.equal(f.calls.filter((c) => c.url.includes('model.invalid')).length, 1);
+  const model = f.calls.filter((c) => c.url.includes('model.invalid'));
+  assert.equal(model.length, 1);
+  assert.ok(!JSON.stringify(model).includes('OTHER WORKSPACE CANARY'));
 });
-test('empty scope is refused; insufficient budget cannot call the next tool', async () => {
+test('a server that is not the public read-only scope is refused before any document is read', async () => {
+  // What a management key would reach: the full server, under its own name.
+  const f = setup({ serverName: 'knowledge-base' });
+  await assert.rejects(
+    new PublicKnowledge(f.knowledge).search('company', new AbortController().signal, {
+      remaining: 6,
+    }),
+    /not the public read-only scope/,
+  );
+  assert.ok(f.calls.some((c) => c.body.method === 'initialize'));
+  assert.ok(!f.calls.some((c) => c.body.method === 'tools/call'));
+});
+test('a question that matches nothing is answered from the newest public documents', async () => {
+  const f = setup({ noHit: true });
+  const sources = await new PublicKnowledge(f.knowledge).search(
+    'company',
+    new AbortController().signal,
+    { remaining: 6 },
+  );
+  assert.deepEqual(
+    sources.map((s) => s.sourceId),
+    ['channelkb/vibekb/12'],
+  );
+  const tools = f.calls
+    .filter((c) => c.body.method === 'tools/call')
+    .map((c) => (c.body.params as { name: string }).name);
+  assert.deepEqual(tools, ['search_documents', 'list_documents', 'get_document']);
+});
+test('a key without the public prefix is refused; insufficient budget cannot call the next tool', async () => {
   const f = setup();
-  assert.throws(() => new PublicKnowledge({ ...f.knowledge, publicDocumentIds: [] }));
+  for (const apiKey of ['', 'dummy', 'm'.repeat(48), 'kbpub_short'])
+    assert.throws(() => new PublicKnowledge({ ...f.knowledge, apiKey }), /public read-only/);
   await assert.rejects(
     new PublicKnowledge(f.knowledge).search('company', new AbortController().signal, {
       remaining: 0,
@@ -387,12 +427,118 @@ test('a provider body with no answer choice records no invented usage', async ()
 });
 
 test('the requirement summary is sent as data ahead of the dialogue', async () => {
-  const f = setup({ plans: ['{"kind":"answer","text":"Noted."}'] });
+  const f = setup({
+    plans: ['{"kind":"answer","text":"Noted."}', '{"kind":"answer","text":"Noted."}'],
+  });
   await drain(f.engine, { ...request, memory: 'Requirements DATA: {"quantity":"700"}' });
   const messages = f.calls[0]?.body.messages as Array<{ role: string; content: string }>;
   assert.equal(messages[0]?.role, 'system');
   assert.deepEqual(messages[1], { role: 'user', content: 'Requirements DATA: {"quantity":"700"}' });
   assert.equal(messages.at(-1)?.content, 'Who is Diversity?');
+});
+
+/** Every event of a run except usage, activities included. */
+async function steps(engine: VibeKbEngine, run: EngineRunRequest) {
+  const handle = await engine.createRun(run, new AbortController().signal);
+  const events: EngineEvent[] = [];
+  for await (const e of engine.streamRun(handle, new AbortController().signal))
+    if (e.type !== 'usage') events.push(e);
+  return events;
+}
+
+test('an answer drafted without evidence is looked up once and written again over public documents', async () => {
+  // The live model answered "Can I get a sample first?" from general knowledge,
+  // with no knowledge step; the publication gate then refused it for citing nothing.
+  const f = setup({
+    plans: [
+      '{"kind":"answer","text":"Yes, samples are usually possible.","need":{"product":"earbuds"}}',
+      '{"kind":"answer","text":"Samples are available; the fee is confirmed by sales."}',
+    ],
+  });
+  const asked = 'Can I get a sample before placing an order?';
+  const events = await steps(f.engine, { ...request, turns: [{ role: 'visitor', text: asked }] });
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'knowledge_search', 'model_answer', 'final'],
+  );
+  const search = f.calls.find(
+    (c) => (c.body.params as { name?: string } | undefined)?.name === 'search_documents',
+  );
+  assert.deepEqual((search?.body.params as { arguments: unknown }).arguments, {
+    query: asked,
+    limit: 10,
+  });
+  const final = events.at(-1);
+  assert.equal(final?.type, 'final');
+  if (final?.type === 'final') {
+    // The second answer is the one delivered, with the evidence and the requirement kept.
+    assert.deepEqual(JSON.parse(final.text), {
+      kind: 'answer',
+      text: 'Samples are available; the fee is confirmed by sales.',
+      need: { product: 'earbuds' },
+    });
+    assert.deepEqual(
+      final.citations.map((c) => c.sourceId),
+      ['channelkb/vibekb/12'],
+    );
+  }
+  // The model was asked twice and the knowledge base once: no second lookup, no loop.
+  assert.equal(f.calls.filter((c) => c.url.includes('model.invalid')).length, 2);
+  const secondAsk = f.calls.filter((c) => c.url.includes('model.invalid'))[1];
+  assert.match(JSON.stringify(secondAsk?.body.messages), /Diversity|DATA/);
+});
+
+test('plans that are not answers are never looked up on the model’s behalf', async () => {
+  const f = setup({ plans: ['{"kind":"clarify","text":"Which product do you mean?"}'] });
+  const events = await steps(f.engine, request);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'final'],
+  );
+  assert.equal(f.calls.filter((c) => !c.url.includes('model.invalid')).length, 0);
+});
+
+test('our earlier replies go back to the model in the JSON form it must write', async () => {
+  // Sent as prose, three or four of them made the live model answer with whitespace only.
+  const f = setup();
+  await drain(f.engine, {
+    ...request,
+    turns: [
+      { role: 'visitor', text: 'Who is Diversity?' },
+      { role: 'assistant', text: 'We are a manufacturing partner.' },
+      { role: 'visitor', text: 'Do you make "custom" toys?' },
+    ],
+  });
+  const messages = f.calls[0]?.body.messages as Array<{ role: string; content: string }>;
+  const past = messages.filter((m) => m.role === 'assistant');
+  assert.equal(past.length, 1);
+  assert.deepEqual(JSON.parse(past[0]?.content ?? ''), {
+    kind: 'answer',
+    text: 'We are a manufacturing partner.',
+  });
+  // The visitor's own words are never rewritten.
+  assert.equal(messages.at(-1)?.content, 'Do you make "custom" toys?');
+});
+
+test('a whitespace-only model reply is asked for again once, then fails', async () => {
+  const blank = ' '.repeat(400);
+  const recovered = setup({
+    plans: [
+      blank,
+      '{"kind":"knowledge","query":"Diversity"}',
+      '{"kind":"answer","text":"We are."}',
+    ],
+  });
+  const events = await steps(recovered.engine, request);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'activity' ? e.action : e.type)),
+    ['model_answer', 'model_answer', 'knowledge_search', 'model_answer', 'final'],
+  );
+  assert.equal(recovered.calls.filter((c) => c.url.includes('model.invalid')).length, 3);
+
+  const stuck = setup({ plans: [blank, blank, '{"kind":"answer","text":"never reached"}'] });
+  await assert.rejects(drain(stuck.engine, request), /invalid_request/);
+  assert.equal(stuck.calls.filter((c) => c.url.includes('model.invalid')).length, 2);
 });
 
 test('long retrieved documents are cut so a call stays under its input ceiling', async () => {

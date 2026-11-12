@@ -21,10 +21,14 @@ import {
 import { completeAnswerPrefix } from './answer-prefix.ts';
 import { completionFrames } from './completion-stream.ts';
 import { boundedFetch, endpoint, record } from './http.ts';
-import { type KnowledgeConfig, PublicKnowledge } from './knowledge.ts';
+import { type KnowledgeConfig, PUBLIC_KNOWLEDGE_SERVER, PublicKnowledge } from './knowledge.ts';
 import { WEBSITE_SALES_PROMPT } from './prompt.ts';
 
-export { PublicKnowledge } from './knowledge.ts';
+export {
+  PUBLIC_KNOWLEDGE_KEY_PREFIX,
+  PUBLIC_KNOWLEDGE_SERVER,
+  PublicKnowledge,
+} from './knowledge.ts';
 export interface VibeKbEngineConfig {
   modelBaseUrl: string;
   model: string;
@@ -118,6 +122,7 @@ export class VibeKbEngine implements ConversationEngine {
     let questionLeft = run.request.limits.questionInputTokens ?? Number.POSITIVE_INFINITY;
     // A requirement update sent with a knowledge step still belongs to this turn.
     let need: unknown;
+    let blankRetried = false;
     try {
       for (let round = 0; round < 3; round++) {
         bounded.throwIfAborted();
@@ -144,7 +149,12 @@ export class VibeKbEngine implements ConversationEngine {
             )
               throw new EngineError('invalid_request', { safeDetail: 'model_output_too_large' });
             const prefix = completeAnswerPrefix(part.partial);
-            if (prefix.length > delivered.length && prefix.startsWith(delivered)) {
+            // Nothing is shown before there is evidence: an answer drafted without
+            // any is looked up and written again (see below), and the worker's
+            // stream gate, once it has refused a sentence, stays closed.
+            const showable =
+              retrieval.length > 0 || run.request.profileId === PRODUCT_ANSWER_PROFILE_ID;
+            if (showable && prefix.length > delivered.length && prefix.startsWith(delivered)) {
               yield {
                 type: 'token',
                 text: prefix.slice(delivered.length),
@@ -157,6 +167,14 @@ export class VibeKbEngine implements ConversationEngine {
         if (usage) {
           questionLeft -= usage.inputTokens;
           yield { type: 'usage', usage };
+        }
+        // In JSON mode the live model now and then returns only whitespace, most
+        // often a few turns into a conversation. Nothing was said and nothing was
+        // shown, so ask once more instead of failing the visitor's turn.
+        if (text !== undefined && !text.trim() && !blankRetried) {
+          blankRetried = true;
+          round -= 1;
+          continue;
         }
         if (text === undefined) throw new EngineError('invalid_request');
         if (text.length > Math.min(16000, run.request.limits.maxDeliveredOutputUnits * 4))
@@ -181,6 +199,30 @@ export class VibeKbEngine implements ConversationEngine {
           for (const source of sources)
             if (!citations.some((c) => c.sourceId === source.sourceId)) citations.push(source);
           retrieval.push({ query: plan.query, sources });
+          continue;
+        }
+        // A factual answer must rest on public evidence, and the publication gate
+        // refuses one that cites none. The model sometimes answers a service
+        // question (samples, lead time) from the conversation or from what it
+        // knows in general, without asking for knowledge first. Look the
+        // visitor's question up once and let it answer again over that DATA,
+        // instead of handing the gate an answer it can only refuse.
+        const asked = run.request.turns.filter((turn) => turn.role === 'visitor').at(-1)?.text;
+        if (
+          record(plan) &&
+          plan.kind === 'answer' &&
+          retrieval.length === 0 &&
+          round < 2 &&
+          run.request.profileId !== PRODUCT_ANSWER_PROFILE_ID &&
+          asked?.trim()
+        ) {
+          need = plan.need ?? need;
+          const query = asked.trim().slice(0, 200);
+          yield { type: 'activity', action: 'knowledge_search' };
+          const sources = await this.knowledge.search(query, bounded, budget);
+          for (const source of sources)
+            if (!citations.some((c) => c.sourceId === source.sourceId)) citations.push(source);
+          retrieval.push({ query, sources });
           continue;
         }
         const final =
@@ -213,16 +255,14 @@ export class VibeKbEngine implements ConversationEngine {
     return {
       credentialId: createHash('sha256').update(this.config.knowledge.apiKey).digest('hex'),
       rotationCounter: 1,
-      spaceId: String(this.config.knowledge.workspaceId),
+      // The key is bound to its public workspace by the knowledge base, which is all this side knows.
+      spaceId: PUBLIC_KNOWLEDGE_SERVER,
     };
   }
   async verifyKnowledge(signal = AbortSignal.timeout(45000)) {
     const sources = await this.knowledge.search('Diversity', signal, { remaining: 6 });
-    if (!sources.length) throw new Error('No approved public VibeKB documents');
-    return {
-      workspaceId: this.config.knowledge.workspaceId,
-      sourceIds: sources.map((c) => c.sourceId),
-    };
+    if (!sources.length) throw new Error('The public knowledge workspace is empty');
+    return { sourceIds: sources.map((c) => c.sourceId) };
   }
   /**
    * The request for the next call, inside `limits.maxInputTokens`: retrieved
@@ -240,10 +280,15 @@ export class VibeKbEngine implements ConversationEngine {
           : ''),
     };
     const memory: ChatMessage[] = request.memory ? [{ role: 'user', content: request.memory }] : [];
+    // Our own past replies go back in the form the model is required to write
+    // now. Shown as plain prose, they contradict "return a single JSON object",
+    // and after a few such turns the live model answered with whitespace only.
     const turns = request.turns.map((turn) => ({
       role: turn.role === 'visitor' ? 'user' : 'assistant',
       content:
-        turn.text +
+        (turn.role === 'visitor'
+          ? turn.text
+          : JSON.stringify({ kind: 'answer', text: turn.text })) +
         (turn.publicCatalog
           ? `\nHistorical public catalog DATA: ${JSON.stringify(turn.publicCatalog)}`
           : ''),

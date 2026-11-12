@@ -15,23 +15,23 @@ const scratch = await mkdtemp(path.join(tmpdir(), 'chat-slice-guards-'));
 const sha = (v) => createHash('sha256').update(v).digest('hex');
 const checks = [
   {
-    name: 'VibeKB full document workspace',
+    name: 'VibeKB one workspace per key',
     directory: 'packages/ai-engine-vibekb',
     file: 'src/knowledge.ts',
-    before: 'doc.workspace_id !== config.workspaceId ||',
-    after: 'false ||',
+    before: 'doc.workspace_id !== workspace',
+    after: 'false',
     test: 'src/index.test.ts',
-    pattern: 'changed document workspace',
+    pattern: 'documents from two workspaces',
     env: false,
   },
   {
-    name: 'VibeKB explicit public document allowlist',
+    name: 'VibeKB public read-only server identity',
     directory: 'packages/ai-engine-vibekb',
     file: 'src/knowledge.ts',
-    before: 'config.publicDocumentIds.includes(row.id)',
-    after: 'true',
+    before: 'client.getServerVersion()?.name !== PUBLIC_KNOWLEDGE_SERVER',
+    after: 'false',
     test: 'src/index.test.ts',
-    pattern: 'official MCP client performs',
+    pattern: 'not the public read-only scope',
     env: false,
   },
   {
@@ -41,7 +41,7 @@ const checks = [
     before: '--budget.remaining < 0',
     after: 'false',
     test: 'src/index.test.ts',
-    pattern: 'empty scope is refused',
+    pattern: 'insufficient budget cannot call the next tool',
     env: false,
   },
   {

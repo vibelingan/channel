@@ -11,8 +11,7 @@ console.log(
   JSON.stringify({
     phase: 'connected',
     model: metadata.model,
-    workspace: metadata.workspace_id,
-    public_document_ids: metadata.public_document_ids,
+    public_workspace: metadata.public_workspace,
   }),
 );
 const engine = new VibeKbEngine({
@@ -23,10 +22,8 @@ const engine = new VibeKbEngine({
   fetch: access.fetch,
   knowledge: {
     url: metadata.mcp,
-    apiKey: 'ssh',
-    workspaceId: metadata.workspace_id,
-    publicDocumentIds: metadata.public_document_ids,
-    publicTag: '对外公开',
+    // Placeholder only: the relay on the host supplies the real read-only key.
+    apiKey: 'kbpub_supplied-by-the-ssh-relay-on-host',
     sourcePrefix: 'channelkb',
     fetch: access.fetch,
     allowLocalHttp: true,

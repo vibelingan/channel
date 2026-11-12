@@ -1287,10 +1287,7 @@ export function engineFromEnvironment(): ConversationEngine {
       provenance: provenanceFromEnvironment(),
       knowledge: {
         url: requiredEnv('VIBEKB_MCP_URL'),
-        apiKey: requiredEnv('VIBEKB_MCP_API_KEY'),
-        workspaceId: Number(requiredEnv('VIBEKB_PUBLIC_WORKSPACE_ID')),
-        publicDocumentIds: requiredEnv('VIBEKB_PUBLIC_DOCUMENT_IDS').split(',').map(Number),
-        publicTag: process.env.VIBEKB_PUBLIC_TAG ?? '对外公开',
+        apiKey: requiredEnv('VIBEKB_PUBLIC_API_KEY'),
         sourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
         allowLocalHttp: process.env.VIBEKB_MCP_ALLOW_LOOPBACK_HTTP === '1',
       },

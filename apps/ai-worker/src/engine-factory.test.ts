@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { VibeKbEngine } from '@vibelingan-channel/ai-engine-vibekb';
+import { PUBLIC_KNOWLEDGE_SERVER, VibeKbEngine } from '@vibelingan-channel/ai-engine-vibekb';
 import { engineFromEnvironment } from './worker.ts';
+
+const publicKey = `kbpub_${'k'.repeat(40)}`;
 
 const config: Record<string, string | undefined> = {
   AI_ENGINE_ID: 'vibekb',
@@ -11,10 +13,7 @@ const config: Record<string, string | undefined> = {
   AI_MODEL_API_KEY: 'dummy',
   AI_MODEL_THINKING_MODE: 'disabled',
   VIBEKB_MCP_URL: 'https://kb.example.invalid/mcp',
-  VIBEKB_MCP_API_KEY: 'dummy',
-  VIBEKB_PUBLIC_WORKSPACE_ID: '2',
-  VIBEKB_PUBLIC_DOCUMENT_IDS: '12',
-  VIBEKB_PUBLIC_TAG: '对外公开',
+  VIBEKB_PUBLIC_API_KEY: publicKey,
   VIBEKB_MCP_ALLOW_LOOPBACK_HTTP: '0',
   AI_ENGINE_PROVENANCE_KIND: 'git',
   AI_ENGINE_GIT_COMMIT: 'a'.repeat(40),
@@ -45,17 +44,19 @@ test('runtime builds the VibeKB adapter from fixed server settings without legac
     assert.ok(engine instanceof VibeKbEngine);
     assert.equal(engine.capabilities.engineId, 'vibekb');
     assert.deepEqual(await engine.attestKnowledgeCredential(), {
-      credentialId: createHash('sha256').update('dummy').digest('hex'),
+      credentialId: createHash('sha256').update(publicKey).digest('hex'),
       rotationCounter: 1,
-      spaceId: '2',
+      spaceId: PUBLIC_KNOWLEDGE_SERVER,
     });
   });
 });
-test('runtime rejects missing public scope, unsafe MCP transport and invalid model controls', async () => {
+test('runtime rejects a missing or non-public knowledge key, unsafe MCP transport and invalid model controls', async () => {
   for (const patch of [
-    { VIBEKB_PUBLIC_DOCUMENT_IDS: '' },
-    { VIBEKB_PUBLIC_DOCUMENT_IDS: '12,NaN' },
-    { VIBEKB_PUBLIC_WORKSPACE_ID: 'other' },
+    { VIBEKB_PUBLIC_API_KEY: undefined },
+    { VIBEKB_PUBLIC_API_KEY: '' },
+    // A management key has no public prefix, however long it is.
+    { VIBEKB_PUBLIC_API_KEY: 'm'.repeat(48) },
+    { VIBEKB_PUBLIC_API_KEY: 'kbpub_short' },
     { VIBEKB_MCP_URL: 'http://remote.example.invalid/mcp' },
     { AI_MODEL_THINKING_MODE: 'maybe' },
     { AI_MODEL_API_KEY: '' },

@@ -55,7 +55,12 @@ const READY_TIMEOUT_MS = 5 * 60 * 1000;
 const SMOKE_ATTEMPTS = 3;
 // Includes source upload and the MCP server's 45-second registration wait.
 // mcporter otherwise times out at 60 seconds, before execFileSync's deadline.
-const MCP_CALL_TIMEOUT_MS = 240_000;
+// The upload from a GitHub runner took 35 seconds on 2026-11-06 and 150 to 230
+// on 2026-11-11, then passed four minutes twice the same day; a deploy call is
+// made once (a repeat queues a second deploy), so it has to be allowed to finish.
+const MCP_CALL_TIMEOUT_MS = 540_000;
+// The process running the call outlives it, so the call's own error is the one reported.
+const MCP_PROCESS_TIMEOUT_MS = 600_000;
 
 const secretValues = [...GITHUB_SECRETS].map((name) => process.env[name]);
 const safe = (text) => redactValues(text, secretValues);
@@ -93,7 +98,7 @@ function callTool(tool, args, { attempts = 3 } = {}) {
           cwd: root,
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'pipe'],
-          timeout: 5 * 60 * 1000,
+          timeout: MCP_PROCESS_TIMEOUT_MS,
           maxBuffer: 64 * 1024 * 1024,
           env: {
             ...process.env,

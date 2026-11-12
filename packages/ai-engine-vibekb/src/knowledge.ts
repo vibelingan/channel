@@ -3,12 +3,26 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { EngineCitation } from '@vibelingan-channel/ai-engine/port';
 import { boundedFetch, endpoint, record } from './http.ts';
 
+/**
+ * What is public is decided by the knowledge base, not here.
+ *
+ * The knowledge base binds a read-only key to one public workspace: a document
+ * placed in that workspace is public at once, and one moved out stops being
+ * public at once. This service holds only such a key, so it has no list of
+ * documents to keep in step and nothing to redeploy when the content changes.
+ *
+ * Two things are still checked on this side, both against a wrong key rather
+ * than against a wrong document: the key must carry the public prefix, and the
+ * server it reaches must identify itself as the public read-only server. A
+ * management key put here by mistake fails both, before any document is read.
+ */
+export const PUBLIC_KNOWLEDGE_KEY_PREFIX = 'kbpub_';
+export const PUBLIC_KNOWLEDGE_SERVER = 'knowledge-base-public';
+
 export interface KnowledgeConfig {
   url: string;
+  /** A read-only key the knowledge base has bound to one public workspace. */
   apiKey: string;
-  workspaceId: number;
-  publicDocumentIds: number[];
-  publicTag: string;
   sourcePrefix: string;
   allowLocalHttp?: boolean;
   fetch?: typeof fetch;
@@ -17,19 +31,13 @@ export class PublicKnowledge {
   private readonly config: KnowledgeConfig;
   constructor(config: KnowledgeConfig) {
     if (
-      !config.apiKey ||
-      !Number.isSafeInteger(config.workspaceId) ||
-      config.workspaceId < 1 ||
-      !config.publicDocumentIds.length ||
-      config.publicDocumentIds.length > 100 ||
-      new Set(config.publicDocumentIds).size !== config.publicDocumentIds.length ||
-      config.publicDocumentIds.some((id) => !Number.isSafeInteger(id) || id < 1) ||
-      !config.publicTag.trim() ||
+      !config.apiKey.startsWith(PUBLIC_KNOWLEDGE_KEY_PREFIX) ||
+      config.apiKey.length < 32 ||
       !/^[A-Za-z0-9_-]{1,80}$/.test(config.sourcePrefix)
     )
-      throw new Error('An explicit public knowledge scope is required');
+      throw new Error('A public read-only knowledge key is required');
     endpoint(config.url, config.allowLocalHttp ?? false);
-    this.config = { ...config, publicDocumentIds: [...config.publicDocumentIds] };
+    this.config = { ...config };
   }
   async search(
     query: string,
@@ -83,50 +91,39 @@ export class PublicKnowledge {
     };
     try {
       await client.connect(transport, { signal: controller, timeout: 15000 });
-      const result = await call('search_documents', {
-        query,
-        limit: 10,
-        workspace: String(config.workspaceId),
-      });
+      if (client.getServerVersion()?.name !== PUBLIC_KNOWLEDGE_SERVER)
+        throw new Error('Knowledge endpoint is not the public read-only scope');
+      // No workspace is sent: the key decides it, and nothing sent from here could widen it.
+      const result = await call('search_documents', { query, limit: 10 });
       if (!record(result) || !Array.isArray(result.results))
         throw new Error('Invalid knowledge search');
       let rows: unknown[] = result.results;
-      if (!rows.some((row) => record(row) && config.publicDocumentIds.includes(Number(row.id)))) {
-        const listed = await call('list_documents', {
-          workspace: String(config.workspaceId),
-          tag: config.publicTag,
-          limit: 200,
-          offset: 0,
-        });
+      if (!rows.length) {
+        // Nothing matched the wording: fall back to the most recently updated public documents.
+        const listed = await call('list_documents', { limit: 3, offset: 0 });
         if (!record(listed) || !Array.isArray(listed.documents))
           throw new Error('Invalid knowledge listing');
         rows = listed.documents;
       }
       const candidates = rows.filter(
-        (row): row is Record<string, unknown> =>
-          record(row) &&
-          typeof row.id === 'number' &&
-          config.publicDocumentIds.includes(row.id) &&
-          Array.isArray(row.tags) &&
-          row.tags.includes(config.publicTag) &&
-          !row.tags.some((tag) =>
-            ['内部', 'internal', 'private', 'channel-blog-private-draft'].includes(String(tag)),
-          ),
+        (row): row is Record<string, unknown> & { id: number } =>
+          record(row) && Number.isSafeInteger(row.id) && Number(row.id) > 0,
       );
       const citations: EngineCitation[] = [];
+      let workspace: unknown;
       for (const row of candidates.slice(0, 3)) {
         const doc = await call('get_document', { document_id: row.id });
-        // get_document has no workspace parameter: verify the returned owner again.
         if (
           !record(doc) ||
           doc.id !== row.id ||
-          doc.workspace_id !== config.workspaceId ||
           typeof doc.title !== 'string' ||
           typeof doc.content !== 'string' ||
-          doc.content.length > 64000 ||
-          !hasPublicTag(doc.tags, config.publicTag)
+          !Number.isSafeInteger(doc.workspace_id)
         )
-          throw new Error('Knowledge document scope changed');
+          throw new Error('Invalid knowledge document');
+        // One key is one workspace: documents from two means the scope is not what it claims.
+        workspace ??= doc.workspace_id;
+        if (doc.workspace_id !== workspace) throw new Error('Knowledge document scope changed');
         citations.push({
           sourceId: `${config.sourcePrefix}/vibekb/${doc.id}`,
           title: doc.title.slice(0, 1000),
@@ -140,21 +137,4 @@ export class PublicKnowledge {
       await client.close().catch(() => undefined);
     }
   }
-}
-function hasPublicTag(value: unknown, tag: string): boolean {
-  let tags = value;
-  if (typeof tags === 'string') {
-    try {
-      tags = JSON.parse(tags);
-    } catch {
-      return false;
-    }
-  }
-  return (
-    Array.isArray(tags) &&
-    tags.includes(tag) &&
-    !tags.some((t) =>
-      ['内部', 'internal', 'private', 'channel-blog-private-draft'].includes(String(t)),
-    )
-  );
 }
