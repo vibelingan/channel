@@ -99,6 +99,22 @@ export function createCosArchiveTransfer({
         await rm(directory, { recursive: true, force: true });
       }
     },
+    /** One HEAD: the stored size and ETag, which changes whenever the object is rewritten. */
+    async head(_sdk, fileId) {
+      const params = target(fileId);
+      let result;
+      try {
+        result = await cos.headObject(params);
+      } catch (error) {
+        if (error?.statusCode === 404)
+          throw Object.assign(Error('Archive object is absent'), {
+            code: 'ARCHIVE_OBJECT_NOT_FOUND',
+            statusCode: 404,
+          });
+        throw error;
+      }
+      return { bytes: Number(result?.headers?.['content-length']), etag: result?.ETag };
+    },
     async read(_sdk, fileId, { maxBytes, timeoutMs }) {
       const params = target(fileId);
       const directory = await mkdtemp(join(tmpdir(), 'catalog-archive-download-'));

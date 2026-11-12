@@ -140,9 +140,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test deployment contracts
-        run: pnpm test:deploy-smoke
-
+      # The deployment contracts (`pnpm test:deploy-smoke`) run in CI's scripts unit job for
+      # this same SHA, and the deploy job needs CI; repeating them here only delayed the backup.
       - name: Verify CloudBase deploy credentials
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}

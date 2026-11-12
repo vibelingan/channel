@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import {
+  PUBLIC_SNAPSHOT_READS,
   collectProductRefresh,
   collectProductSnapshot,
   collectPublicProductPaths,
@@ -224,4 +225,70 @@ test('new public IDs need a tracked version before they enter a complete candida
     refreshTransport([row, next], new Map()),
   );
   assert.equal(result.total, 2);
+});
+
+test('a snapshot overlaps public reads up to its fixed bound and still reads every product twice', async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ ...row, _id: `product-${i}` }));
+  let inFlight = 0;
+  let peak = 0;
+  const reads = new Map<string, number>();
+  const api: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/products')
+      return Response.json({ ok: true, data: { items: rows, page: 1, pageSize: 48, total: 30 } });
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (url.pathname.endsWith('/detail'))
+        return new Response(JSON.stringify({ ok: false, data: null }), { status: 404 });
+      const id = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
+      reads.set(id, (reads.get(id) ?? 0) + 1);
+      return Response.json({ ok: true, data: rows.find((r) => r._id === id) });
+    } finally {
+      inFlight--;
+    }
+  };
+  const snapshot = await collectProductSnapshot(origin, origin, api);
+  assert.equal(snapshot.products.length, 30);
+  assert.equal(PUBLIC_SNAPSHOT_READS, 12);
+  assert.equal(peak, PUBLIC_SNAPSHOT_READS);
+  // One capture read and one verification read per product, never fewer.
+  assert.deepEqual([...new Set(reads.values())], [2]);
+  assert.equal(reads.size, 30);
+});
+
+test('inventory pages after the first are read together and must all agree on the totals', async () => {
+  const rows = Array.from({ length: 100 }, (_, i) => ({
+    ...row,
+    _id: `item-${String(i).padStart(3, '0')}`,
+  }));
+  const page = (n: number, overrides: Record<string, unknown> = {}) => ({
+    items: rows.slice((n - 1) * 48, n * 48),
+    page: n,
+    pageSize: 48,
+    total: 100,
+    ...overrides,
+  });
+  let inFlight = 0;
+  let peak = 0;
+  const pagesRead: number[] = [];
+  const api =
+    (broken?: number): typeof fetch =>
+    async (input) => {
+      const url = new URL(String(input));
+      const n = Number(url.searchParams.get('page'));
+      pagesRead.push(n);
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight--;
+      return Response.json({ ok: true, data: page(n, n === broken ? { total: 101 } : {}) });
+    };
+  const paths = await collectPublicProductPaths(origin, api());
+  assert.equal(paths.length, 100);
+  assert.deepEqual([...pagesRead].sort(), [1, 2, 3]);
+  // Pages 2 and 3 overlap once page 1 named the total.
+  assert.equal(peak, 2);
+  await assert.rejects(collectPublicProductPaths(origin, api(3)), /pagination changed/);
 });

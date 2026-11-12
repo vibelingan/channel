@@ -308,26 +308,31 @@ test('code checks have a bounded budget without whole business browser journeys'
     ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
     0,
   );
-  assert.deepEqual([ciJob.needs].flat(), ['unit']);
+  // The build runs beside the unit groups; the release gate waits for the whole workflow.
+  assert.equal(ciJob.needs, undefined);
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
-  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
+  assert.equal(ciJob.needs, undefined, 'the build does not wait for the unit groups');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,
     "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
     'only the test-branch/full-CI gate and the read-only preparation may condition deployment',
   );
-  // The contract tests run in the preparation job, which the deploy job needs, so they
-  // finish before anything is packaged.
-  findUniqueStep(
-    buildWorkflows[1][1].jobs?.prepare,
-    (step) => step.run === 'pnpm test:deploy-smoke',
+  // The contract tests run once, in CI's scripts unit job for this SHA; the deploy job needs
+  // CI, so they finish before anything is packaged.
+  const scripts = buildWorkflows[0][1].jobs?.unit?.strategy?.matrix?.include?.filter(
+    (group) => group.suite === 'scripts',
+  );
+  assert.deepEqual(
+    scripts?.map((group) => group.command),
+    ['pnpm test:deploy-smoke'],
     'Deploy Test contract gate',
   );
-  assert.ok([deployJob.needs].flat().includes('prepare'));
-  assert.ok(!deployJob.steps.some((step) => step.run === 'pnpm test:deploy-smoke'));
+  assert.ok([deployJob.needs].flat().includes('ci'));
+  for (const job of [deployJob, buildWorkflows[1][1].jobs?.prepare])
+    assert.ok(!job.steps.some((step) => step.run === 'pnpm test:deploy-smoke'));
   findUniqueStep(
     deployJob,
     (step) => step.run === 'pnpm package:functions',

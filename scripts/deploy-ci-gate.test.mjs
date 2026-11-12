@@ -186,7 +186,6 @@ function assertReleaseGate(ci, release) {
     prepare.steps.filter((step) => step.run).map((step) => step.run.split('\n')[0]),
     [
       'pnpm install --frozen-lockfile',
-      'pnpm test:deploy-smoke',
       'if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then',
       'node scripts/capture-hosting-backup.mjs --output output/hosting-backup-before',
     ],
@@ -231,15 +230,32 @@ function assertReleaseGate(ci, release) {
       'build the triggering SHA, not branch HEAD',
     );
   }
-  assert.deepEqual([ci.jobs.checks.needs].flat(), ['unit']);
+  // The build runs beside the unit groups; both still gate release because the deploy
+  // needs the whole reusable workflow (see `complete.jobs.ready.needs` above).
+  assert.equal(ci.jobs.checks.needs, undefined);
   assert.equal(ci.jobs.unit['continue-on-error'], undefined);
   const groups = ci.jobs.unit.strategy.matrix.include;
-  assert.deepEqual(groups.map((group) => group.suite).sort(), [
+  assert.deepEqual([...new Set(groups.map((group) => group.suite))].sort(), [
     'packages',
     'scripts',
     'services',
     'site',
   ]);
+  // The site files run in two shards that together cover every file, type-checked once.
+  const site = groups.filter((group) => group.suite === 'site');
+  assert.deepEqual(
+    site.map((group) => group.shard),
+    ['heavy', 'rest'],
+  );
+  for (const group of site)
+    assert.ok(
+      group.command.endsWith(`exec node scripts/test-shard.mjs ${group.shard}`),
+      `site shard ${group.shard} must run through the shard runner`,
+    );
+  assert.equal(
+    site.filter((group) => group.command.includes('tsc -p tsconfig.test.json --noEmit')).length,
+    1,
+  );
   assert.ok(groups.every((group) => typeof group.command === 'string'));
   assert.equal(ci.jobs.checks.if, undefined);
   assert.equal(ci.jobs.checks['continue-on-error'], undefined);
@@ -446,7 +462,7 @@ test('release guard detects missing dependencies, success bypass, moving refs an
       candidate.jobs.checks['continue-on-error'] = true;
     },
     (candidate) => {
-      candidate.jobs.checks.needs = undefined;
+      candidate.jobs.checks.needs = 'unit';
     },
     (candidate) => {
       candidate.jobs.unit['continue-on-error'] = true;

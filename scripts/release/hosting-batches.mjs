@@ -94,6 +94,17 @@ export function withSiteUploadBatches(plan) {
 export async function mapHostingBounded(items, parallel, callback) {
   if (!Number.isSafeInteger(parallel) || parallel < 1 || parallel > 4)
     throw Error('Invalid hosting parallel limit');
+  return boundedMap(items, parallel, callback);
+}
+/**
+ * Public HTTP readbacks change nothing, and from outside mainland China each one waits
+ * 0.6–3 s. They overlap twelve at a time; every write (upload, delete) keeps its own bound.
+ */
+export const HOSTING_READ_PARALLEL = 12;
+export function mapHostingReads(items, callback) {
+  return boundedMap(items, HOSTING_READ_PARALLEL, callback);
+}
+async function boundedMap(items, parallel, callback) {
   const results = new Array(items.length);
   let next = 0;
   let failure;
