@@ -17,6 +17,10 @@ Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 One environment serves supplychainsai.com and is the owner's test environment; deploy by fast-forwarding `test`. Release ids, deploy timing and failure modes, gateway latency, SDK result shapes, provisioning, admin calls from the signed-in page. See `docs/agents/cloudbase.md`.
 
+### Branches
+
+`test` is what is deployed, the release branch is what has been verified live, `main` is the accepted baseline; deployed code must be promoted to the release branch. See `docs/agents/branching.md`.
+
 ### Domain docs
 
 Single-context repo — `CONTEXT.md` at root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
