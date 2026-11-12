@@ -2,12 +2,12 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "待实施：图片先准备，再按当前发布状态交付",
+    "title": "待实施：精简修图、五分钟缓存与撤回窗口",
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "animation": "none",
     "column_fit": "spread",
-    "viewBox": [1260, 660]
+    "viewBox": [1400, 790]
   },
   "participants": [
     {
@@ -36,6 +36,11 @@
       "label": "现有图片接口"
     },
     {
+      "id": "cache",
+      "type": "frontend",
+      "label": "浏览器图片缓存"
+    },
+    {
       "id": "browser",
       "type": "external",
       "label": "访客浏览器"
@@ -43,14 +48,19 @@
   ],
   "segments": [
     {
-      "from": 325,
-      "to": 478,
-      "label": "目标：图片请求通过一次公开引用检查后读取小图"
+      "from": 330,
+      "to": 399,
+      "label": "回访：缓存新鲜时不请求服务器（建议五分钟，待确认）"
     },
     {
-      "from": 492,
-      "to": 584,
-      "label": "目标：撤回后的新请求不继续提供图片"
+      "from": 410,
+      "to": 560,
+      "label": "到期：先核对当前公开引用，再决定304、200或404"
+    },
+    {
+      "from": 576,
+      "to": 735,
+      "label": "撤回：已有缓存仍有窗口，到期后联网核验"
     }
   ],
   "messages": [
@@ -59,132 +69,162 @@
       "from": "operator",
       "to": "worker",
       "y": 160,
-      "label": "指定三张原图及生成规则",
+      "label": "按盘点清单指定本批原图",
       "variant": "default"
     },
     {
       "id": "image-step-2",
       "from": "worker",
       "to": "registry",
-      "y": 188,
-      "label": "读取原图身份与已有产物",
+      "y": 192,
+      "label": "读取来源与已有就绪版本",
       "variant": "default"
     },
     {
       "id": "image-step-3",
       "from": "worker",
       "to": "storage",
-      "y": 216,
-      "label": "有界读取原图并生成网页版本",
+      "y": 224,
+      "label": "读取原件；先生成一个网页尺寸",
       "variant": "default"
     },
     {
       "id": "image-step-4",
       "from": "worker",
       "to": "storage",
-      "y": 244,
-      "label": "写入确定路径的三种尺寸",
+      "y": 256,
+      "label": "写入后完整读回校验",
       "variant": "default"
     },
     {
       "id": "image-step-5",
       "from": "worker",
-      "to": "storage",
-      "y": 272,
-      "label": "读回核对产物字节与格式",
-      "variant": "default"
+      "to": "registry",
+      "y": 288,
+      "label": "来源未变才条件登记就绪",
+      "variant": "security"
     },
     {
       "id": "image-step-6",
-      "from": "worker",
-      "to": "registry",
-      "y": 300,
-      "label": "原图未变才登记就绪版本",
-      "variant": "emphasis"
-    },
-    {
-      "id": "image-step-7",
       "from": "browser",
-      "to": "api",
-      "y": 340,
-      "label": "请求现有图片地址",
+      "to": "cache",
+      "y": 346,
+      "label": "回访现有图片地址",
       "variant": "default"
     },
     {
+      "id": "image-step-7",
+      "from": "cache",
+      "to": "browser",
+      "y": 378,
+      "label": "新鲜副本直接显示，不调用函数",
+      "variant": "return"
+    },
+    {
       "id": "image-step-8",
-      "from": "api",
-      "to": "registry",
-      "y": 368,
-      "label": "沿用当前公开引用检查",
-      "variant": "security"
+      "from": "cache",
+      "to": "api",
+      "y": 430,
+      "label": "过期后携带ETag联网核对",
+      "variant": "default"
     },
     {
       "id": "image-step-9",
       "from": "api",
       "to": "registry",
-      "y": 396,
-      "label": "取匹配来源的就绪产物",
-      "variant": "default"
+      "y": 458,
+      "label": "核对当前公开引用与产物摘要",
+      "variant": "security"
     },
     {
       "id": "image-step-10",
       "from": "api",
       "to": "storage",
-      "y": 424,
-      "label": "读取受限尺寸的字节",
+      "y": 486,
+      "label": "仅内容变化且获准时读取小图",
       "variant": "default"
     },
     {
       "id": "image-step-11",
       "from": "api",
-      "to": "browser",
-      "y": 452,
-      "label": "200 图片；准确 MIME 与宽高",
+      "to": "cache",
+      "y": 514,
+      "label": "304确认未变，或200返回新图",
       "variant": "return"
     },
     {
       "id": "image-step-12",
-      "from": "browser",
-      "to": "api",
-      "y": 508,
-      "label": "撤回后再次请求",
-      "variant": "default"
+      "from": "cache",
+      "to": "browser",
+      "y": 542,
+      "label": "显示图片；重新缓存最多300秒",
+      "variant": "return"
     },
     {
       "id": "image-step-13",
-      "from": "api",
+      "from": "operator",
       "to": "registry",
-      "y": 536,
-      "label": "核对当前公开引用",
+      "y": 594,
+      "label": "撤回最后一份有效公开引用",
       "variant": "security"
     },
     {
       "id": "image-step-14",
+      "from": "browser",
+      "to": "cache",
+      "y": 622,
+      "label": "缓存到期后再次访问",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-15",
+      "from": "cache",
+      "to": "api",
+      "y": 650,
+      "label": "联网请求原图片地址",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-16",
+      "from": "api",
+      "to": "registry",
+      "y": 678,
+      "label": "确认已无有效公开引用",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-17",
       "from": "api",
       "to": "browser",
-      "y": 564,
-      "label": "无有效公开引用时 404",
+      "y": 706,
+      "label": "404；拒绝响应不缓存",
       "variant": "return"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "程序与凭据",
+      "title": "保留已有权限边界",
       "items": [
-        "Channel 后端程序使用受控环境凭据；不调用模型",
-        "浏览器只读公开图片，不持有 COS 或管理密钥"
+        "Channel后端用环境凭据；浏览器不拿管理密钥",
+        "私有预览仍登录读取字节，不公开存储地址"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "五分钟是待确认建议",
+      "items": [
+        "旧一小时缓存不会立即消失；下载副本无法收回",
+        "共享引用尚存在仍可读；304前也必须核对权限"
       ]
     },
     {
       "dot": "emerald",
-      "title": "本轮只设计",
-      "items": ["原图、alt、插图位置及客户内容保留", "复用现有存储封装与引用判断，新增网页图片版本"]
-    },
-    {
-      "dot": "amber",
-      "title": "必须真实验收",
-      "items": ["先处理三张已有图；不重新同步商品", "重试不重建；公开状态变化和版本竞争要验证"]
+      "title": "首轮简化，后续再接生产",
+      "items": [
+        "先单尺寸生成、读回、来源校验；不先造调度器",
+        "上传/同步在IMG-3接入；多尺寸在IMG-4补齐"
+      ]
     }
   ]
 }

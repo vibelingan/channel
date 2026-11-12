@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "评审后执行顺序：先留数据，再修真实故障",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "legend": {
+      "entries": {
+        "backend": {
+          "label": "后端程序"
+        },
+        "database": {
+          "label": "图片记录"
+        },
+        "frontend": {
+          "label": "网页与性能"
+        },
+        "external": {
+          "label": "记录与验收"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "prepare",
+      "label": "记录与改进"
+    },
+    {
+      "id": "repair",
+      "label": "故障与基础"
+    },
+    {
+      "id": "conditional",
+      "label": "条件任务"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "before",
+      "lane": "prepare",
+      "col": 0,
+      "type": "external",
+      "label": "0 优化前记录",
+      "sublabel": "性能、搜索、请求时序",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "inventory",
+      "lane": "repair",
+      "col": 0,
+      "type": "database",
+      "label": "1 盘点超限图片",
+      "sublabel": "清单与真实公开引用",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "repair",
+      "lane": "repair",
+      "col": 1,
+      "type": "backend",
+      "label": "2 修图与临时保护",
+      "sublabel": "先用单一网页尺寸",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "schema",
+      "lane": "repair",
+      "col": 2,
+      "type": "backend",
+      "label": "3 清理无效商品标记",
+      "sublabel": "无真实报价保留普通网页",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "category",
+      "lane": "prepare",
+      "col": 2,
+      "type": "frontend",
+      "label": "4 分类初始正文",
+      "sublabel": "路径分页与旧链接兼容",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "producers",
+      "lane": "prepare",
+      "col": 3,
+      "type": "backend",
+      "label": "5 接上传与同步",
+      "sublabel": "响应式图片与真实报价",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "perf",
+      "lane": "prepare",
+      "col": 4,
+      "type": "frontend",
+      "label": "6 按实测改善性能",
+      "sublabel": "脚本、字体、服务等待",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "results",
+      "lane": "prepare",
+      "col": 5,
+      "type": "external",
+      "label": "7 整合核对效果",
+      "sublabel": "同条件前后数据与收录",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "video",
+      "lane": "conditional",
+      "col": 3,
+      "type": "frontend",
+      "label": "视频与内容关联",
+      "sublabel": "先核对素材事实与授权",
+      "width": 160,
+      "height": 72
+    },
+    {
+      "id": "requests",
+      "lane": "conditional",
+      "col": 4,
+      "type": "frontend",
+      "label": "请求层改造暂缓",
+      "sublabel": "仅在时序证实浪费后评审",
+      "width": 160,
+      "height": 72
+    }
+  ],
+  "edges": [
+    {
+      "id": "before-inventory",
+      "from": "before",
+      "to": "inventory",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "inventory-repair",
+      "from": "inventory",
+      "to": "repair",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "repair-schema",
+      "from": "repair",
+      "to": "schema",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "schema-category",
+      "from": "schema",
+      "to": "category",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "category-producers",
+      "from": "category",
+      "to": "producers",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "producers-perf",
+      "from": "producers",
+      "to": "perf",
+      "role": "main",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight"
+    },
+    {
+      "id": "perf-results",
+      "from": "perf",
+      "to": "results",
+      "role": "main",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight"
+    },
+    {
+      "id": "video-ready",
+      "from": "producers",
+      "to": "video",
+      "label": "资料到位后",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "trace-proof",
+      "from": "perf",
+      "to": "requests",
+      "label": "有实测依据才改",
+      "role": "branch",
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "before",
+    "inventory",
+    "repair",
+    "schema",
+    "category",
+    "producers",
+    "perf",
+    "results"
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "当前只更新设计",
+      "items": ["沿用原 SEO 分支；未实施或部署", "旧报价权限、商品交互、人工内容保留"]
+    },
+    {
+      "dot": "amber",
+      "title": "实施前确认两项取舍",
+      "items": ["建议公开图片缓存五分钟，撤回有相同窗口", "超限新图暂不激活，或另做待处理状态"]
+    },
+    {
+      "dot": "emerald",
+      "title": "控制范围与测试成本",
+      "items": ["CDN 延后；发布提速由其他工作流负责", "按改动风险验收，不重复全站重型测试"]
+    }
+  ]
+}

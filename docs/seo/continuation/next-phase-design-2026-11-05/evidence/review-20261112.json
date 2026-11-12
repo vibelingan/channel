@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-12",
+  "scope": "design_review_only",
+  "reviewCommit": "eb4640ae",
+  "reviewedBase": "e671763f",
+  "branch": "feat/seo-foundation",
+  "implementationChanged": false,
+  "cloudWrites": 0,
+  "sdkFocused": {
+    "node": "v22.13.0",
+    "elapsedMs": 2076,
+    "exitCode": 0,
+    "tests": 15,
+    "passed": 15,
+    "failed": 0,
+    "wholeSdkGateRerun": false,
+    "priorTimeoutCause": "not established",
+    "blobs": {
+      "apps/functions/admin/src/catalog-preparation-invoker.test.ts": {
+        "HEAD": "a3a078776ec2d2edf97ceeb4383ba324cc27b365",
+        "origin/main": "a3a078776ec2d2edf97ceeb4383ba324cc27b365",
+        "origin/test": "a3a078776ec2d2edf97ceeb4383ba324cc27b365"
+      },
+      "apps/functions/admin/src/catalog-preparation-invoker.ts": {
+        "HEAD": "07473d27c3a47d232cebe0d2e05323d71af980a0",
+        "origin/main": "07473d27c3a47d232cebe0d2e05323d71af980a0",
+        "origin/test": "07473d27c3a47d232cebe0d2e05323d71af980a0"
+      }
+    }
+  },
+  "gitDelta": {
+    "method": "git diff origin/main...HEAD; excludes docs/** and *.md",
+    "nonDocFiles": 321,
+    "addedLines": 42695,
+    "deletedLines": 1038,
+    "meaning": "merge-base delta, not a count of unmerged features"
+  },
+  "notMeasuredThisRound": [
+    "all oversized image inventory",
+    "fresh performance Before or After",
+    "new Google/Bing index results"
+  ],
+  "sources": [
+    {
+      "path": "apps/functions/public-api/src/handler.ts",
+      "fact": "canSeeVipPricing legacy compatibility remains"
+    },
+    {
+      "path": "apps/functions/public-api/src/http-adapter.test.ts",
+      "fact": "Alibaba quote consistency and VIP gating tested together"
+    },
+    {
+      "path": "apps/site/src/islands/shop/numbered-catalog-state.ts",
+      "fact": "page size 12 and query-only read/write require joint path adaptation"
+    },
+    {
+      "path": "apps/site/src/lib/seo/product-page.ts",
+      "fact": "Product generated without offers; revise build rule with fallback"
+    }
+  ],
+  "officialReferences": [
+    "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control",
+    "https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading",
+    "https://developers.google.com/search/docs/appearance/structured-data/product-snippet"
+  ],
+  "choicesPending": [
+    "public image 300s freshness and revocation window",
+    "oversized new image activation rejection versus visible pending state"
+  ]
+}
