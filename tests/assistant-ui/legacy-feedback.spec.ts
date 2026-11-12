@@ -74,6 +74,52 @@ test('Thinking appears during delayed conversation creation and submission; fina
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
 });
 
+test('a failed answer keeps the composer: the visitor can ask again and still reach the team', async ({
+  page,
+}) => {
+  let asked = 0;
+  await page.route('**/api/ai-test/api/ai/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations')) return json(route, conversation);
+    if (path.endsWith('/messages')) {
+      asked += 1;
+      return json(route, { ...accepted, messageId: `message-${asked}`, runId: `run-${asked}` });
+    }
+    return asked === 1
+      ? events(route, { type: 'run.failed', sequence: 1, category: 'transient' })
+      : events(route, { type: 'final', sequence: 2, text: 'We provide OEM electronics.' });
+  });
+  await open(page);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('I could not answer that just now.')).toBeVisible();
+  // The way to the team is offered, and the question box is still there.
+  await expect(page.getByRole('link', { name: 'Send your project to our team' })).toBeVisible();
+  const box = page.getByRole('textbox', { name: 'Your question' });
+  await expect(box).toBeVisible();
+  await expect(box).toBeEnabled();
+  await box.fill('What does your company provide?');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveText(
+    'We provide OEM electronics.',
+  );
+  // Once the next question is under way the failure notice's link is gone.
+  await expect(page.getByRole('link', { name: 'Send your project to our team' })).toHaveCount(0);
+  await expect(box).toBeVisible();
+});
+
+test('a network failure while sending also keeps the composer', async ({ page }) => {
+  await page.route('**/api/ai-test/api/ai/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations')) return json(route, conversation);
+    return route.abort('failed');
+  });
+  await open(page);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('The assistant could not be reached just now.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeEnabled();
+  await expect(page.getByRole('link', { name: 'Send your project to our team' })).toBeVisible();
+});
+
 test('received activity and partial text display before the final answer, in one answer bubble', async ({
   page,
 }) => {

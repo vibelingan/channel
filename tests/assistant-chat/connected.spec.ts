@@ -660,7 +660,8 @@ test('five_cards_fit_phone_widths, swipe_moves_dots and the chat still scrolls v
   // Scrolling vertically over the cards still moves the conversation.
   await send(page, 'A product question');
   await expect(page.getByLabel('Answer status')).toContainText('Answer ready');
-  const transcript = page.locator('[data-message-role="assistant"]').first().locator('..');
+  // The scrolling element itself: messages are no longer its direct children.
+  const transcript = page.getByTestId('assistant-transcript');
   await transcript.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
