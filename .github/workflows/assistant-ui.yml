@@ -50,6 +50,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
+      # A crashed WebKit helper must not write a core dump: it stalls the runner's disk for
+      # about 20 seconds and times out whatever is running (docs/agents/ci-test-flakes.md).
+      - name: Keep crashed browser helpers from writing core dumps
+        run: |
+          sudo sysctl -w kernel.core_pattern=core
+          test "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }
       - name: Check owned component sources
         run: pnpm exec biome check apps/site/src/components/chat apps/site/src/islands/ai/assistant apps/site/src/islands/ai/preview apps/site/src/islands/ai/AssistantWidget.tsx apps/site/assistant-preview.vite.ts playwright.assistant.config.ts tsconfig.assistant-e2e.json tests/assistant-ui scripts/verify-assistant-state-guards.mjs scripts/verify-assistant-ui-build.mjs
       - name: Check component types and the existing widget

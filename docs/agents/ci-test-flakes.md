@@ -1,10 +1,30 @@
 # Intermittent CI test failures (agent reference)
 
 Read this before investigating a test that fails on CI and passes on rerun.
-It lists the causes already found, with the log lines that identify each one,
-and the exact steps that find a new cause in about an hour instead of a day.
+Section 1 routes you from what the failed log shows to the likely cause.
+Sections 2 and 3 describe the causes already found and the signals that sent
+earlier investigations the wrong way. Section 4 is the procedure for a failure
+that matches nothing here; it finds a cause in about an hour instead of a day.
 
-## 1. Known causes: check these first
+## 1. Start here: match what you see
+
+Get the log of the attempt that failed first (section 4, step 1). Then find the
+first failure in it; ignore everything after it until you have read this table.
+
+| What the failed log shows | Most likely | Confirm with | Then |
+| --- | --- | --- | --- |
+| `expect(...) … Timeout: 5000ms … element(s) not found` on the first check after a click that saves; that subtest took about 5.6 s, its siblings about 1 s; passes on rerun | The test's Node process was blocked on disk (cause A) | The failed job's step "Report crashes and disk pressure…": a core dump listed, or `io` pressure high | Section 2 A, "If it comes back" |
+| Many later subtests fail on `assert.deepEqual(errors, [])` with the same one message | Followers of the first failure; the `errors` array never empties | The first `not ok` in the test is a different assertion | Diagnose only the first failure |
+| WebKit error `… due to access control checks.` | A fetch that was still pending got cancelled by a navigation. Not CORS | The request URL is the test's own origin (`127.0.0.1:517x`) | Ask what kept the request pending: usually cause A |
+| Playwright call log inside a failed `expect` says `waiting for "…" navigation to finish...` / `navigated to …` and the test did not navigate | The dev server reloaded the page (cause B) | Was any file under `apps/site` created or changed during the run? | Section 2 B |
+| `page.goto: Timeout 8000ms exceeded` in the first subtest; several test files slow or failing at once; only on a laptop or container | The machine is overloaded (cause C) | More than two browser test processes were running, or the container has under 8 GB | Run fewer at once; not a product problem |
+| Fails only when two test files run together, never alone | The cause is outside the failing process: another test file or a system service | `# Port 5173 is in use` in the log means a second dev server was alive | Section 4, step 3, with the real shard command |
+| An API call in the trace is `routed` and only `handled` seconds later | The handler's process is computing, waiting for a CPU, or blocked on I/O | The once-a-second `SCHED` line (section 4, step 4) | The table in section 4, step 4 |
+| Fails on every CI run, passes locally | Not intermittent: an environment difference | Node 22.13.0, Linux, a fresh checkout | Reproduce in the Linux container (section 4, step 2) |
+| The job is red in "Install Playwright", or a deploy step, not in a test | Not a test failure | Step names and timings | `docs/agents/cloudbase.md`, "Deploy timing and failure modes" |
+| None of the above | A new cause | | Section 4, all steps in order |
+
+## 2. Known causes
 
 ### A. A crashed browser helper stalls the runner's disk (fixed 2026-11-11)
 
@@ -39,7 +59,8 @@ and the exact steps that find a new cause in about an hour instead of a day.
    With the fix its slowest run in 45 was 0.85 s.
 4. The page is still showing "Saving…" when the 5 s `expect` gives up.
 
-It hits whichever test is doing file writes during those 20 seconds. The
+It hits whichever test is doing file writes during those 20 seconds, in either
+engine, and the crash can come from another test file's WebKit. The
 product-create test was hit most because its WebKit half starts its first full
 publication a few seconds after such a crash.
 
@@ -49,36 +70,54 @@ publication a few seconds after such a crash.
 | --- | --- | --- | --- |
 | Before the fix, two test files at once | 99 | 17 | 1 to 7 per three runs |
 | Before the fix, the file alone | 20 | 0 | not measured |
-| With the fix, two test files at once | 45 | 0 | 0 |
+| With the fix, two test files at once | 75 | 0 | 0 |
 
 **Fix**
 
-`.github/workflows/ci.yml`, unit job, step "Keep crashed browser helpers from
-writing core dumps": `sudo sysctl -w kernel.core_pattern=core`. The runner's
-core limit is already 0, but its default pattern
-(`|/usr/lib/systemd/systemd-coredump … 9223372036854775808 …`) passes a fixed
-unlimited size, so `ulimit -c 0` changes nothing (tested: three dumps were
-still written). With a plain file pattern the kernel honours the limit and
-writes nothing. `scripts/deploy-ci-gate.test.mjs` fails if the step is removed.
+A step named "Keep crashed browser helpers from writing core dumps", placed
+right after the Playwright install step: `sudo sysctl -w
+kernel.core_pattern=core`. The runner's core limit is already 0, but its
+default pattern (`|/usr/lib/systemd/systemd-coredump … 9223372036854775808 …`)
+passes a fixed unlimited size, so `ulimit -c 0` changes nothing (tested: three
+dumps were still written). With a plain file pattern the kernel honours the
+limit and writes nothing.
+
+The step is in every workflow that installs Playwright WebKit: `ci.yml`,
+`assistant-ui.yml`, `browser-regression.yml`, `deploy-ai-cloudrun.yml` (which
+runs the same browser unit tests through `pnpm test`) and `deploy-test.yml`.
+`scripts/deploy-ci-gate.test.mjs` fails if any workflow installs WebKit without
+it. A new workflow that uses WebKit needs the same step.
+
+**What is not fixed**
+
+WebKit still crashes, 1 to 5 times per three shard runs (13 in 15 runs);
+without a dump the crash costs nothing. Forcing CPU rendering
+(`WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`) was tested and does not stop it: the
+`SkiaGPUWorker` crashes disappear and `ThreadedCompositor` crashes remain
+(5 in 15 runs). It is a defect in that WebKit build. Count
+`segfault` lines in `sudo dmesg` again after a Playwright upgrade.
 
 **If it comes back**
 
-A failed unit job now prints, in the step "Report crashes and disk pressure
-after a failed unit group", the crashed processes, any core dump that was
-written, and the pressure figures. Read those three blocks first:
+A failed unit job prints, in the step "Report crashes and disk pressure after
+a failed unit group", the crashed processes, any core dump that was written,
+and the pressure figures. Read those three blocks first:
 
 - a core dump is listed: the pattern was reset or the core limit is no longer
   0; print both and fix that;
 - no dump, but `io` pressure is high: something else is writing; rerun the loop
-  in section 3 with `fatrace` to name it;
-- neither: it is a different cause; go to section 2.
+  in section 4, step 3 with `fatrace` to name it;
+- neither: it is a different cause; go to section 4.
 
-Any other workflow that runs Playwright WebKit on a GitHub runner can be hit
-the same way (`assistant-ui.yml`, `browser-regression.yml`,
-`deploy-ai-cloudrun.yml`, `deploy-test.yml`). They have longer timeouts and
-have not been seen failing this way; add the same step if one does.
+**Earlier sighting**
 
-### B. The page reloads because a file under `apps/site` changed (local runs)
+On 2026-11-05 the Chromium half of the same test failed in four consecutive
+subtests over about 23 seconds, and the WebKit half that started two seconds
+later passed. That length matches one core dump, and another browser test was
+running beside it. The run kept no kernel log, so this is consistent with
+cause A but not proven.
+
+### B. The page reloads because a file under `apps/site` changed (fixed 2026-11-12)
 
 **What the log shows**
 
@@ -89,27 +128,68 @@ have not been seen failing this way; add the same step if one does.
 
 **Cause**
 
-Every `*-browser.test.ts` serves its page from a Vite dev server with the
-Tailwind plugin. The plugin registers about 500 files under
+Every `*-browser.test.ts` serves its page from a Vite dev server, most with
+the Tailwind plugin. The plugin registers about 500 files under
 `apps/site/{src,scripts,public}` as sources. When one of them is created,
 changed or deleted, it sends the browser `{"type":"full-reload"}` and logs
 nothing. The page reloads, in-memory form state is lost, and the next check
-times out.
+times out. It happens when a person or an agent saves a file while tests run.
 
-**Fix or avoidance**
+**Fix**
 
-- Do not create or edit files under `apps/site` while these tests are running,
-  including scratch copies of a test. Use the scratchpad or `/tmp`.
-- Hardening that was verified but is not applied yet: in the test's
-  `createServer` call use `server: { host: '127.0.0.1', port: 0, hmr: false,
-  watch: null }`. With it the product-create test passed 30 of 30 runs while a
-  source file was rewritten every 0.7 s; without it, 0 of 3. Ten test files
-  share this server setup.
+The ten tests that start a dev server set `server: { host: '127.0.0.1',
+port: 0, hmr: false, watch: null }`. `scripts/site-test-shard.test.mjs` fails
+if a test starts a dev server without both settings. Measured in a Linux
+container while a source file was rewritten every 0.7 s: 5 of 5 runs passed
+with the settings, 0 of 2 without.
 
-CI was checked for this cause and does not have it: the watcher saw no events
-and no reload was sent in 18 monitored shard runs.
+Still keep scratch files out of `apps/site` while tests run: the type check and
+the test runner read that tree too.
 
-## 2. A new intermittent failure: what to do, in this order
+CI never had this cause: the watcher saw no events and no reload was sent in
+18 monitored shard runs.
+
+### C. Too many browser tests at once on a small machine (local only)
+
+**What the log shows**
+
+- `page.goto: Timeout 8000ms exceeded` in the first subtest of a file, then
+  count assertions such as `2 !== 3` in later ones; several files fail in the
+  same minute.
+
+**Cause and fix**
+
+Each browser test file starts a dev server, bundles dependencies and launches
+a browser. Four of them in a 4 GB container, or three loops beside other work
+on a laptop, exhaust memory and the first page load misses its 8 s limit. Run
+at most two at a time, as CI does. This was seen only locally, while looping
+tests during the 2026-11-11 investigation.
+
+## 3. Signals that mislead
+
+Each of these cost time on 2026-11-11. Check a claim against the log before
+building on it.
+
+- **"Access control checks" suggests CORS.** It is WebKit's message for any
+  cancelled fetch. The request was same-origin.
+- **"Only WebKit fails" suggests WebKit-specific logic.** The WebKit half runs
+  second and was simply in the way when the stall came. The same failure
+  reached the Chromium half once.
+- **"Siblings took 1 s, so the runner was fine."** A disk stall slows only the
+  process that writes at that moment.
+- **A local reproduction with the same error text.** The container produced
+  the identical timeout through cause B, which CI does not have. The
+  investigation's own scratch test files, saved under `apps/site`, were
+  triggering it. Confirm on CI that the local mechanism is the CI mechanism.
+- **A CPU profile of the slow window.** A blocked thread is sampled wherever
+  it stopped, so the profile looks like ordinary code and points nowhere.
+  Measure time on CPU, time waiting for a CPU and pressure instead.
+- **A fix that must work.** `ulimit -c 0` is the textbook way to stop core
+  dumps and changed nothing here. Only a side-by-side run showed it.
+- **A new step that passed review.** Until a workflow step has run in its real
+  job, say so; then read its log line once it has.
+
+## 4. A new intermittent failure: what to do, in this order
 
 ### Step 1. Read the failed attempt, not the rerun
 
@@ -132,13 +212,12 @@ From the log alone you can already tell:
 - whether a neighbour was running (`# Port 5173 is in use` means another dev
   server was alive when this file started).
 
-Then compare with section 1. Stop here if it matches.
+Then go back to the table in section 1. Stop here if a row matches.
 
 ### Step 2. Do not expect a local reproduction of a runner problem
 
 A Linux container (`mcr.microsoft.com/playwright:v1.61.1-noble`, Node 22.13.0,
-pnpm 11.5.0, repository copied in with `git archive`) reproduces logic errors
-and cause B. It did not reproduce cause A in about 60 runs, because the laptop's
+pnpm 11.5.0, repository copied in with `git archive`) reproduces logic errors. It did not reproduce cause A in about 60 runs, because the laptop's
 disk and crash handling differ from the runner's. If two or three local loops
 pass, go to CI; do not keep looping locally.
 
@@ -278,7 +357,7 @@ only the side-by-side run showed that. Do not raise a timeout or add a retry
 unless the trace shows the product finished correctly and only time was short,
 and say so in the pull request.
 
-## 3. Facts about the runners that cost time to learn
+## 5. Facts about the runners that cost time to learn
 
 - ubuntu-24.04, 4 CPUs, 16 GB, kernel 7.0 (Azure), 3 GB swap.
 - Core limit 0; `core_pattern` pipes to `systemd-coredump` with a fixed

@@ -40,7 +40,9 @@ for (const engine of ['chromium', 'webkit'] as const)
             },
           },
         ],
-        server: { host: '127.0.0.1', port: 0 },
+        // No live reload: a file changed under apps/site must not reload the page mid-test
+        // (docs/agents/ci-test-flakes.md).
+        server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
       });
       closeServer = () => server.close();
       await server.listen();
