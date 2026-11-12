@@ -82,6 +82,19 @@ upload/cleanup timings for making a deploy faster: the project skill
 - The `site-retention` log line of each delivery says how many objects were
   reused or uploaded, and how many bytes were uploaded.
 
+- *Deploy AI CloudRun* (tag `ai-cloudrun-deploy-*`) can fail at
+  `cloudbase.manageCloudRun deploy` with nothing wrong in the commit. On
+  2026-11-11 one deploy passed in the morning, then four in a row failed
+  there: twice "timed out after 240000ms", then "400 Bad Request HTTP ERROR"
+  after 8 and 5 minutes with no Tencent request id. The same commit deployed
+  cleanly the next morning (upload about 2 minutes). Deploy Test, running in
+  between, saw slow function creation and refused `DeleteFunction` calls in
+  the same hours. Before changing code: push a tag
+  `ai-cloudrun-deploy-inspect-<date>-<n>`, which only reads both services
+  (status, version, last deploy task); if both are `normal` with nothing
+  queued, wait and rerun the failed job. A failed attempt replaces neither
+  service. The upload is about 16 MB and normally takes 35 seconds.
+
 ## Latency
 
 - Every request from outside mainland China spends 0.6–3 s in the CloudBase
