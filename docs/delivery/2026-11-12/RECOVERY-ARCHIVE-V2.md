@@ -240,3 +240,25 @@ failed job was re-run on the same commit.
 The site delivery step went from 8.7 min (before) to 4.2 min (first schema 2 save) to
 2.9 min (unchanged pages). Per no-change deploy the recovery copy now costs a 5 s save
 plus the 13.7 s full read of the accepted copy, which schema 1 also did.
+
+## Incident: the first deploy with changed pages (Nov 12)
+
+The assistant session's deploy (release tip 13195c98, a CSS change touching every page)
+was the first to upload more than the head. It failed three times in site delivery,
+always before any write, so the live site was never changed:
+
+| Run | Failure | Cause | Fix |
+|---|---|---|---|
+| 43212545234 (two attempts) | uploads `ETIMEDOUT` at exactly 60 s | The archive COS client ran one file at a time (`FileParallelLimit: 1`) while schema 2 handed it up to 8 uploads; each deadline started at hand-over, so queued uploads expired before starting. Deploys 1 and 2 passed only because the link drained the queue in time | #88: the delivery's client runs 8 files at once; deadlines grow with object size; one retry per object |
+| 43217655741 | `Invalid archive transfer time limit` while reading the baseline | #88's sized deadline exceeded the transfer layer's 300 s maximum; its unit tests used a fake transport without that guard | #89: cap at `ARCHIVE_TRANSFER_MAX_MS`; a test through the real transfer layer and COS SDK; a dry run of the full 42-object save and restore through the real chain before deploying |
+| 43221879924 | passed | | |
+
+Run 43221879924 on a very slow link (~56 KB/s aggregate, a tenth of Nov 11): baseline read
+42 objects in 21.7 s; save reused the 9 large files and uploaded 33 objects (32 packs and
+the head, 33.5 MB) in 599 s, slowest object 147 s. Schema 1's single 83 MB upload under a
+300 s limit could not have passed on that link.
+
+Lessons: a deadline must start when the work starts, not while it waits in a queue below
+it; a change to deadlines or limits must be tested through the real layer that enforces
+them, not a fake; and a change to the delivery path should be dry-run through the real
+transfer chain on the real payload before it reaches `test`.
