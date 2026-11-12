@@ -681,3 +681,120 @@ test('concurrent archive uploads need a client that runs them at once, not a que
     ['fulfilled', 'fulfilled', 'fulfilled'],
   );
 });
+
+// Run 43217655741: sized deadlines above the transfer layer's 300 s maximum were refused.
+// This drives the private archive through the real transfer and SDK, not a fake transport.
+test('slow-link deadlines pass the real transfer layer for objects of every size', async (t) => {
+  const COS = createRequire(import.meta.url)('cos-nodejs-sdk-v5');
+  const { createPrivateArchive } = await import('./release/private-archive.mjs');
+  const directory = await mkdtemp(join(tmpdir(), 'archive-cos-deadline-'));
+  const objects = new Map();
+  const parts = new Map();
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = Buffer.concat(chunks);
+    const xml = (value) => {
+      res.setHeader('content-type', 'application/xml');
+      res.end(value);
+    };
+    if (req.method === 'GET' && url.searchParams.has('uploads'))
+      return xml(
+        '<ListMultipartUploadsResult><IsTruncated>false</IsTruncated></ListMultipartUploadsResult>',
+      );
+    if (req.method === 'POST' && url.searchParams.has('uploads'))
+      return xml(
+        '<InitiateMultipartUploadResult><UploadId>u</UploadId></InitiateMultipartUploadResult>',
+      );
+    if (req.method === 'PUT' && url.searchParams.has('partNumber')) {
+      parts.set(`${url.pathname}:${url.searchParams.get('partNumber')}`, body);
+      res.setHeader('etag', `"${createHash('md5').update(body).digest('hex')}"`);
+      return res.end();
+    }
+    if (req.method === 'POST' && url.searchParams.has('uploadId')) {
+      const mine = [...parts.entries()]
+        .filter(([key]) => key.startsWith(`${url.pathname}:`))
+        .sort((a, b) => Number(a[0].split(':').pop()) - Number(b[0].split(':').pop()));
+      objects.set(url.pathname, Buffer.concat(mine.map((entry) => entry[1])));
+      return xml(
+        '<CompleteMultipartUploadResult><ETag>"done"</ETag></CompleteMultipartUploadResult>',
+      );
+    }
+    if (req.method === 'PUT') {
+      objects.set(url.pathname, body);
+      res.setHeader('etag', '"done"');
+      return res.end();
+    }
+    const data = objects.get(url.pathname);
+    if (!data) {
+      res.statusCode = 404;
+      return res.end();
+    }
+    res.setHeader('etag', '"done"');
+    const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range ?? '');
+    if (req.method === 'GET' && range) {
+      const [start, end] = [Number(range[1]), Number(range[2])];
+      res.statusCode = 206;
+      res.setHeader('content-range', `bytes ${start}-${end}/${data.length}`);
+      res.setHeader('content-length', end - start + 1);
+      return res.end(data.subarray(start, end + 1));
+    }
+    res.setHeader('content-length', data.length);
+    res.end(req.method === 'HEAD' ? undefined : data);
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((done) => server.close(done));
+    await rm(directory, { recursive: true, force: true });
+  });
+  const policy = {
+    envId: 'fixture-env',
+    archiveBucket: 'fixture-env-1234567890',
+    region: 'ap-shanghai',
+  };
+  const cos = new COS({
+    SecretId: 'fixture',
+    SecretKey: 'fixture',
+    Protocol: 'http:',
+    Domain: `127.0.0.1:${server.address().port}`,
+    ...PARALLEL_ARCHIVE_COS_OPTIONS,
+    ConfCwd: directory,
+  });
+  const archive = createPrivateArchive({
+    ...createCosArchiveTransfer({ cos, policy }),
+    policy,
+    sdk: {
+      getUploadMetadata: async ({ cloudPath }) => ({
+        data: {
+          url: `https://${policy.archiveBucket}.cos.ap-shanghai.myqcloud.com/${cloudPath}`,
+          fileId: `cloud://fixture-env.${policy.archiveBucket}/${cloudPath}`,
+          cosFileId: 'fixture-meta',
+          authorization: 'fixture-authorization',
+          token: 'fixture-token',
+        },
+      }),
+    },
+    manager: {
+      permission: {
+        describeResourcePermission: async () => ({
+          Data: {
+            PermissionList: [
+              { Resource: policy.archiveBucket, ResourceType: 'storage', Permission: 'PRIVATE' },
+            ],
+          },
+        }),
+      },
+    },
+    readLifecycle: async () => ({ Rules: [] }),
+    slowLinkBytesPerSecond: 8 * 1024,
+    policyCacheMs: 600000,
+  });
+  for (const size of [100, 1024 * 1024, 3 * 1024 * 1024, 9 * 1024 * 1024]) {
+    const bytes = Buffer.alloc(size, size % 251);
+    const ref = await archive.put(bytes);
+    assert.equal((await archive.get(ref)).equals(bytes), true, `${size} bytes round trip`);
+    assert.equal((await archive.stat(ref)).bytes, size);
+  }
+});
