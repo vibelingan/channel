@@ -328,7 +328,17 @@ export function createSiteRetention({
             fresh.map((value, n) => ({ ...value, n })),
             ({ n }) => uploadParts(sizes[n]),
             async ({ index, n }) => {
-              const object = await objects.put(readFileSync(zips[n]));
+              const bytes = readFileSync(zips[n]);
+              // Keys are content-addressed and every put is read back, so one more attempt
+              // cannot store wrong bytes; COS resumes the parts that already arrived.
+              const object = await objects.put(bytes).catch((error) => {
+                onEvent({
+                  action: 'put-retried',
+                  key: plan[index].key,
+                  cause: error?.code ?? 'unconfirmed',
+                });
+                return objects.put(bytes);
+              });
               const version = await objects.stat(object);
               if (version.bytes !== object.bytes) throw Error('Retained object size differs');
               stored[index] = { object, etag: version.etag, via: 'upload' };

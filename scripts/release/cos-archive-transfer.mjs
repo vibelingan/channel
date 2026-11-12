@@ -10,6 +10,14 @@ export const ARCHIVE_COS_OPTIONS = Object.freeze({
   ChunkRetryTimes: 1,
 });
 
+// The SDK queues whole files at FileParallelLimit, while each transfer's deadline starts
+// when it is handed over. A caller running several transfers at once must let the SDK run
+// them all, or the queued ones time out before they start (run 43212545234).
+export const PARALLEL_ARCHIVE_COS_OPTIONS = Object.freeze({
+  ...ARCHIVE_COS_OPTIONS,
+  FileParallelLimit: 8,
+});
+
 /** Official SDK multipart/range transfers; the caller still checks private ACL, lifecycle and full SHA-256. */
 export function createCosArchiveTransfer({
   cos,

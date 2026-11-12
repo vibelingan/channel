@@ -5,9 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { configuration } from './release-hosting-fixtures.mjs';
+import {
+  ARCHIVE_COS_OPTIONS,
+  PARALLEL_ARCHIVE_COS_OPTIONS,
+} from './release/cos-archive-transfer.mjs';
 import { sha256 } from './release/input.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import {
+  UPLOAD_PART_BUDGET,
   createSiteRetention,
   mapByParts,
   retainedSiteProof,
@@ -328,4 +333,27 @@ test('uploads keep about eight 1 MiB parts in flight; a large multipart object g
     ),
     /failed 1/,
   );
+});
+test('a failed object upload is tried once more; a second failure stops before any record', async (t) => {
+  const x = setup(t);
+  const put = x.objects.put;
+  let failures = 1;
+  x.objects.put = async (bytes) => {
+    if (failures-- > 0) throw Object.assign(Error('timed out'), { code: 'ETIMEDOUT' });
+    return put(bytes);
+  };
+  await x.retention.save(x.input);
+  assert.ok(x.records.has('site-v2-111'));
+  assert.ok(x.events.some((e) => e.action === 'put-retried' && e.cause === 'ETIMEDOUT'));
+  const y = setup(t);
+  y.objects.put = async () => {
+    throw Error('upload needs readback');
+  };
+  await assert.rejects(y.retention.save(y.input), /needs readback/);
+  assert.equal(y.records.size, 0);
+});
+test('the delivery archive client runs as many files at once as retention moves', () => {
+  assert.ok(PARALLEL_ARCHIVE_COS_OPTIONS.FileParallelLimit >= UPLOAD_PART_BUDGET);
+  assert.ok(PARALLEL_ARCHIVE_COS_OPTIONS.FileParallelLimit >= 8, 'downloads run 8 at a time');
+  assert.equal(PARALLEL_ARCHIVE_COS_OPTIONS.Timeout, ARCHIVE_COS_OPTIONS.Timeout);
 });

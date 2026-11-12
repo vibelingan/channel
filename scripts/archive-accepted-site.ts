@@ -2,7 +2,10 @@ import { resolve } from 'node:path';
 import CloudBase from '@cloudbase/manager-node';
 import COS from 'cos-nodejs-sdk-v5';
 import { blogWorkerSdk } from './blog/worker-source.ts';
-import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import {
+  PARALLEL_ARCHIVE_COS_OPTIONS,
+  createCosArchiveTransfer,
+} from './release/cos-archive-transfer.mjs';
 import { createGithubReadClient } from './release/github-read.mjs';
 import { createPrivateArchive } from './release/private-archive.mjs';
 import {
@@ -47,7 +50,7 @@ try {
   const cos = new COS({
     SecretId: secretId,
     SecretKey: secretKey,
-    ...ARCHIVE_COS_OPTIONS,
+    ...PARALLEL_ARCHIVE_COS_OPTIONS,
   });
   const objects = createPrivateArchive({
     ...createCosArchiveTransfer({
@@ -61,6 +64,7 @@ try {
     readLifecycle: (params: COS.GetBucketLifecycleParams) => cos.getBucketLifecycle(params),
     onTransfer: (event: object) => diagnostic.observe({ kind: 'transfer', ...event }),
     policyCacheMs: 10 * 60 * 1000,
+    slowLinkBytesPerSecond: 8 * 1024,
   });
   const retention = createSiteRetention({ db, objects, policy });
   const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
