@@ -7,7 +7,11 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import {
+  ARCHIVE_COS_OPTIONS,
+  PARALLEL_ARCHIVE_COS_OPTIONS,
+  createCosArchiveTransfer,
+} from './release/cos-archive-transfer.mjs';
 
 // The real SDK handles task queues, HTTP bodies, multipart XML and Range writes. Only the COS server is local.
 test('the actual COS client uploads a small object, reads it, then completes a multipart archive and range read', async (t) => {
@@ -623,3 +627,57 @@ for (const retries of [0, 1])
       assert.deepEqual(f.errors, []);
     },
   );
+
+// Run 43212545234: uploads handed to a one-file-at-a-time client timed out while still queued.
+test('concurrent archive uploads need a client that runs them at once, not a queue under their deadlines', async (t) => {
+  const COS = createRequire(import.meta.url)('cos-nodejs-sdk-v5');
+  const directory = await mkdtemp(join(tmpdir(), 'archive-cos-parallel-'));
+  const server = createServer(async (req, res) => {
+    for await (const _ of req);
+    await new Promise((done) => setTimeout(done, 300));
+    res.setHeader('etag', '"complete"');
+    res.end();
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((done) => server.close(done));
+    await rm(directory, { recursive: true, force: true });
+  });
+  const policy = {
+    envId: 'fixture-env',
+    archiveBucket: 'fixture-env-1234567890',
+    region: 'ap-shanghai',
+  };
+  const credential = (hash) => ({
+    storageFileId: `cloud://${policy.envId}.${policy.archiveBucket}/seo-recovery/objects/${hash.repeat(64)}.bin`,
+    uploadUrl: `https://${policy.archiveBucket}.cos.ap-shanghai.myqcloud.com/seo-recovery/objects/${hash.repeat(64)}.bin`,
+    headers: { 'x-cos-meta-fileid': 'fixture-meta' },
+  });
+  const attempt = (options) => {
+    const cos = new COS({
+      SecretId: 'fixture',
+      SecretKey: 'fixture',
+      Protocol: 'http:',
+      Domain: `127.0.0.1:${server.address().port}`,
+      ...options,
+      ConfCwd: directory,
+    });
+    const transfer = createCosArchiveTransfer({ cos, policy });
+    return Promise.allSettled(
+      ['a', 'b', 'c'].map((hash) =>
+        transfer.put(credential(hash), Buffer.from(hash), { uploadTimeoutMs: 700 }),
+      ),
+    );
+  };
+  const queued = await attempt(ARCHIVE_COS_OPTIONS);
+  assert.ok(
+    queued.some((r) => r.status === 'rejected'),
+    'a queued upload ran out of time',
+  );
+  const parallel = await attempt(PARALLEL_ARCHIVE_COS_OPTIONS);
+  assert.deepEqual(
+    parallel.map((r) => r.status),
+    ['fulfilled', 'fulfilled', 'fulfilled'],
+  );
+});

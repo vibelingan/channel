@@ -873,3 +873,27 @@ test('the opt-in policy window checks the bucket once, again after the window, a
   await always.get(first);
   assert.equal(checks(), 5);
 });
+test('an opt-in slow-link rate sizes each deadline to its bytes, capped at 15 minutes', async () => {
+  const budgets = [];
+  const sized = (rate, bytes) => {
+    const x = setup();
+    const send = x.put;
+    x.put = async (credential, body, options) => {
+      budgets.push(options.uploadTimeoutMs);
+      return send(credential, body, options);
+    };
+    return createPrivateArchive({ ...x, policy, slowLinkBytesPerSecond: rate }).put(
+      Buffer.alloc(bytes, 1),
+    );
+  };
+  await sized(0, 1024 * 1024);
+  await sized(8 * 1024, 1024 * 1024);
+  await sized(8 * 1024, 100);
+  await sized(8 * 1024, 2 * 1024 * 1024);
+  await sized(1024, 9 * 1024 * 1024);
+  assert.deepEqual(budgets, [60000, 188000, 60013, 316000, 900000]);
+  assert.throws(
+    () => createPrivateArchive({ ...setup(), policy, slowLinkBytesPerSecond: 10 }),
+    /1 KiB/,
+  );
+});

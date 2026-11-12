@@ -85,6 +85,14 @@ upload/cleanup timings for making a deploy faster: the project skill
   re-uploading the missing objects.
 - The `site-retention` log line of each delivery says how many objects were
   reused or uploaded, and how many bytes were uploaded.
+- Symptom: `Private archive upload needs readback; website was not changed`
+  with several `private-archive-transfer` puts ending at exactly the deadline
+  (60 s) as `ETIMEDOUT`. Check the `private-archive-sdk` stages: if a put's
+  `task-started` comes long after its `task-ready`, the uploads were queued in
+  the COS client, not slow. Run 43212545234 failed this way: the client ran one
+  file at a time (`FileParallelLimit: 1`) while every deadline was already
+  running. Callers moving several objects use `PARALLEL_ARCHIVE_COS_OPTIONS` and
+  `slowLinkBytesPerSecond`; a failed object is tried once more.
 
 - *Deploy AI CloudRun* (tag `ai-cloudrun-deploy-*`) can fail at
   `cloudbase.manageCloudRun deploy` with nothing wrong in the commit. On

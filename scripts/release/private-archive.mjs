@@ -15,6 +15,7 @@ export function createPrivateArchive({
   onTransfer = (_event) => {},
   now = () => performance.now(),
   policyCacheMs = 0,
+  slowLinkBytesPerSecond = 0,
 }) {
   if (typeof put !== 'function' || typeof read !== 'function')
     throw Error('An explicit verified archive transport is required');
@@ -22,6 +23,11 @@ export function createPrivateArchive({
     throw Error('The exact private archive bucket is required');
   if (!Number.isSafeInteger(policyCacheMs) || policyCacheMs < 0 || policyCacheMs > 15 * 60000)
     throw Error('Archive policy cache window must be at most 15 minutes');
+  if (
+    !Number.isSafeInteger(slowLinkBytesPerSecond) ||
+    (slowLinkBytesPerSecond !== 0 && slowLinkBytesPerSecond < 1024)
+  )
+    throw Error('Archive slow-link rate must be 0 or at least 1 KiB/s');
   // Opt-in: a caller moving many objects in one process re-checks the bucket's privacy
   // and lifecycle once per window instead of twice per object. A failed check is never kept.
   let checkedPolicy = null;
@@ -82,7 +88,14 @@ export function createPrivateArchive({
     assertArchiveLifecycle(await bucketPolicy(bucket), path);
     return { bucket, path };
   };
-  const timeout = (bytes) => (bytes > 8 * 1024 * 1024 ? 300000 : 60000);
+  // Opt-in: a deadline that grows with the object, so a slow but moving link (one connection
+  // from the US has carried ~8 KB/s) is not cut off at a fixed 60 s; capped at 15 minutes.
+  const timeout = (bytes) => {
+    const fixed = bytes > 8 * 1024 * 1024 ? 300000 : 60000;
+    if (!slowLinkBytesPerSecond) return fixed;
+    const sized = 60000 + Math.ceil((bytes / slowLinkBytesPerSecond) * 1000);
+    return Math.min(15 * 60000, Math.max(fixed, sized));
+  };
   const observe = async (action, ref, operation) => {
     const started = Date.now();
     try {

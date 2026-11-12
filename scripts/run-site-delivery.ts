@@ -45,7 +45,10 @@ import { assertInitialCatalogRuntime } from './release/catalog-runtime-activatio
 import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
 import { assertStoppedFunctionsAbsent } from './release/catalog-stopped-evidence.mjs';
 import { recoverStoppedCatalogDelivery } from './release/catalog-stopped-recovery.mjs';
-import { ARCHIVE_COS_OPTIONS, createCosArchiveTransfer } from './release/cos-archive-transfer.mjs';
+import {
+  PARALLEL_ARCHIVE_COS_OPTIONS,
+  createCosArchiveTransfer,
+} from './release/cos-archive-transfer.mjs';
 import { createGithubReadClient } from './release/github-read.mjs';
 import { captureManagerHostingBackup } from './release/hosting-backup-reader.mjs';
 import { identity, sha256 } from './release/input.mjs';
@@ -126,7 +129,7 @@ const db = sdk.database();
 const archiveCos = new COS({
   SecretId: env.TENCENTCLOUD_SECRETID,
   SecretKey: env.TENCENTCLOUD_SECRETKEY,
-  ...ARCHIVE_COS_OPTIONS,
+  ...PARALLEL_ARCHIVE_COS_OPTIONS,
 });
 const objects = createPrivateArchive({
   ...createCosArchiveTransfer({
@@ -143,6 +146,7 @@ const objects = createPrivateArchive({
     console.log(JSON.stringify({ event: 'private-archive-transfer', ...event })),
   // One delivery moves ~40 recovery objects; check the bucket once per 10 minutes, not per object.
   policyCacheMs: 10 * 60 * 1000,
+  slowLinkBytesPerSecond: 8 * 1024,
 });
 const retention = createSiteRetention({
   db,
