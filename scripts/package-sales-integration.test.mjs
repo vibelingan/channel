@@ -117,7 +117,7 @@ test('committed Sales snapshot is packaged despite dirty input; only four runtim
     ]);
     assert.equal(readFileSync(f.source, 'utf8'), 'uncommitted-source');
   } finally {
-    if (previous === undefined) delete process.env.SALES_PRIVATE_FIXTURE;
+    if (previous === undefined) Reflect.deleteProperty(process.env, 'SALES_PRIVATE_FIXTURE');
     else process.env.SALES_PRIVATE_FIXTURE = previous;
   }
 });

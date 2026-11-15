@@ -90,7 +90,7 @@ test('SCF failures log only a fixed event and stage, never credentials or except
       });
       const response = await handler({
         method: 'POST',
-        url: '/?private=' + privateValue,
+        url: `/?private=${privateValue}`,
         headers: {
           ...platform(privateValue),
           ...(stage === 'platform_context' ? { 'x-scf-session-token': undefined } : {}),
