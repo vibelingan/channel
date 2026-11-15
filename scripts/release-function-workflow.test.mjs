@@ -32,6 +32,10 @@ test('all manual modes select exactly one job and retain the existing shared tar
     const selected = Object.entries(workflow.jobs)
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
+    if (mode === 'blog-publication-prepare') {
+      assert.deepEqual(selected, ['blog_publication_prepare']);
+      continue;
+    }
     if (mode === 'site-archive') {
       assert.deepEqual(selected, ['site_archive']);
       continue;
@@ -99,6 +103,14 @@ test('all manual modes select exactly one job and retain the existing shared tar
                                                     : 'canary',
     ]);
   }
+  assert.equal(
+    run(workflow.jobs.blog_publication_prepare.if, 'blog-publication-prepare', 'restore'),
+    false,
+  );
+  assert.equal(
+    run(workflow.jobs.blog_publication_prepare.if, 'blog-publication-prepare', 'publish'),
+    false,
+  );
   assert.equal(run(workflow.jobs.blog_images_prepare.if, 'blog-images-prepare', 'restore'), false);
   assert.equal(run(workflow.jobs.blog_images_prepare.if, 'blog-images-prepare', 'publish'), false);
   assert.equal(run(workflow.jobs.blog_formal_prepare.if, 'blog-formal-prepare', 'restore'), false);

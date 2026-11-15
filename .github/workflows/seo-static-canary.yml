@@ -600,7 +600,7 @@ jobs:
     secrets: inherit
 
   blog_publication_prepare:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-publication-prepare' }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-publication-prepare' && inputs.action == 'initialize' }}
     uses: ./.github/workflows/seo-blog-publication.yml
     with:
       expected_package: ${{ inputs.plan_token }}
