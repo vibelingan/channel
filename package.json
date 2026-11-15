@@ -66,6 +66,8 @@
     "cos-nodejs-sdk-v5": "2.15.4",
     "pg": "^8.23.0",
     "sax": "1.6.1",
+    "tencentcloud-sdk-nodejs-cam": "4.1.319",
+    "tencentcloud-sdk-nodejs-sts": "4.1.100",
     "typescript": "^5.6.3",
     "yaml": "2.9.0"
   }

@@ -37,7 +37,7 @@ import {
   type InquiryClient,
   InquiryRejected,
   InquirySubmissionChanged,
-  createInquiryClient,
+  configuredInquiryClient,
 } from './inquiry-client.ts';
 
 export interface AiBffConfig {
@@ -781,10 +781,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     isReady: () => ready,
     ...(process.env.AI_INQUIRY_ENABLED === '1'
       ? {
-          inquiryClient: createInquiryClient(
-            process.env.AI_INQUIRY_BASE_URL ?? '',
-            process.env.AI_INQUIRY_TOKEN ?? '',
-          ),
+          inquiryClient: configuredInquiryClient(),
         }
       : {}),
   });

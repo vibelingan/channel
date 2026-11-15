@@ -5,6 +5,7 @@ import {
   isInquiryRejectionReason,
   isInquirySubmissionReceipt,
 } from '@vibelingan-channel/ai-contracts/inquiry';
+import { createScfCamFetch } from '@vibelingan/tencent-service-auth';
 export class InquirySubmissionChanged extends Error {}
 /** The intake refused before saving anything; every other failure is unknown. */
 export class InquiryRejected extends Error {
@@ -102,4 +103,26 @@ async function readJson(response: Response): Promise<unknown> {
     reader.releaseLock();
   }
   return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+}
+
+/** Only the server bootstrap reads deployment credentials; never a browser request. */
+export function configuredInquiryClient(
+  env: Record<string, string | undefined> = process.env,
+): InquiryClient {
+  const base = env.AI_INQUIRY_BASE_URL ?? '';
+  if (env.AI_INQUIRY_AUTH_MODE !== 'scf-cam')
+    throw Error('SCF CAM inquiry authentication is required');
+  return createInquiryClient(
+    base,
+    env.AI_INQUIRY_TOKEN ?? '',
+    createScfCamFetch(
+      base,
+      {
+        secretId: env.SALES_CAM_SECRET_ID ?? '',
+        secretKey: env.SALES_CAM_SECRET_KEY ?? '',
+        ...(env.SALES_CAM_SESSION_TOKEN ? { sessionToken: env.SALES_CAM_SESSION_TOKEN } : {}),
+      },
+      env.SALES_CAM_UIN ?? '',
+    ),
+  );
 }

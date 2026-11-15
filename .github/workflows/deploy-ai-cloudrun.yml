@@ -105,6 +105,8 @@ jobs:
         run: pnpm test:ai
 
   deploy:
+    # This tag is handled by the read-only IAM inspection workflow, never deploy.
+    if: ${{ !startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-identity-') }}
     name: Deploy and verify ai-bff and ai-worker
     needs: verify
     runs-on: ubuntu-latest

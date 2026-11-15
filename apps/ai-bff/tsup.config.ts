@@ -12,6 +12,7 @@ export default defineConfig({
   // amount of type-checking or unit testing reaches, because it only exists in
   // the built artifact. scripts/check-ai-runtime-bundle.mjs is what catches it.
   noExternal: [
+    '@vibelingan/tencent-service-auth',
     '@vibelingan-channel/ai-contracts',
     '@vibelingan-channel/ai-engine',
     '@vibelingan-channel/ai-store',

@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+2026-11-16 现有 Sales 询盘部署与真实验收已按用户要求恢复推进，当前记录见 [官网询盘到 Sales 修复记录](../sales-agent/verification/LIVE-SCF-WIRING-20261116.zh-CN.md)。该记录更新本页下面 11 月 10 日“仅设计”的旧范围；不改变 SEO／Blog 的交付状态。代码、本机检查与线上完整验收分别记录，尚未把新询盘流程写成验收通过。
+
 AI／Sales／Apollo本轮仅做规整与设计评审，入口为[统一评审稿](../ai-platform/review-20261110/README.zh-CN.md)。交付分支统一为`release/assistant-seo-20261104`；不因此发布官网或修改本页其他交付状态。
 
 2026-11-09 官网旧版聊天回复修复：代码 `0b9a78f6` 已经正常发布到 supplychainsai.com，[42582880958](https://github.com/vibelingan/channel/actions/runs/42582880958) 的部署、托管读回和后台冒烟作业成功，受控交付 `site-42582880958-1` 已接受。根因是后台只返回最终正文时，旧组件没有显示它，留下省略号；本次补齐最终正文、空答案提示和立即显示的 Thinking。官网真实桌面／手机尺寸五项问答均收到回复（3.4–10.1 秒），用户原 Chrome 标签页也已复测；未使用本地 API 或数据库替代线上。为保留既有入口，`PUBLIC_AI_CHAT_V2` 从待发布的 `1` 改为 `0`；询盘和 Sales 开关保留原值，没有启用整套新 UI、重启 AI／Hermes Agent 或发邮件。新卡片、询盘交互及完整 Sales 流程仍须分别验收。详见[修复及真实官网结果](../ai-platform/assistant-ui/README.md#已发布与真实官网复验)。下方 11 月 7 日及更早状态保留作历史记录，不能覆盖本次上线结果。
