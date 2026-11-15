@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, matchesGlob } from 'node:path';
 import test from 'node:test';
@@ -622,4 +622,31 @@ test('documentation-only pushes avoid live deployment while code, workflows and 
   ])
     assert.equal(deploys(['docs/note.md', file]), true, file);
   assert(workflow('deploy-test').on.workflow_dispatch);
+});
+
+test('every job that installs Playwright WebKit turns core dumps off before using it', () => {
+  // WebKit's helper process sometimes segfaults on a runner. A dump of it stalls the disk for
+  // about 20 seconds and times out whatever test is running (docs/agents/ci-test-flakes.md).
+  const directory = new URL('../.github/workflows/', import.meta.url);
+  let checked = 0;
+  for (const file of readdirSync(directory).filter((name) => name.endsWith('.yml'))) {
+    const jobs = parse(readFileSync(new URL(file, directory), 'utf8')).jobs ?? {};
+    for (const [name, job] of Object.entries(jobs)) {
+      const steps = job.steps ?? [];
+      const install = steps.findIndex(
+        (step) => /playwright install\b/.test(step.run ?? '') && /\bwebkit\b/.test(step.run),
+      );
+      if (install < 0) continue;
+      checked += 1;
+      const guard = steps.findIndex(
+        (step) =>
+          step.run ===
+          'sudo sysctl -w kernel.core_pattern=core\ntest "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }\n',
+      );
+      assert.ok(guard >= 0, `${file} job ${name} installs WebKit without turning core dumps off`);
+      assert.equal(guard, install + 1, `${file} job ${name}: the guard follows the install step`);
+      assert.equal(steps[guard].if, steps[install].if, `${file} job ${name}: same condition`);
+    }
+  }
+  assert.ok(checked >= 5, 'expected the workflows that use WebKit to be found');
 });

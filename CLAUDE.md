@@ -23,7 +23,7 @@ The "Ask our AI" widget: which services run it, how the read-only knowledge key 
 
 ### Intermittent CI test failures
 
-A test that fails on CI and passes on rerun: known causes with the log lines that identify them, and the steps (failed-attempt log, CI loop with monitors, probes, A/B) that find a new one. Do not create or edit files under `apps/site` while its browser unit tests run. See `docs/agents/ci-test-flakes.md`.
+A test that fails on CI and passes on rerun: start with the symptom table (what the failed log shows, the likely cause, how to confirm it), then the known causes, the signals that misled earlier investigations, and the steps (failed-attempt log, CI loop with monitors, probes, A/B) that find a new cause. Keep scratch files out of `apps/site` while its browser unit tests run. See `docs/agents/ci-test-flakes.md`.
 
 ### Domain docs
 

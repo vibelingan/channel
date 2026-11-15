@@ -417,6 +417,7 @@ For every guarantee in a spec, name the mechanism that enforces it and check the
 ---
 
 ## [LRN-20261111-001] best_practice
+<!-- consolidated: 2026-11-12 verdict=new-pattern target=e2e-test-resilience/ci-only-flake-measure-on-ci-then-ab -->
 
 **Logged**: 2026-11-11T11:00:00Z
 **Priority**: high
@@ -437,6 +438,14 @@ What was wrong along the way, each disproved only by measurement:
 What located the cause: one line per second from the test's own Node process with time on CPU, time waiting for a CPU (`/proc/self/schedstat`) and pressure-stall figures (`/proc/pressure/*`). Low CPU time with no waiting and rising I/O pressure means "blocked on disk"; `vmstat` showed 250 to 590 MB written per second and `fatrace -f W` named the writer. A CPU profile alone was misleading: its samples were spread over ordinary functions because the thread was stopped wherever it happened to be.
 
 Measured: 17 of 99 unfixed runs failed with two test files running at once, 0 of 20 with the file alone, 0 of 45 with the fix.
+
+Follow-up on 2026-11-12, closing what the first pass left open:
+
+- The guard had gone into one workflow. Four others install the same browser, and one of them runs the same tests. It is now in all five, and a test walks every workflow file so a sixth cannot omit it.
+- The local-only reload weakness was fixed in the ten tests that start a dev server, with a test that fails if an eleventh forgets (5 of 5 passes under the trigger, 0 of 2 without).
+- An attempt to stop the crash itself by forcing CPU rendering cut it from 13 to 5 crashes in 15 runs and did not end it. It was not adopted: with no dump the crash costs nothing, and the setting changes what the tests render with.
+- With all of it, 75 of 75 CI runs passed.
+- The project runbook was reshaped from a narrative into a table that routes from the text in a failed log to the likely cause, plus a list of the signals that misled.
 
 ### Suggested Action
 For a failure that appears only on CI: read the log of the failed attempt, then stop reproducing locally after two or three clean loops and loop the real CI command on CI from a temporary branch, with the same parallelism CI uses. Put timing probes around each request and one scheduler/pressure line per second in the process that is slow, and run `vmstat`, `top` and `fatrace` beside it. Let those decide between "computing", "waiting for a CPU", "blocked on I/O" and "the page reloaded" before forming a theory. Run every candidate fix as one arm of the same loop next to an unchanged arm. Keep scratch files out of any directory a dev server or watcher under test can see.

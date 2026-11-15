@@ -113,7 +113,9 @@ test(
           },
         },
       ],
-      server: { host: '127.0.0.1', port: 0 },
+      // No live reload: a file changed under apps/site must not reload the page mid-test
+      // (docs/agents/ci-test-flakes.md).
+      server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
     });
     let closeBrowser = async () => {};
     t.after(async () => {

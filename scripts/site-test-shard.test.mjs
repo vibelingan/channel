@@ -32,3 +32,20 @@ test('a new site test file lands in the rest shard, and a missing heavy file sto
   assert.throws(() => siteTestShard('heavy', ['src/new-feature.test.ts']), /missing/);
   assert.throws(() => siteTestShard('all', files), /heavy or rest/);
 });
+
+test('every site test that starts a Vite dev server turns live reload off', () => {
+  // The Tailwind plugin reloads the page, without logging, when any scanned file under
+  // apps/site changes. A test page must not reload because someone saved a file
+  // (docs/agents/ci-test-flakes.md).
+  const servers = siteTestFiles().filter((path) =>
+    /\bcreateServer\(/.test(readFileSync(`apps/site/${path}`, 'utf8')),
+  );
+  assert.ok(servers.length >= 10, 'expected the browser unit tests to be found');
+  for (const path of servers) {
+    const source = readFileSync(`apps/site/${path}`, 'utf8');
+    const settings = source.match(/\bserver: \{[^}]*\}/g) ?? [];
+    assert.equal(settings.length, 1, `${path} should configure its dev server once`);
+    assert.match(settings[0], /\bhmr: false\b/, `${path} must set hmr: false`);
+    assert.match(settings[0], /\bwatch: null\b/, `${path} must set watch: null`);
+  }
+});

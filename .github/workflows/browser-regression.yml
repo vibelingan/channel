@@ -85,6 +85,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium webkit
+      # A crashed WebKit helper must not write a core dump: it stalls the runner's disk for
+      # about 20 seconds and times out whatever is running (docs/agents/ci-test-flakes.md).
+      - name: Keep crashed browser helpers from writing core dumps
+        run: |
+          sudo sysctl -w kernel.core_pattern=core
+          test "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }
       - name: Exercise the built site and isolated local services
         run: pnpm test:e2e:catalog-admin-local
       - name: Preserve failed local browser evidence
