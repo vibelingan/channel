@@ -607,8 +607,9 @@ jobs:
     secrets: inherit
 
   image_delivery_prepare:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-delivery-prepare' && inputs.action == 'initialize' }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-delivery-prepare' && (inputs.action == 'initialize' || inputs.action == 'restore') }}
     uses: ./.github/workflows/seo-image-delivery.yml
     with:
+      operation: ${{ inputs.action == 'restore' && 'restore' || 'prepare' }}
       expected_package: ${{ inputs.plan_token }}
     secrets: inherit
