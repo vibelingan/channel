@@ -1714,7 +1714,29 @@ try {
     'article repository passes actual SDK transport, retry, projection and failure contracts',
   );
 } catch (error) {
-  record(false, 'article repository actual SDK transport contracts', error.message);
+  // A timeout must retain which tests actually finished. Only TAP progress is
+  // included; do not dump child environments, provider responses or credentials.
+  const progress = String(error.stdout ?? '')
+    .split('\n')
+    .filter((line) =>
+      /^(?:# (?:Subtest:|tests |pass |fail |skipped |duration_ms )|(?:not )?ok \d)/.test(line),
+    )
+    .slice(-12)
+    .join(' | ');
+  const code =
+    typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code)
+      ? error.code
+      : 'CHILD_FAILURE';
+  const status = Number.isInteger(error.status) ? error.status : 'unknown';
+  const signal =
+    typeof error.signal === 'string' && /^SIG[A-Z0-9]{1,20}$/.test(error.signal)
+      ? error.signal
+      : 'none';
+  record(
+    false,
+    'article repository actual SDK transport contracts',
+    `Child check failed (code=${code}, status=${status}, signal=${signal})${progress ? `; completed child TAP: ${progress}` : '; no child TAP progress received'}`,
+  );
 }
 
 const failures = results.filter((result) => !result.ok);

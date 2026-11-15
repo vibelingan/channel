@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { CatalogPage, Product } from '../../apps/site/src/islands/shop/catalog-types.ts';
+import { catalogPageLink } from './helpers/catalog-pagination';
 
 // @skip-when Local preview opt-in is off; the isolated shared-product-ui config enables this suite.
 test.skip(process.env.E2E_SHARED_DETAIL_PREVIEW !== '1', 'Requires the isolated local preview');
@@ -126,7 +127,7 @@ test('a loaded second page and non-default category filter survive return withou
   await page.getByRole('checkbox', { name: 'Office Headphones', exact: true }).uncheck();
   await expect.poll(() => queries.at(-1)).toContain('category=bluetooth%2Cwired');
   await expect(page.locator('[data-product-card]')).toHaveCount(12);
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await catalogPageLink(page, 'Next page').click();
   await expect(page.locator('[data-result-progress]')).toHaveText('13\u201324 of 25 products');
   await expect(page.locator('[data-product-card]')).toHaveCount(12);
   await expect(page.locator('[data-product-card="pagination-fixture-0"]')).toHaveCount(0);

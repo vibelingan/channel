@@ -430,13 +430,15 @@ function CatalogFamilyController({
       const current = stateRef.current;
       // A page-shrink retry changes requested.page while the address still names
       // the original page. Taxonomy/hydration updates must not restart that request.
+      // Real Back/Forward events must still supersede a pending page click.
       if (
+        !event &&
         current.pending &&
         abortRef.current &&
         !abortRef.current.signal.aborted &&
         requestQueryRef.current &&
         (catalogQueryEquals(requestQueryRef.current, query) ||
-          (!event && current.committed && catalogQueryEquals(current.committed, query)))
+          (current.committed && catalogQueryEquals(current.committed, query)))
       )
         return;
       if (

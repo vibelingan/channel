@@ -36,8 +36,11 @@ export function categoryPageIdentity(
     page: createPageDescriptor({
       path: data.path,
       kind: 'collection',
-      title: `${family.seoTitle}${suffix} | ${brand}`,
-      description: `${family.seoDescription}${data.page > 1 ? ` Page ${data.page} of ${data.pageCount}.` : ''}`,
+      title: `${data.page > 1 ? `${family.label}${suffix}` : family.seoTitle} | ${brand}`,
+      description:
+        data.page > 1
+          ? `${family.description} Page ${data.page} of ${data.pageCount}.`
+          : family.seoDescription,
       content: { source: 'public-catalog-category', revision: data.revision },
       schemaNodes: [catalogBreadcrumbSchema(breadcrumbs, origin)],
     }),

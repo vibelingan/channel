@@ -7,6 +7,8 @@ import type { Node as AstroNode, ComponentNode } from '@astrojs/compiler/types';
 import ts from 'typescript';
 import { parseDocument } from 'yaml';
 import { includeInSitemap, isSitemapPathIncluded } from '../../astro.config.ts';
+import type { CatalogFamilyContent } from '../i18n/catalog.ts';
+import { categoryPageIdentity } from './seo/category-page-metadata.ts';
 
 const read = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
@@ -31,7 +33,7 @@ const parseFrontmatter = (relativePath: string) => {
     brand?: { name: string };
     meta?: { title: string; description: string };
     hub?: { seoTitle: string; seoDescription: string };
-    families?: Array<{ key: string; seoTitle: string; seoDescription: string }>;
+    families?: CatalogFamilyContent[];
   };
 };
 
@@ -217,6 +219,7 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       ...metadata.map(({ name }) => `${name === 'home' ? 'index' : name}.astro`),
       'products/[publicKey].astro',
       'blog/[...slug].astro',
+      '[family]/page/[page].astro',
     ].sort(),
     routablePublicPages,
     'every discovered public route has audited metadata',
@@ -272,6 +275,54 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'meta.description',
     }),
   ]);
+});
+
+test('category pagination binds its audited descriptor and keeps unique concise metadata', async () => {
+  const { ast, diagnostics } = await parse(read('../pages/[family]/page/[page].astro'));
+  assert.deepEqual(diagnostics, []);
+  const layouts: ComponentNode[] = [];
+  const visit = (node: AstroNode) => {
+    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if ('children' in node) for (const child of node.children) visit(child);
+  };
+  visit(ast);
+  assert.equal(layouts.length, 1);
+  assert.deepEqual(
+    layouts[0].attributes.map(({ name, kind, value }) => ({ name, kind, value })),
+    [{ name: 'page', kind: 'expression', value: 'page' }],
+  );
+  const site = parseFrontmatter('../i18n/content/en-US.md');
+  assert.ok(site.brand);
+  const titles = new Set<string>();
+  const descriptions = new Set<string>();
+  const catalog = parseFrontmatter('../i18n/content/catalog/en-US.md');
+  assert.ok(catalog.families);
+  for (const family of catalog.families) {
+    for (const number of [2, 3, 99]) {
+      const path = `${family.href}page/${number}/`;
+      const { page } = categoryPageIdentity(
+        family,
+        {
+          page: number,
+          pageCount: 99,
+          path,
+          revision: 'a'.repeat(64),
+        },
+        site.brand.name,
+        'https://example.test',
+      );
+      assert.equal(page.canonicalPath, path);
+      assert.ok(page.title.length <= 60, `${path} title is ${page.title.length} characters`);
+      assert.ok(
+        page.description.length <= 160,
+        `${path} description is ${page.description.length} characters`,
+      );
+      assert.ok(!titles.has(page.title));
+      assert.ok(!descriptions.has(page.description));
+      titles.add(page.title);
+      descriptions.add(page.description);
+    }
+  }
 });
 
 test('standard product route binds the validated public page descriptor to BaseLayout', async () => {

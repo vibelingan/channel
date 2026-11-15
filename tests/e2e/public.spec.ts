@@ -6,6 +6,11 @@ import type { SessionUser } from '../../packages/shared/src/auth.ts';
 import { isProductFamily } from '../../packages/shared/src/catalog-product.ts';
 import { initialCatalogTaxonomy } from '../../packages/shared/src/catalog-taxonomy.ts';
 import { mockCatalogTaxonomy } from './helpers/admin-api';
+import {
+  catalogPageControl,
+  catalogPageLink,
+  catalogPageNumber,
+} from './helpers/catalog-pagination';
 import { e2e } from './helpers/env';
 
 const cardTypographyCatalog = {
@@ -1552,21 +1557,38 @@ test.describe('public browser smoke', () => {
     await expect(advancedImage).toHaveAttribute('src', new RegExp(heroSourceIds[1]));
     await page.unroute('**/api/images/**');
 
-    // Force ALL sources to 404: the terminal fallback must appear WITHOUT a
-    // request loop (each source tried at most once).
-    const heroRequestCounts = new Map<string, number>();
-    await page.route('**/api/images/**', (route) => {
-      const url = new URL(route.request().url());
-      heroRequestCounts.set(url.pathname, (heroRequestCounts.get(url.pathname) ?? 0) + 1);
-      return route.fulfill({ status: 404, contentType: 'text/plain', body: 'gone' });
+    // Product cards may share hero URLs in the initial HTML. Capture only hero
+    // image failures, before parsing begins, rather than counting both owners'
+    // network requests as one component's retries.
+    await page.addInitScript(() => {
+      const failures: string[] = [];
+      Object.defineProperty(window, '__heroImageFailures', { get: () => [...failures] });
+      document.addEventListener(
+        'error',
+        (event) => {
+          const image = event.target;
+          if (image instanceof HTMLImageElement && image.closest('[data-hero-media]'))
+            failures.push(new URL(image.currentSrc || image.src, location.href).pathname);
+        },
+        true,
+      );
     });
+    // Force ALL sources to 404: the terminal fallback must appear WITHOUT a
+    // request loop, with each hero source failing exactly once and in order.
+    await page.route('**/api/images/**', (route) =>
+      route.fulfill({ status: 404, contentType: 'text/plain', body: 'gone' }),
+    );
     await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
     await expect(heroMedia.locator('[data-product-media="fallback"]')).toBeVisible();
     await expect(heroMedia.locator('[data-product-media="image"]')).toHaveCount(0);
-    for (const [pathname, count] of heroRequestCounts) {
-      expect(count, `no request loop for ${pathname}`).toBeLessThanOrEqual(1);
-    }
+    await expect(
+      page.locator('p:not(.sr-only)', { hasText: 'No products match these filters.' }),
+    ).toBeVisible();
+    await expect(page.locator('[data-product-card]')).toHaveCount(0);
+    expect(await page.evaluate(() => Reflect.get(window, '__heroImageFailures'))).toEqual(
+      heroSourceIds.map((id) => `/api/images/${id}`),
+    );
     await page.unroute('**/api/images/**');
   });
 
@@ -1613,14 +1635,14 @@ test.describe('public browser smoke', () => {
     await ensureApplicationPage(page);
 
     const cards = page.locator('[data-product-card]');
-    const nextPage = page.getByRole('button', { name: 'Next page', exact: true });
+    const nextPage = catalogPageLink(page, 'Next page');
     await expect(cards).toHaveCount(12);
     // Exactly one initial catalog call, and it asks for 12 items.
     expect(catalogRequests).toHaveLength(1);
     expect(catalogRequests[0]).toContain('pageSize=12');
     expect(catalogRequests[0]).toContain('page=1');
     await expect(page.locator('[data-result-progress]')).toHaveText('1\u201312 of 25 products');
-    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('1');
+    await expect.poll(() => catalogPageNumber(new URL(page.url()))).toBe(1);
 
     failNextPage = true;
     await nextPage.click();
@@ -1628,7 +1650,7 @@ test.describe('public browser smoke', () => {
     await expect(cards).toHaveCount(12);
     await expect(cards.first()).toBeEnabled();
     await expect(nextPage).toBeEnabled();
-    expect(new URL(page.url()).searchParams.get('page')).toBe('1');
+    expect(catalogPageNumber(new URL(page.url()))).toBe(1);
 
     await page.getByRole('button', { name: 'Try Again', exact: true }).click();
     await expect(cards).toHaveCount(12);
@@ -1636,7 +1658,7 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('[data-product-card="miu13-p1"]')).toHaveCount(0);
     await expect(page.locator('[data-result-progress]')).toHaveText('13\u201324 of 25 products');
     await expect(page.getByRole('alert')).toHaveCount(0);
-    expect(new URL(page.url()).searchParams.get('page')).toBe('2');
+    expect(catalogPageNumber(new URL(page.url()))).toBe(2);
     expect(catalogRequests.at(-1)).toContain('page=2');
     // Every rendered card id is unique.
     const ids = await cards.evaluateAll((nodes) =>
@@ -1644,11 +1666,12 @@ test.describe('public browser smoke', () => {
     );
     expect(new Set(ids).size).toBe(ids.length);
 
-    await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+    await catalogPageLink(page, 'Page 3').click();
     await expect(cards).toHaveCount(1);
     await expect(cards.first()).toHaveAttribute('data-product-card', 'miu13-p25');
     await expect(page.locator('[data-result-progress]')).toHaveText('25\u201325 of 25 products');
-    await expect(nextPage).toBeDisabled();
+    await expect(catalogPageControl(page, 'Next page')).toHaveAttribute('aria-disabled', 'true');
+    await expect(catalogPageControl(page, 'Next page')).not.toHaveAttribute('href');
 
     await page.unroute('**/api/products?**');
   });
