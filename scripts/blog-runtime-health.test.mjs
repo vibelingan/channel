@@ -26,7 +26,7 @@ test('a wrong service, local version, bad environment or unplanned function cann
     readFunctionRuntimeVersion('reviewed-env', 'public-api', async () => response('admin')),
   );
   await assert.rejects(readFunctionRuntimeVersion('../another', 'admin'));
-  await assert.rejects(readFunctionRuntimeVersion('reviewed-env', 'alibaba-catalog-sync'));
+  await assert.rejects(readFunctionRuntimeVersion('reviewed-env', 'other-app'));
   await assert.rejects(
     readFunctionRuntimeVersion('reviewed-env', 'admin', async () => ({
       status: 200,
@@ -35,4 +35,23 @@ test('a wrong service, local version, bad environment or unplanned function cann
       ),
     })),
   );
+});
+
+test('synchronization health uses only its fixed existing endpoint', async () => {
+  const calls = [];
+  const result = await readFunctionRuntimeVersion(
+    'reviewed-env',
+    'alibaba-catalog-sync',
+    async (method, url) => {
+      calls.push({ method, url });
+      return response('alibaba-catalog-sync');
+    },
+  );
+  assert.equal(result, sha);
+  assert.deepEqual(calls, [
+    {
+      method: 'GET',
+      url: 'https://reviewed-env.service.tcloudbase.com/api/alibaba-catalog-sync/health',
+    },
+  ]);
 });

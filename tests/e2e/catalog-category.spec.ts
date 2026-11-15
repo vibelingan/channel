@@ -5,6 +5,12 @@ import type {
   ProductFamily,
 } from '../../apps/site/src/islands/shop/catalog-types.ts';
 import { mockCatalogTaxonomy } from './helpers/admin-api';
+import {
+  catalogPageControl,
+  catalogPageLink,
+  catalogPageNumber,
+  catalogPagination,
+} from './helpers/catalog-pagination';
 
 test.beforeEach(async ({ page }) => {
   await mockCatalogTaxonomy(page);
@@ -65,7 +71,9 @@ test('catalog loading motion is disabled for reduced-motion users', async ({ bro
   });
 
   try {
-    await page.goto('/ai-gadgets/');
+    // The unfiltered page already has SSG cards and keeps them while refreshing.
+    // A filtered request has no matching snapshot and must show the loading UI.
+    await page.goto('/ai-gadgets/?search=reduced-motion-fixture');
     const skeleton = page.locator('.animate-pulse').first();
     await expect(skeleton).toBeVisible();
     await expect(skeleton).toHaveCSS('animation-name', 'none');
@@ -180,11 +188,12 @@ async function expectPage(page: Page, family: ProductFamily, number: number) {
   await expect(page.locator('[data-result-progress]')).toHaveText(
     `${start}\u2013${end} of 25 products`,
   );
-  await expect(page.getByRole('button', { name: `Page ${number}`, exact: true })).toHaveAttribute(
-    'aria-current',
-    'page',
+  await expect(catalogPageControl(page, `Page ${number}`)).toHaveAttribute('aria-current', 'page');
+  await expect(page).toHaveURL(
+    (url) =>
+      (url.pathname === `/${family}/` || url.pathname === `/${family}/page/${number}/`) &&
+      catalogPageNumber(url) === number,
   );
-  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe(String(number));
 }
 
 for (const family of families) {
@@ -194,14 +203,19 @@ for (const family of families) {
     const requests = await mockCatalog(page, family);
     await page.goto(`/${family}/`);
     await expectPage(page, family, 1);
-    await expect(page.getByRole('button', { name: 'Previous page', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(catalogPageControl(page, 'Previous page')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await expect(catalogPageControl(page, 'Previous page')).not.toHaveAttribute('href');
+    await catalogPageLink(page, 'Next page').click();
     await expectPage(page, family, 2);
     await expect(page.locator(`[data-product-card="${family}-1"]`)).toHaveCount(0);
     await expect(page.locator('[data-catalog-list-top]')).toBeFocused();
-    await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+    await catalogPageLink(page, 'Page 3').click();
     await expectPage(page, family, 3);
-    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+    await expect(catalogPageControl(page, 'Next page')).toHaveAttribute('aria-disabled', 'true');
+    await expect(catalogPageControl(page, 'Next page')).not.toHaveAttribute('href');
     await page.reload();
     await expectPage(page, family, 3);
     expect(requests.at(-1)?.searchParams.get('page')).toBe('3');
@@ -209,7 +223,7 @@ for (const family of families) {
     await expectPage(page, family, 2);
     await page.goForward();
     await expectPage(page, family, 3);
-    await page.getByRole('button', { name: 'Previous page', exact: true }).click();
+    await catalogPageLink(page, 'Previous page').click();
     await expectPage(page, family, 2);
     await page.getByRole('searchbox', { name: 'Search products' }).fill('Catalog');
     await expectPage(page, family, 1);
@@ -252,12 +266,12 @@ test('Headphones category and search reset page one; no selected categories stay
   await expect
     .poll(() => new URL(page.url()).searchParams.get('category'))
     .toBe('headphones-bluetooth,headphones-wired');
-  await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+  await catalogPageLink(page, 'Page 2').click();
   await expectPage(page, 'headphones', 2);
   await page.getByRole('searchbox').fill('25');
   await expect(page.locator('[data-product-card]')).toHaveCount(1);
   await expect(page.locator('[data-result-progress]')).toHaveText('1\u20131 of 1 products');
-  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('1');
+  await expect.poll(() => catalogPageNumber(new URL(page.url()))).toBe(1);
   await page.getByRole('searchbox').fill('');
   await expectPage(page, 'headphones', 1);
   for (const checkbox of await page.getByRole('checkbox').all()) await checkbox.uncheck();
@@ -294,11 +308,12 @@ test('Headphones all-category URL commits after the identical-card response', as
     await expectPage(page, 'headphones', 1);
     expect(new URL(page.url()).searchParams.get('category')).toBe(categories);
     await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(3);
-    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+    await expect(catalogPageControl(page, 'Next page')).toHaveAttribute('aria-disabled', 'true');
+    await expect(catalogPageControl(page, 'Next page')).not.toHaveAttribute('href');
     release.resolve();
     await expect(page).toHaveURL((url) => !url.searchParams.has('category'));
     await expectPage(page, 'headphones', 1);
-    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeEnabled();
+    await expect(catalogPageLink(page, 'Next page')).toHaveAttribute('href', /[?&]page=2(?:&|$)/);
     expect(requests.at(-1)?.searchParams.has('subcategoryIds')).toBe(false);
   } finally {
     release.resolve();
@@ -321,10 +336,14 @@ test('page-two failure retains page-one URL and clickable cards; retry replaces 
   try {
     await page.goto('/headphones/?page=1');
     await expectPage(page, 'headphones', 1);
-    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await catalogPageLink(page, 'Next page').click();
     await started.promise;
-    const controls = page.getByRole('navigation', { name: 'Pagination' }).getByRole('button');
-    for (const control of await controls.all()) await expect(control).toBeDisabled();
+    const controls = catalogPagination(page).locator(':scope > [aria-label]');
+    await expect(controls).toHaveCount(5);
+    for (const control of await controls.all()) {
+      await expect(control).toHaveAttribute('aria-disabled', 'true');
+      await expect(control).not.toHaveAttribute('href');
+    }
     release.resolve();
     await expect(page.getByRole('alert')).toBeVisible();
     await expectPage(page, 'headphones', 1);
@@ -350,15 +369,15 @@ test('history Back failure keeps the desired page URL with an error instead of r
   );
   await page.goto('/headphones/?page=1');
   await expectPage(page, 'headphones', 1);
-  await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+  await catalogPageLink(page, 'Page 2').click();
   await expectPage(page, 'headphones', 2);
-  await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+  await catalogPageLink(page, 'Page 3').click();
   await expectPage(page, 'headphones', 3);
   failBack = true;
   await page.goBack();
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.locator('[data-product-card]')).toHaveCount(0);
-  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('2');
+  await expect.poll(() => catalogPageNumber(new URL(page.url()))).toBe(2);
   failBack = false;
   await page.getByRole('button', { name: 'Try Again', exact: true }).click();
   await expectPage(page, 'headphones', 2);
@@ -380,17 +399,21 @@ test('history Back supersedes a matching pending page click when both requests f
   try {
     await page.goto('/headphones/?page=1');
     await expectPage(page, 'headphones', 1);
-    await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+    await catalogPageLink(page, 'Page 2').click();
     await expectPage(page, 'headphones', 2);
-    await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+    await catalogPageLink(page, 'Page 3').click();
     await expectPage(page, 'headphones', 3);
-    await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+    await catalogPageLink(page, 'Page 2').click();
     await expect.poll(() => pageTwoRequests).toBe(2);
     await page.goBack();
-    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('2');
+    await expect.poll(() => catalogPageNumber(new URL(page.url()))).toBe(2);
+    // History owns a new request with no stale committed page to restore on
+    // failure. Merely changing the address while keeping the click is unsafe.
+    await expect.poll(() => pageTwoRequests).toBe(3);
+    await expect(page.locator('[data-product-card]')).toHaveCount(0);
     release.resolve();
     await expect(page.getByRole('alert')).toBeVisible();
-    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('2');
+    await expect.poll(() => catalogPageNumber(new URL(page.url()))).toBe(2);
     await expect(page.locator('[data-product-card]')).toHaveCount(0);
     fail = false;
     await page.getByRole('button', { name: 'Try Again', exact: true }).click();
@@ -510,12 +533,14 @@ for (const width of [320, 390, 1440]) {
     await page.goto('/headphones/?page=1');
     await expectPage(page, 'headphones', 1);
     expect(await page.evaluate(() => window.innerWidth)).toBe(width);
-    const pagination = page.getByRole('navigation', { name: 'Pagination' });
+    const pagination = catalogPagination(page);
     await pagination.scrollIntoViewIfNeeded();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-    for (const control of await pagination.getByRole('button').all()) {
+    const controls = pagination.locator(':scope > [aria-label]');
+    await expect(controls).toHaveCount(5);
+    for (const control of await controls.all()) {
       const box = await control.boundingBox();
       expect(box).not.toBeNull();
       expect(box?.width).toBeGreaterThanOrEqual(44);
@@ -527,7 +552,7 @@ for (const width of [320, 390, 1440]) {
       path: testInfo.outputPath(`catalog-${width}-page-1.png`),
       fullPage: true,
     });
-    await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+    await catalogPageLink(page, 'Page 3').click();
     await expectPage(page, 'headphones', 3);
     await pagination.scrollIntoViewIfNeeded();
     await page.screenshot({

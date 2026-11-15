@@ -309,7 +309,9 @@ test('FactorySection accepts an optional OEM media override while keeping homepa
   assert.ok(factorySource.includes('caption?: string;'));
   assert.ok(factorySource.includes('label?: string;'));
   // Homepage defaults remain the fallback paths.
-  assert.ok(factorySource.includes("media?.src ?? '/media/oem/factory-video.mp4'"));
+  assert.ok(
+    factorySource.includes("media?.src ?? '/media/oem/factory-video-display-015f0629.mp4'"),
+  );
   assert.ok(factorySource.includes("media?.poster ?? '/media/oem/factory-video-poster.jpg'"));
   // Override renders an intrinsic-dimensioned poster fallback, accessible
   // text, and a caption shown only when provided.

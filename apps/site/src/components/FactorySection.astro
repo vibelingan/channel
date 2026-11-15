@@ -32,7 +32,7 @@ interface Props {
 
 const { factory, media, showStats = true } = Astro.props;
 
-const videoSrc = media?.src ?? '/media/oem/factory-video.mp4';
+const videoSrc = media?.src ?? '/media/oem/factory-video-display-015f0629.mp4';
 const videoPoster = media?.poster ?? '/media/oem/factory-video-poster.jpg';
 
 // Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
@@ -118,13 +118,15 @@ const factoryPhotos = [
       </div>
 
       <div class="reveal overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">
+        <!-- Keep the URL discoverable in HTML; viewport playback avoids an offscreen autoplay download. -->
         <video
+          data-factory-video
           class="aspect-video h-full w-full object-cover"
-          autoplay
+          controls
           muted
           loop
           playsinline
-          preload="metadata"
+          preload="none"
           poster={videoPoster}
           aria-label={media ? (media.label ?? media.caption) : undefined}
         >
@@ -169,3 +171,51 @@ const factoryPhotos = [
     </div>
   </div>
 </section>
+
+<script>
+  const videos = document.querySelectorAll<HTMLVideoElement>('[data-factory-video]');
+  const prepared = new WeakSet<HTMLVideoElement>();
+  const prepare = (video: HTMLVideoElement) => {
+    if (prepared.has(video)) return;
+    prepared.add(video);
+    video.preload = 'metadata';
+  };
+  const play = (video: HTMLVideoElement) => {
+    prepare(video);
+    void video.play().catch((error: unknown) => {
+      // A browser that blocks autoplay must still offer a working play button.
+      if (error instanceof DOMException && error.name === 'NotAllowedError')
+        video.controls = true;
+    });
+  };
+  for (const video of videos) video.controls = false;
+  if ('IntersectionObserver' in window) {
+    const near = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const video = entry.target;
+          if (!(video instanceof HTMLVideoElement)) continue;
+          prepare(video);
+          near.unobserve(entry.target);
+        }
+      },
+      { rootMargin: '300px 0px' },
+    );
+    const visible = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const video = entry.target;
+        if (!(video instanceof HTMLVideoElement)) continue;
+        if (entry.isIntersecting) play(video);
+        else video.pause();
+      }
+    });
+    for (const video of videos) {
+      near.observe(video);
+      visible.observe(video);
+    }
+  } else {
+    // Preserve playback on browsers without viewport observation support.
+    for (const video of videos) play(video);
+  }
+</script>

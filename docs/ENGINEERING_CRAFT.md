@@ -116,6 +116,8 @@ consolidation into the cross-project engineering-craft skill.
 
 ### Deploy & CI/CD
 
+- **根目录产物不要从 filtered exec 中读取**（2026-10-27 Blog 正式接线）：`pnpm --filter <workspace> exec` 会把 cwd 切到该 workspace。构建在仓库根目录生成的 `output/...`，随后会被误读成 `packages/db/output/...`。部署入口使用根目录下的明确可执行文件路径，或基于 `import.meta.url` 定位产物；测试工作目录与产物路径的一致性。本次在备份前检查停止，未更新函数或登记凭证，见 `scripts/blog/formal-policy.test.mjs`。
+
 - **The sole automated observer of a path cannot be opt-in** (session 2026-08-06): The deployed media/OEM upload smokes were `workflow_dispatch` inputs defaulting to false. They were the ONLY automated check that ever exercised a real byte upload, they were off for two releases, and "all gates green" was reported twice over a completely broken upload path. If a smoke is the only observer of a production code path, it must run on the automatic trigger with zero human input — or its absence must fail the deploy.
 - **Docs that state a version or wire protocol are lockfile consumers** (session 2026-08-06): After the SDK upgrade, the canonical SDK-verification doc still described the old versions and the multipart POST contract — i.e. it documented the bug as the design. Any doc asserting a third-party version or protocol should be treated as a consumer of the lockfile and covered by a contract test that fails when the stated version diverges from the installed one.
 

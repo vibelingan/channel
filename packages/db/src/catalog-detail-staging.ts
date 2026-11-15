@@ -30,6 +30,7 @@ import {
   readApprovalJob as readJob,
   sameApprovalProduct as sameProduct,
 } from './catalog-approval-job.ts';
+import { catalogSeoRecordingConfig, recordCatalogSeoWrites } from './catalog-seo-write.ts';
 export {
   type ApprovalFailure,
   APPROVAL_PAGE_SIZE,
@@ -598,6 +599,7 @@ export function persistStagedApprovalInCloud(
   db: NodeSdkDatabase,
   actorId: string,
   input: ApprovalPersistenceCommand,
+  seo = catalogSeoRecordingConfig(),
 ): Promise<ApprovalStageResult> {
   const captured = captureApprovalPersistenceCommand(input);
   if (!captured.ok) return Promise.resolve(captured);
@@ -610,7 +612,7 @@ export function persistStagedApprovalInCloud(
         throw new Error('Malformed approval document');
       return row as CollectionDoc;
     });
-    return runStagedApproval(
+    return recordCatalogSeoWrites(
       {
         get: reads.get,
         set: async (collection, row) => {
@@ -627,8 +629,8 @@ export function persistStagedApprovalInCloud(
           assertDocumentWrite(await tx.collection(collection).doc(id).update(fields), id, 'update');
         },
       },
-      actorId,
-      captured.command,
+      seo,
+      (store) => runStagedApproval(store, actorId, captured.command),
     );
   });
 }

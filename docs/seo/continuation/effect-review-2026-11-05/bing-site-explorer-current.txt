@@ -1,0 +1,173 @@
+Skip to main content
+
+
+
+
+
+
+supplychainsai.com/
+
+
+Home
+
+Search Performance
+
+AI Performance
+BETA
+
+URL Inspection
+
+Site Explorer
+
+Sitemaps
+IndexNow
+
+URL Submission
+
+Backlinks
+
+Keyword Research
+
+Recommendations
+
+Site Scan
+CONFIGURATION
+
+TOOLS & ENHANCEMENTS
+
+SECURITY & PRIVACY
+
+
+User management
+
+Microsoft Clarity
+Site Explorer
+Indexed URLs
+
+Download
+Explorer
+Clicks
+
+
+
+supplychainsai.com
+
+supplychainsai.com
+Crawl information
+Bar chart showing Crawl information. Indexed:12, Error:0, Warning:8, Excluded:0
+Folder information
+Last 6 months
+URLs
+18
+Clicks
+-
+Impressions
+3
+Backlinks
+-
+URL
+Clicks
+
+Impressions
+Last crawled
+HTTP code
+
+login
+-
+-
+24 Sep 2026
+-
+
+ai-gadgets
+-
+-
+20 Oct 2026
+200
+
+headphones
+-
+-
+22 Oct 2026
+200
+
+portfolio
+-
+-
+9 Oct 2026
+200
+
+/(root)
+http
+-
+-
+16 Oct 2026
+200
+
+/(root)
+https
+-
+1
+7 Oct 2026
+200
+
+oem
+-
+-
+1 Oct 2026
+200
+
+electronics-toys
+-
+-
+17 Oct 2026
+200
+
+register
+-
+-
+25 Sep 2026
+-
+
+toys
+-
+-
+7 Sep 2026
+200
+
+misc
+-
+-
+22 Oct 2026
+200
+
+login
+
+Indexed
+Impressions
+:
+-
+Clicks
+:
+-
+Last crawled
+:
+24 Sep 2026
+Discovered
+:
+6 Aug 2026
+HTTP code
+:
+-
+Document size
+:
+-
+Backlinks
+:
+-
+Is Https
+:
+true
+Inspect URL
+Block URL
+Request indexing
+Test URL in Robots.txt

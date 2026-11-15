@@ -69,6 +69,10 @@ test('the actual admin cloud entry injects its CloudBase article repository with
       import.meta.url,
     ),
     '@vibelingan-channel/db': { setAdapter() {} },
+    '@vibelingan-channel/db/catalog-seo-requests': tsxRequire(
+      '../packages/db/src/catalog-seo-requests.ts',
+      import.meta.url,
+    ),
     '@vibelingan-channel/db/cloudbase': {
       initCloudBase() {},
       cloudBaseAdapter: {},
@@ -96,6 +100,16 @@ test('the actual admin cloud entry injects its CloudBase article repository with
         return preparationAuthority;
       },
     },
+    '@vibelingan-channel/db/sales-inquiry-submission': {
+      salesCaptureFromEnv: () => undefined,
+    },
+    '../../sales-integration/src/runtime-delivery.ts': {
+      configuredWebsiteDelivery: () => null,
+      submissionDelivery: (worker) => {
+        assert.equal(worker, null);
+        return async () => {};
+      },
+    },
     './catalog-preparation-invoker.ts': {
       createCatalogPreparationInvoker: (value) => {
         assert.equal(value, sdk);
@@ -114,6 +128,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   const entry = {};
   runInNewContext(compiled, {
     exports: entry,
+    process: { env: {} },
     require: (name) => {
       assert.ok(Object.hasOwn(modules, name), `Unexpected runtime import: ${name}`);
       return modules[name];
@@ -130,6 +145,7 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   articleMode = 'server';
   runInNewContext(compiled, {
     exports: {},
+    process: { env: {} },
     require: (name) => {
       assert(Object.hasOwn(modules, name));
       return modules[name];
@@ -137,7 +153,13 @@ test('the actual admin cloud entry injects its CloudBase article repository with
   });
   assert.deepEqual(injectedModes, ['static', 'server']);
   articleMode = 'typo';
-  assert.throws(() => runInNewContext(compiled, { exports: {}, require: (name) => modules[name] }));
+  assert.throws(() =>
+    runInNewContext(compiled, {
+      exports: {},
+      process: { env: {} },
+      require: (name) => modules[name],
+    }),
+  );
   assert.deepEqual(injectedModes, ['static', 'server']);
 });
 const scriptTrees = [
@@ -286,31 +308,35 @@ test('code checks have a bounded budget without whole business browser journeys'
     ciJob.steps.filter((step) => step.run === 'pnpm test:e2e:catalog-admin-local').length,
     0,
   );
-  assert.deepEqual([ciJob.needs].flat(), ['unit']);
+  // The build runs beside the unit groups; the release gate waits for the whole workflow.
+  assert.equal(ciJob.needs, undefined);
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
-  assert.deepEqual([ciJob.needs].flat(), ['unit'], 'all unit groups gate the build');
+  assert.equal(ciJob.needs, undefined, 'the build does not wait for the unit groups');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,
-    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
-    'only the test-branch/full-CI gate may condition deployment',
+    "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}",
+    'only the test-branch/full-CI gate and the read-only preparation may condition deployment',
   );
-  const contractStep = findUniqueStep(
-    deployJob,
-    (step) => step.run === 'pnpm test:deploy-smoke',
+  // The contract tests run once, in CI's scripts unit job for this SHA; the deploy job needs
+  // CI, so they finish before anything is packaged.
+  const scripts = buildWorkflows[0][1].jobs?.unit?.strategy?.matrix?.include?.filter(
+    (group) => group.suite === 'scripts',
+  );
+  assert.deepEqual(
+    scripts?.map((group) => group.command),
+    ['pnpm test:deploy-smoke'],
     'Deploy Test contract gate',
   );
-  const packageStep = findUniqueStep(
+  assert.ok([deployJob.needs].flat().includes('ci'));
+  for (const job of [deployJob, buildWorkflows[1][1].jobs?.prepare])
+    assert.ok(!job.steps.some((step) => step.run === 'pnpm test:deploy-smoke'));
+  findUniqueStep(
     deployJob,
     (step) => step.run === 'pnpm package:functions',
     'Deploy Test function packaging',
-  );
-
-  assert.ok(
-    deployJob.steps.indexOf(contractStep) < deployJob.steps.indexOf(packageStep),
-    'deployment contract tests must run before packaging',
   );
 });
 

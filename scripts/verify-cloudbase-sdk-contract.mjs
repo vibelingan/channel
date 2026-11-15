@@ -937,13 +937,13 @@ for (const clientPath of [
 
 const uploadConsumers = execFileSync(
   'git',
-  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages'],
+  ['ls-files', '-z', '-co', '--exclude-standard', '--', 'apps', 'packages', 'tools/hermes-blog'],
   { cwd: root, encoding: 'utf8' },
 )
   .split('\0')
   .filter(
     (file) =>
-      /\.(?:ts|tsx|astro)$/.test(file) &&
+      /\.(?:ts|tsx|astro|mjs)$/.test(file) &&
       !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
       existsSync(join(root, file)),
   )
@@ -953,9 +953,31 @@ const uploadConsumers = execFileSync(
     ),
   );
 requireCheck(
-  uploadConsumers.length === 3,
-  'SDK credential sender population is exactly three clients; new senders require contract verification',
+  uploadConsumers.length === 4,
+  'SDK credential sender population is exactly four clients; new senders require contract verification',
   uploadConsumers.join(', '),
+);
+
+const imageSender = readFileSync(join(root, 'tools/hermes-blog/image-client.mjs'), 'utf8');
+requireCheck(
+  /request\('PUT',\s*intent\.upload\.url/.test(imageSender) &&
+    /headers:\s*intent\.upload\.headers/.test(imageSender) &&
+    /body:\s*bytes/.test(imageSender) &&
+    !/new FormData/.test(imageSender),
+  'Agent image sender uses the verified single-object raw PUT contract',
+);
+
+const pythonImageSender = readFileSync(join(root, 'tools/hermes-blog/image_put.py'), 'utf8');
+requireCheck(
+  /connection\.request\('PUT'/.test(pythonImageSender) &&
+    /body=body, headers=headers/.test(pythonImageSender) &&
+    /response\.status != 200 or received/.test(pythonImageSender) &&
+    /headers\['Signature'\] != headers\['authorization'\]/.test(pythonImageSender),
+  'Native publisher uploader preserves the verified raw PUT headers and empty HTTP 200 acknowledgement',
+);
+requireCheck(
+  !/sysctl|modprobe|modules-load/.test(pythonImageSender),
+  'Image transfer code cannot change global kernel or application settings',
 );
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
@@ -1692,7 +1714,29 @@ try {
     'article repository passes actual SDK transport, retry, projection and failure contracts',
   );
 } catch (error) {
-  record(false, 'article repository actual SDK transport contracts', error.message);
+  // A timeout must retain which tests actually finished. Only TAP progress is
+  // included; do not dump child environments, provider responses or credentials.
+  const progress = String(error.stdout ?? '')
+    .split('\n')
+    .filter((line) =>
+      /^(?:# (?:Subtest:|tests |pass |fail |skipped |duration_ms )|(?:not )?ok \d)/.test(line),
+    )
+    .slice(-12)
+    .join(' | ');
+  const code =
+    typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code)
+      ? error.code
+      : 'CHILD_FAILURE';
+  const status = Number.isInteger(error.status) ? error.status : 'unknown';
+  const signal =
+    typeof error.signal === 'string' && /^SIG[A-Z0-9]{1,20}$/.test(error.signal)
+      ? error.signal
+      : 'none';
+  record(
+    false,
+    'article repository actual SDK transport contracts',
+    `Child check failed (code=${code}, status=${status}, signal=${signal})${progress ? `; completed child TAP: ${progress}` : '; no child TAP progress received'}`,
+  );
 }
 
 const failures = results.filter((result) => !result.ok);

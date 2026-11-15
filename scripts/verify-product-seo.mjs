@@ -214,6 +214,12 @@ try {
   assert.equal(new URL(live.url()).searchParams.get('variant'), second.id);
   await live.getByRole('button', { name: 'Request a quote', exact: true }).click();
   assert.ok(await live.locator('dialog[open]').isVisible());
+  await live.waitForFunction(() => {
+    const date = new Date();
+    const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return document.querySelector('input[name=deliveryDate]')?.min === today;
+  });
+  results.browser.push('hydrated quote form uses the visitor local date without a hydration error');
   await live.screenshot({ path: resolve(evidence, 'quote-existing-flow.png') });
   await live.locator('input[name=quantity]').fill('1000');
   await live.locator('dialog[open] button[type=submit]').click();

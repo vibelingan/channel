@@ -1,0 +1,82 @@
+Skip to main content
+
+
+
+
+
+
+supplychainsai.com/
+
+
+Home
+
+Search Performance
+
+AI Performance
+BETA
+
+URL Inspection
+
+Site Explorer
+
+Sitemaps
+IndexNow
+
+URL Submission
+
+Backlinks
+
+Keyword Research
+
+Recommendations
+
+Site Scan
+CONFIGURATION
+
+TOOLS & ENHANCEMENTS
+
+SECURITY & PRIVACY
+
+
+User management
+
+Microsoft Clarity
+Recommendations
+
+Error details
+
+Too many pages with identical titles.
+Severity
+Moderate
+Pages with error
+2
+Total errors
+2
+Recommended action
+Having duplicated title tag values can negatively impact a website’s SEO/GEO performance. Title tags are HTML elements that define the title of a web page and summarize its contents. They are important for both search engines and users, as they help search engines understand the content of the page and help users decide whether to click on the page in search results.
+When multiple pages on a website have the same title tag, it can create confusion for both search engines and users. Search engines may have difficulty determining which page is the most relevant for a given query, and users may have difficulty distinguishing between pages in search results. This can result in lower click-through rates, reduced traffic, and lower search engine rankings.
+To avoid these issues, it is important to ensure that each page on a website has a unique, descriptive title tag that accurately reflects the content of the page. This can help improve the website’s SEO/GEO performance and provide a better user experience for visitor.
+
+Pages with this error
+This table lists up to 50 titles that were not in compliance with the selected SEO/GEO Best Practice when we last scanned it
+Download all
+
+select all items
+
+URL
+
+
+
+
+OEM/ODM Manufacturing | Diversity Technology Limited
+
+https://www.supplychainsai.com/
+
+
+
+
+http://supplychainsai.com/
+
+
+
+2 rows

@@ -16,17 +16,21 @@ import { verifyHostingObject } from './hosting-readback.mjs';
 import { identity } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
 /** Reconstruct the already-confirmed writes. This is evidence of ownership, not permission to write again. */
-export function siteReadbackEvidence({ run, input, steps, policy }) {
+export function siteReadbackEvidence({ run, input, steps, policy, acceptedRegistration = false }) {
+  const accepted =
+    acceptedRegistration &&
+    run?.state === 'SUCCEEDED' &&
+    run.accepted?.sourceRunId === run.runId &&
+    identity(run.accepted.seals?.static) === identity(input.acceptedSeal);
   if (
-    run?.state !== 'RUNNING' ||
-    run.accepted ||
-    run.kind !== 'publish' ||
+    (acceptedRegistration ? !accepted : run?.state !== 'RUNNING' || run.accepted) ||
+    !['publish', 'reconcile'].includes(run.kind) ||
     run.scopeKey !== 'site' ||
     run.targetId !== normalizePolicy(policy).targetId ||
     run.deliveredComponents?.join(',') !== 'static' ||
-    run.verifiedSteps !== run.plan.stepCount - 1 ||
-    run.verifiedWrites !== run.verifiedSteps ||
-    !steps.length ||
+    run.verifiedSteps !== run.plan.stepCount - (accepted ? 0 : 1) ||
+    run.verifiedWrites !== run.verifiedSteps - (accepted ? 1 : 0) ||
+    (!steps.length && !accepted) ||
     steps.length !== run.verifiedWrites ||
     steps.length > 1000 ||
     identity(run.composition.static.artifact) !== identity(input.envelope.artifact) ||
@@ -117,8 +121,9 @@ export async function verifySiteReadback({
   request,
   postCheck = async () => {},
   signal,
+  acceptedRegistration = false,
 }) {
-  const evidence = siteReadbackEvidence({ run, input, steps, policy });
+  const evidence = siteReadbackEvidence({ run, input, steps, policy, acceptedRegistration });
   assertSafeConfiguration(input.staticManifest.configuration, evidence.target);
   const inventory = await provider.readInventory();
   const configuration = await provider.readConfiguration();

@@ -9,6 +9,7 @@ import {
   hostingBatchHash,
   hostingRemovalHash,
   mapHostingBounded,
+  mapHostingReads,
   siteRemovalBatches,
   siteUploadBatches,
 } from './hosting-batches.mjs';
@@ -60,6 +61,7 @@ export function createHostingRecoveryAdapters({
   operationTimeoutMs = 120_000,
   pollIntervalMs = 1000,
   requestTimeoutMs = 15_000,
+  renewReuseMs = 30_000,
 }) {
   const plan = freeze(structuredClone(input));
   const configurationPlan = freeze(structuredClone(configurationInput));
@@ -80,11 +82,22 @@ export function createHostingRecoveryAdapters({
     ['operation timeout', operationTimeoutMs, 20, 900_000],
     ['poll interval', pollIntervalMs, 1, 10_000],
     ['request timeout', requestTimeoutMs, 1, 120_000],
+    ['renew reuse', renewReuseMs, 0, 60_000],
   ])
     if (!Number.isSafeInteger(value) || value < min || value > max)
       throw new Error(`Invalid hosting ${name}`);
+  // Refuse before any journal intent: a missing batch writer must not leave an unknown step.
+  if (plan.delivery?.uploadParallel && typeof provider.uploadBatch !== 'function')
+    throw new Error('Batched site plan requires a batch hosting upload');
   const pending = new Map();
   let prepared = false;
+  let renewedAt = Number.NEGATIVE_INFINITY;
+  // The call start bounds the server's new expiry from below.
+  const renew = async () => {
+    const started = Date.now();
+    await coordinator.renew(guard);
+    renewedAt = started;
+  };
   const context = (value, subject, hash) => {
     if (
       value?.planSha256 !== plan.planSha256 ||
@@ -210,9 +223,13 @@ export function createHostingRecoveryAdapters({
     if (response.status !== 200) throw new Error('Cannot establish hosting before state');
     return sha256(response.body);
   }
-  async function leased(callback, timeoutMs = operationTimeoutMs) {
+  /**
+   * A renewal within renewReuseMs still leaves most of the lease, and the heartbeat keeps
+   * renewing during the call. Every journal write is fenced by the coordinator itself.
+   */
+  async function leased(callback, timeoutMs = operationTimeoutMs, { checkRun = true } = {}) {
     signal?.throwIfAborted();
-    await coordinator.renew(guard);
+    if (Date.now() - renewedAt >= renewReuseMs) await renew();
     const controller = new AbortController();
     const activeSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
     let renewing = false;
@@ -220,7 +237,7 @@ export function createHostingRecoveryAdapters({
       if (renewing) return;
       renewing = true;
       try {
-        await coordinator.renew(guard);
+        await renew();
       } catch {
         controller.abort(new Error('Hosting lease lost'));
       } finally {
@@ -242,7 +259,7 @@ export function createHostingRecoveryAdapters({
       const result = await Promise.race([
         aborted,
         (async () => {
-          await ready(activeSignal);
+          if (checkRun) await ready(activeSignal);
           const value = await callback(activeSignal);
           activeSignal.throwIfAborted();
           return value;
@@ -296,7 +313,7 @@ export function createHostingRecoveryAdapters({
       let step;
       try {
         return await leased(async (activeSignal) => {
-          const members = await mapHostingBounded(batch, 4, async (entry) => ({
+          const members = await mapHostingReads(batch, async (entry) => ({
             ...entry,
             beforeHash: await beforeHash(entry.path, activeSignal),
           }));
@@ -311,13 +328,28 @@ export function createHostingRecoveryAdapters({
             { members },
           );
           if (step.state !== 'verified') {
-            await mapHostingBounded(batch, 4, async (entry, index) => {
-              activeSignal.throwIfAborted();
-              const result = await provider.upload(entry.path, bodies[index], {
-                signal: activeSignal,
+            if (plan.delivery.uploadParallel) {
+              const result = await provider.uploadBatch(
+                batch.map((entry, index) => ({ path: entry.path, body: bodies[index] })),
+                {
+                  signal: activeSignal,
+                  parallel: Math.min(plan.delivery.uploadParallel, batch.length),
+                },
+              );
+              if (
+                result?.terminal !== true ||
+                identity(result.files?.map((file) => file.path)) !==
+                  identity(batch.map((entry) => entry.path))
+              )
+                throw Error('Hosting upload is not terminal');
+            } else
+              await mapHostingBounded(batch, 4, async (entry, index) => {
+                activeSignal.throwIfAborted();
+                const result = await provider.upload(entry.path, bodies[index], {
+                  signal: activeSignal,
+                });
+                if (result?.terminal !== true) throw Error('Hosting upload is not terminal');
               });
-              if (result?.terminal !== true) throw Error('Hosting upload is not terminal');
-            });
             activeSignal.throwIfAborted();
             await coordinator.recordSubmitted({
               guard,
@@ -343,19 +375,28 @@ export function createHostingRecoveryAdapters({
       if (!step || step.executionId !== ctx.executionId || step.verifySubject !== ctx.subject)
         throw Error('No matching submitted hosting batch');
       try {
-        return await leased(async (activeSignal) => {
-          const evidence = await mapHostingBounded(batch, 4, (entry) =>
-            verify(entry, entry.path, 200, activeSignal),
-          );
-          activeSignal.throwIfAborted();
-          await coordinator.confirmStep({
-            guard,
-            runId,
-            stepId: step.stepId,
-            receipt: ledgerReceipt(step, 'verified', { evidence }),
-          });
-          return kernelReceipt(ctx, step.operationId, { status: 'verified', observedHash: hash });
-        });
+        // The run was checked before this pending step began; reads alone change nothing, and
+        // confirmStep rechecks lease, fence, run state and the pending step in its transaction.
+        return await leased(
+          async (activeSignal) => {
+            const evidence = await mapHostingReads(batch, (entry) =>
+              verify(entry, entry.path, 200, activeSignal),
+            );
+            activeSignal.throwIfAborted();
+            await coordinator.confirmStep({
+              guard,
+              runId,
+              stepId: step.stepId,
+              receipt: ledgerReceipt(step, 'verified', { evidence }),
+            });
+            return kernelReceipt(ctx, step.operationId, {
+              status: 'verified',
+              observedHash: hash,
+            });
+          },
+          operationTimeoutMs,
+          { checkRun: false },
+        );
       } catch (error) {
         await unknown(step);
         throw error;
@@ -445,7 +486,7 @@ export function createHostingRecoveryAdapters({
       let step;
       try {
         return await leased(async (activeSignal) => {
-          const removals = await mapHostingBounded(paths, 4, async (path) => ({
+          const removals = await mapHostingReads(paths, async (path) => ({
             path,
             beforeHash: await beforeHash(path, activeSignal),
           }));
@@ -473,7 +514,7 @@ export function createHostingRecoveryAdapters({
               receipt: ledgerReceipt(step, 'submitted'),
             });
           }
-          const evidence = await mapHostingBounded(paths, 4, (path) =>
+          const evidence = await mapHostingReads(paths, (path) =>
             verify(errorDocument, path, 404, activeSignal),
           );
           activeSignal.throwIfAborted();
@@ -616,17 +657,15 @@ export function createHostingRecoveryAdapters({
             'accept',
             activeSignal,
           );
-          const files = await mapHostingBounded(
-            plan.uploads,
-            plan.delivery ? 4 : 1,
-            async (entry) => {
-              const observed = await verify(entry, entry.path, 200, activeSignal);
-              return { ...entry, sha256: observed.sha256 };
-            },
-          );
-          await mapHostingBounded(plan.deletes, plan.delivery ? 4 : 1, (path) =>
-            verify(errorDocument, path, 404, activeSignal),
-          );
+          // Batched site plans read back in parallel; older per-file plans keep one at a time.
+          const read = plan.delivery
+            ? mapHostingReads
+            : (items, callback) => mapHostingBounded(items, 1, callback);
+          const files = await read(plan.uploads, async (entry) => {
+            const observed = await verify(entry, entry.path, 200, activeSignal);
+            return { ...entry, sha256: observed.sha256 };
+          });
+          await read(plan.deletes, (path) => verify(errorDocument, path, 404, activeSignal));
           const config = await provider.readConfiguration();
           activeSignal.throwIfAborted();
           if (configurationStateHash(config) !== configurationStateHash(configurationPlan.after))
@@ -680,7 +719,12 @@ function validatePlan(plan, configurationPlan) {
         path.endsWith('.html') ||
         articleMediaFile.test(path) ||
         isSitemap(path) ||
-        ['robots.txt', 'seo-manifest.json', 'products/manifest.json'].includes(path)
+        [
+          'robots.txt',
+          'seo-manifest.json',
+          'products/manifest.json',
+          'catalog-pages/manifest.json',
+        ].includes(path)
       )
     )
       throw new Error('Unowned deletion type');

@@ -1,0 +1,207 @@
+{
+  "date": "2026-11-12",
+  "archifyVersion": "2.17",
+  "scope": "design only; no site or cloud changes",
+  "generatedArtifactsInGit": false,
+  "preserveHistoricalArtifacts": true,
+  "diagrams": [
+    {
+      "type": "workflow",
+      "source": "review-order-20261112.workflow.json",
+      "specification": {
+        "sha256": "17a414eb1891403d7d8384cef74edfc4df757f71585baa809baa6ac87fd54dd3",
+        "bytes": 5409
+      },
+      "artifact": {
+        "file": "output/seo-design-review-20261112/review-order.html",
+        "sha256": "86c9c2b3e1a8dc5f023316c08badb2beda832d9f625e7bddcaf2ec8398897521",
+        "bytes": 809640
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browser_evidence": "passed",
+      "containment": [
+        {
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1440,
+          "scrollHeight": 900
+        },
+        {
+          "width": 1600,
+          "height": 1000,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1600,
+          "scrollHeight": 1000
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1920,
+          "scrollHeight": 1080
+        },
+        {
+          "width": 2048,
+          "height": 1320,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 2048,
+          "scrollHeight": 1320
+        }
+      ],
+      "visual_review": {
+        "status": "passed",
+        "method": "Codex inspected exact screenshots",
+        "inspected": [
+          "review-order.visual-check.1440x900.light.png",
+          "review-order.visual-check.2048x1320.dark.png"
+        ],
+        "observations": "Labels complete, directions match revised design, no clipped content or label obstruction; ordered arrows and cache phases checked."
+      },
+      "correction_rounds": 2
+    },
+    {
+      "type": "sequence",
+      "source": "image-target-20261112.sequence.json",
+      "specification": {
+        "sha256": "8c0fbf1f07850e853f8b139a895b0e55623cbbf44c273158203cda83f441f173",
+        "bytes": 5286
+      },
+      "artifact": {
+        "file": "output/seo-design-review-20261112/image-target.html",
+        "sha256": "a5751b3b2ef734894d8eca59e898356ac06317e94173aae40b7536b82b859606",
+        "bytes": 813072
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browser_evidence": "passed",
+      "containment": [
+        {
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1440,
+          "scrollHeight": 900
+        },
+        {
+          "width": 1600,
+          "height": 1000,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1600,
+          "scrollHeight": 1000
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1920,
+          "scrollHeight": 1080
+        },
+        {
+          "width": 2048,
+          "height": 1320,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 2048,
+          "scrollHeight": 1320
+        }
+      ],
+      "visual_review": {
+        "status": "passed",
+        "method": "Codex inspected exact screenshots",
+        "inspected": [
+          "image-target.visual-check.1440x900.light.png",
+          "image-target.visual-check.2048x1320.dark.png"
+        ],
+        "observations": "Labels complete, directions match revised design, no clipped content or label obstruction; ordered arrows and cache phases checked."
+      },
+      "correction_rounds": 0
+    },
+    {
+      "type": "architecture",
+      "source": "next-phase.architecture.json",
+      "specification": {
+        "sha256": "4a0c8b0b45cb3d6ad4934f94eb5e36a159ca25ac33e00ca36102d2dfb807707d",
+        "bytes": 4369
+      },
+      "artifact": {
+        "file": "output/seo-design-review-20261112/module-map.html",
+        "sha256": "030b7beffc47c7e77f5c69177fd922136056cee0d9a2dc4ed471da82cb51bafc",
+        "bytes": 810412
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browser_evidence": "passed",
+      "containment": [
+        {
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1440,
+          "scrollHeight": 900
+        },
+        {
+          "width": 1600,
+          "height": 1000,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1600,
+          "scrollHeight": 1000
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 1920,
+          "scrollHeight": 1080
+        },
+        {
+          "width": 2048,
+          "height": 1320,
+          "theme": "light",
+          "ok": true,
+          "scrollWidth": 2048,
+          "scrollHeight": 1320
+        }
+      ],
+      "visual_review": {
+        "status": "passed",
+        "method": "Codex inspected exact screenshots",
+        "inspected": [
+          "module-map.visual-check.1440x900.light.png",
+          "module-map.visual-check.2048x1320.dark.png"
+        ],
+        "observations": "Labels complete, directions match revised design, no clipped content or label obstruction; ordered arrows and cache phases checked."
+      },
+      "correction_rounds": 0
+    }
+  ]
+}

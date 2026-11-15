@@ -291,3 +291,24 @@ test('permanent package errors keep a safe stage and do not retry or expose a si
   assert.equal(calls, 1);
   assert.equal(f.state.updates, 0);
 });
+test('a dotted vendor error code survives redaction without retaining its message', async () => {
+  const f = functionManagerFixture();
+  const provider = createCloudbaseFunctionProvider({
+    ...f,
+    target,
+    region: 'ap-shanghai',
+    names: ['public-api'],
+    request: async () => {
+      throw Object.assign(Error('https://private.example/?signature=secret'), {
+        code: 'ResourceNotFound.CosObject',
+        requestId: 'provider-request-id',
+      });
+    },
+  });
+  await assert.rejects(provider.read('public-api'), (error) => {
+    assert.equal(error.causeCode, 'ResourceNotFound.CosObject');
+    assert.equal(error.requestId, 'provider-request-id');
+    assert.equal(error.message.includes('secret'), false);
+    return true;
+  });
+});

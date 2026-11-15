@@ -1,0 +1,100 @@
+{
+  "now": 1700000000,
+  "lease": {
+    "protocol": "sales-auth/1",
+    "client_id": "client_a",
+    "business_line": "website_sales",
+    "source_installation_id": "site_a",
+    "runtime_id": "runtime_a",
+    "environment": "test",
+    "control_epoch": 1,
+    "task_id": "task_a",
+    "run_id": "run_a",
+    "task_revision": 1,
+    "connection_id": "agent_a",
+    "lease_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "handoff_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source": {
+      "kind": "oem",
+      "id": "oem_a",
+      "revision": "r1"
+    },
+    "asset_refs": [
+      "asset_a"
+    ],
+    "product_scope": "approved_catalog",
+    "allowed_actions": [
+      "inquiry.read",
+      "product.read",
+      "asset.read"
+    ],
+    "audience": "channel.sales.read",
+    "issued_at": 1699999990,
+    "expires_at": 1700000290,
+    "revoked": false
+  },
+  "handoff": {
+    "protocol": "sales-auth/1",
+    "handoff_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "client_id": "client_a",
+    "business_line": "website_sales",
+    "source_installation_id": "site_a",
+    "environment": "test",
+    "source": {
+      "kind": "oem",
+      "id": "oem_a",
+      "revision": "r1"
+    },
+    "state": "ready",
+    "created_at": 1699999940
+  },
+  "request": {
+    "protocol": "sales-auth/1",
+    "client_id": "client_a",
+    "business_line": "website_sales",
+    "source_installation_id": "site_a",
+    "runtime_id": "runtime_a",
+    "environment": "test",
+    "control_epoch": 1,
+    "task_id": "task_a",
+    "run_id": "run_a",
+    "task_revision": 1,
+    "connection_id": "agent_a",
+    "lease_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "handoff_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "request_id": "request_a_0000001",
+    "action": "inquiry.read",
+    "resource": {
+      "kind": "oem",
+      "id": "oem_a"
+    }
+  },
+  "authority": {
+    "protocol": "sales-auth/1",
+    "client_id": "client_a",
+    "business_line": "website_sales",
+    "source_installation_id": "site_a",
+    "runtime_id": "runtime_a",
+    "environment": "test",
+    "control_epoch": 1,
+    "task_id": "task_a",
+    "run_id": "run_a",
+    "task_revision": 1,
+    "handoff_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_verified": true,
+    "mode": "agent_active",
+    "work_state": "preparing",
+    "allowed_actions": [
+      "inquiry.read",
+      "product.read",
+      "asset.read"
+    ]
+  },
+  "permit": {
+    "protocol": "sales-auth/1",
+    "request_sha256": "2e2d589cc6414e9b01a1693d6b5a45f4126240489e411af58f3f3fb2068aa36d",
+    "allowed": true,
+    "issued_at": 1700000000,
+    "expires_at": 1700000010
+  }
+}

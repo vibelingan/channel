@@ -1,0 +1,532 @@
+Observed URL: https://search.google.com/u/3/search-console/inspect/r/product?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=fGqOcwuOmk43nVHJtFEnzg
+- banner:
+  - button "Main menu":
+  - link "Google Search Console":
+    - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - search:
+    - textbox [disabled]: Inspect any URL in "https://supplychainsai.com/"
+    - combobox "Inspect any URL in https://supplychainsai.com/"
+    - button "Search":
+  - button "Help":
+    - generic: help_outline
+  - tooltip: Help
+  - button "User settings":
+    - generic: manage_accounts
+  - tooltip: User settings
+  - button "Messages":
+    - generic: notifications
+  - tooltip: Messages
+  - button "Google apps":
+  - 'button "Google Account: Lingan Vibe ([account redacted])"':
+- dialog "navigational drawer":
+  - navigation "Primary":
+    - button "Search property":
+      - img "favicon"
+      - combobox "https://supplychainsai.com/"
+      - generic: 
+    - link "Overview":
+      - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: home
+      - generic: Overview
+    - link "Insights":
+      - /url: ./search-console/performance/insights?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lightbulb_2
+      - generic: Insights
+    - link "Performance":
+      - /url: ./search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Performance
+    - button "Performance report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Generative AI on Search results":
+      - /url: ./search-console/performance/search-analytics/ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Generative AI
+    - button "URL inspection":
+      - generic: search
+      - generic: URL inspection
+    - generic: Indexing
+    - button "Indexing report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Pages":
+      - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: file_copy
+      - generic: Pages
+    - link "Videos":
+      - /url: ./search-console/video-index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: video_library
+      - generic: Videos
+    - link "Sitemaps":
+      - /url: ./search-console/sitemaps?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: account_tree
+      - generic: Sitemaps
+    - link "Removals":
+      - /url: ./search-console/removals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: visibility_off
+      - generic: Removals
+    - generic: Experience
+    - button "Experience report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Core Web Vitals":
+      - /url: ./search-console/core-web-vitals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: speed
+      - generic: Core Web Vitals
+    - link "HTTPS":
+      - /url: ./search-console/https?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lock
+      - generic: HTTPS
+    - generic: Enhancements
+    - button "Enhancements report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Breadcrumbs":
+      - /url: ./search-console/r/breadcrumbs?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: layers
+      - generic: Breadcrumbs
+    - generic: Security & Manual Actions
+    - button "Security & Manual Actions report section":
+      - generic: keyboard_arrow_down
+    - link "Links report":
+      - /url: ./search-console/links?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: link_2
+      - generic: Links
+    - link "Achievements":
+      - /url: ./search-console/achievements?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trophy
+      - generic: Achievements
+    - link "Settings":
+      - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: settings
+      - generic: Settings
+    - button "Submit feedback":
+      - generic: feedback
+      - generic: Submit feedback
+    - button "About Search Console":
+      - generic: info
+      - generic: About Search Console
+    - link "Privacy":
+      - /url: https://myaccount.google.com/privacypolicy?hl=en
+    - link "Terms":
+      - /url: https://myaccount.google.com/termsofservice?hl=en
+- generic: https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/
+- navigation "Breadcrumbs":
+  - link "URL Inspection":
+    - /url: ./search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=fGqOcwuOmk43nVHJtFEnzg
+  - generic: 
+  - heading "Product snippets" [level=1]
+- button "Test live URL":
+  - generic: Test live URL
+- main:
+  - generic: error
+  - generic: 1 invalid item detected
+  - text: Invalid items are not eligible for Google Search's rich results.
+  - link "Learn more":
+    - /url: https://support.google.com/webmasters/answer/9012289#enhancements
+  - button "View crawled page":
+    - generic: View crawled page
+  - generic: Details
+  - generic: Crawl
+  - button "Crawled successfully on Nov 4, 2026, 3:51:59 AM":
+    - generic: check_circle
+    - generic: Crawled successfully on Nov 4, 2026, 3:51:59 AM
+    - generic: 
+  - generic: Detected items
+  - button "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone 1 critical issue null" [expanded] [active]:
+    - generic: error
+    - generic: Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone
+    - generic: 1 critical issue
+    - button "null":
+      - generic: 
+    - generic: 
+  - button "Either \"offers\", \"review\", or \"aggregateRating\" should be specified Go to issue documentation Go to issue report":
+    - generic: Either "offers", "review", or "aggregateRating" should be specified
+    - generic "Go to issue documentation":
+      - link "Go to issue documentation":
+        - /url: https://developers.google.com/search/docs/appearance/structured-data/product-snippet
+        - generic: 
+    - generic "Go to issue report":
+      - link "Go to issue report":
+        - /url: ./search-console/r/product/drilldown?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+        - generic: 
+  - button "type Product":
+    - generic: type
+    - generic: Product
+  - button "name Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone":
+    - generic: name
+    - generic: Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone
+  - button "url https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/":
+    - generic: url
+    - generic: https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/
+  - button:
+    - generic: description
+    - generic: Experienced Headphones Manufacturer Channel Technology Ltd is engaged in the research, development, production, and sale of wired and wireless headsets. Established in 2004, we export 60,000 to 100,000 pieces per month to the US and Europe. Product Description Hot Sale Headphones Headsets — ♥ Our services 1. Sample can be provided. 2. Small volume orders accepted. 3. OEM and ODM are welcome. Company Introduction 4,000m2 Factory Our 4,000m2 factory employs more than 4 R&D team members and engineers, who enable us to offer comprehensive OEM and ODM services. We also accept large and small orders and offer a free return service to protect the interests of our customers. Select your favorite Retail BoxesOver 50 READY-TO-GO Packaging Designs for your selections to help saving your workloads. Over 20 patented private modelsThe faith of R&D that we have more than 20 patented private models that also practically provide a one-stop solution from sketch ideas to end products Participate the Trade ShowsExcept Online promotions, Channel is also active in participating different trade shows over the world. High Reputation from ClientsChannel always focuses on customer experience. Please contact us for any inquiry!
+  - button "image https://supplychainsai.com/api/images/ea7765a56aaa4e050023e9c5601592ef":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/ea7765a56aaa4e050023e9c5601592ef
+  - button "image https://supplychainsai.com/api/images/01f3430d6aaa4e05000972b165f5394b":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/01f3430d6aaa4e05000972b165f5394b
+  - button "image https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3
+  - button "image https://supplychainsai.com/api/images/01f3430d6aaa4e04000972a81a749900":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/01f3430d6aaa4e04000972a81a749900
+  - button "image https://supplychainsai.com/api/images/d99dc9256aab8576002b28d673b9f961":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/d99dc9256aab8576002b28d673b9f961
+  - button "image https://supplychainsai.com/api/images/d99dc9256aab8577002b28e22b5d016a":
+    - generic: image
+    - generic: https://supplychainsai.com/api/images/d99dc9256aab8577002b28e22b5d016a
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Keyword":
+    - generic: name
+    - generic: Keyword
+  - button "value Stereo Gaming Headphones":
+    - generic: value
+    - generic: Stereo Gaming Headphones
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Playtime":
+    - generic: name
+    - generic: Playtime
+  - button "value <18 hours":
+    - generic: value
+    - generic: <18 hours
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Frequency response range":
+    - generic: name
+    - generic: Frequency response range
+  - button "value 20-20000(Hz)":
+    - generic: value
+    - generic: 20-20000(Hz)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Color":
+    - generic: name
+    - generic: Color
+  - button "value Haze blue, pink, black, sky blue, violet":
+    - generic: value
+    - generic: Haze blue, pink, black, sky blue, violet
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Usage":
+    - generic: name
+    - generic: Usage
+  - button "value MP3/Mobilephone/Tablet/Laptop/Audio Devices":
+    - generic: value
+    - generic: MP3/Mobilephone/Tablet/Laptop/Audio Devices
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Speaker diameter":
+    - generic: name
+    - generic: Speaker diameter
+  - button "value 40(mm)":
+    - generic: value
+    - generic: 40(mm)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Headphone cable material":
+    - generic: name
+    - generic: Headphone cable material
+  - button "value Braided wire":
+    - generic: value
+    - generic: Braided wire
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Weight":
+    - generic: name
+    - generic: Weight
+  - button "value 290(g)":
+    - generic: value
+    - generic: 290(g)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name BT Wireless":
+    - generic: name
+    - generic: BT Wireless
+  - button "value Bluetooth v5.1":
+    - generic: value
+    - generic: Bluetooth v5.1
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name game atmosphere light":
+    - generic: name
+    - generic: game atmosphere light
+  - button "value Single Color":
+    - generic: value
+    - generic: Single Color
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Battery Charging Time":
+    - generic: name
+    - generic: Battery Charging Time
+  - button "value 1-3 hours":
+    - generic: value
+    - generic: 1-3 hours
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name battery indicator":
+    - generic: name
+    - generic: battery indicator
+  - button "value LED":
+    - generic: value
+    - generic: LED
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Charging Interface Type":
+    - generic: name
+    - generic: Charging Interface Type
+  - button "value Type-C":
+    - generic: value
+    - generic: Type-C
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name codecs":
+    - generic: name
+    - generic: codecs
+  - button "value None":
+    - generic: value
+    - generic: None
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Connection":
+    - generic: name
+    - generic: Connection
+  - button "value Wireless":
+    - generic: value
+    - generic: Wireless
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name control mode":
+    - generic: name
+    - generic: control mode
+  - button "value Touch":
+    - generic: value
+    - generic: Touch
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Estimated Battery Life":
+    - generic: name
+    - generic: Estimated Battery Life
+  - button "value more than 20 hours":
+    - generic: value
+    - generic: more than 20 hours
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Headphone Form Factor":
+    - generic: name
+    - generic: Headphone Form Factor
+  - button "value Over Ear":
+    - generic: value
+    - generic: Over Ear
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Noise Cancelling":
+    - generic: name
+    - generic: Noise Cancelling
+  - button "value Active Noise Cancellation (ANC)":
+    - generic: value
+    - generic: Active Noise Cancellation (ANC)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name private mold":
+    - generic: name
+    - generic: private mold
+  - button "value No":
+    - generic: value
+    - generic: "No"
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Sound Quality":
+    - generic: name
+    - generic: Sound Quality
+  - button "value High Fidelity (Hi-Fi)":
+    - generic: value
+    - generic: High Fidelity (Hi-Fi)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name vocalism principle":
+    - generic: name
+    - generic: vocalism principle
+  - button "value Dynamic":
+    - generic: value
+    - generic: Dynamic
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name volume control":
+    - generic: name
+    - generic: volume control
+  - button "value Yes":
+    - generic: value
+    - generic: "Yes"
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name waterproof standard":
+    - generic: name
+    - generic: waterproof standard
+  - button "value IPX-5":
+    - generic: value
+    - generic: IPX-5
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name wireless delay time":
+    - generic: name
+    - generic: wireless delay time
+  - button "value less than 30 ms":
+    - generic: value
+    - generic: less than 30 ms
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name place of origin":
+    - generic: name
+    - generic: place of origin
+  - button "value CN;GUA":
+    - generic: value
+    - generic: CN;GUA
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name cord length":
+    - generic: name
+    - generic: cord length
+  - button "value 1.5(m)":
+    - generic: value
+    - generic: 1.5(m)
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Product Name":
+    - generic: name
+    - generic: Product Name
+  - button "value wireless headphones":
+    - generic: value
+    - generic: wireless headphones
+  - button "additionalProperty":
+    - generic: additionalProperty
+  - button "type PropertyValue":
+    - generic: type
+    - generic: PropertyValue
+  - button "name Function":
+    - generic: name
+    - generic: Function
+  - button "value connections to Phones, Tablets, TV and PC":
+    - generic: value
+    - generic: connections to Phones, Tablets, TV and PC
+- main:
+  - generic "若有干扰，可在「设置」关闭悬浮球"
+  - button:
+  - text: 👋 Hi，想聊点什么～
+  - generic: 下笔没话说？
+  - generic: 告诉我主题，文案、标题、Slogan我都行
+  - generic: 名词听不懂？
+  - generic: 别自己搜了，直接问我，三秒给你讲明白
+  - generic: 脑袋空空了？
+  - generic: 一起脑暴，给产品起名、给活动想点子
+  - generic: 方案没头绪？
+  - generic: 思路我来理，框架我来搭，你来做决策
+  - generic: 新会话
+  - generic: 历史
+  - textbox "输入您的问题... (Enter 发送，Shift+Enter 换行)"
+  - generic: DeepSeek V4
+  - button "联网" [pressed]:
+    - generic: 联网
+  - generic: 内容由AI生成，仅供参考
+  - generic: Chat
+  - generic: 云笔记
+  - generic: 账号
+  - generic: 互动
+  - generic: 通知
+  - generic: 设置
+  - link:
+    - /url: https://yiban.io/style_center?from=side-panel
+  - link:
+    - /url: https://yiban.io/dashboard?from=side-panel
+  - link:
+    - /url: https://yiban.io/pricing?from=side-panel
+  - img "avatar"
+  - button "开通"
+- list

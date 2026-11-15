@@ -6,17 +6,25 @@
 
 [看完整时序图](../diagrams/wecom-draft.html) · [复制群测任务](TEST-PROMPT.zh-CN.md)
 
+## 10月27日补充：当前接线方式
+
+旧包只包含MCP工具，没有网站专用写作技能；新版另含两个Hermes技能，客户只需说业务需求。先按[安装阻塞处理](../../2026-10-27/wecom/OPERATOR-UNBLOCK.zh-CN.md)确认实际发布助手，按[一次性安全传送](../../2026-10-27/wecom/CREDENTIAL-TRANSFER.zh-CN.md)由用户/管理员放置凭证，无需把SSH信息交给Codex。
+
+仓库迁移记录将发布助手标为xianqu-agent2/43.131.44.211:9876，111.230.142.195为废弃旧机器；现网仍须通过已有Hub登记和发布机本机检查确认。下面Docker步骤仅是容器部署参考，不能拿Compose模板定位当前裸机服务。不要在内容机新建发布实例。
+
+内容助手安装channel-blog-writing；发布助手安装它及channel-blog-drafts。在各自实际HERMES_HOME/skills下保留整个目录，并用skills_list、skill_view确认可读。技能安装和真实群测分别验收。新版[客户示例](TEST-PROMPT.zh-CN.md)不再要求SEO、alt或请求编号。
+
 ## 你最后会看到什么
 
-![真实后台编辑和私有预览](../evidence/assistant-private-preview.png)
+![真实后台编辑和私有预览](images/assistant-private-preview.png)
 
 收到编辑链接后，仍需原网站管理员登录。草稿是私有的，普通访客看不到。保存草稿不会改变当前已公开文章。图片可以在后台上传并填写 alt，然后点击 Preview。
 
-![已验收的公开文章桌面效果](../evidence/assistant-public-desktop.png)
+![已验收的公开文章桌面效果](images/assistant-public-desktop.png)
 
 人工点击发布后，CloudBase 保存公开版本，文章服务器返回 HTML；无须 GitHub 构建或五分钟等待。上图是已完成验收的截图，不代表本次微信群已经执行。验收文章后来已撤回，草稿保留。
 
-![已验收的手机文章效果](../evidence/assistant-public-mobile.png)
+![已验收的手机文章效果](images/assistant-public-mobile.png)
 
 本轮网站侧凭证已由40316997615登记，11月9日20:43（日本时间）到期。新凭证查询不存在的导入号返回404，匿名请求返回401；没有创建文章。实际文件在本机 `~/.config/channel-blog/wecom-20261026/`，仅供管理员安全传到服务器，不要发群。生产助手尚未安装。已有这份文件时不要重新生成同名密钥。
 

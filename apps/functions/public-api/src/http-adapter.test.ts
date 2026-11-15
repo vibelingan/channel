@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
@@ -8,6 +9,8 @@ import {
   nextCounterValue,
   setAdapter,
 } from '@vibelingan-channel/db';
+import { storedCatalogImageInputDigest } from '@vibelingan-channel/db/catalog-image-input';
+import { catalogWebImagePath } from '@vibelingan-channel/db/catalog-web-image';
 import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_COUNT,
@@ -1652,4 +1655,96 @@ test('item and slug endpoints return the same approved projection as the list', 
   ) as { data: CollectionDoc };
   assert.deepEqual(item.data, fromList);
   assert.deepEqual(bySlug.data, fromList);
+});
+
+test('health reports page readiness only when its reader is actually wired', async () => {
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/health' },
+    {
+      catalogPages: { siteOrigin: 'https://fixture.example', read: async () => new Map() },
+      jwtSecret: 'fixture-private',
+    },
+  );
+  const health = JSON.parse(response.body);
+  assert.equal(health.data.catalogSeoPageReadiness, true);
+  assert.equal(response.body.includes('fixture-private'), false);
+  const disabled = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/health' }, {});
+  assert.equal(JSON.parse(disabled.body).data.catalogSeoPageReadiness, false);
+});
+
+test('public web image delivery serves exact verified bytes after the existing publication gate', async () => {
+  const store = seedStore();
+  const source = store.images?.find((x) => x._id === 'storage-active');
+  assert.ok(source);
+  Object.assign(source, {
+    name: 'large.png',
+    storagePath: 'source.png',
+    byteSize: 5_000_000,
+    checksumSha256: 'a'.repeat(64),
+  });
+  const bytes = Buffer.from('prepared-webp-bytes');
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  const storagePath = catalogWebImagePath(
+    source._id,
+    String(source.checksumSha256),
+    checksumSha256,
+  );
+  const web = {
+    schemaVersion: 1,
+    sourceDigest: storedCatalogImageInputDigest(source),
+    storageProvider: 'cloudbase-storage',
+    storageFileId: `cloud://active/${storagePath}`,
+    storagePath,
+    mimeType: 'image/webp',
+    byteSize: bytes.length,
+    width: 1280,
+    height: 960,
+    checksumSha256,
+  };
+  // Real CloudBase IDs have a bucket and object path, unlike the older transport fixture.
+  source.storageFileId = 'cloud://active/source.png';
+  web.sourceDigest = storedCatalogImageInputDigest(source);
+  source.catalogWebImage = web;
+  setup(store);
+  const calls: string[] = [];
+  let corrupt = false;
+  setMediaStorage({
+    ...fakeMediaStorage,
+    async getObjectAsBase64(id, options) {
+      calls.push(id);
+      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000 });
+      return {
+        body: (corrupt ? Buffer.from('corrupt') : bytes).toString('base64'),
+        byteSize: bytes.length,
+      };
+    },
+  });
+  const res = await imageReq(source._id);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['Content-Type'], 'image/webp');
+  assert.equal(res.body, bytes.toString('base64'));
+  assert.deepEqual(calls, [web.storageFileId]);
+  corrupt = true;
+  assert.equal((await imageReq(source._id)).statusCode, 503);
+  assert.equal(calls.length, 2);
+  source.publishedRefCount = 0;
+  assert.equal((await imageReq(source._id)).statusCode, 404);
+  assert.equal(calls.length, 2);
+});
+test('an oversized original without a prepared derivative returns a retryable response before storage reads', async () => {
+  const store = seedStore();
+  const source = store.images?.find((x) => x._id === 'storage-active');
+  assert.ok(source);
+  source.byteSize = 5_000_000;
+  setup(store);
+  setMediaStorage({
+    ...fakeMediaStorage,
+    async getObjectAsBase64() {
+      throw Error('Oversized original must not be requested');
+    },
+  });
+  const res = await imageReq(source._id);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.headers['Retry-After'], '30');
+  assert.equal(res.isBase64Encoded, false);
 });

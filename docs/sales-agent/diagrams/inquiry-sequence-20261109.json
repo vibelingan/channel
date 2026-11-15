@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "目标流程：询盘保存到草稿待审核",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1050,
+      580
+    ]
+  },
+  "participants": [
+    {
+      "id": "visitor",
+      "type": "frontend",
+      "label": "官网访客",
+      "sublabel": "浏览器"
+    },
+    {
+      "id": "channel",
+      "type": "backend",
+      "label": "Channel 官网后台",
+      "sublabel": "腾讯云上海；保存和资料接口"
+    },
+    {
+      "id": "sales",
+      "type": "backend",
+      "label": "Hermes Sales Agent",
+      "sublabel": "Hub 主机；执行销售任务"
+    },
+    {
+      "id": "resend",
+      "type": "external",
+      "label": "Resend",
+      "sublabel": "邮件草稿平台"
+    },
+    {
+      "id": "wecom",
+      "type": "external",
+      "label": "企业微信",
+      "sublabel": "任务通知群"
+    }
+  ],
+  "messages": [
+    {
+      "id": "confirm",
+      "from": "visitor",
+      "to": "channel",
+      "y": 160,
+      "label": "1 确认提交需求"
+    },
+    {
+      "id": "intake",
+      "from": "channel",
+      "to": "sales",
+      "y": 196,
+      "label": "2 询盘保存后通知建立任务",
+      "note": "失败保留待投递记录；重投同一询盘不建重复任务"
+    },
+    {
+      "id": "notice_received",
+      "from": "sales",
+      "to": "wecom",
+      "y": 232,
+      "label": "3 通知一：询盘已受理",
+      "note": "Hermes 的任务和待办已保存；此时还没有邮件草稿"
+    },
+    {
+      "id": "read",
+      "from": "sales",
+      "to": "channel",
+      "y": 268,
+      "label": "4 按任务获取必要资料",
+      "note": "目标：一次返回询盘、关联产品当前资料和附件清单"
+    },
+    {
+      "id": "context",
+      "from": "channel",
+      "to": "sales",
+      "y": 304,
+      "label": "5 校验后返回这一个任务的资料",
+      "variant": "return",
+      "note": "不复制整个产品库；附件只在确实需要时单独读取"
+    },
+    {
+      "id": "revision",
+      "from": "sales",
+      "to": "channel",
+      "y": 340,
+      "label": "6 生成后核对资料版本",
+      "note": "模型准备跟进内容；交稿前只核对变化，不再整包重传"
+    },
+    {
+      "id": "version_ok",
+      "from": "channel",
+      "to": "sales",
+      "y": 376,
+      "label": "7 返回版本与当前读取许可",
+      "variant": "return"
+    },
+    {
+      "id": "draft",
+      "from": "sales",
+      "to": "resend",
+      "y": 412,
+      "label": "8 创建未发送邮件草稿"
+    },
+    {
+      "id": "draft_receipt",
+      "from": "resend",
+      "to": "sales",
+      "y": 448,
+      "label": "9 返回草稿编号并核对内容",
+      "variant": "return"
+    },
+    {
+      "id": "notice_draft",
+      "from": "sales",
+      "to": "wecom",
+      "y": 484,
+      "label": "10 通知二：草稿待审核",
+      "note": "Hermes 记录草稿编号后通知；与第 3 步不是同时发生"
+    }
+  ]
+}

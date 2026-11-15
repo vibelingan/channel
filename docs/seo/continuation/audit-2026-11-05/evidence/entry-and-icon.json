@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-11-05T09:14:46.986Z",
+  "observations": [
+    {
+      "url": "https://supplychainsai.com/favicon.ico",
+      "status": 404,
+      "location": null,
+      "type": "text/html"
+    },
+    {
+      "url": "https://supplychainsai.com/favicon.svg",
+      "status": 200,
+      "location": null,
+      "type": "image/svg+xml"
+    },
+    {
+      "url": "http://supplychainsai.com/oem/?seo_probe=20261105",
+      "status": 200,
+      "location": null,
+      "type": "text/html"
+    },
+    {
+      "url": "https://www.supplychainsai.com/oem/?seo_probe=20261105",
+      "status": 301,
+      "location": "https://supplychainsai.com/oem/?seo_probe=20261105",
+      "type": null
+    }
+  ]
+}

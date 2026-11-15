@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Volumes/Lexar-Mac/CodexCaches/channel-formal-validation-20261027/docs/seo/continuation/audit-2026-11-05/diagrams/search-audit.workflow.json",
+  "output": "/Volumes/Lexar-Mac/CodexCaches/channel-formal-validation-20261027/docs/seo/continuation/audit-2026-11-05/diagrams/search-audit.html",
+  "specification": {
+    "sha256": "d16d3e6bf1f2b94db71cc043db29f49fc6c1071acffeed07dea795fe0aeeccca",
+    "bytes": 4546
+  },
+  "artifact": {
+    "sha256": "fe49d7306ea12d827d9afba2ceeed5ff4299569ca3001df5a422adc085d920d2",
+    "bytes": 810724
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

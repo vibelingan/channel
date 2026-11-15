@@ -1313,3 +1313,16 @@ test('photo preparation and its status are admin-only and validated (PT-G)', asy
   if (status.ok)
     assert.deepEqual(status.data, { hiddenDrafts: 0, draftsToFill: 0, draftsMissingPhotos: 0 });
 });
+
+test('health reports the actual catalog recording configuration without credentials', async () => {
+  for (const enabled of [false, true]) {
+    const response = await handleAlibabaSyncFunctionEvent(
+      { httpMethod: 'GET', path: '/api/alibaba-catalog-sync/health', headers: {} },
+      { jwtSecret: 'fixture-private', catalogSeoRecording: enabled },
+    );
+    assert.ok('body' in response);
+    const health = JSON.parse(response.body);
+    assert.equal(health.data.catalogSeoRecording, enabled);
+    assert.equal(response.body.includes('fixture-private'), false);
+  }
+});

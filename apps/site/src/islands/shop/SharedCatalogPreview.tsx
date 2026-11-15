@@ -172,9 +172,10 @@ export default function SharedCatalogPreview({
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`);
     // No React route reset: URL mirrors a validated selection; controller still owns the draft.
   };
-  if (search === undefined)
-    return <output className="block p-12 text-center">{copy.loadingLabel}</output>;
-  const target = sharedListTarget(true, search);
+  // The server and the first browser render show the same supplied catalog.
+  // Read browser-only detail/filter state after hydration without hiding that HTML.
+  const target =
+    search === undefined ? { status: 'list' as const } : sharedListTarget(true, search);
   if (target.status === 'legacy') return renderList(undefined, search);
   const detailOpen = target.status !== 'list';
   return (

@@ -57,8 +57,17 @@ export async function handleQuoteEvent(
     return fail(400, 'invalid-json');
   }
   try {
-    const result = await save(input);
-    if (result.ok) return reply(200, result);
+    const result = await save(input, config.salesCapture);
+    if (result.ok) {
+      if (config.salesCapture) {
+        try {
+          await config.salesAfterSave?.('product', result.requestId);
+        } catch {
+          console.warn('Sales immediate delivery deferred to reconciliation');
+        }
+      }
+      return reply(200, result);
+    }
     if (result.code === 'rate-limit') headers['Retry-After'] = '60';
     return reply(
       result.code === 'validation' ? 400 : result.code === 'rate-limit' ? 429 : 409,

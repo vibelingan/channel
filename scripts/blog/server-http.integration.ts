@@ -4,16 +4,25 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer, request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { handlePublicApiEvent } from '../../apps/functions/public-api/src/http-adapter.ts';
 import { parseArticleContent } from '../../packages/articles/src/article.ts';
 import { createCloudBasePublicArticles } from '../../packages/db/src/article-public-reader.ts';
-import { createCloudBaseArticleRepository } from '../../packages/db/src/article-repository.ts';
+import {
+  articleTransaction,
+  createCloudBaseArticleRepository,
+} from '../../packages/db/src/article-repository.ts';
 import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
+import { registerArticleWebMedia } from '../../packages/db/src/article-web-media.ts';
+import {
+  type StoredMediaObject,
+  objectStoragePath,
+} from '../../packages/media-storage/src/index.ts';
+import { prepareArticleWebMedia } from '../images/article-web-media.ts';
 
 const content = parseArticleContent({
   title: 'Manufacturing guide',
@@ -39,6 +48,7 @@ const content = parseArticleContent({
   },
 });
 test('built SSR server publishes, updates and withdraws without a rebuild; real status and SEO HTML', async (t) => {
+  await access(new URL('../../apps/site/dist-blog/server/entry.mjs', import.meta.url));
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
   const imageBytes = await readFile(
@@ -50,10 +60,12 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     storageFileId: 'cloud://offline/articles/real-http-image',
     storagePath: 'articles/real-http-image',
   };
+  const imageObjects = new Map([[imageTarget.storageFileId, imageBytes]]);
   const articles = createCloudBasePublicArticles(f.db, {
     getObjectAsBase64: async (fileId) => {
-      assert.equal(fileId, imageTarget.storageFileId);
-      return { body: imageBytes.toString('base64') };
+      const bytes = imageObjects.get(fileId);
+      assert(bytes, 'The requested image object must actually exist');
+      return { body: bytes.toString('base64') };
     },
   });
   let offline = false;
@@ -62,13 +74,25 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     // Mirror the production gateway: Blog goes to Node; existing root assets
     // remain on static hosting. Never duplicate the full media tree in the service.
     if (req.url?.startsWith('/blog')) {
-      try {
-        const response = await fetch(`${serverOrigin}${req.url}`, { redirect: 'manual' });
-        res.writeHead(response.status, Object.fromEntries(response.headers));
-        res.end(Buffer.from(await response.arrayBuffer()));
-      } catch {
-        res.writeHead(502).end();
-      }
+      // Node's fetch ignores a custom Host. Use an actual HTTP proxy request so
+      // the integration checks the wire authority rather than a forged JS URL.
+      const upstream = httpRequest(
+        `${serverOrigin}${req.url}`,
+        {
+          headers: { host: new URL(process.env.SITE_URL || 'http://localhost:4321').host },
+        },
+        (response) => {
+          res.writeHead(response.statusCode ?? 502, response.headers);
+          response.once('error', () => res.destroy());
+          response.pipe(res);
+        },
+      );
+      upstream.setTimeout(15000, () => upstream.destroy(Error('Blog fixture proxy timed out')));
+      upstream.once('error', () => {
+        if (!res.headersSent) res.writeHead(502).end();
+        else res.destroy();
+      });
+      upstream.end();
       return;
     }
     if (
@@ -112,6 +136,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       HOST: '127.0.0.1',
       PORT: String(address.port),
       BLOG_API_ORIGIN: `http://127.0.0.1:${apiAddress.port}`,
+      BLOG_WEB_IMAGES_ENABLED: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -140,6 +165,22 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     }
   }
   const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
+  // Opening the formal host must never open the provider's default address.
+  for (const headers of [
+    new Headers(),
+    new Headers({ 'x-forwarded-host': 'supplychainsai.com' }),
+  ]) {
+    const temporary = await fetch(`${serverOrigin}/blog/`, { headers });
+    assert.equal(temporary.headers.get('x-robots-tag'), 'noindex,nofollow');
+    await temporary.arrayBuffer();
+  }
+  const temporaryRedirect = await fetch(`${serverOrigin}/blog/without-slash`, {
+    redirect: 'manual',
+  });
+  assert.equal(temporaryRedirect.status, 308);
+  assert.equal(temporaryRedirect.headers.get('location'), '/blog/without-slash/');
+  assert.equal(temporaryRedirect.headers.get('x-robots-tag'), 'noindex,nofollow');
+  await temporaryRedirect.arrayBuffer();
   const draft = await repo.create({
     actorId: 'admin',
     requestId: 'create',
@@ -160,7 +201,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       },
     }),
   });
-  f.put('articleMedia', imageId, {
+  const activeImage = {
     id: imageId,
     articleId: draft.id,
     purpose: 'article-image',
@@ -170,14 +211,15 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     expiresAt: new Date(Date.now() + 300000).toISOString(),
     pendingStorage: imageTarget,
     storage: imageTarget,
-    status: 'active',
+    status: 'active' as const,
     fileName: 'factory.webp',
-    mimeType: 'image/webp',
+    mimeType: 'image/webp' as const,
     byteSize: imageBytes.length,
     checksumSha256: imageHash,
     width: 1228,
     height: 718,
-  });
+  };
+  f.put('articleMedia', imageId, activeImage);
   let currentRevision = draft.revision;
   assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
   assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
@@ -188,15 +230,29 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     requestId: 'publish',
   });
   const response = await get('/blog/manufacturing-guide/');
+  const formalRedirect = await fetch(`${origin}/blog/manufacturing-guide?utm_source=review`, {
+    redirect: 'manual',
+  });
+  assert.equal(formalRedirect.status, 308);
+  assert.equal(
+    formalRedirect.headers.get('location'),
+    '/blog/manufacturing-guide/?utm_source=review',
+  );
+  await formalRedirect.arrayBuffer();
   assert.equal(response.status, 200, output);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  const previewOnly = process.env.BLOG_PREVIEW_ONLY === '1';
+  const previewOnly = process.env.BLOG_PREVIEW_ONLY !== '0';
   assert.equal(response.headers.get('x-robots-tag'), previewOnly ? 'noindex,nofollow' : null);
   const health = await (await get('/blog/health.json')).json();
   const siteOrigin = process.env.SITE_URL || 'http://localhost:4321';
   assert(health !== null && typeof health === 'object');
   assert.equal(Reflect.get(health, 'siteOrigin'), siteOrigin);
   assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
+  assert.deepEqual(Reflect.get(health, 'indexing'), {
+    enabled: !previewOnly,
+    canonicalHost: true,
+    allowed: !previewOnly,
+  });
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
   const imageResponse = await get(`/blog/media/articles/${imageId}/${imageHash}.webp`);
@@ -216,6 +272,56 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(html, /"@type":"Article"/);
   assert.match(html, /datePublished/);
   assert.match(html, /index,follow/);
+  const acceptedBeforePreparation = structuredClone(f.rows.get(`articleAccepted/${draft.id}`));
+  const checkpoints: StoredMediaObject[] = [];
+  const prepared = await prepareArticleWebMedia({
+    active: activeImage,
+    storage: {
+      async getObjectAsBase64(id) {
+        const bytes = imageObjects.get(id);
+        assert(bytes);
+        return { body: bytes.toString('base64') };
+      },
+      async putObject(input, options) {
+        assert(input.content instanceof Uint8Array);
+        assert(options?.beforeWrite);
+        const storagePath = objectStoragePath(input);
+        const target: StoredMediaObject = {
+          storageProvider: 'cloudbase-storage',
+          storageMode: 'classic-nosql-storage',
+          storagePath,
+          storageFileId: `cloud://offline/${storagePath}`,
+          byteSize: input.content.length,
+        };
+        await options.beforeWrite(target);
+        imageObjects.set(target.storageFileId, Buffer.from(input.content));
+        return target;
+      },
+    },
+    checkpoint: async (target) => {
+      checkpoints.push({ ...target });
+    },
+    register: (entry) => registerArticleWebMedia(articleTransaction(f.db), entry),
+  });
+  assert.equal(checkpoints.length, 1);
+  assert.deepEqual(f.rows.get(`articleAccepted/${draft.id}`), acceptedBeforePreparation);
+  const rendered = await get('/blog/manufacturing-guide/');
+  assert.equal(rendered.status, 200);
+  assert.equal(rendered.headers.get('x-article-presentation'), 'render-web-v1');
+  const renderedHtml = await rendered.text();
+  const webPath = `/blog/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`;
+  assert(renderedHtml.includes(webPath));
+  assert.match(renderedHtml, /alt="Factory HTTP image"/);
+  assert(!renderedHtml.includes('storageFileId'));
+  const webResponse = await get(webPath);
+  assert.equal(webResponse.status, 200);
+  assert.equal(webResponse.headers.get('content-type'), 'image/webp');
+  assert.equal(
+    createHash('sha256')
+      .update(Buffer.from(await webResponse.arrayBuffer()))
+      .digest('hex'),
+    prepared.entry.web.checksumSha256,
+  );
   if (process.env.BLOG_SSR_BROWSER === '1') {
     const { chromium } = await import('@playwright/test');
     const browser = await chromium.launch({
@@ -358,6 +464,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     requestId: 'update',
   });
   assert.match(await (await get('/blog/manufacturing-guide/')).text(), /Updated guidance/);
+  assert.equal(
+    (await get(webPath)).status,
+    404,
+    'Removing the published image must revoke its web copy',
+  );
   await repo.releases.request('admin', {
     operation: 'withdraw',
     articleId: draft.id,

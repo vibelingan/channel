@@ -1,5 +1,11 @@
 import sax from 'sax';
 import {
+  categoryManifestPath,
+  isCategoryPageFile,
+  isCategoryPagePath,
+  validateCategoryOutput,
+} from './category-output.mjs';
+import {
   assertHostingPath,
   assertOrigin,
   isSitemap,
@@ -50,6 +56,9 @@ export function readPublicOutput(
   const sitemapProducts = pages.filter((path) => productPath.test(path));
   const hasProducts = paths.has('products/manifest.json');
   const hasSeo = paths.has('seo-manifest.json');
+  const hasCategories = paths.has(categoryManifestPath);
+  if (!hasCategories && ([...paths].some(isCategoryPageFile) || pages.some(isCategoryPagePath)))
+    throw Error('Category pagination requires its manifest');
   const allow = new Set(publicPaths);
   const rejectWithdrawn = (items) => {
     for (const path of items)
@@ -58,7 +67,7 @@ export function readPublicOutput(
   };
   rejectWithdrawn([...html, ...sitemapProducts]);
   // Old sites without product output can still recover their pre-SSG backups.
-  if (!hasProducts && !hasSeo && !html.length && !sitemapProducts.length)
+  if (!hasProducts && !hasSeo && !hasCategories && !html.length && !sitemapProducts.length)
     return { products: [], legacy: true, discoveryPaths };
   if (!hasProducts || !hasSeo) throw new Error('Missing public product/SEO manifest.');
   const products = json('products/manifest.json');
@@ -112,6 +121,16 @@ export function readPublicOutput(
     !sameSet(productPaths, sitemapProducts)
   )
     throw new Error('Product projection mismatch across HTML, manifests and sitemap.');
+  validateCategoryOutput({
+    manifest: hasCategories ? json(categoryManifestPath) : undefined,
+    paths,
+    read,
+    origin: siteOrigin,
+    products: productPaths,
+    seo: seo.entries,
+    sitemap: pages,
+  });
+  if (hasCategories) discoveryPaths.push(categoryManifestPath);
   return {
     products: products.products.map(({ path, revision }) => ({ path, revision })),
     legacy: false,

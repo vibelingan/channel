@@ -1,0 +1,10 @@
+---
+/**
+ * The one public assistant on a page. Pages that offer it mount it here and
+ * nowhere else, so the routes carrying it stay the tested list in
+ * `lib/ai-widget-routes.ts`, and a product page opened from the chat in the
+ * same tab continues the same conversation.
+ */
+import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
+---
+<AssistantWidget client:load />

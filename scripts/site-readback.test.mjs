@@ -140,6 +140,48 @@ test('read-only acceptance verifies the exact existing candidate without exposin
   assert.equal(browser, 1);
   assert.equal(f.http.requests.length, 3);
 });
+
+test('an already accepted candidate can verify its files for DB-only catalog registration', async (t) => {
+  const f = await fixture(t);
+  f.run.state = 'SUCCEEDED';
+  f.run.verifiedSteps++;
+  f.run.accepted = {
+    sourceRunId: f.run.runId,
+    seals: { static: { exact: 'accepted-static-seal' } },
+  };
+  f.input.acceptedSeal = f.run.accepted.seals.static;
+  const result = await verifySiteReadback({ ...f, acceptedRegistration: true });
+  assert.equal(result.websiteWrites, 0);
+  assert.equal(result.observedHash, f.run.plan.acceptanceHash);
+  f.input.acceptedSeal = { exact: 'different-seal' };
+  await assert.rejects(
+    verifySiteReadback({ ...f, acceptedRegistration: true }),
+    /completed writes/,
+  );
+});
+
+test('catalog registration repair cannot turn an unconfirmed write into an accepted candidate', async (t) => {
+  const f = await fixture(t);
+  f.steps[0].state = 'unknown';
+  f.steps[0].receipt.terminal = false;
+  await assert.rejects(
+    verifySiteReadback({ ...f, acceptedRegistration: true }),
+    /completed writes/,
+  );
+  f.run.state = 'SUCCEEDED';
+  f.run.verifiedSteps++;
+  f.run.accepted = { sourceRunId: f.run.runId, seals: { static: { exact: 'seal' } } };
+  f.input.acceptedSeal = f.run.accepted.seals.static;
+  await assert.rejects(verifySiteReadback({ ...f, acceptedRegistration: true }), /Unconfirmed/);
+});
+
+test('current-data reconciliation uses the same terminal-write checks for final readback', async (t) => {
+  const f = await fixture(t);
+  f.run.kind = 'reconcile';
+  assert.equal((await verifySiteReadback(f)).websiteWrites, 0);
+  f.steps[0].receipt.terminal = false;
+  await assert.rejects(verifySiteReadback(f), /Unconfirmed/);
+});
 for (const bad of ['candidate', 'receipt', 'sequence', 'fence', 'write-count'])
   test(`read-only acceptance rejects inconsistent ${bad}`, async (t) => {
     const f = await fixture(t);

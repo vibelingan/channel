@@ -36,6 +36,64 @@ const request = {
   headers: { authorization: `Bearer ${credentials}`, 'content-type': 'application/json' },
   body: JSON.stringify({ title: 'Draft' }),
 };
+test('image routes keep server authorization, bounded JSON and exact import ownership parameters', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const images = {
+    state: async (...args: unknown[]) => {
+      calls.push(['state', ...args]);
+      return { revision: 1 };
+    },
+    intent: async (...args: unknown[]) => {
+      calls.push(['intent', ...args]);
+      return { status: 'pending' };
+    },
+    complete: async (...args: unknown[]) => {
+      calls.push(['complete', ...args]);
+      return { status: 'active' };
+    },
+    attach: async (...args: unknown[]) => {
+      calls.push(['attach', ...args]);
+      return { complete: true };
+    },
+  };
+  const service = { ...f.service, images };
+  for (const action of ['state', 'intent', 'complete', 'attach']) {
+    const get = action === 'state';
+    const event = {
+      ...request,
+      httpMethod: get ? 'GET' : 'POST',
+      path: `${root}/${receipt.operationId}/images/${action}`,
+      body: get ? '' : JSON.stringify({ test: true }),
+    };
+    const r = await handleArticleImportEvent(event, service);
+    assert.equal(r.statusCode, 200, action);
+    assert.deepEqual(
+      calls.at(-1),
+      get
+        ? [action, credentials, receipt.operationId]
+        : [action, credentials, receipt.operationId, { test: true }],
+    );
+    assert.equal(
+      (await handleArticleImportEvent({ ...event, headers: {} }, service)).statusCode,
+      401,
+    );
+    assert.equal(
+      (await handleArticleImportEvent({ ...event, path: `${event.path}/other` }, service))
+        .statusCode,
+      404,
+    );
+  }
+  assert.equal(
+    (
+      await handleArticleImportEvent(
+        { ...request, path: `${root}/${receipt.operationId}/images/intent` },
+        f.service,
+      )
+    ).statusCode,
+    503,
+  );
+});
 test('only the fixed integration routes accept server credentials; browser actions and other methods are rejected', async () => {
   const f = fixture();
   const result = await handleArticleImportEvent(request, f.service);
@@ -62,6 +120,40 @@ test('only the fixed integration routes accept server credentials; browser actio
       201,
     );
   assert.equal(f.calls.length, 2);
+});
+test('managed credential maintenance is POST-only, authenticated and never cached or exposed through CORS', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const next = {
+    credential: `content.${'e'.repeat(64)}`,
+    expiresAt: '2027-01-25T00:00:00.000Z',
+    rotateAfter: '2026-11-26T00:00:00.000Z',
+    configRevision: 2,
+  };
+  const service = {
+    ...f.service,
+    rotate: async (key: string, input: unknown) => {
+      calls.push([key, input]);
+      return next;
+    },
+  };
+  const input = { rotationId: 'a'.repeat(32) };
+  const event = { ...request, path: `${root}/credential-rotation`, body: JSON.stringify(input) };
+  const result = await handleArticleImportEvent(event, service);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.headers['Cache-Control'], 'no-store');
+  assert.equal(result.headers['Access-Control-Allow-Origin'], undefined);
+  assert.deepEqual(JSON.parse(result.body).data, next);
+  assert.deepEqual(calls, [[credentials, input]]);
+  assert.equal(
+    (await handleArticleImportEvent({ ...event, httpMethod: 'GET', body: '' }, service)).statusCode,
+    405,
+  );
+  assert.equal(
+    (await handleArticleImportEvent({ ...event, headers: {} }, service)).statusCode,
+    401,
+  );
+  assert.equal(calls.length, 1);
 });
 test('base64, UTF-8, JSON and total byte boundaries cannot bypass parsing', async () => {
   const f = fixture();
@@ -105,4 +197,111 @@ test('quota errors carry Retry-After while storage errors never reveal SDK detai
   assert.equal(failed.statusCode, 503);
   assert(!failed.body.includes('PRIVATE_DATABASE_DETAIL'));
   assert.equal((await handleArticleImportEvent(request, undefined)).statusCode, 503);
+});
+
+test('owned publication route authenticates before any article action', async () => {
+  const response = await handleArticleImportEvent(
+    {
+      httpMethod: 'POST',
+      path: `${root}/article-import-${'a'.repeat(64)}/publication`,
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    },
+    {
+      create: async () => {
+        throw Error('Publication must not create a draft');
+      },
+      get: async () => {
+        throw Error('Publication must not read an unrelated draft');
+      },
+    },
+  );
+  assert.equal(response.statusCode, 401);
+});
+
+test('publication GET/POST keep the exact owner, bounded JSON, no-cache and method contract', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const service = {
+    ...f.service,
+    publication: {
+      sync: async () => {
+        throw Error('Publication must not sync its source implicitly');
+      },
+      state: async (...args: unknown[]) => {
+        calls.push(['state', ...args]);
+        return { state: 'ready' };
+      },
+      change: async (...args: unknown[]) => {
+        calls.push(['change', ...args]);
+        return { state: 'published' };
+      },
+    },
+  };
+  const path = `${root}/${receipt.operationId}/publication`;
+  const get = await handleArticleImportEvent(
+    { ...request, httpMethod: 'GET', path, body: '' },
+    service,
+  );
+  assert.equal(get.statusCode, 200);
+  assert.equal(get.headers['Cache-Control'], 'no-store');
+  assert.deepEqual(calls.at(-1), ['state', credentials, receipt.operationId]);
+  const post = await handleArticleImportEvent({ ...request, path, body: '{"test":true}' }, service);
+  assert.equal(post.statusCode, 200);
+  assert.deepEqual(calls.at(-1), ['change', credentials, receipt.operationId, { test: true }]);
+  for (const method of ['DELETE', 'PUT', 'OPTIONS']) {
+    const denied = await handleArticleImportEvent(
+      { ...request, path, httpMethod: method },
+      service,
+    );
+    assert.equal(denied.statusCode, 405);
+    assert.equal(denied.headers.Allow, 'GET, POST');
+  }
+  assert.equal(
+    (
+      await handleArticleImportEvent(
+        { ...request, path, body: 'x'.repeat(256 * 1024 + 1) },
+        service,
+      )
+    ).statusCode,
+    413,
+  );
+  assert.equal(
+    (await handleArticleImportEvent({ ...request, path, headers: {} }, service)).statusCode,
+    401,
+  );
+  assert.equal(
+    (await handleArticleImportEvent({ ...request, path: `${path}/other` }, service)).statusCode,
+    404,
+  );
+});
+
+test('source updates are authenticated POST only and cannot masquerade as browser admin actions', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const service = {
+    ...f.service,
+    publication: {
+      state: async () => ({}),
+      change: async () => ({}),
+      sync: async (...args: unknown[]) => {
+        calls.push(args);
+        return { revision: 2 };
+      },
+    },
+  };
+  const event = {
+    ...request,
+    path: `${root}/${receipt.operationId}/source`,
+    body: JSON.stringify({ expectedRevision: 1 }),
+  };
+  assert.equal(
+    (await handleArticleImportEvent({ ...event, headers: {} }, service)).statusCode,
+    401,
+  );
+  const invalid = await handleArticleImportEvent({ ...event, httpMethod: 'GET' }, service);
+  assert.equal(invalid.statusCode, 405);
+  assert.equal(invalid.headers.Allow, 'POST');
+  assert.equal((await handleArticleImportEvent(event, service)).statusCode, 200);
+  assert.deepEqual(calls, [[credentials, receipt.operationId, { expectedRevision: 1 }]]);
 });

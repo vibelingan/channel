@@ -1,6 +1,7 @@
 ---
 import type { ArticlePageData } from '@vibelingan-channel/articles/build';
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
+import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
 import PageHero from '../components/PageHero.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -26,8 +27,17 @@ interface Props {
   server?: boolean;
   next?: string | null;
   cursor?: string;
+  presentation?: ArticleWebPresentation;
 }
-const { articles, article, dummy = false, server = false, next = null, cursor } = Astro.props;
+const {
+  articles,
+  article,
+  dummy = false,
+  server = false,
+  next = null,
+  cursor,
+  presentation,
+} = Astro.props;
 const location = dummy
   ? dummyBlogLocation
   : server
@@ -36,7 +46,7 @@ const location = dummy
 const site = getSiteContent(DEFAULT_LOCALE);
 const origin = (Astro.site ?? Astro.url.origin).toString();
 const basePage = article
-  ? articlePage(article, origin, site.brand.name, location)
+  ? articlePage(article, origin, site.brand.name, location, presentation)
   : blogPage(articles, origin, site.brand.name, location);
 const page = cursor
   ? {
@@ -70,7 +80,7 @@ const page = cursor
           </p>
           {article.modifiedAt !== article.publishedAt && <p class="mt-2 text-sm text-ink-muted">Updated <time datetime={article.modifiedAt}>{articleDate(article.modifiedAt)}</time></p>}
         </header>
-        <div class="article-body" set:html={articleBody(article, location)} />
+        <div class="article-body" set:html={articleBody(article, location, presentation)} />
         <a href={location.root} class="mt-12 inline-flex min-h-11 items-center font-semibold text-brand-700 underline underline-offset-4">All insights</a>
       </article>
     ) : (

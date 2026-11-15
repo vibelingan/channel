@@ -64,7 +64,7 @@ pnpm --filter @vibelingan-channel/fn-admin build
 E2E_BLOG_MEDIA_SCREENSHOTS=1 node scripts/run-catalog-admin-local-e2e.mjs --articles-only --headed
 ```
 
-截图与机器记录在 [本轮产物](../../output/blog-media-2026-10-23/README.zh-CN.md)。本次推送的准确提交及远端 CI 由最终交付回报给出，不用上一提交的绿灯代替。
+截图与机器记录在 [本轮产物](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/output/blog-media-2026-10-23/README.zh-CN.md)。本次推送的准确提交及远端 CI 由最终交付回报给出，不用上一提交的绿灯代替。
 
 ## 下一步现场验收怎样做
 

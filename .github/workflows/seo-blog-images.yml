@@ -1,0 +1,49 @@
+name: Prepare private Blog image integration
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      BLOG_BOOTSTRAP_CONFIRM: BLOG_API_EXPANSION_ONLY
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+      SITE_URL: https://supplychainsai.com
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Build only the isolated importer
+        run: pnpm --filter @vibelingan-channel/fn-article-import build
+        env: {CHANNEL_BUILD_SHA: '${{ github.sha }}'}
+      - run: node scripts/blog/article-import-package.mjs
+      - name: Preserve the old importer, add server-only image jobs, and keep existing credentials
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        with:
+          script: |
+            const {spawn} = require('node:child_process');
+            await new Promise((resolve,reject) => {
+              const child=spawn('./packages/db/node_modules/.bin/tsx',['scripts/blog/images-live.ts'],{stdio:'inherit',env:process.env});
+              child.once('error',reject);
+              child.once('exit',code=>code===0?resolve():reject(new Error('Private image preparation stopped; inspect archived stage')));
+            });
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blog-images-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/blog-images-preparation/result.json
+          if-no-files-found: ignore
+          retention-days: 90

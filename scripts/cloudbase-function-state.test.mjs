@@ -108,7 +108,7 @@ test('deployment uses the same tested waiter before code, after code and after c
     'if (before) waitForActive(def.name)',
     'deployFunctionWithCloudBaseCli(',
     'const after = waitForActive(def.name)',
-    'updateFunctionConfig(def)',
+    'updateFunctionConfig(def, ',
     'const configAfter = waitForActive(def.name)',
   ])
     assert.ok(deploy.includes(marker), `Missing deployment phase: ${marker}`);
@@ -118,10 +118,10 @@ test('deployment uses the same tested waiter before code, after code and after c
   );
   assert.ok(
     deploy.indexOf('const after = waitForActive(def.name)') <
-      deploy.indexOf('updateFunctionConfig(def)'),
+      deploy.indexOf('updateFunctionConfig(def, '),
   );
   assert.ok(
     deploy.indexOf('const configAfter = waitForActive(def.name)') >
-      deploy.indexOf('updateFunctionConfig(def)'),
+      deploy.indexOf('updateFunctionConfig(def, '),
   );
 });

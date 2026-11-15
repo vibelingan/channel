@@ -8,6 +8,7 @@
  */
 import { setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import { readCatalogSeoRecordingConfig } from '@vibelingan-channel/db/catalog-seo-requests';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -23,6 +24,7 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AlibabaSyncFunctionConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
+  catalogSeoRecording: Boolean(readCatalogSeoRecordingConfig(process.env)),
   backgroundSyncEnabled: optionalEnv('ALIBABA_SYNC_BACKGROUND_ENABLED') === '1',
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS') as string) }

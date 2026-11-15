@@ -13,13 +13,14 @@
  * See docs/IMAGE_UPLOAD_STORAGE_DESIGN.md §20.4 (MIU-02).
  */
 
-import { catalogProtectedStoragePath } from './protected-path.ts';
+import { catalogProtectedStoragePath, catalogWebObjectPath } from './protected-path.ts';
 export { catalogProtectedStoragePath };
 
 /** Top-level storage namespaces; map to the path prefixes below. */
 export type MediaNamespace =
   | 'articles'
   | 'catalog'
+  | 'catalog-web'
   | 'catalog-sealed'
   | 'oem'
   | 'marketing'
@@ -93,8 +94,10 @@ export interface MediaObjectReadOptions {
 const MEDIA_READ_ERROR = Symbol.for('@vibelingan-channel/media-read-error');
 export class MediaReadError extends Error {
   readonly [MEDIA_READ_ERROR] = true;
-  constructor(readonly reason: 'too-large' | 'timeout' | 'unavailable') {
+  readonly reason: 'too-large' | 'timeout' | 'unavailable';
+  constructor(reason: 'too-large' | 'timeout' | 'unavailable') {
     super(`Media read ${reason}.`);
+    this.reason = reason;
     this.name = 'MediaReadError';
   }
 }
@@ -206,6 +209,11 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
 ): string {
+  if (input.namespace === 'catalog-web') {
+    const parts = /^([a-f0-9]{64})-([a-f0-9]{64})\.webp$/.exec(input.fileName);
+    if (!parts?.[1] || !parts[2]) throw Error('Invalid generated image filename');
+    return catalogWebObjectPath(input.logicalId, parts[1], parts[2]);
+  }
   if (input.namespace === 'catalog-sealed')
     return catalogProtectedStoragePath(input.logicalId, input.fileName);
   const safe = safeFileName(input.fileName);

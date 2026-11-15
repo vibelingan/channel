@@ -1,0 +1,8 @@
+{
+  "reviewedAt": "2026-11-05",
+  "source": "Saved US Lighthouse network-requests audits, all 54 reports",
+  "statusCounts": {
+    "200": 222
+  },
+  "non200": []
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseFragment } from 'parse5';
+import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
 import { fromTiptapJSON } from './document.ts';
 import { renderArticle } from './render.ts';
 
@@ -101,6 +101,109 @@ test('published images use trusted media metadata and do not duplicate reference
   assert.match(result.html, /<figcaption>Front view<\/figcaption>/);
 });
 
+test('only the opening public image position is eager and high priority', () => {
+  const content = doc(image, paragraph('Inspect the sample before ordering.'), image, {
+    ...image,
+    attrs: { ...image.attrs, mediaId: 'media-2', alt: 'Inspection checklist', caption: '' },
+  });
+  const before = JSON.stringify(content);
+  const result = renderArticle(content, {
+    mode: 'public',
+    media: {
+      'media-1': publicImage,
+      'media-2': { ...publicImage, url: '/media/articles/media-2' },
+    },
+  });
+  assert.deepEqual(imageAttributes(result.html), [
+    {
+      src: '/media/articles/media-1',
+      alt: 'A USB-C hub',
+      width: '800',
+      height: '600',
+      loading: 'eager',
+      fetchpriority: 'high',
+      decoding: 'async',
+    },
+    {
+      src: '/media/articles/media-1',
+      alt: 'A USB-C hub',
+      width: '800',
+      height: '600',
+      loading: 'lazy',
+      decoding: 'async',
+    },
+    {
+      src: '/media/articles/media-2',
+      alt: 'Inspection checklist',
+      width: '800',
+      height: '600',
+      loading: 'lazy',
+      decoding: 'async',
+    },
+  ]);
+  assert.equal(JSON.stringify(content), before);
+  assert.equal(
+    result.text,
+    'Front view\nInspect the sample before ordering.\nFront view\nInspection checklist',
+  );
+  assert.deepEqual(result.mediaIds, ['media-1', 'media-2']);
+  assert.match(result.html, /class="article-image article-image-center"/);
+  assert.match(result.html, /<figcaption>Front view<\/figcaption>/);
+});
+
+test('empty opening text blocks do not hide an opening public image', () => {
+  const result = renderArticle(
+    doc(
+      { type: 'paragraph', content: [] },
+      paragraph(' \t '),
+      { type: 'heading', attrs: { level: 2 }, content: [] },
+      image,
+    ),
+    { mode: 'public', media: { 'media-1': publicImage } },
+  );
+  assert.match(result.html, /^<p><\/p><p> \t <\/p><h2><\/h2><figure/);
+  assert.equal(imageAttributes(result.html)[0]?.loading, 'eager');
+  assert.equal(imageAttributes(result.html)[0]?.fetchpriority, 'high');
+});
+
+test('an image following visible prose or a heading remains lazy', () => {
+  for (const opening of [
+    paragraph('A long introduction. '.repeat(100)),
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Inspection' }] },
+  ]) {
+    const result = renderArticle(doc(opening, image, image), {
+      mode: 'public',
+      media: { 'media-1': publicImage },
+    });
+    assert(imageAttributes(result.html).every((attrs) => attrs.loading === 'lazy'));
+    assert(!result.html.includes('fetchpriority'));
+  }
+});
+
+test('an image nested in a first block does not receive opening-image priority', () => {
+  const result = renderArticle(doc({ type: 'blockquote', content: [image] }, image), {
+    mode: 'public',
+    media: { 'media-1': publicImage },
+  });
+  assert.match(result.html, /^<blockquote><figure/);
+  assert(imageAttributes(result.html).every((attrs) => attrs.loading === 'lazy'));
+  assert(!result.html.includes('fetchpriority'));
+});
+
+test('visible opening rules and explicit line breaks keep following images lazy', () => {
+  for (const opening of [
+    { type: 'horizontalRule' },
+    { type: 'paragraph', content: [{ type: 'hardBreak' }] },
+  ]) {
+    const result = renderArticle(doc(opening, image), {
+      mode: 'public',
+      media: { 'media-1': publicImage },
+    });
+    assert.equal(imageAttributes(result.html)[0]?.loading, 'lazy');
+    assert(!result.html.includes('fetchpriority'));
+  }
+});
+
 test('missing, private, active-content and malformed media cannot be rendered as published images', () => {
   for (const media of [
     {},
@@ -118,13 +221,15 @@ test('private preview only accepts same-origin object URLs, never raw storage ad
     kind: 'private-preview' as const,
     url: 'blob:https://admin.example/image-id',
   };
-  assert.doesNotThrow(() =>
-    renderArticle(doc(image), {
+  for (const media of [preview, publicImage]) {
+    const result = renderArticle(doc(image, image), {
       mode: 'preview',
       previewOrigin: 'https://admin.example',
-      media: { 'media-1': preview },
-    }),
-  );
+      media: { 'media-1': media },
+    });
+    assert(imageAttributes(result.html).every((attrs) => attrs.loading === 'lazy'));
+    assert(!result.html.includes('fetchpriority'));
+  }
   for (const url of ['https://storage.example/private', 'blob:https://other.example/image-id'])
     assert.throws(() =>
       renderArticle(doc(image), {
@@ -134,3 +239,14 @@ test('private preview only accepts same-origin object URLs, never raw storage ad
       }),
     );
 });
+
+function imageAttributes(html: string): Record<string, string>[] {
+  const images: Record<string, string>[] = [];
+  function visit(node: DefaultTreeAdapterMap['node']) {
+    if ('tagName' in node && node.tagName === 'img')
+      images.push(Object.fromEntries(node.attrs.map(({ name, value }) => [name, value])));
+    if ('childNodes' in node) node.childNodes.forEach(visit);
+  }
+  visit(parseFragment(html));
+  return images;
+}

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { SalesCaptureScope } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { handleQuoteEvent } from './catalog-quote-http.ts';
 import { handlePublicApiEvent } from './http-adapter.ts';
 
@@ -87,4 +88,86 @@ test('production router keeps RFQ disabled by default and routes explicit prefli
   assert.equal(result.statusCode, 204);
   assert.equal(result.headers['Access-Control-Allow-Methods'], 'POST, OPTIONS');
   assert.equal(result.headers['Access-Control-Allow-Origin'], 'https://site.example');
+});
+
+const capture = {
+  client_id: 'test-client',
+  business_line: 'website',
+  source_installation_id: 'test-installation',
+  environment: 'test',
+  cloud_env_id: 'isolated-test-environment',
+  cutover_at: 0,
+} satisfies SalesCaptureScope;
+
+test('a successful product inquiry keeps the server Sales scope and starts delivery only after persistence', async () => {
+  const stages: string[] = [];
+  const requestId = '11111111-1111-4111-8111-111111111111';
+  const response = await handleQuoteEvent(
+    event,
+    {
+      ...config,
+      salesCapture: capture,
+      salesAfterSave: async (kind, id) => {
+        assert.deepEqual(stages, ['saved']);
+        assert.equal(kind, 'product');
+        assert.equal(id, requestId);
+        stages.push('delivered');
+      },
+    },
+    async (_input, scope) => {
+      assert.deepEqual(scope, capture);
+      stages.push('saved');
+      return { ok: true, requestId };
+    },
+  );
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(stages, ['saved', 'delivered']);
+});
+
+test('failed save or disabled Sales capture cannot start delivery', async () => {
+  let deliveries = 0;
+  const salesAfterSave = async () => {
+    deliveries++;
+  };
+  const denied = await handleQuoteEvent(
+    event,
+    { ...config, salesCapture: capture, salesAfterSave },
+    async () => ({ ok: false, code: 'rate-limit' }),
+  );
+  assert.equal(denied.statusCode, 429);
+  const plain = await handleQuoteEvent(
+    event,
+    { ...config, salesAfterSave },
+    async (_input, scope) => {
+      assert.equal(scope, undefined);
+      return { ok: true, requestId: '11111111-1111-4111-8111-111111111111' };
+    },
+  );
+  assert.equal(plain.statusCode, 200);
+  assert.equal(deliveries, 0);
+});
+
+test('a delivery outage retains the successful saved receipt without resaving or exposing downstream details', async () => {
+  let saves = 0;
+  let deliveries = 0;
+  const requestId = '11111111-1111-4111-8111-111111111111';
+  const response = await handleQuoteEvent(
+    event,
+    {
+      ...config,
+      salesCapture: capture,
+      salesAfterSave: async () => {
+        deliveries++;
+        throw Error('private downstream failure');
+      },
+    },
+    async () => {
+      saves++;
+      return { ok: true, requestId };
+    },
+  );
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(JSON.parse(response.body), { ok: true, requestId });
+  assert.equal(saves, 1);
+  assert.equal(deliveries, 1);
 });

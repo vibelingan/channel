@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
+  HOSTING_READ_PARALLEL,
   assertHostingBatchMembers,
   assertHostingRemovals,
   hostingBatchBeforeHash,
   hostingBatchHash,
   hostingRemovalHash,
   mapHostingBounded,
+  mapHostingReads,
   siteRemovalBatches,
   siteUploadBatches,
   withSiteUploadBatches,
@@ -41,6 +43,25 @@ test('site batches bind every object and keep assets, leaf HTML, entry HTML and 
     siteUploadBatches({ ...plan(entries), delivery: { batchSize: 100, parallel: 4 } }),
   );
   assert.throws(() => withSiteUploadBatches({ ...plan(entries), scope: { kind: 'canary' } }));
+});
+test('new site plans bind one twelve-way upload per batch; journaled four-way plans stay valid', () => {
+  const entries = Array.from({ length: 13 }, (_, i) => entry(`_astro/${i}.js`));
+  const next = withSiteUploadBatches(plan(entries));
+  assert.deepEqual(next.delivery, {
+    batchSize: 12,
+    removeBatchSize: 12,
+    parallel: 4,
+    uploadParallel: 12,
+  });
+  const legacy = {
+    ...plan(entries),
+    delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4 },
+  };
+  assert.deepEqual(siteUploadBatches(legacy), siteUploadBatches(next));
+  for (const uploadParallel of [4, 13, 24, '12', null])
+    assert.throws(() =>
+      siteUploadBatches({ ...plan(entries), delivery: { ...next.delivery, uploadParallel } }),
+    );
 });
 test('batch membership includes exact before states and refuses ambiguous or duplicated paths', () => {
   const m = [{ ...entry('index.html'), beforeHash: 'absent' }];
@@ -131,4 +152,38 @@ test('bounded checks reject invalid limits and retain even a non-Error failure',
     assert.equal(error, null);
   }
   assert.equal(calls, 1);
+});
+test('public readbacks overlap twelve at a time, drain on failure, and writes keep their bound', async () => {
+  const items = Array.from({ length: 30 }, (_, n) => n);
+  let active = 0;
+  let maximum = 0;
+  const result = await mapHostingReads(items, async (n) => {
+    active++;
+    maximum = Math.max(maximum, active);
+    await delay(3);
+    active--;
+    return n + 1;
+  });
+  assert.equal(HOSTING_READ_PARALLEL, 12);
+  assert.equal(maximum, 12);
+  assert.deepEqual(
+    result,
+    items.map((n) => n + 1),
+  );
+  const started = [];
+  await assert.rejects(
+    mapHostingReads(items, async (n) => {
+      started.push(n);
+      active++;
+      await delay(n === 0 ? 1 : 10);
+      active--;
+      if (n === 0) throw Error('readback failed');
+    }),
+  );
+  assert.equal(active, 0, 'reads already started finish before the failure is reported');
+  assert.equal(started.length, 12);
+  await assert.rejects(
+    mapHostingBounded([1], 12, async () => true),
+    /Invalid hosting parallel/,
+  );
 });

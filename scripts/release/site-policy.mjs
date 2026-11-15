@@ -2,6 +2,7 @@ export const SITE_DELIVERY_POLICY = Object.freeze({
   repository: 'vibelingan/channel',
   envId: 'diversity-123-d9grnqfux221323bb',
   region: 'ap-shanghai',
+  archiveBucket: '6469-diversity-123-d9grnqfux221323bb-1443560658',
   canaryPrefix: '__release-canary/',
   controlPlaneReviewSha256: 'ade149d24c39b4b413db0a5c2ca5db422115d3c116046dd01c4895a23a87c515',
   siteOrigin: 'https://supplychainsai.com',
@@ -67,7 +68,7 @@ export function assertSiteDeliveryInvocation(env) {
         env.SITE_ARTICLE_TASK_ID ||
         env.SITE_DELIVERY_FAULT === 'after-upload')) ||
     normal !== (env.SITE_DELIVERY_BUILT_INPUT === '1') ||
-    !['fresh', 'accepted'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
+    !['fresh', 'accepted', 'refresh'].includes(env.SITE_PRODUCT_SOURCE ?? 'fresh') ||
     !['none', 'after-upload'].includes(env.SITE_DELIVERY_FAULT ?? 'none') ||
     (env.SITE_DELIVERY_FAULT === 'after-upload' &&
       (env.SITE_DELIVERY_MODE !== 'publish' ||

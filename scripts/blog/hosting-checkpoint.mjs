@@ -1,7 +1,12 @@
 import { configurationStateHash } from '../release/hosting-configuration.mjs';
 import { isReviewedBlogRoute } from './server-routes.mjs';
-/** Authorize only the already reviewed Blog prefix addition, never unrelated hosting changes. */
-export function assertBlogConfigurationCheckpoint(saved, current, siteOrigin) {
+/** Record the reviewed Blog prefix; an explicit maintenance caller may also record the fixed HTTPS upgrade. */
+export function assertBlogConfigurationCheckpoint(
+  saved,
+  current,
+  siteOrigin,
+  { allowHttpsUpgrade = false } = {},
+) {
   if (siteOrigin !== 'https://supplychainsai.com')
     throw Error('Fixed Blog checkpoint site required');
   const strip = (input, requireBlog) => {
@@ -25,6 +30,19 @@ export function assertBlogConfigurationCheckpoint(saved, current, siteOrigin) {
   };
   const before = strip(saved, false);
   const after = strip(current, true);
+  // An explicit maintenance checkpoint may retain the same site files while recording
+  // the one reviewed transport upgrade. Certificates, routes and cache remain exact.
+  if (
+    allowHttpsUpgrade &&
+    before.gateway.Domains[0].Protocol !== after.gateway.Domains[0].Protocol
+  ) {
+    if (
+      before.gateway.Domains[0].Protocol !== 'HTTP_AND_HTTPS' ||
+      after.gateway.Domains[0].Protocol !== 'HTTP_TO_HTTPS'
+    )
+      throw Error('Only the reviewed HTTP to HTTPS upgrade can be checkpointed');
+    before.gateway.Domains[0].Protocol = 'HTTP_TO_HTTPS';
+  }
   if (configurationStateHash(before) !== configurationStateHash(after))
     throw Error('An unrelated hosting setting changed; no checkpoint accepted');
 }

@@ -1,0 +1,39 @@
+{
+  "observedOn": "2026-11-12",
+  "readOnly": true,
+  "requests": [
+    {
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "httpStatus": 400,
+      "bytes": 318,
+      "sha256": "b9ec169690f39ae21ad715aa5f9200932a62762c3180c0108bd6d05947ac2d2d",
+      "platformError": {
+        "code": "FUNCTIONS_INVOCATION_FAILED",
+        "message": "The size of HTTP response body exceeds the upper limit (6MB). (eb520a50-de3e-11f1-9a90-52540008de27). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED",
+        "requestId": "32391f93-0aca-47c4-be5c-9aaf3cd5b3ad"
+      }
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "httpStatus": 400,
+      "bytes": 318,
+      "sha256": "d3f9d921bbbc12d25fbcfb081b58a5d671a6855b05db528abaf0fd92a72333a6",
+      "platformError": {
+        "code": "FUNCTIONS_INVOCATION_FAILED",
+        "message": "The size of HTTP response body exceeds the upper limit (6MB). (ed860beb-de3e-11f1-9efc-5254008b6653). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED",
+        "requestId": "556415b0-9944-4be8-994b-4757429e79d1"
+      }
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "httpStatus": 400,
+      "bytes": 318,
+      "sha256": "39c87fcdc98ba3b37c8b2bd208e8aaa07fccc0580114a3b66bec5d31bda48379",
+      "platformError": {
+        "code": "FUNCTIONS_INVOCATION_FAILED",
+        "message": "The size of HTTP response body exceeds the upper limit (6MB). (eefe6d67-de3e-11f1-af2b-525400bda9b2). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED",
+        "requestId": "b8171e04-fbab-410a-afe6-8a779084486a"
+      }
+    }
+  ]
+}

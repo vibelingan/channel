@@ -80,7 +80,7 @@ public-api 增加只读的 `/api/articles`、`/api/articles/slug/{slug}` 和 `/a
 
 真实 CloudBase 部署、全流程后台操作、网关接线及 A→B→A 的结果，完成后另记现场记录。当前不能把这些本地结果称为上线完成。Hermes 的接口和本地模拟安排在前两步验收后。
 
-图和画面：[完整文章请求时序](diagrams/article-publication.html)、[桌面正文](evidence/article-desktop.png)、[桌面列表](evidence/list-desktop.png)、[手机列表](evidence/list-mobile.png)。截图为本地验收文章，不代表线上已发布。
+图和画面：[完整文章请求时序](diagrams/article-publication.html)、[桌面正文](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/article-desktop.png)、[桌面列表](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/list-desktop.png)、[手机列表](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/list-mobile.png)。截图为本地验收文章，不代表线上已发布。
 
 ## 已准备的人工入口
 

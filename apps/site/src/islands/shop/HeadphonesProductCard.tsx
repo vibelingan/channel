@@ -11,7 +11,7 @@
  * action 12px/500 (`text-xs font-medium`).
  */
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
-import { isPlainProductClick, productPath } from '../../lib/seo/product-identity.ts';
+import { isPlainProductClick, productBrowserPath } from '../../lib/seo/product-identity.ts';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
@@ -33,7 +33,7 @@ export function HeadphonesProductCard({
   const moq = effectiveCatalogMoq(product);
   return (
     <a
-      href={productPath(product._id)}
+      href={productBrowserPath(product)}
       data-product-card={product._id}
       onClick={(event) => {
         if (isPlainProductClick(event)) {

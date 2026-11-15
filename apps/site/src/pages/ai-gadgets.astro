@@ -6,20 +6,33 @@ import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
+import { categoryPageIdentity } from '../lib/seo/category-page-metadata.ts';
+import { categoryPage } from '../lib/seo/category-snapshot.ts';
+import { readProductSnapshot } from '../lib/seo/product-snapshot.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
 const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('ai-gadgets', DEFAULT_LOCALE);
+const bootstrap = categoryPage(
+  await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321'),
+  family.key,
+);
 const brand = site.brand;
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
 const seoDescription = family.seoDescription;
 const breadcrumbs = familyBreadcrumbs(family.heading, family.href);
 const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.url.origin)];
+const page = categoryPageIdentity(
+  family,
+  bootstrap,
+  brand.name,
+  Astro.site ?? Astro.url.origin,
+).page;
 ---
 
-<BaseLayout title={seoTitle} description={seoDescription} canonicalPath="/ai-gadgets/" schemaNodes={schemaNodes}>
+<BaseLayout page={page} title={seoTitle} description={seoDescription} canonicalPath="/ai-gadgets/" schemaNodes={schemaNodes}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <section class="border-b border-slate-200 bg-surface-alt">
@@ -53,7 +66,7 @@ const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.ur
     </section>
     <section class="bg-white py-10 sm:py-14" aria-label={family.heading}>
       <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} client:load />
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} client:load />
       </div>
     </section>
   </main>

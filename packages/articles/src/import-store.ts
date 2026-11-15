@@ -1,22 +1,16 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { parseArticleDraft } from './draft-repository.ts';
 import { createArticleDraft } from './drafts.ts';
+import {
+  type ArticleIntegration,
+  authorizedIntegration as authorized,
+  parseIntegrationCredential as parseCredential,
+  rotateArticleCredential,
+} from './import-credentials.ts';
 import { ArticleImportError, importHash, prepareArticleImport } from './import.ts';
 import type { ArticleStore, ArticleStoreTransaction } from './transaction-store.ts';
 const identity = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
-const integrationSchema = z
-  .object({
-    _id: identity,
-    siteId: z.literal('supplychainsai.com'),
-    integrationId: identity,
-    secretDigest: hash,
-    enabled: z.boolean(),
-    expiresAt: z.string().datetime(),
-    configRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-  })
-  .strict();
 const importSchema = z
   .object({
     _id: z.string(),
@@ -31,7 +25,7 @@ const importSchema = z
     createdAt: z.string().datetime(),
   })
   .strict();
-export type ArticleIntegration = z.infer<typeof integrationSchema>;
+export type { ArticleIntegration } from './import-credentials.ts';
 export interface ArticleImportReceipt {
   operationId: string;
   articleId: string;
@@ -46,28 +40,6 @@ const denied = (code: ArticleImportError['code'], message: string, retryAfterSec
   failure: new ArticleImportError(code, message, retryAfterSeconds),
 });
 const unauthorized = () => denied('UNAUTHORIZED', 'Draft integration is unavailable.');
-function parseCredential(credential: string) {
-  const match = /^([A-Za-z0-9][A-Za-z0-9_-]{0,47})\.([a-f0-9]{64})$/.exec(credential);
-  if (!match?.[1] || !match[2]) throw unauthorized().failure;
-  return { keyId: match[1], digest: createHash('sha256').update(match[2]).digest('hex') };
-}
-async function authorized(
-  store: ArticleStore,
-  credential: ReturnType<typeof parseCredential>,
-  now: number,
-): Promise<ArticleIntegration | null> {
-  const parsed = integrationSchema.safeParse(
-    await store.read('articleIntegrations', credential.keyId),
-  );
-  if (!parsed.success) return null;
-  const key = parsed.data;
-  return key._id === credential.keyId &&
-    key.enabled &&
-    Date.parse(key.expiresAt) > now &&
-    timingSafeEqual(Buffer.from(key.secretDigest, 'hex'), Buffer.from(credential.digest, 'hex'))
-    ? key
-    : null;
-}
 function receipt(row: z.infer<typeof importSchema>, replayed: boolean): ArticleImportReceipt {
   return {
     operationId: row._id,
@@ -80,7 +52,7 @@ function receipt(row: z.infer<typeof importSchema>, replayed: boolean): ArticleI
     replayed,
   };
 }
-async function validateStored(
+export async function validateStoredArticleImport(
   store: ArticleStore,
   value: unknown,
   key: ArticleIntegration,
@@ -138,6 +110,8 @@ export function createArticleImportService(
     }
   }
   return {
+    rotate: (credential: string, input: unknown) =>
+      safe(() => rotateArticleCredential(transaction, credential, input, clock)),
     create: (credential: string, input: unknown) =>
       safe(async () => {
         const auth = parseCredential(credential);
@@ -157,7 +131,7 @@ export function createArticleImportService(
             return unauthorized();
           const existing = await store.read('articleImports', operationId);
           if (existing !== null) {
-            const row = await validateStored(store, existing, current);
+            const row = await validateStoredArticleImport(store, existing, current);
             if (row._id !== operationId || row.requestHash !== prepared.requestHash)
               return denied(
                 'CONFLICT',
@@ -252,7 +226,7 @@ export function createArticleImportService(
             Reflect.get(value, 'integrationId') !== current.integrationId
           )
             return denied('NOT_FOUND', 'Draft import not found.');
-          const row = await validateStored(store, value, current);
+          const row = await validateStoredArticleImport(store, value, current);
           if (row._id !== operationId) throw Error('Import operation differs');
           return { value: receipt(row, true) };
         });

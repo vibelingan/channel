@@ -152,9 +152,9 @@ image behavior is covered separately by unit and production browser fixtures,
 not claimed as real-photo coverage. The Astro DEV toolbar in these screenshots
 does not ship in the production build. No network-performance claim is made.
 
-![Desktop detail with real product images](assets/chromium-1440x1000-viewport.png)
+[Desktop detail with real product images（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/alibaba-wiring-closeout/assets/chromium-1440x1000-viewport.png)
 
-![Mobile detail with real product images](assets/chromium-390x844-viewport.png)
+[Mobile detail with real product images（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/alibaba-wiring-closeout/assets/chromium-390x844-viewport.png)
 
 Local machine-readable evidence:
 `output/playwright/client-real-visual/summary.json` and viewport/full-page PNGs.

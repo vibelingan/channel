@@ -3,6 +3,10 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { FUNCTION_NAMES, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
+import {
+  expectedFunctionRelease,
+  readFunctionReleaseManifest,
+} from './function-release-manifest.mjs';
 import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -10,6 +14,11 @@ const envId = requireEnv('TCB_ENV_ID');
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
 const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
 const expectedReleaseId = process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local';
+// Written by this job's deploy step; it names functions whose unchanged code was kept.
+const releaseManifest = readFunctionReleaseManifest(
+  process.env.CLOUDBASE_FUNCTION_RELEASES || `${root}/output/function-release/releases.json`,
+  expectedReleaseId,
+);
 const siteUrl = trimSlash(
   process.env.SITE_URL || `https://${webAppServiceName}-${envId}.webapps.tcloudbase.com`,
 );
@@ -87,15 +96,22 @@ function assertRelease(service, body) {
   if (data.status !== 'ok' || data.service !== service) {
     throw new Error(`${service}: unexpected health payload: ${JSON.stringify(body).slice(0, 300)}`);
   }
-  if (data.releaseId !== expectedReleaseId) {
+  const expected = expectedFunctionRelease(releaseManifest, service, expectedReleaseId);
+  if (data.releaseId !== expected.releaseId) {
     throw new Error(
-      `${service}: expected release ${expectedReleaseId}, got ${data.releaseId ?? '<missing>'}`,
+      `${service}: expected release ${expected.releaseId}, got ${data.releaseId ?? '<missing>'}`,
+    );
+  }
+  if (expected.deployedReleaseId && data.deployedReleaseId !== expected.deployedReleaseId) {
+    throw new Error(
+      `${service}: expected deploy ${expected.deployedReleaseId}, got ${data.deployedReleaseId ?? '<missing>'}`,
     );
   }
   if (typeof data.buildTime !== 'string' || data.buildTime.length === 0) {
     throw new Error(`${service}: missing buildTime in health payload`);
   }
-  console.log(`${service}: release ${data.releaseId} (${data.buildTime})`);
+  const deployedBy = data.deployedReleaseId ? `; deployed by ${data.deployedReleaseId}` : '';
+  console.log(`${service}: release ${data.releaseId} (${data.buildTime})${deployedBy}`);
 }
 
 function assertApiError(label, body, expectedCode) {

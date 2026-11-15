@@ -63,6 +63,14 @@ export function createAiPool(config: AiPoolConfig): Pool {
   return handleIdleConnectionErrors(
     new Pool({
       ...resolved,
+      // Without these, a database that stops answering (a cut network path, a
+      // failover that leaves half-open sockets) makes every query wait forever:
+      // liveness still answers, readiness and every visitor request hang. A
+      // bounded connect turns that into a prompt 503, and TCP keepalive lets
+      // the pool notice a dead socket instead of queueing behind it.
+      connectionTimeoutMillis: resolved.connectionTimeoutMillis ?? 10_000,
+      keepAlive: resolved.keepAlive ?? true,
+      keepAliveInitialDelayMillis: resolved.keepAliveInitialDelayMillis ?? 10_000,
       application_name: resolved.application_name ?? 'channel-ai',
       options: resolved.options ? `${resolved.options} ${ISOLATION_OPTION}` : ISOLATION_OPTION,
     }),

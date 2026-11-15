@@ -1,6 +1,6 @@
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
-import { isPlainProductClick, productPath } from '../../lib/seo/product-identity.ts';
-import { CatalogPagination } from './CatalogPagination.tsx';
+import { isPlainProductClick, productBrowserPath } from '../../lib/seo/product-identity.ts';
+import { CatalogPagination, type NativePageNavigation } from './CatalogPagination.tsx';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
@@ -17,7 +17,10 @@ interface Props {
   onSearchInputChange: (search: string) => void;
   onRetry: () => void;
   onPageChange: (page: number) => void;
-  onOpenProduct: (productId: string) => void;
+  onOpenProduct?: (productId: string) => void;
+  filtersDisabled?: boolean;
+  pageHref?: (page: number) => string;
+  nativePagination?: NativePageNavigation;
 }
 
 const SKELETON_KEYS = ['family-1', 'family-2', 'family-3', 'family-4'] as const;
@@ -40,16 +43,16 @@ function CatalogProductCard({
   product,
   content,
   onOpenProduct,
-}: { product: Product; content: CatalogContent; onOpenProduct: (productId: string) => void }) {
+}: { product: Product; content: CatalogContent; onOpenProduct?: (productId: string) => void }) {
   const { list, detail } = content;
   const moq = effectiveCatalogMoq(product);
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
     <a
-      href={productPath(product._id)}
+      href={productBrowserPath(product)}
       data-product-card={product._id}
       onClick={(event) => {
-        if (isPlainProductClick(event)) {
+        if (onOpenProduct && isPlainProductClick(event)) {
           event.preventDefault();
           onOpenProduct(product._id);
         }
@@ -108,11 +111,12 @@ export function CatalogFamilyGrid({
   onRetry,
   onPageChange,
   onOpenProduct,
+  pageHref,
+  nativePagination,
+  filtersDisabled = false,
 }: Props) {
   const { list } = content;
-  // Render every published product the API returns. Legacy catalog rows predate slugs,
-  // so filtering the grid by slug hid real, sellable products behind "no products match".
-  // The slug only decides whether a card links to its detail page.
+  // Public products without a legacy slug still have a stable product-ID link.
   const products = state.products;
   const loadingInitial = state.committed === null && (state.pending || state.error === null);
   const page = state.committed?.page ?? 1;
@@ -147,6 +151,7 @@ export function CatalogFamilyGrid({
                 >
                   <input
                     type="checkbox"
+                    disabled={filtersDisabled}
                     checked={selectedCategories.includes(category.key)}
                     onChange={() => toggleCategory(category.key)}
                     className="h-4 w-4 accent-brand-600"
@@ -161,6 +166,7 @@ export function CatalogFamilyGrid({
           <span className="text-sm font-semibold text-ink">{list.searchPlaceholder}</span>
           <input
             type="search"
+            disabled={filtersDisabled}
             value={searchInput}
             onChange={(event) => onSearchInputChange(event.currentTarget.value)}
             placeholder={list.searchPlaceholder}
@@ -237,6 +243,8 @@ export function CatalogFamilyGrid({
           total={state.total}
           pending={state.pending}
           onPageChange={onPageChange}
+          pageHref={pageHref}
+          nativeNavigation={nativePagination}
         />
       )}
     </div>

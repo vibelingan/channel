@@ -51,6 +51,7 @@ test('article resources are explicit function-only collections outside the defau
       'articleReleaseTasks',
       'articleReleaseHeads',
       'articleAccepted',
+      'articleWebMedia',
     ],
   );
   assert.ok(
@@ -77,7 +78,7 @@ test('explicit article preparation creates only its collections and verifies per
   assert.ok([...current.permissions.values()].every((value) => value === 'ADMINONLY'));
   assert.equal(
     current.calls.filter((item) => item.args.action === 'getResourcePermission').length,
-    14,
+    16,
   );
   assert.ok(
     current.calls.every((item) =>

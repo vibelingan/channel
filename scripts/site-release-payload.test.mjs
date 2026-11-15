@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { publicFiles } from './release-fixtures.mjs';
 import { configuration, errorHtml } from './release-hosting-fixtures.mjs';
+import { sha256 } from './release/input.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 const policy = {
   repository: 'fixture/channel',
@@ -58,6 +59,33 @@ test('full site payload keeps snapshot and ownership verifiable before any uploa
     f.files.get('index.html').toString(),
   );
   writeFileSync(join(f.directory, 'index.html'), 'changed');
+  assert.throws(() => siteArtifact({ ...f, run: run() }), /Corrupt/);
+});
+
+test('catalog acceptance proof is sealed with the precise snapshot and cannot be relabeled after build', (t) => {
+  const f = fixture(t);
+  const catalog = {
+    schemaVersion: 1,
+    siteOrigin: policy.siteOrigin,
+    detailEnabled: true,
+    writes: 7,
+    headsSha256: 'b'.repeat(64),
+    snapshotSha256: sha256(Buffer.from(JSON.stringify(f.snapshot))),
+  };
+  assert.throws(
+    () => createSitePayload({ ...f, catalog: { ...catalog, snapshotSha256: 'c'.repeat(64) } }),
+    /proof differs/,
+  );
+  createSitePayload({ ...f, catalog });
+  const input = siteArtifact({ ...f, run: run() });
+  const compatibility = JSON.parse(
+    readFileSync(join(f.directory, input.envelope.compatibilityRef.path)),
+  );
+  assert.deepEqual(compatibility.catalog, catalog);
+  writeFileSync(
+    join(f.directory, input.envelope.compatibilityRef.path),
+    JSON.stringify({ ...compatibility, catalog: { ...catalog, writes: 8 } }),
+  );
   assert.throws(() => siteArtifact({ ...f, run: run() }), /Corrupt/);
 });
 for (const path of [

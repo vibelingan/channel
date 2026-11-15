@@ -7,7 +7,11 @@ import { siteArtifact } from './site-payload.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './site-policy.mjs';
 import { siteProducerPolicy } from './site-producers.mjs';
 import { assertJournaledSiteCandidate } from './site-recovery.mjs';
-export function createSiteGithubSource({ token, request = fetchFully }) {
+export function createSiteGithubSource({
+  token,
+  request = fetchFully,
+  retention = /** @type {null|{download:(id:string,directory:string)=>Promise<any>}} */ (null),
+}) {
   const api = createGithubReadClient({ policy, token, ...(request ? { request } : {}) });
   const source = {
     requireCI: (codeSha, context) => requireSiteChecks({ github: api, policy, codeSha, context }),
@@ -24,12 +28,19 @@ export function createSiteGithubSource({ token, request = fetchFully }) {
       const metadata = await source.download(artifact.artifactId, directory, {
         acceptedRunId: artifact.runId,
       });
-      const input = siteArtifact({ directory, policy, run: metadata });
+      const input = siteArtifact({
+        directory,
+        policy,
+        run: metadata,
+        retainedProof: metadata.retainedProof ?? null,
+      });
       assertJournaledSiteCandidate({ run, input, policy, dirtyRunId });
       return input;
     },
     async download(id, directory, options = {}) {
       if (!/^[1-9][0-9]*$/.test(String(id))) throw Error('Exact static artifact id required');
+      const saved = await retention?.download(String(id), directory);
+      if (saved) return saved;
       const artifact = await api.api(`/actions/artifacts/${id}`);
       const prefix = /^(site-baseline|site-payload)-[1-9][0-9]*-[1-9][0-9]*$/.exec(
         artifact.name,

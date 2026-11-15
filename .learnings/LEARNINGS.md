@@ -415,3 +415,35 @@ For every guarantee in a spec, name the mechanism that enforces it and check the
 - Tags: claims, tests, security, metrics, overclaiming
 
 ---
+
+## [LRN-20261111-001] best_practice
+
+**Logged**: 2026-11-11T11:00:00Z
+**Priority**: high
+**Status**: new
+**Area**: testing
+**Pattern-Key**: ci-only-flake-measure-on-ci-then-ab-the-fix
+
+### Summary
+A browser unit test failed on about one CI run in six and never anywhere else. The cause was outside the test and the product: a crashed browser helper process made the runner write a multi-gigabyte core dump, the disk stalled for 20 seconds, and a test waiting on small synchronous file writes timed out. Looping the real CI command on CI with process and system probes found it in five rounds of 15 minutes. Two confident explanations reached before that, one from reading code and one from a local reproduction, were both wrong, and so was the first fix.
+
+### Details
+What was wrong along the way, each disproved only by measurement:
+
+- The briefing said the failing request was cross-origin and WebKit-specific. The log line that suggested it (`… due to access control checks`) is WebKit's message for any fetch cancelled by a navigation; the request was same-origin and the engine was a coincidence of ordering.
+- A local Linux container reproduced a failure with the same error text: the dev server reloaded the page when a file under the watched tree changed. It was real, but CI traces showed no watcher event and no reload in 18 monitored runs. The local failure had been caused by the investigation itself writing scratch test files into the watched tree.
+- Once the core dump was identified, `ulimit -c 0` was the obvious fix. The side-by-side CI run still wrote three dumps: the runner's `core_pattern` pipes to `systemd-coredump` with a fixed unlimited size and ignores the limit. Changing the pattern itself worked.
+
+What located the cause: one line per second from the test's own Node process with time on CPU, time waiting for a CPU (`/proc/self/schedstat`) and pressure-stall figures (`/proc/pressure/*`). Low CPU time with no waiting and rising I/O pressure means "blocked on disk"; `vmstat` showed 250 to 590 MB written per second and `fatrace -f W` named the writer. A CPU profile alone was misleading: its samples were spread over ordinary functions because the thread was stopped wherever it happened to be.
+
+Measured: 17 of 99 unfixed runs failed with two test files running at once, 0 of 20 with the file alone, 0 of 45 with the fix.
+
+### Suggested Action
+For a failure that appears only on CI: read the log of the failed attempt, then stop reproducing locally after two or three clean loops and loop the real CI command on CI from a temporary branch, with the same parallelism CI uses. Put timing probes around each request and one scheduler/pressure line per second in the process that is slow, and run `vmstat`, `top` and `fatrace` beside it. Let those decide between "computing", "waiting for a CPU", "blocked on I/O" and "the page reloaded" before forming a theory. Run every candidate fix as one arm of the same loop next to an unchanged arm. Keep scratch files out of any directory a dev server or watcher under test can see.
+
+### Metadata
+- Source: investigation
+- Related Files: docs/agents/ci-test-flakes.md, .github/workflows/ci.yml, scripts/deploy-ci-gate.test.mjs, apps/site/src/islands/admin/catalog-product-create-browser.test.ts
+- Tags: flaky-tests, ci, core-dump, playwright, webkit, disk-stall, a-b-verification, local-repro-mismatch
+
+---

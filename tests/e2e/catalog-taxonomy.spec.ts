@@ -13,6 +13,7 @@ import {
 } from '../../packages/shared/src/catalog-taxonomy.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
 import { type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { catalogPageLink } from './helpers/catalog-pagination';
 import { CATALOG_PUBLICATION_WAIT_MS } from './helpers/catalog-publication';
 import {
   e2e,
@@ -450,7 +451,19 @@ test('local taxonomy: saved categories and assignments drive all four storefront
             path: info.outputPath(`${family}-${width}-page-1.png`),
             fullPage: true,
           });
-          await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+          const secondPageLink = catalogPageLink(page, 'Page 2');
+          const href = await secondPageLink.getAttribute('href');
+          expect(href).toBeTruthy();
+          if (!href) throw new Error('The second catalog page must have a real link.');
+          const target = new URL(href, page.url());
+          expect(target.origin).toBe(new URL(page.url()).origin);
+          expect(target.pathname).toBe(`/${family}/`);
+          expect(target.searchParams.get('page')).toBe('2');
+          expect(target.searchParams.get('search')).toBe(`${e2e.runId} Taxonomy`);
+          expect(target.searchParams.get('category')?.split(',').sort()).toEqual(
+            [...childIds].sort(),
+          );
+          await secondPageLink.click();
           await expect(cards).toHaveCount(1);
           await expect(cards).toHaveAttribute('data-product-card', secondPageProduct._id);
           await page.reload();

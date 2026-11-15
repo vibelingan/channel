@@ -1,4 +1,5 @@
 ---
+import AssistantHost from '../../components/AssistantHost.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
@@ -6,19 +7,16 @@ import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { productKey, productPath } from '../../lib/seo/product-identity.ts';
-import { productPageDescriptor } from '../../lib/seo/product-page.ts';
+import { duplicateProductTitleIds, productPageDescriptor } from '../../lib/seo/product-page.ts';
 import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
-  const names = new Map<string, number>();
-  for (const entry of snapshot.products) {
-    const name = entry.detail?.name ?? entry.product.name;
-    names.set(name, (names.get(name) ?? 0) + 1);
-  }
+  const site = getSiteContent(DEFAULT_LOCALE);
+  const duplicateIds = duplicateProductTitleIds(snapshot.products, site.brand.name);
   return snapshot.products.map((entry) => ({
     params: { publicKey: productKey(entry.product._id) },
-    props: { entry, duplicateName: (names.get(entry.detail?.name ?? entry.product.name) ?? 0) > 1 },
+    props: { entry, duplicateName: duplicateIds.has(entry.product._id) },
   }));
 }
 interface Props {
@@ -42,4 +40,5 @@ const page = productPageDescriptor(
     <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} client:load />
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
+  <AssistantHost />
 </BaseLayout>

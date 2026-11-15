@@ -9,15 +9,18 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 import {
   ALIBABA_SYNC_TIMER,
   DESIRED_TIMER_TRIGGERS,
   FUNCTION_NAMES,
+  SALES_CAPTURE_ENV_KEYS,
+  SALES_DELIVERY_ENV_KEYS,
   buildFunctionDefs,
   desiredTriggersFor,
   envEntries,
@@ -53,6 +56,77 @@ const ctx = {
   requireEnv: requireEnvFixture,
   optionalEnv: optionalEnvFixture,
 };
+
+test('opted-in website Sales configuration survives releases on only its two producer functions', () => {
+  const values = {
+    SALES_SOURCE_CAPTURE_ENABLED: '1',
+    SALES_SOURCE_DELIVERY_ENABLED: '1',
+    SALES_CLIENT_ID: 'channel',
+    SALES_BUSINESS_LINE: 'website_sales',
+    SALES_INSTALLATION_ID: 'site_prod',
+    SALES_ENVIRONMENT: 'production',
+    SALES_SOURCE_CUTOVER_AT: '1700000000',
+    SALES_CONTROL_EPOCH: '1',
+    SALES_RUNTIME_ID: 'sales_prod',
+    SALES_CHANNEL_CONNECTION_ID: 'runtime_prod',
+    SALES_HERMES_EVENTS_URL: 'https://hub.example.invalid/sales/events',
+    SALES_HERMES_SOURCE_TOKEN: 's'.repeat(48),
+    SALES_RUNTIME_TOKEN: 'r'.repeat(48),
+  };
+  const make = (overrides = {}) =>
+    buildFunctionDefs({
+      ...ctx,
+      optionalEnv: (key) => ({ ...values, ...overrides })[key] ?? optionalEnvFixture(key),
+    });
+  const defs = make();
+  for (const def of defs.filter((d) => d.name !== 'alibaba-catalog-sync')) {
+    for (const [key, value] of Object.entries(values)) assert.equal(def.envVariables[key], value);
+    assert.equal(def.envVariables.APP_ENV, 'test');
+    assert.equal(def.envVariables.SALES_ENVIRONMENT, 'production');
+    assert.equal(def.envVariables.SALES_SOURCE_GRANT_TOKEN, undefined);
+    assert.equal(def.envVariables.SALES_SOURCE_DELIVERY_TOKEN, undefined);
+  }
+  const sync = defs.find((d) => d.name === 'alibaba-catalog-sync');
+  assert.equal(
+    Object.keys(sync.envVariables).some((key) => key.startsWith('SALES_')),
+    false,
+  );
+  for (const key of [...SALES_CAPTURE_ENV_KEYS, ...SALES_DELIVERY_ENV_KEYS])
+    assert.throws(() => make({ [key]: '' }), new RegExp(key));
+  assert.throws(() => make({ SALES_SOURCE_CAPTURE_ENABLED: '0' }), /requires source capture/);
+  assert.throws(() => make({ SALES_ENVIRONMENT: 'staging' }), /SALES_ENVIRONMENT/);
+  assert.throws(
+    () => make({ SALES_RUNTIME_TOKEN: values.SALES_HERMES_SOURCE_TOKEN }),
+    /credential reused/,
+  );
+  assert.throws(
+    () => make({ SALES_HERMES_EVENTS_URL: 'http://hub.example.invalid/sales/events' }),
+    /SALES_HERMES_EVENTS_URL/,
+  );
+});
+
+test('Deploy Test passes every Sales setting and only the two producer secrets to the deploy step', () => {
+  const workflow = parseYaml(
+    readFileSync(new URL('../.github/workflows/deploy-test.yml', import.meta.url), 'utf8'),
+  );
+  const deploy = workflow.jobs.deploy;
+  const step = deploy.steps.find((s) => s.name === 'Deploy to CloudBase test');
+  const validation = deploy.steps.findIndex(
+    (s) => s.name === 'Validate opted-in Sales wiring before cloud writes',
+  );
+  const snapshot = deploy.steps.findIndex((s) => s.name === 'Capture public product snapshot');
+  assert.ok(validation >= 0 && snapshot > validation);
+  assert.match(deploy.steps[validation].run, /salesSourceEnvironment/);
+  for (const key of ['SALES_SOURCE_CAPTURE_ENABLED', 'SALES_SOURCE_DELIVERY_ENABLED'])
+    assert.equal(deploy.env[key], `\${{ vars.${key} || '0' }}`);
+  for (const key of [...SALES_CAPTURE_ENV_KEYS, ...SALES_DELIVERY_ENV_KEYS]) {
+    if (key.endsWith('_TOKEN')) {
+      assert.equal(step.env[key], `\${{ secrets.${key} }}`);
+      assert.equal(deploy.steps[validation].env[key], `\${{ secrets.${key} }}`);
+      assert.equal(deploy.env[key], undefined);
+    } else assert.equal(deploy.env[key], `\${{ vars.${key} }}`);
+  }
+});
 
 test('inquiry feature flag is opt-in on admin/public-api, never sync', () => {
   const defs = buildFunctionDefs({
@@ -230,4 +304,32 @@ test('server article settings reach only their owning APIs and remain opt-in', (
     defs.map((d) => d.envVariables.ARTICLE_PUBLIC_READ_ENABLED),
     [undefined, '1', undefined],
   );
+});
+
+test('SEO recording stays off by default and explicit settings reach every writer, never public-api', () => {
+  assert.ok(
+    buildFunctionDefs(ctx).every((def) => def.envVariables.CATALOG_SEO_RECORDING === undefined),
+  );
+  const values = {
+    CATALOG_SEO_RECORDING: '1',
+    CATALOG_SEO_SITE_ORIGIN: 'https://site.example',
+    CATALOG_DETAIL_APPROVAL_ENABLED: '1',
+  };
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => values[name] ?? optionalEnvFixture(name),
+  });
+  for (const def of defs.filter((def) => def.name !== 'public-api')) {
+    for (const [key, value] of Object.entries(values)) assert.equal(def.envVariables[key], value);
+  }
+  assert.equal(
+    defs.find((def) => def.name === 'public-api').envVariables.CATALOG_SEO_RECORDING,
+    undefined,
+  );
+  const deploy = readFileSync(
+    new URL('../.github/workflows/deploy-test.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(deploy, /CATALOG_SEO_RECORDING: \$\{\{ vars\.CATALOG_SEO_RECORDING \|\| '0' \}\}/);
+  assert.match(deploy, /CATALOG_SEO_SITE_ORIGIN: \$\{\{ vars\.CATALOG_SEO_SITE_ORIGIN \}\}/);
 });

@@ -43,6 +43,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  publicPageReady?: boolean;
   _id: string;
   name: string;
   productFamily?: ProductFamily;

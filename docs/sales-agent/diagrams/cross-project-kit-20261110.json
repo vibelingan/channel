@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "拟定方案：新项目安装公共模块，各自保管客户数据",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1230, 535]
+  },
+  "components": [
+    {"id": "shared_source", "type": "backend", "label": "独立公共模块仓库（拟建）", "sublabel": "维护通用身份、受限调用与知识客户端", "pos": [435, 20], "size": [360, 90]},
+    {"id": "versioned_packages", "type": "external", "label": "经过验证的固定版本包", "sublabel": "TypeScript 与 Python 分别安装", "pos": [435, 210], "size": [360, 90]},
+    {"id": "channel_consumer", "type": "backend", "label": "Channel：模块使用方", "sublabel": "自有身份与数据库，保留询盘业务", "pos": [55, 425], "size": [360, 90]},
+    {"id": "next_consumer", "type": "backend", "label": "新客户项目：模块使用方", "sublabel": "自有身份与数据库，无需复制业务代码", "pos": [815, 425], "size": [360, 90]}
+  ],
+  "connections": [
+    {"from": "shared_source", "to": "versioned_packages", "label": "测试后发布版本", "labelDy": 70},
+    {"from": "versioned_packages", "to": "channel_consumer", "label": "安装固定版本"},
+    {"from": "versioned_packages", "to": "next_consumer", "label": "安装同一模块"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "公共代码负责机制", "items": ["协议校验、平台接线、受限知识调用；不保存客户秘密。"]},
+    {"dot": "amber", "title": "项目负责业务", "items": ["密钥留在各项目 Secret；各自决定资料范围与业务规则，显式升级版本。"]}
+  ]
+}

@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { REQUIRED_NOSQL_RESOURCES, ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+import {
+  REQUIRED_NOSQL_RESOURCES,
+  ensureNoSqlResourceSet,
+  ensureNoSqlResourceSetConcurrently,
+  ensureNoSqlResources,
+} from './cloudbase-nosql-resources.mjs';
 
 const deploySource = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
 const smokeSource = readFileSync(new URL('./smoke-cloudbase-deploy.mjs', import.meta.url), 'utf8');
@@ -105,6 +110,11 @@ test('staged approvals are private and immutable snapshot paging has a declared 
       [
         { Name: 'productId', Direction: '1' },
         { Name: 'catalogDetailRevision', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'catalogDetailRevision', Direction: '1' },
         { Name: 'catalogDetailPosition', Direction: '1' },
         { Name: '_id', Direction: '1' },
       ],
@@ -121,10 +131,66 @@ test('legacy product reads require the private variants collection even before a
     [
       [
         { Name: 'productId', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
+      [
+        { Name: 'productId', Direction: '1' },
         { Name: 'position', Direction: '1' },
+      ],
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'position', Direction: '1' },
+        { Name: '_id', Direction: '1' },
       ],
     ],
   );
+});
+
+test('stable public variant sorting adds its index without replacing the existing index', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'productVariants');
+  assert.ok(resource);
+  const previous = resource.indexes.find((i) => i.IndexName === 'variant_product_position');
+  assert.ok(previous);
+  const added = resource.indexes.find((i) => i.IndexName === 'variant_product_position_id');
+  assert.ok(added, 'the position/_id query must have its own declared index');
+  assert.deepEqual(added.MgoKeySchema, {
+    MgoIsUnique: false,
+    MgoIndexKeys: [
+      { Name: 'productId', Direction: '1' },
+      { Name: 'position', Direction: '1' },
+      { Name: '_id', Direction: '1' },
+    ],
+  });
+  const writes = [];
+  const indexes = [listedIndex(previous)];
+  ensureNoSqlResourceSet(
+    (name, input) => {
+      if (input.action === 'checkCollection') return { success: true, exists: true };
+      if (input.action === 'listIndexes') return { success: true, indexes };
+      if (input.action === 'getResourcePermission') return { success: true, aclTag: 'ADMINONLY' };
+      writes.push({ name, input });
+      if (input.action === 'updateCollection')
+        indexes.push(...input.updateOptions.CreateIndexes.map(listedIndex));
+      return { success: true };
+    },
+    [resource],
+    () => {},
+  );
+  assert.deepEqual(writes, [
+    {
+      name: 'cloudbase.writeNoSqlDatabaseStructure',
+      input: {
+        action: 'updateCollection',
+        collectionName: 'productVariants',
+        updateOptions: {
+          CreateIndexes: [
+            resource.indexes.find((i) => i.IndexName === 'variant_product_id'),
+            added,
+          ],
+        },
+      },
+    },
+  ]);
 });
 
 test('inquiry records and durable caps are private; queue indexes match adapter sort', () => {
@@ -220,10 +286,11 @@ test('products declares review queues and the public family pagination index', (
   );
   assert.ok(resource);
   assert.equal(resource.permission, 'ADMINONLY');
-  assert.equal(resource.indexes.length, 3);
+  assert.equal(resource.indexes.length, 4);
   assert.deepEqual(
     resource.indexes.map((candidate) => candidate.IndexName),
     [
+      'product_family_id',
       'product_alibaba_review_queue',
       'product_family_alibaba_review_queue',
       'product_family_public_page',
@@ -235,6 +302,7 @@ test('products declares review queues and the public family pagination index', (
       candidate.MgoKeySchema.MgoIndexKeys.map(({ Name, Direction }) => `${Name}:${Direction}`),
     ),
     [
+      ['productFamily:1', '_id:1'],
       ['alibabaReviewPending:-1', 'createdAt:-1'],
       ['productFamily:1', 'alibabaReviewPending:-1', 'createdAt:-1'],
       ['productFamily:1', 'published:1', 'archived:1', '_id:1'],
@@ -347,6 +415,16 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
     calls.filter(({ selector }) => selector === 'cloudbase.managePermissions').length,
     REQUIRED_NOSQL_RESOURCES.length,
   );
+  // Every provisioned collection is read again after its writes.
+  for (const action of ['checkCollection', 'listIndexes'])
+    assert.equal(
+      calls.filter(({ args }) => args.action === action).length,
+      REQUIRED_NOSQL_RESOURCES.length * 2,
+    );
+  assert.equal(
+    calls.filter(({ selector }) => selector === 'cloudbase.queryPermissions').length,
+    REQUIRED_NOSQL_RESOURCES.length * 2,
+  );
   assert.ok(messages.some((message) => message.includes('rateLimitHits: ready')));
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
@@ -383,6 +461,8 @@ test('ensureNoSqlResources is idempotent when the collection and indexes exist',
     calls.some(({ selector }) => selector === 'cloudbase.writeNoSqlDatabaseStructure'),
     false,
   );
+  // With no write, the first collection, index and permission reads are the proof.
+  assert.equal(calls.length, REQUIRED_NOSQL_RESOURCES.length * 3);
   assert.equal(
     calls.some(({ args }) => args.action === 'checkIndex'),
     false,
@@ -436,14 +516,104 @@ test('ensureNoSqlResources fails safely on a same-name index with the wrong defi
   assert.deepEqual(writes, []);
 });
 
-test('deploy provisions NoSQL resources before functions and smoke crosses the limiter', () => {
-  assert.match(
-    deploySource,
-    /import \{ ensureNoSqlResources \} from '\.\/cloudbase-nosql-resources\.mjs';/,
+function readyTool(resources, { delayMs = 5, fail } = {}) {
+  const state = { inFlight: 0, peak: 0, calls: [] };
+  state.call = async (selector, args) => {
+    state.calls.push({ selector, args });
+    state.inFlight++;
+    state.peak = Math.max(state.peak, state.inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (fail?.(selector, args)) return { success: false, message: 'provider rejected' };
+      if (args.action === 'checkCollection') return { success: true, exists: true };
+      if (args.action === 'listIndexes')
+        return {
+          success: true,
+          indexes: resources
+            .find((r) => r.collectionName === args.collectionName)
+            .indexes.map(listedIndex),
+        };
+      if (selector === 'cloudbase.queryPermissions')
+        return { success: true, data: { aclTag: 'ADMINONLY' } };
+      throw new Error(`Unexpected write call: ${selector} ${JSON.stringify(args)}`);
+    } finally {
+      state.inFlight--;
+    }
+  };
+  return state;
+}
+
+test('concurrent provisioning checks every collection with the same reads, never above its bound', async () => {
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES);
+  const messages = [];
+  await ensureNoSqlResourceSetConcurrently(tool.call, REQUIRED_NOSQL_RESOURCES, (message) =>
+    messages.push(message),
   );
-  const provisionAt = deploySource.indexOf('ensureNoSqlResources(callTool);');
+  assert.equal(tool.peak, 4);
+  assert.deepEqual(
+    messages.sort(),
+    REQUIRED_NOSQL_RESOURCES.map(
+      (r) => `${r.collectionName}: ready (${r.indexes.length} indexes, ${r.permission})`,
+    ).sort(),
+  );
+  const sequential = [];
+  ensureNoSqlResourceSet(
+    (selector, args) => {
+      sequential.push({ selector, args });
+      return args.action === 'checkCollection'
+        ? { success: true, exists: true }
+        : args.action === 'listIndexes'
+          ? {
+              success: true,
+              indexes: REQUIRED_NOSQL_RESOURCES.find(
+                (r) => r.collectionName === args.collectionName,
+              ).indexes.map(listedIndex),
+            }
+          : { success: true, data: { aclTag: 'ADMINONLY' } };
+    },
+    REQUIRED_NOSQL_RESOURCES,
+    () => {},
+  );
+  const key = ({ selector, args }) => `${selector} ${JSON.stringify(args)}`;
+  assert.deepEqual(tool.calls.map(key).sort(), sequential.map(key).sort());
+});
+
+test('a failed concurrent check starts no further collection and still reports the first error', async () => {
+  const failing = REQUIRED_NOSQL_RESOURCES[5].collectionName;
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES, {
+    fail: (selector, args) =>
+      selector === 'cloudbase.queryPermissions' && args.resourceId === failing,
+  });
+  await assert.rejects(
+    ensureNoSqlResourceSetConcurrently(tool.call, REQUIRED_NOSQL_RESOURCES, () => {}),
+    new RegExp(`${failing}: query permission failed: provider rejected`),
+  );
+  assert.equal(tool.inFlight, 0, 'checks already running finish before the error is thrown');
+  const started = new Set(tool.calls.map(({ args }) => args.collectionName ?? args.resourceId));
+  assert.ok(started.size < REQUIRED_NOSQL_RESOURCES.length);
+});
+
+test('concurrent provisioning refuses a duplicated collection or an unbounded concurrency', async () => {
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES);
+  const [first] = REQUIRED_NOSQL_RESOURCES;
+  await assert.rejects(ensureNoSqlResourceSetConcurrently(tool.call, [first, first], () => {}));
+  for (const concurrency of [0, 9, 1.5, '4'])
+    await assert.rejects(
+      ensureNoSqlResourceSetConcurrently(tool.call, [first], () => {}, { concurrency }),
+    );
+  assert.equal(tool.calls.length, 0);
+});
+
+test('deploy provisions NoSQL resources before functions and smoke crosses the limiter', () => {
+  const provisionAt = deploySource.indexOf(
+    'await ensureNoSqlResourceSetConcurrently(callToolAsync, [\n  ...REQUIRED_NOSQL_RESOURCES,\n  ...ARTICLE_NOSQL_RESOURCES,\n]);',
+  );
+  const setEnvAt = deploySource.indexOf(
+    "callTool('cloudbase.auth', { action: 'set_env', envId });",
+  );
   const functionDeployAt = deploySource.indexOf('for (const def of functionDefs)');
-  assert.ok(provisionAt >= 0, 'deploy must provision required NoSQL resources');
+  assert.ok(provisionAt >= 0, 'deploy must provision required and article NoSQL resources');
+  assert.ok(setEnvAt >= 0 && setEnvAt < provisionAt, 'set_env must finish before checks start');
   assert.ok(provisionAt < functionDeployAt, 'NoSQL resources must exist before function deploy');
 
   assert.match(smokeSource, /drawingFileId: '__deployment_smoke_partial_upload__'/);
@@ -535,7 +705,10 @@ test('durable preparation jobs are provisioned privately before any worker can w
   );
   assert.match(source, /CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs'/);
   // Background workers remain disabled until explicitly configured; provisioning is independent.
-  assert.ok(deploySource.includes('ensureNoSqlResources'));
+  assert.match(
+    deploySource,
+    /ensureNoSqlResourceSetConcurrently\(callToolAsync, \[\s*\.\.\.REQUIRED_NOSQL_RESOURCES,/,
+  );
 });
 
 test('image observations are private coordination state provisioned with the preparation jobs', () => {

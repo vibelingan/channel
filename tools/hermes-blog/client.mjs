@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { fetchFully } from '../../scripts/smoke-http.mjs';
+import { publicationReceiptSchema } from './publication-contract.mjs';
 const siteOrigin = 'https://supplychainsai.com';
 const apiOrigin =
   'https://diversity-123-d9grnqfux221323bb-1443560658.ap-shanghai.app.tcloudbase.com';
@@ -18,7 +19,13 @@ const receiptSchema = z
     replayed: z.boolean(),
   })
   .strict();
-export class BlogToolError extends Error {}
+export class BlogToolError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = 'BlogToolError';
+    this.status = status;
+  }
+}
 export function readBlogToolConfig(env) {
   if (
     env.CHANNEL_BLOG_API_ORIGIN !== apiOrigin ||
@@ -70,7 +77,7 @@ export function createBlogToolClient(config, { request = fetchFully, pause = del
     CHANNEL_BLOG_TASK_ID: config.taskId,
     CHANNEL_BLOG_DRAFT_KEY: config.draftKey,
   });
-  async function call(method, path, input, expectedOperation) {
+  async function call(method, path, input, expectedOperation, publication = false) {
     let response;
     const body = input === undefined ? undefined : Buffer.from(JSON.stringify(input));
     if (body && body.length > 256 * 1024) throw new BlogToolError('文章内容超过接口大小限制。');
@@ -98,19 +105,27 @@ export function createBlogToolClient(config, { request = fetchFully, pause = del
     if (![200, 201].includes(response.status))
       throw new BlogToolError(
         `网站拒绝了草稿请求（HTTP ${response.status}）。请检查凭证、内容或额度，不要换请求号重试。`,
+        response.status,
       );
     try {
       const envelope = z
-        .object({ ok: z.literal(true), data: receiptSchema })
+        .object({
+          ok: z.literal(true),
+          data: publication ? publicationReceiptSchema : receiptSchema,
+        })
         .strict()
         .parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(response.body)));
       const r = envelope.data;
       if (
         r.operationId !== expectedOperation ||
         r.articleId !== expectedOperation.replace('article-import-', 'article-') ||
-        r.editUrl !== `${trusted.siteOrigin}/admin/?section=articles&article=${r.articleId}` ||
-        r.operationUrl !== `${root}/${r.operationId}` ||
-        (method === 'GET' ? response.status !== 200 : response.status === (r.replayed ? 201 : 200))
+        (publication
+          ? response.status !== 200
+          : r.editUrl !== `${trusted.siteOrigin}/admin/?section=articles&article=${r.articleId}` ||
+            r.operationUrl !== `${root}/${r.operationId}` ||
+            (method === 'GET'
+              ? response.status !== 200
+              : response.status === (r.replayed ? 201 : 200)))
       )
         throw Error('Draft response identity differs');
       return r;
@@ -118,7 +133,31 @@ export function createBlogToolClient(config, { request = fetchFully, pause = del
       throw new BlogToolError('网站回复与本次草稿不符，尚不能提供编辑链接。');
     }
   }
+  function checkedOperation(operationId) {
+    if (!/^article-import-[a-f0-9]{64}$/.test(operationId ?? ''))
+      throw new BlogToolError('文章操作号无效。');
+    if (trusted.draftKey) throw new BlogToolError('隔离草稿连接没有发布能力。');
+    return operationId;
+  }
   return {
+    getPublication: (operationId) =>
+      call(
+        'GET',
+        `${root}/${checkedOperation(operationId)}/publication`,
+        undefined,
+        operationId,
+        true,
+      ),
+    changePublication: (operationId, input) =>
+      call(
+        'POST',
+        `${root}/${checkedOperation(operationId)}/publication`,
+        input,
+        operationId,
+        true,
+      ),
+    syncSource: (operationId, input) =>
+      call('POST', `${root}/${checkedOperation(operationId)}/source`, input, operationId, true),
     createDraft: async (input) => {
       if (
         trusted.taskId &&

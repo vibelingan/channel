@@ -7,6 +7,7 @@ import type { TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { manageCatalogProductOperation, setAdapter } from '@vibelingan-channel/db';
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
+import type { CatalogSeoRecordingConfig } from '@vibelingan-channel/db/catalog-seo-requests';
 import { runCatalogPreparationWorker } from '@vibelingan-channel/fn-admin/catalog-preparation-worker';
 import { type AdminConfig, handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
@@ -21,7 +22,12 @@ import { JsonFileAdapter } from '../json-adapter.ts';
 
 export const at = '2026-10-18T00:00:00.000Z';
 export const operationId = '12345678-1234-4234-8234-123456789012';
-export async function workspace(t: TestContext, count?: number, fullPublication = false) {
+export async function workspace(
+  t: TestContext,
+  count?: number,
+  fullPublication = false,
+  seo?: CatalogSeoRecordingConfig,
+) {
   const directory = mkdtempSync(join(tmpdir(), 'channel-owned-continue-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'db.json');
@@ -60,7 +66,7 @@ export async function workspace(t: TestContext, count?: number, fullPublication 
     { _id: 'image', status: 'active', storageProvider: 'local-disk', publishedRefCount: 0 },
   ];
   writeFileSync(file, JSON.stringify(rows));
-  const adapter = new JsonFileAdapter(file);
+  const adapter = new JsonFileAdapter(file, false, seo);
   setAdapter(adapter);
   // Private phase tests defer only the final step. Full workflow tests use the production default.
   const config: AdminConfig = {
@@ -103,6 +109,7 @@ export async function workspace(t: TestContext, count?: number, fullPublication 
   };
   return {
     adapter,
+    admin: (action: string, data: unknown) => handleAdminRequest({ action, data, token }, config),
     file,
     productId,
     invoke,

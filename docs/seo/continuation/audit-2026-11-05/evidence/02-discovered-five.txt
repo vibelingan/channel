@@ -1,0 +1,228 @@
+- banner:
+  - button "Main menu" [expanded]:
+  - link "Google Search Console":
+    - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+  - search:
+    - textbox [disabled]: Inspect any URL in "https://supplychainsai.com/"
+    - combobox "Inspect any URL in"
+    - button "Search":
+  - button "Help":
+    - generic: help_outline
+  - tooltip: Help
+  - button "User settings":
+    - generic: manage_accounts
+  - tooltip: User settings
+  - 'button "Unread messages: 3"':
+    - generic: notifications
+  - tooltip: Messages
+  - generic: "3"
+  - button "Google apps":
+  - 'button "Google Account: Lingan Vibe ([account redacted])"':
+- dialog "navigational drawer":
+  - navigation "Primary":
+    - button "Search property":
+      - img "favicon"
+      - combobox "https://supplychainsai.com/"
+      - generic: 
+    - link "Overview":
+      - /url: ./search-console?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: home
+      - generic: Overview
+    - link "Insights":
+      - /url: ./search-console/performance/insights?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lightbulb_2
+      - generic: Insights
+    - link "Performance":
+      - /url: ./search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Performance
+    - button "Performance report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Generative AI on Search results":
+      - /url: ./search-console/performance/search-analytics/ai?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trending_up
+      - generic: Generative AI
+    - button "URL inspection":
+      - generic: search
+      - generic: URL inspection
+    - generic: Indexing
+    - button "Indexing report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Pages":
+      - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: file_copy
+      - generic: Pages
+    - link "Videos":
+      - /url: ./search-console/video-index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: video_library
+      - generic: Videos
+    - link "Sitemaps":
+      - /url: ./search-console/sitemaps?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: account_tree
+      - generic: Sitemaps
+    - link "Removals":
+      - /url: ./search-console/removals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: visibility_off
+      - generic: Removals
+    - generic: Experience
+    - button "Experience report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Core Web Vitals":
+      - /url: ./search-console/core-web-vitals?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: speed
+      - generic: Core Web Vitals
+    - link "HTTPS":
+      - /url: ./search-console/https?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: lock
+      - generic: HTTPS
+    - generic: Enhancements
+    - button "Enhancements report section" [expanded]:
+      - generic: keyboard_arrow_up
+    - link "Breadcrumbs":
+      - /url: ./search-console/r/breadcrumbs?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: layers
+      - generic: Breadcrumbs
+    - generic: Security & Manual Actions
+    - button "Security & Manual Actions report section":
+      - generic: keyboard_arrow_down
+    - link "Links report":
+      - /url: ./search-console/links?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: link_2
+      - generic: Links
+    - link "Achievements":
+      - /url: ./search-console/achievements?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: trophy
+      - generic: Achievements
+    - link "Settings":
+      - /url: ./search-console/settings?resource_id=https%3A%2F%2Fsupplychainsai.com%2F
+      - generic: settings
+      - generic: Settings
+    - button "Submit feedback":
+      - generic: feedback
+      - generic: Submit feedback
+    - button "About Search Console":
+      - generic: info
+      - generic: About Search Console
+    - link "Privacy":
+      - /url: https://myaccount.google.com/privacypolicy?hl=en
+    - link "Terms":
+      - /url: https://myaccount.google.com/termsofservice?hl=en
+- navigation "Breadcrumbs":
+  - link "Page indexing":
+    - /url: ./search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&pages=ALL_URLS
+  - generic: 
+  - heading "Discovered - currently not indexed" [level=1]
+- button "EXPORT":
+  - generic: 
+  - generic: EXPORT
+- button "Get shareable link.":
+  - generic: 
+  - generic: SHARE
+- listbox:
+  - option "All known pages" [selected]
+  - option "All submitted pages"
+  - option "Unsubmitted pages only"
+  - option "/sitemap-index.xml"
+- generic: "Last update: 10/23/26"
+- main:
+  - generic: info
+  - generic: Discovered - currently not indexed
+  - generic: These pages aren't indexed or served on Google
+  - link "Link to more extensive documentation":
+    - /url: https://support.google.com/webmasters/answer/7440203#discovered__unclear_status
+    - generic: Learn more
+  - generic: "First detected: 10/20/26"
+  - generic: Done fixing?
+  - button "validate fix":
+    - generic: validate fix
+  - generic "Affected pages"
+  - generic "5"
+  - generic: Examples
+  - button "null":
+    - generic: 
+  - button "Filter table rows":
+    - generic: 
+  - table:
+    - rowgroup:
+      - row "URL Last crawled":
+        - columnheader "URL":
+          - generic: URL
+        - columnheader "Last crawled":
+          - generic: Last crawled
+    - rowgroup:
+      - row "https://supplychainsai.com/ai-gadgets/ N/A":
+        - cell "https://supplychainsai.com/ai-gadgets/":
+          - generic "https://supplychainsai.com/ai-gadgets/":
+            - generic: https://supplychainsai.com/ai-gadgets/
+        - cell "N/A":
+          - generic: N/A
+      - row "https://supplychainsai.com/electronics-toys/ N/A":
+        - cell "https://supplychainsai.com/electronics-toys/":
+          - generic "https://supplychainsai.com/electronics-toys/":
+            - generic: https://supplychainsai.com/electronics-toys/
+        - cell "N/A":
+          - generic: N/A
+      - row "https://supplychainsai.com/misc/ N/A":
+        - cell "https://supplychainsai.com/misc/":
+          - generic "https://supplychainsai.com/misc/":
+            - generic: https://supplychainsai.com/misc/
+        - cell "N/A":
+          - generic: N/A
+      - row "https://supplychainsai.com/oem/ N/A":
+        - cell "https://supplychainsai.com/oem/":
+          - generic "https://supplychainsai.com/oem/":
+            - generic: https://supplychainsai.com/oem/
+        - cell "N/A":
+          - generic: N/A
+      - row "https://supplychainsai.com/toys/ N/A":
+        - cell "https://supplychainsai.com/toys/":
+          - generic "https://supplychainsai.com/toys/":
+            - generic: https://supplychainsai.com/toys/
+        - cell "N/A":
+          - generic: N/A
+  - generic: "Rows per page:"
+  - listbox "Number of rows per page":
+    - option "5"
+    - option "10" [selected]
+    - option "25"
+    - option "50"
+    - option "100"
+    - option "250"
+    - option "500"
+  - generic: 1-5 of 5
+  - generic: 
+  - generic: 
+- main:
+  - generic "若有干扰，可在「设置」关闭悬浮球"
+  - button:
+  - text: 👋 Hi，想聊点什么～
+  - generic: 下笔没话说？
+  - generic: 告诉我主题，文案、标题、Slogan我都行
+  - generic: 名词听不懂？
+  - generic: 别自己搜了，直接问我，三秒给你讲明白
+  - generic: 脑袋空空了？
+  - generic: 一起脑暴，给产品起名、给活动想点子
+  - generic: 方案没头绪？
+  - generic: 思路我来理，框架我来搭，你来做决策
+  - generic: 新会话
+  - generic: 历史
+  - textbox "输入您的问题... (Enter 发送，Shift+Enter 换行)"
+  - generic: DeepSeek V4
+  - button "联网" [pressed]:
+    - generic: 联网
+  - generic: 内容由AI生成，仅供参考
+  - generic: Chat
+  - generic: 云笔记
+  - generic: 账号
+  - generic: 互动
+  - generic: 通知
+  - generic: 设置
+  - link:
+    - /url: https://yiban.io/style_center?from=side-panel
+  - link:
+    - /url: https://yiban.io/dashboard?from=side-panel
+  - link:
+    - /url: https://yiban.io/pricing?from=side-panel
+  - img "avatar"
+  - button "开通"
+- list
