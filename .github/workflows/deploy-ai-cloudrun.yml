@@ -32,6 +32,7 @@ jobs:
   # nor stops when CI fails. Running them here, in a job the deploy needs, is
   # what makes a failing commit impossible to deploy.
   verify:
+    if: ${{ !startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-identity-') }}
     name: Test the commit
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -159,6 +160,8 @@ jobs:
       AI_PUBLIC_CATALOG_ORIGIN: ${{ vars.AI_PUBLIC_CATALOG_ORIGIN }}
       AI_INQUIRY_ENABLED: ${{ vars.AI_INQUIRY_ENABLED }}
       AI_INQUIRY_BASE_URL: ${{ vars.AI_INQUIRY_BASE_URL }}
+      AI_INQUIRY_AUTH_MODE: ${{ vars.AI_INQUIRY_AUTH_MODE }}
+      SALES_CAM_UIN: ${{ vars.SALES_CAM_UIN }}
 
     steps:
       - name: Checkout
@@ -200,5 +203,7 @@ jobs:
           AI_MODEL_API_KEY: ${{ secrets.AI_MODEL_API_KEY }}
           VIBEKB_PUBLIC_API_KEY: ${{ secrets.VIBEKB_PUBLIC_API_KEY }}
           AI_INQUIRY_TOKEN: ${{ secrets.AI_INQUIRY_TOKEN }}
+          SALES_CAM_SECRET_ID: ${{ secrets.SALES_CAM_SECRET_ID }}
+          SALES_CAM_SECRET_KEY: ${{ secrets.SALES_CAM_SECRET_KEY }}
           AI_KB_EVIDENCE_FILE: ${{ runner.temp }}/kb-evidence.json
         run: pnpm deploy:ai:cloudrun

@@ -12,13 +12,21 @@ import { createCatalogReadPort } from './catalog-read-port.ts';
 
 interface SdkCall {
   action: string;
-  input: { collectionName: string; query?: string; order?: string; offset?: number; limit?: number };
+  input: {
+    collectionName: string;
+    query?: string;
+    order?: string;
+    offset?: number;
+    limit?: number;
+  };
 }
 
 const require = createRequire(import.meta.url);
 const sdkRoot = dirname(require.resolve('@cloudbase/node-sdk/package.json'));
 const Request = require(join(sdkRoot, 'dist/utils/tcbdbapirequester.js')).TcbDBApiHttpRequester;
-const rows = (documents: CollectionDoc[]) => ({ data: { list: documents.map((row) => JSON.stringify(row)) } });
+const rows = (documents: CollectionDoc[]) => ({
+  data: { list: documents.map((row) => JSON.stringify(row)) },
+});
 
 async function withSdk(
   send: (call: SdkCall) => Promise<unknown> | unknown,
@@ -49,6 +57,7 @@ const query = (overrides: Partial<AdapterListQuery> = {}): AdapterListQuery => (
   collection: 'catalogDetailVariants',
   page: 2,
   pageSize: 2,
+  search: '',
   filter: {
     combinator: 'and',
     clauses: [
@@ -69,10 +78,17 @@ const approved = (extra: Record<string, unknown> = {}): CollectionDoc => ({
   name: 'Unapproved row name',
   published: true,
   catalogDetailPublication: {
-    state: 'approved', revision: 'r1', variantCount: 0, variantStorage: 'immutable-v1',
+    state: 'approved',
+    revision: 'r1',
+    variantCount: 0,
+    variantStorage: 'immutable-v1',
     header: {
-      schemaVersion: 'catalog-product-detail-v1', _id: 'p1', name: 'Approved headset',
-      images: [], facts: [], offers: [],
+      schemaVersion: 'catalog-product-detail-v1',
+      _id: 'p1',
+      name: 'Approved headset',
+      images: [],
+      facts: [],
+      offers: [],
       websitePricing: {
         basis: 'website-manual',
         pricing: { mode: 'fixed', currency: 'USD', amountMinor: 430, minimumOrderQuantity: 1000 },
@@ -83,34 +99,63 @@ const approved = (extra: Record<string, unknown> = {}): CollectionDoc => ({
 });
 
 test('product reads are restricted and distinguish missing documents from SDK errors', async () => {
-  await withSdk(() => rows([]), async (read, calls) => {
-    assert.equal(await read.get('products', 'p1'), null);
-    await assert.rejects(() => read.get('oemProjects', 'p1'), /Unexpected catalog collection/);
-    assert.equal(calls.length, 1);
-  });
+  await withSdk(
+    () => rows([]),
+    async (read, calls) => {
+      assert.equal(await read.get('products', 'p1'), null);
+      await assert.rejects(() => read.get('oemProjects', 'p1'), /Unexpected catalog collection/);
+      assert.equal(calls.length, 1);
+    },
+  );
   for (const answer of [{ code: 'ACCESS_DENIED' }, rows([{ _id: 'other' }])]) {
-    await withSdk(() => answer, async (read) => {
-      await assert.rejects(() => read.get('products', 'p1'));
-    });
+    await withSdk(
+      () => answer,
+      async (read) => {
+        await assert.rejects(() => read.get('products', 'p1'));
+      },
+    );
   }
 });
 
 test('variant paging uses the exact SDK filter, order, offset and row identity', async () => {
-  const document = { _id: 'row-3', productId: 'p1', catalogDetailRevision: 'r1', catalogDetailPosition: 2 };
+  const document = {
+    _id: 'row-3',
+    productId: 'p1',
+    catalogDetailRevision: 'r1',
+    catalogDetailPosition: 2,
+  };
   for (const collection of ['catalogDetailVariants', 'productVariants']) {
-    await withSdk(({ action }) => action === 'database.calculateDocument' ? { data: { total: 3 } } : rows([document]), async (read, calls) => {
-      assert.deepEqual(await read.list(query({ collection })), { items: [document], total: 3, page: 2, pageSize: 2 });
-      assert.equal(calls.length, 2);
-      for (const { input } of calls) {
-        assert.equal(input.collectionName, collection);
-        assert.deepEqual(JSON.parse(input.query ?? '{}'), { productId: 'p1', catalogDetailRevision: 'r1', archived: { $ne: true } });
-      }
-      const page = calls[1]?.input;
-      assert.ok(page);
-      assert.deepEqual(JSON.parse(page.order ?? '{}'), [{ field: 'catalogDetailPosition', direction: 'asc' }, { field: '_id', direction: 'asc' }]);
-      assert.equal(page.offset, 2);
-      assert.equal(page.limit, 2);
-    });
+    await withSdk(
+      ({ action }) =>
+        action === 'database.calculateDocument' ? { data: { total: 3 } } : rows([document]),
+      async (read, calls) => {
+        assert.deepEqual(await read.list(query({ collection })), {
+          items: [document],
+          total: 3,
+          page: 2,
+          pageSize: 2,
+        });
+        assert.equal(calls.length, 2);
+        for (const { input } of calls) {
+          assert.equal(input.collectionName, collection);
+          assert.deepEqual(JSON.parse(input.query ?? '{}'), {
+            productId: 'p1',
+            catalogDetailRevision: 'r1',
+            archived: { $ne: true },
+          });
+        }
+        const page = calls[1]?.input;
+        assert.ok(page);
+        const order = JSON.parse(page.order ?? '{}');
+        assert.deepEqual(order, {
+          catalogDetailPosition: { $numberInt: '1' },
+          _id: { $numberInt: '1' },
+        });
+        assert.deepEqual(Object.keys(order), ['catalogDetailPosition', '_id']);
+        assert.equal(page.offset, 2);
+        assert.equal(page.limit, 2);
+      },
+    );
   }
 });
 
@@ -119,49 +164,80 @@ test('an expanded collection, filter, sort or page is rejected before SDK I/O', 
   const invalid = [
     query({ collection: 'oemProjects' }),
     query({ filter: { combinator: 'or', clauses: valid.filter?.clauses ?? [] } }),
-    query({ filter: { combinator: 'and', clauses: [{ field: 'productId', op: 'eq', value: 'p1' }] } }),
+    query({
+      filter: { combinator: 'and', clauses: [{ field: 'productId', op: 'eq', value: 'p1' }] },
+    }),
     query({ sort: [{ field: '_id', dir: 'desc' }] }),
-    query({ page: 0 }), query({ page: 1.5 }), query({ pageSize: 51 }), query({ pageSize: 0 }),
+    query({ page: 0 }),
+    query({ page: 1.5 }),
+    query({ pageSize: 51 }),
+    query({ pageSize: 0 }),
   ];
-  await withSdk(() => { throw Error('Unexpected network call'); }, async (read, calls) => {
-    for (const input of invalid) await assert.rejects(() => read.list(input), /Unexpected approved catalog query/);
-    assert.equal(calls.length, 0);
-  });
+  await withSdk(
+    () => {
+      throw Error('Unexpected network call');
+    },
+    async (read, calls) => {
+      for (const input of invalid)
+        await assert.rejects(() => read.list(input), /Unexpected approved catalog query/);
+      assert.equal(calls.length, 0);
+    },
+  );
 });
 
 test('failed counts, failed queries and malformed rows cannot become an empty approved page', async () => {
-  for (const scenario of ['count-error', 'count-invalid', 'query-error', 'row-invalid', 'transport-error']) {
-    await withSdk(({ action }) => {
-      if (scenario === 'transport-error') throw Error('Synthetic SDK failure');
-      if (action === 'database.calculateDocument') {
-        if (scenario === 'count-error') return { code: 'ACCESS_DENIED' };
-        return { data: { total: scenario === 'count-invalid' ? -1 : 1 } };
-      }
-      return scenario === 'query-error' ? { code: 'ACCESS_DENIED' } : rows([{ _id: '' }]);
-    }, async (read) => {
-      await assert.rejects(() => read.list(query()), undefined, scenario);
-    });
+  for (const scenario of [
+    'count-error',
+    'count-invalid',
+    'query-error',
+    'row-invalid',
+    'transport-error',
+  ]) {
+    await withSdk(
+      ({ action }) => {
+        if (scenario === 'transport-error') throw Error('Synthetic SDK failure');
+        if (action === 'database.calculateDocument') {
+          if (scenario === 'count-error') return { code: 'ACCESS_DENIED' };
+          return { data: { total: scenario === 'count-invalid' ? -1 : 1 } };
+        }
+        return scenario === 'query-error' ? { code: 'ACCESS_DENIED' } : rows([{ _id: '' }]);
+      },
+      async (read) => {
+        await assert.rejects(() => read.list(query()), Error, scenario);
+      },
+    );
   }
 });
 
 test('the request-local port preserves published/approved rules and publication rechecks', async () => {
-  for (const product of [approved({ published: false }), approved({ archived: true }), approved({ catalogDetailPublication: undefined })]) {
-    await withSdk(() => rows([product]), async (read, calls) => {
-      const result = await createApprovedProductReader(read)('p1');
-      assert.equal(result.ok, false);
-      if (!result.ok) assert.equal(result.error.code, 'NOT_FOUND');
-      assert.equal(calls.length, 1);
-    });
+  for (const product of [
+    approved({ published: false }),
+    approved({ archived: true }),
+    approved({ catalogDetailPublication: undefined }),
+  ]) {
+    await withSdk(
+      () => rows([product]),
+      async (read, calls) => {
+        const result = await createApprovedProductReader(read)('p1');
+        assert.equal(result.ok, false);
+        if (!result.ok) assert.equal(result.error.code, 'NOT_FOUND');
+        assert.equal(calls.length, 1);
+      },
+    );
   }
   let productReads = 0;
-  await withSdk(({ action, input }) => {
-    if (input.collectionName === 'products') return rows([approved(++productReads === 2 ? { published: false } : {})]);
-    return action === 'database.calculateDocument' ? { data: { total: 0 } } : rows([]);
-  }, async (read) => {
-    const result = await createApprovedProductReader(read)('p1');
-    assert.equal(result.ok, false);
-    if (!result.ok) assert.equal(result.error.code, 'CONFLICT');
-  });
+  await withSdk(
+    ({ action, input }) => {
+      if (input.collectionName === 'products')
+        return rows([approved(++productReads === 2 ? { published: false } : {})]);
+      return action === 'database.calculateDocument' ? { data: { total: 0 } } : rows([]);
+    },
+    async (read) => {
+      const result = await createApprovedProductReader(read)('p1');
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.error.code, 'CONFLICT');
+    },
+  );
 });
 
 test('the complete reader returns the requested immutable page using approved content only', async () => {
@@ -169,19 +245,38 @@ test('the complete reader returns the requested immutable page using approved co
   const publication = product.catalogDetailPublication;
   assert.ok(publication && typeof publication === 'object');
   const pagedProduct = approved({ catalogDetailPublication: { ...publication, variantCount: 3 } });
-  const variant = { id: 'v3', options: [], images: [], offers: [], inventory: { state: 'unknown' } };
-  const row = {
-    _id: approvedVariantDocumentId('p1', 'r1', 'v3'), variantId: 'v3', productId: 'p1',
-    catalogDetailRevision: 'r1', catalogDetailPosition: 2, catalogDetailApproved: variant,
+  const variant = {
+    id: 'v3',
+    options: [],
+    images: [],
+    offers: [],
+    inventory: { state: 'unknown' },
   };
-  await withSdk(({ action, input }) => {
-    if (input.collectionName === 'products') return rows([pagedProduct]);
-    return action === 'database.calculateDocument' ? { data: { total: 3 } } : rows([row]);
-  }, async (read, calls) => {
-    const result = await createApprovedProductReader(read)('p1', 2, 2, 'r1');
-    assert.ok(result.ok);
-    assert.equal(result.data.name, 'Approved headset');
-    assert.deepEqual(result.data.variants, { items: [variant], total: 3, page: 2, pageSize: 2, hasMore: false });
-    assert.equal(calls.length, 4);
-  });
+  const row = {
+    _id: approvedVariantDocumentId('p1', 'r1', 'v3'),
+    variantId: 'v3',
+    productId: 'p1',
+    catalogDetailRevision: 'r1',
+    catalogDetailPosition: 2,
+    catalogDetailApproved: variant,
+  };
+  await withSdk(
+    ({ action, input }) => {
+      if (input.collectionName === 'products') return rows([pagedProduct]);
+      return action === 'database.calculateDocument' ? { data: { total: 3 } } : rows([row]);
+    },
+    async (read, calls) => {
+      const result = await createApprovedProductReader(read)('p1', 2, 2, 'r1');
+      assert.ok(result.ok);
+      assert.equal(result.data.name, 'Approved headset');
+      assert.deepEqual(result.data.variants, {
+        items: [variant],
+        total: 3,
+        page: 2,
+        pageSize: 2,
+        hasMore: false,
+      });
+      assert.equal(calls.length, 4);
+    },
+  );
 });

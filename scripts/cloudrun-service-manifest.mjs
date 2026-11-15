@@ -33,6 +33,8 @@ export const SECRET_ENV_KEYS = [
   'AI_MODEL_API_KEY',
   'VIBEKB_PUBLIC_API_KEY',
   'AI_INQUIRY_TOKEN',
+  'SALES_CAM_SECRET_ID',
+  'SALES_CAM_SECRET_KEY',
 ];
 
 /** The engines a deployment can run, each with the settings its worker needs. */
@@ -153,10 +155,16 @@ export function engineEnv(ctx) {
  */
 function inquiryEnv(ctx) {
   if (ctx.optionalEnv('AI_INQUIRY_ENABLED') !== '1') return {};
+  if (ctx.optionalEnv('AI_INQUIRY_AUTH_MODE') !== 'scf-cam')
+    throw new Error('AI_INQUIRY_AUTH_MODE must be scf-cam');
   return {
     AI_INQUIRY_ENABLED: '1',
     AI_INQUIRY_BASE_URL: ctx.requireEnv('AI_INQUIRY_BASE_URL'),
     AI_INQUIRY_TOKEN: ctx.requireEnv('AI_INQUIRY_TOKEN'),
+    AI_INQUIRY_AUTH_MODE: 'scf-cam',
+    SALES_CAM_SECRET_ID: ctx.requireEnv('SALES_CAM_SECRET_ID'),
+    SALES_CAM_SECRET_KEY: ctx.requireEnv('SALES_CAM_SECRET_KEY'),
+    SALES_CAM_UIN: ctx.requireEnv('SALES_CAM_UIN'),
   };
 }
 

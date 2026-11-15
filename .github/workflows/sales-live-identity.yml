@@ -25,8 +25,17 @@ jobs:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
         run: node scripts/sales/inspect-live-identity.mjs
+      - name: Register only the two dedicated Sales callers
+        if: startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-identity-provision-')
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/sales/provision-live-callers.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: sales-identity-inspection
-          path: sales-identity-inspection.json
+          path: |
+            sales-identity-inspection.json
+            sales-callers-evidence.json
+            sales-callers-encrypted.json
