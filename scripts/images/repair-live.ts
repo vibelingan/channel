@@ -23,6 +23,7 @@ import { createCloudbaseFunctionProvider } from '../release/function-provider.mj
 import { replaceFunctionCode } from '../release/function-replacement.mjs';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
 import { fetchFully } from '../smoke-http.mjs';
+import { requireFunctionSourceAncestor } from './source-ancestry.mjs';
 
 const env = process.env;
 const envId = 'diversity-123-d9grnqfux221323bb';
@@ -100,6 +101,11 @@ assert.equal(
 assert.equal(before.snapshot.runtime, 'Nodejs20.19');
 assert.equal(before.snapshot.handler, 'index.main');
 const beforeVersion = await readFunctionRuntimeVersion(envId, 'public-api');
+const sourceAncestry = await requireFunctionSourceAncestor({
+  beforeVersion,
+  sourceSha,
+  token: env.GITHUB_TOKEN,
+});
 const manifest = JSON.parse(await readFile('output/image-delivery-package/manifest.json', 'utf8'));
 const candidate = await readFile('output/image-delivery-package/function.zip');
 const hash = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
@@ -145,6 +151,7 @@ for (const [name, body] of [
         functionName: 'public-api',
         before: before.snapshot,
         beforeVersion,
+        sourceAncestry,
         originalsChanged: false,
         productContentChanged: false,
         permissionChanged: false,
