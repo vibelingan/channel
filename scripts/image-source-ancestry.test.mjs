@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { requireFunctionSourceAncestor } from './source-ancestry.mjs';
+import { requireFunctionSourceAncestor } from './images/source-ancestry.mjs';
 const beforeVersion = 'a'.repeat(40);
 const sourceSha = 'b'.repeat(40);
 const input = { beforeVersion, sourceSha, token: 'unit-test-identity' };
