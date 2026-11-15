@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "修复图片400：保留原图，准备网页版本，再申请Google复查",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [
+      1360,
+      760
+    ]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "技术操作人"
+    },
+    {
+      "id": "ci",
+      "type": "backend",
+      "label": "受控修复任务"
+    },
+    {
+      "id": "cos",
+      "type": "database",
+      "label": "CloudBase私有存储"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "图片记录与公开引用"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "网站图片接口"
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "Google与普通访客"
+    }
+  ],
+  "segments": [
+    {
+      "from": 180,
+      "to": 435,
+      "label": "先确认候选保留现有功能，再归档；来源不变才登记"
+    },
+    {
+      "from": 450,
+      "to": 590,
+      "label": "网站继续使用原网址；每次服务器读取都核对公开权限"
+    },
+    {
+      "from": 610,
+      "to": 700,
+      "label": "网站实际恢复后，才让Google重新检查"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "operator",
+      "to": "ci",
+      "y": 205,
+      "label": "人工选择确定版本与19张图片",
+      "variant": "default"
+    },
+    {
+      "id": "m2",
+      "from": "ci",
+      "to": "api",
+      "y": 235,
+      "label": "先验证候选包含当前运行源码历史与Sales接线",
+      "variant": "default"
+    },
+    {
+      "id": "m2-archive",
+      "from": "ci",
+      "to": "api",
+      "y": 265,
+      "label": "通过后归档现场原包与配置，核对可恢复",
+      "variant": "default"
+    },
+    {
+      "id": "m3",
+      "from": "ci",
+      "to": "db",
+      "y": 295,
+      "label": "读取指定原图记录和来源摘要",
+      "variant": "default"
+    },
+    {
+      "id": "m4",
+      "from": "ci",
+      "to": "cos",
+      "y": 325,
+      "label": "读原件，生成并上传WebP小图",
+      "variant": "default"
+    },
+    {
+      "id": "m5",
+      "from": "ci",
+      "to": "cos",
+      "y": 355,
+      "label": "重新读取，核对完整字节和摘要",
+      "variant": "default"
+    },
+    {
+      "id": "m6",
+      "from": "ci",
+      "to": "db",
+      "y": 385,
+      "label": "事务登记；原图变过则拒绝",
+      "variant": "default"
+    },
+    {
+      "id": "m7",
+      "from": "ci",
+      "to": "api",
+      "y": 415,
+      "label": "仅更新public-api，配置保持原样",
+      "variant": "default"
+    },
+    {
+      "id": "m8",
+      "from": "google",
+      "to": "api",
+      "y": 475,
+      "label": "访问原有图片网址",
+      "variant": "default"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "db",
+      "y": 505,
+      "label": "先检查active与有效公开引用",
+      "variant": "default"
+    },
+    {
+      "id": "m10",
+      "from": "api",
+      "to": "cos",
+      "y": 535,
+      "label": "读取对应当前原图的小图",
+      "variant": "default"
+    },
+    {
+      "id": "m11",
+      "from": "api",
+      "to": "google",
+      "y": 565,
+      "label": "返回200、正确类型与图片字节",
+      "variant": "default"
+    },
+    {
+      "id": "m12",
+      "from": "operator",
+      "to": "google",
+      "y": 640,
+      "label": "5个原网址通过实测后申请复查",
+      "variant": "default"
+    },
+    {
+      "id": "m13",
+      "from": "google",
+      "to": "operator",
+      "y": 670,
+      "label": "重新抓取后才更新报表，时间不能保证",
+      "variant": "default"
+    }
+  ]
+}

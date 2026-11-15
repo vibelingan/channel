@@ -1,7 +1,6 @@
-import { catalogContentView } from '../../catalog/presentation/catalog-content-view.ts';
 import type { Product } from '../../islands/shop/catalog-types.ts';
 import { catalogBreadcrumbSchema, familyBreadcrumbs, hubBreadcrumbs } from '../catalog-seo.ts';
-import { canonicalUrl, createPageDescriptor } from './page.ts';
+import { createPageDescriptor } from './page.ts';
 import { productPath } from './product-identity.ts';
 import type { ProductSnapshotEntry } from './product-snapshot.ts';
 
@@ -34,29 +33,12 @@ export function productPageDescriptor(
 ) {
   const { product, detail } = entry;
   const path = productPath(product._id);
-  const url = canonicalUrl(path, origin);
   const identity = duplicateName ? ` (${product._id})` : '';
   const name = detail?.name ?? product.name;
   const summary = bodySummary(entry).replace(/\s+/g, ' ').trim();
   const description = `${name}${identity}. ${summary ? summary.slice(0, 180) : 'View product specifications, photos and quotation options.'}`;
-  const schema: Record<string, unknown> = { '@type': 'Product', name, url };
-  if (summary) schema.description = summary;
-  const images = detail?.images ?? product.images ?? [];
-  if (images.length) schema.image = images.map((image) => new URL(image, origin).href);
-  if (detail) {
-    const facts = catalogContentView(
-      detail.facts,
-      'content' in detail ? detail.content : undefined,
-    ).specifications;
-    if (facts.length)
-      schema.additionalProperty = facts.map(({ name, value }) => ({
-        '@type': 'PropertyValue',
-        name,
-        value,
-      }));
-  } else if (product.skuCode) schema.sku = product.skuCode;
-  // Product and selected-configuration prices have different scopes. Do not
-  // derive a product-wide Offer from an incomplete initial variant page.
+  // Product rich results need a supported offer or a real review/rating. Keep
+  // ordinary page markup until the approved price and its conditions can match it.
   return createPageDescriptor({
     path,
     kind: 'product',
@@ -67,9 +49,6 @@ export function productPageDescriptor(
       revision: entry.revision,
       ...(entry.publicVersion?.changedAt ? { updatedAt: entry.publicVersion.changedAt } : {}),
     },
-    schemaNodes: [
-      schema,
-      catalogBreadcrumbSchema(productBreadcrumbs({ ...product, name }), origin),
-    ],
+    schemaNodes: [catalogBreadcrumbSchema(productBreadcrumbs({ ...product, name }), origin)],
   });
 }

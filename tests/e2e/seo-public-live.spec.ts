@@ -98,9 +98,17 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     );
     await expectPageAllowsIndexing(html, initial);
     const graphs = await html.locator('script[type="application/ld+json"]').allTextContents();
-    expect(
-      graphs.some((text) => JSON.stringify(JSON.parse(text)).includes('"@type":"Product"')),
-    ).toBe(true);
+    // An enquiry product stays an ordinary indexed page until a truthful offer
+    // or review can support Product rich results. Do not require invalid markup.
+    const nodes = graphs.flatMap((text) => {
+      const graph = JSON.parse(text);
+      return Array.isArray(graph['@graph']) ? graph['@graph'] : [graph];
+    });
+    expect(nodes.some((node) => node['@type'] === 'WebPage')).toBe(true);
+    expect(nodes.some((node) => node['@type'] === 'BreadcrumbList')).toBe(true);
+    for (const node of nodes.filter((node) => node['@type'] === 'Product')) {
+      expect(Boolean(node.offers || node.review || node.aggregateRating)).toBe(true);
+    }
   } finally {
     await plain.close();
   }

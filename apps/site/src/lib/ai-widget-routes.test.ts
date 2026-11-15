@@ -7,6 +7,7 @@ const page = (path: string) => new URL(`../pages/${path}`, import.meta.url).path
 const pageFiles: Record<string, string> = {
   '/': page('index.astro'),
   '/headphones': page('headphones.astro'),
+  '/headphones/page/[page]': page('[family]/page/[page].astro'),
   '/oem': page('oem.astro'),
   '/products/item': page('products/item.astro'),
   '/products/[publicKey]': page('products/[publicKey].astro'),
@@ -24,6 +25,7 @@ test('direct_product_visit_has_single_widget: one assistant on exactly the allow
   assert.deepEqual(AI_WIDGET_ROUTES, [
     '/',
     '/headphones',
+    '/headphones/page/[page]',
     '/oem',
     '/products/item',
     '/products/[publicKey]',
@@ -40,6 +42,12 @@ test('direct_product_visit_has_single_widget: one assistant on exactly the allow
     enumerated += 1;
   }
   assert.ok(enumerated >= 12, 'the test must enumerate positive and negative route surfaces');
+});
+
+test('generic category pagination mounts the existing assistant only for headphones', async () => {
+  const source = await readFile(page('[family]/page/[page].astro'), 'utf8');
+  assert.match(source, /\{bootstrap\.family === 'headphones' && <AssistantHost \/>\}/);
+  assert.equal(source.split('<AssistantHost').length - 1, 1);
 });
 
 test('only the host mounts the assistant island, and the shared layout does not', async () => {

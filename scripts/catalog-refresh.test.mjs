@@ -58,3 +58,17 @@ test('an unknown storage result keeps the durable guard blocked and prevents a s
   await assert.rejects(f.api.uploadBatch([{ path: 'products/p-p/index.html' }]), /unknown/);
   assert.deepEqual(f.calls.at(-1), ['end', 'unknown']);
 });
+test('category HTML and its registry hold the full catalog guard through readback and removal', async () => {
+  for (const path of ['headphones/page/2/index.html', 'catalog-pages/manifest.json']) {
+    const f = fixture();
+    await f.api.uploadBatch([{ path }]);
+    await f.api.verifyBatch([{ path }]);
+    assert.deepEqual(f.calls, [['begin', [], true], ['upload'], ['readback'], ['end', 'verified']]);
+    await f.api.removeBatch([path]);
+    assert.deepEqual(f.calls.slice(-3), [
+      ['begin', [], true],
+      ['delete-and-readback'],
+      ['end', 'verified'],
+    ]);
+  }
+});

@@ -8,6 +8,9 @@ import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { categoryPage } from '../lib/seo/category-snapshot.ts';
+import { categoryPageIdentity } from '../lib/seo/category-page-metadata.ts';
+import { readProductSnapshot } from '../lib/seo/product-snapshot.ts';
 import { apiMediaUrl } from '../lib/api-url.ts';
 import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
@@ -17,6 +20,7 @@ const hp = getHeadphonesContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
 const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('headphones', DEFAULT_LOCALE);
+const bootstrap = categoryPage(await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321'), family.key);
 const { brand, nav, footer } = site;
 
 // The reviewed hero provenance: three gated 800x800 product images, tried in
@@ -29,9 +33,10 @@ const seoTitle = `${family.seoTitle} | ${brand.name}`;
 const seoDescription = family.seoDescription;
 const breadcrumbs = familyBreadcrumbs(family.heading, family.href);
 const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.url.origin)];
+const page = categoryPageIdentity(family, bootstrap, brand.name, Astro.site ?? Astro.url.origin).page;
 ---
 
-<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/" schemaNodes={schemaNodes}>
+<BaseLayout page={page} title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/" schemaNodes={schemaNodes}>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
@@ -159,21 +164,15 @@ const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.ur
     <!-- ===== Product Matrix + Details (React island, SSR + hydrate) ===== -->
     <div id="product-matrix" class="scroll-mt-[var(--spacing-header)]">
       <noscript>
-        <!-- The island server-renders its loading skeleton, which can never
-             resolve without JavaScript. Hide it and state the real reason
-             rather than claiming the catalog is empty. -->
-        <style>#product-matrix .animate-pulse { display: none; }</style>
         <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
           <p class="rounded-lg border border-slate-200 bg-surface-alt p-6 text-center text-ink-muted">
-            Browsing the model catalogue requires JavaScript. You can still reach us directly:
-            <a class="ml-2 font-semibold text-brand-700 underline" href={OEM_INQUIRY_HREF}>
-              {hp.list.emptyCtaLabel}
-            </a>
+            Browse the product links below, or reach us directly for help choosing a model:
+            <a class="ml-2 font-semibold text-brand-700 underline" href={OEM_INQUIRY_HREF}>{hp.list.emptyCtaLabel}</a>
           </p>
         </div>
       </noscript>
       <div class="mx-auto max-w-[var(--width-container)] px-4 py-12 sm:px-6 lg:px-8">
-        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} client:load />
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} client:load />
       </div>
     </div>
 

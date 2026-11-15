@@ -28,6 +28,89 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function hasSchemaType(node: Record<string, unknown>, type: string): boolean {
+  return node['@type'] === type || (Array.isArray(node['@type']) && node['@type'].includes(type));
+}
+
+function priceAmount(value: unknown): number | null {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value)))
+    return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+function validCurrency(value: unknown): boolean {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+}
+
+function validOffer(value: unknown): boolean {
+  if (!record(value)) return false;
+  if (hasSchemaType(value, 'AggregateOffer')) {
+    const low = priceAmount(value.lowPrice);
+    const high = value.highPrice === undefined ? low : priceAmount(value.highPrice);
+    return low !== null && high !== null && high >= low && validCurrency(value.priceCurrency);
+  }
+  if (!hasSchemaType(value, 'Offer')) return false;
+  const price = Object.hasOwn(value, 'price')
+    ? value
+    : record(value.priceSpecification) &&
+        (hasSchemaType(value.priceSpecification, 'PriceSpecification') ||
+          hasSchemaType(value.priceSpecification, 'UnitPriceSpecification'))
+      ? value.priceSpecification
+      : null;
+  return price !== null && priceAmount(price.price) !== null && validCurrency(price.priceCurrency);
+}
+
+function validRating(value: unknown): boolean {
+  if (!record(value)) return false;
+  const rating = priceAmount(value.ratingValue);
+  const worst = priceAmount(value.worstRating ?? 1);
+  const best = priceAmount(value.bestRating ?? 5);
+  return (
+    rating !== null &&
+    worst !== null &&
+    best !== null &&
+    best > worst &&
+    rating >= worst &&
+    rating <= best
+  );
+}
+
+function validProduct(node: Record<string, unknown>, url: string): boolean {
+  if (node.url !== url || typeof node.name !== 'string' || !node.name.trim()) return false;
+  const offers =
+    node.offers === undefined ? [] : Array.isArray(node.offers) ? node.offers : [node.offers];
+  if (node.offers !== undefined && offers.length === 0) return false;
+  if (offers.some((offer) => !validOffer(offer))) return false;
+  const rating = node.aggregateRating;
+  const ratingCount = record(rating) ? (rating.ratingCount ?? rating.reviewCount) : undefined;
+  const hasRating =
+    record(rating) &&
+    hasSchemaType(rating, 'AggregateRating') &&
+    validRating(rating) &&
+    typeof ratingCount === 'number' &&
+    Number.isSafeInteger(ratingCount) &&
+    ratingCount > 0;
+  const reviews =
+    node.review === undefined ? [] : Array.isArray(node.review) ? node.review : [node.review];
+  const hasReviews =
+    reviews.length > 0 &&
+    reviews.every(
+      (review) =>
+        record(review) &&
+        hasSchemaType(review, 'Review') &&
+        record(review.reviewRating) &&
+        hasSchemaType(review.reviewRating, 'Rating') &&
+        validRating(review.reviewRating) &&
+        record(review.author) &&
+        typeof review.author.name === 'string' &&
+        review.author.name.trim(),
+    );
+  if ((rating !== undefined && !hasRating) || (node.review !== undefined && !hasReviews))
+    return false;
+  return offers.length > 0 || hasRating || hasReviews;
+}
+
 function descriptor(value: unknown, path: string): PageDescriptor {
   requireValue(record(value), `${path}: missing page descriptor`);
   requireValue(
@@ -204,12 +287,17 @@ export async function inspectPage(
       nodes.some((node) => node['@type'] === 'WebPage' && node.url === expectedUrl),
       `${path}: WebPage URL disagrees with canonical`,
     );
-    if (page.kind === 'product' || page.kind === 'article') {
-      const type = page.kind === 'product' ? 'Product' : 'Article';
+    for (const node of nodes.filter((node) => hasSchemaType(node, 'Product')))
       requireValue(
-        nodes.some((node) => node['@type'] === type && node.url === expectedUrl),
-        `${path}: missing ${type} schema at its canonical URL`,
+        validProduct(node, expectedUrl),
+        `${path}: invalid Product rich-result fields or canonical URL`,
       );
+    if (page.kind === 'product' || page.kind === 'article') {
+      if (page.kind === 'article')
+        requireValue(
+          nodes.some((node) => node['@type'] === 'Article' && node.url === expectedUrl),
+          `${path}: missing Article schema at its canonical URL`,
+        );
       const breadcrumb = nodes.find((node) => node['@type'] === 'BreadcrumbList');
       const items = breadcrumb?.itemListElement;
       requireValue(Array.isArray(items) && items.length > 0, `${path}: missing BreadcrumbList`);

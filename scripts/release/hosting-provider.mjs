@@ -195,7 +195,12 @@ export function createCloudbaseHostingProvider({ manager, target }) {
           path.endsWith('.html') ||
           articleMediaFile.test(path) ||
           isSitemap(path) ||
-          ['robots.txt', 'seo-manifest.json', 'products/manifest.json'].includes(path)
+          [
+            'robots.txt',
+            'seo-manifest.json',
+            'products/manifest.json',
+            'catalog-pages/manifest.json',
+          ].includes(path)
         )
       )
         throw new Error('Hosting deletion not allowed');

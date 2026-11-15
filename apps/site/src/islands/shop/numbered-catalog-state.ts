@@ -1,4 +1,5 @@
 import type { CatalogPage, Product } from './catalog-types.ts';
+import type { ProductFamily } from './catalog-types.ts';
 
 export const CATALOG_PAGE_SIZE = 12;
 
@@ -50,7 +51,59 @@ export function parseCatalogQuery(
   };
 }
 
-export function catalogUrl(href: string, query: NumberedCatalogQuery): string {
+export function catalogPagePath(family: ProductFamily, page = 1): string {
+  if (!Number.isSafeInteger(page) || page < 1) throw new Error('Invalid catalog page');
+  return page === 1 ? `/${family}/` : `/${family}/page/${page}/`;
+}
+
+export function catalogPathPage(pathname: string): number | null {
+  const match = /^\/(?:headphones|ai-gadgets|toys|misc)\/page\/([1-9]\d*)\/?$/.exec(pathname);
+  const page = match ? Number(match[1]) : null;
+  return page !== null && Number.isSafeInteger(page) ? page : null;
+}
+
+export function catalogDeliveredPageCount(bootstrap?: Pick<CatalogPage, 'total'>): number {
+  return Math.max(1, Math.ceil((bootstrap?.total ?? 0) / CATALOG_PAGE_SIZE));
+}
+
+/** A filtered deep link belongs to the existing root-page interaction, not page N's HTML. */
+export function catalogFilteredPathRedirect(href: string): string | null {
+  const url = new URL(href);
+  const page = catalogPathPage(url.pathname);
+  const params = url.searchParams;
+  if (
+    page === null ||
+    !(params.has('category') || params.has('subcategoryIds') || params.get('search')?.trim())
+  )
+    return null;
+  url.pathname = url.pathname.replace(/page\/[1-9]\d*\/?$/, '');
+  if (!params.has('page')) params.set('page', String(page));
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function catalogDocumentTarget(
+  href: string,
+  query: NumberedCatalogQuery,
+  deliveredPages = Number.POSITIVE_INFINITY,
+  renderedPage?: number,
+): string | null {
+  if (!query.search && query.categories === null && query.page > deliveredPages) return null;
+  const url = new URL(href);
+  const target = catalogUrl(href, query, true, deliveredPages);
+  const samePath =
+    new URL(target, url).pathname.replace(/\/$/, '') === url.pathname.replace(/\/$/, '');
+  // Back can change the address to page N while retaining page one's document.
+  const supportedDocument =
+    renderedPage === undefined || query.page === 1 || query.page === renderedPage;
+  return samePath && supportedDocument ? null : target;
+}
+
+export function catalogUrl(
+  href: string,
+  query: NumberedCatalogQuery,
+  pathPages = false,
+  deliveredPages = Number.POSITIVE_INFINITY,
+): string {
   const url = new URL(href);
   url.searchParams.set('page', String(query.page));
   url.searchParams.delete('search');
@@ -61,6 +114,13 @@ export function catalogUrl(href: string, query: NumberedCatalogQuery): string {
       'category',
       query.categories.length ? query.categories.join(',') : '__none__',
     );
+  const family = /^\/(headphones|ai-gadgets|toys|misc)(?:\/|$)/.exec(url.pathname)?.[1];
+  if (pathPages && family) {
+    const useStaticPage =
+      !query.search && query.categories === null && query.page <= deliveredPages;
+    url.pathname = catalogPagePath(family as ProductFamily, useStaticPage ? query.page : 1);
+    if (useStaticPage) url.searchParams.delete('page');
+  }
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -101,13 +161,14 @@ export function catalogQueryWithFilters(
   };
 }
 
-export function initialNumberedCatalogState(): NumberedCatalogState {
+export function initialNumberedCatalogState(bootstrap?: CatalogPage): NumberedCatalogState {
+  const query = { page: bootstrap?.page ?? 1, search: '', categories: null };
   return {
     generation: 0,
-    committed: null,
-    requested: { page: 1, search: '', categories: null },
-    products: [],
-    total: null,
+    committed: bootstrap ? query : null,
+    requested: query,
+    products: bootstrap?.items ?? [],
+    total: bootstrap?.total ?? null,
     pending: false,
     error: null,
     recovered: false,

@@ -4,7 +4,11 @@ import { inspectPage, validateManifest, validateSitemapIndex } from './output-ga
 import { createPageDescriptor, serializePageDescriptor } from './page.ts';
 
 const origin = 'https://example.test';
-function fixture(path = '/example/', kind: 'marketing' | 'product' | 'article' = 'marketing') {
+function fixture(
+  path = '/example/',
+  kind: 'marketing' | 'product' | 'article' = 'marketing',
+  productSchema?: Record<string, unknown> | null,
+) {
   const page = createPageDescriptor({
     path,
     kind,
@@ -13,12 +17,21 @@ function fixture(path = '/example/', kind: 'marketing' | 'product' | 'article' =
     content: { source: kind === 'marketing' ? 'site-content' : `public-${kind}`, revision: '1' },
   });
   const url = `${origin}${path}`;
+  const product =
+    productSchema === undefined
+      ? {
+          '@type': 'Product',
+          name: 'Example',
+          url,
+          offers: { '@type': 'Offer', price: '3.10', priceCurrency: 'USD' },
+        }
+      : productSchema;
   const nodes = [
     { '@type': 'WebPage', url },
     ...(kind === 'marketing'
       ? []
       : [
-          { '@type': kind === 'product' ? 'Product' : 'Article', url },
+          ...(kind === 'product' ? (product ? [product] : []) : [{ '@type': 'Article', url }]),
           {
             '@type': 'BreadcrumbList',
             itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Example', item: url }],
@@ -40,6 +53,116 @@ test('rendered product/article fixtures and manifest share their canonical ident
       entries,
       entries.map((entry) => entry.canonicalUrl),
     ),
+  );
+});
+
+test('product pages can use ordinary WebPage and Breadcrumb markup without a Product rich result', async () => {
+  const path = '/products/example/';
+  const page = await inspectPage(fixture(path, 'product', null), path, origin);
+  assert.equal(page.kind, 'product');
+  assert.equal(page.robots, 'index,follow');
+  assert.equal(page.canonicalUrl, `${origin}${path}`);
+});
+
+test('gate rejects incomplete Product markup rather than treating a field name as a valid rich result', async () => {
+  const path = '/products/example/';
+  const product = { '@type': 'Product', name: 'Example', url: `${origin}${path}` };
+  for (const invalid of [
+    product,
+    { ...product, offers: {} },
+    { ...product, offers: [] },
+    { ...product, offers: { '@type': 'Offer', price: 'NaN', priceCurrency: 'USD' } },
+    { ...product, offers: { '@type': 'Offer', price: -1, priceCurrency: 'USD' } },
+    { ...product, offers: { '@type': 'Offer', price: '3.10', priceCurrency: 'dollars' } },
+    { ...product, offers: { '@type': 'Offer', price: '3.10', priceCurrency: ['USD'] } },
+    { ...product, aggregateRating: {} },
+    {
+      ...product,
+      aggregateRating: { '@type': 'AggregateRating', ratingValue: 99, ratingCount: 1 },
+    },
+    { ...product, review: {} },
+    { ...product, '@type': ['Thing', 'Product'], offers: {} },
+  ])
+    await assert.rejects(inspectPage(fixture(path, 'product', invalid), path, origin), /Product/);
+});
+
+test('gate preserves a real rating or review alternative and a typed price specification', async () => {
+  const path = '/products/example/';
+  const product = { '@type': 'Product', name: 'Example', url: `${origin}${path}` };
+  for (const fields of [
+    { aggregateRating: { '@type': 'AggregateRating', ratingValue: 4.5, ratingCount: 2 } },
+    {
+      review: {
+        '@type': 'Review',
+        reviewRating: { '@type': 'Rating', ratingValue: 4 },
+        author: { '@type': 'Person', name: 'Reviewer' },
+      },
+    },
+    {
+      offers: {
+        '@type': 'Offer',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: '3.10',
+          priceCurrency: 'USD',
+        },
+      },
+    },
+  ])
+    await inspectPage(fixture(path, 'product', { ...product, ...fields }), path, origin);
+});
+
+test('valid Product offers preserve zero prices and reject a different canonical identity', async () => {
+  const path = '/products/example/';
+  const product = { '@type': 'Product', name: 'Example', url: `${origin}${path}` };
+  await inspectPage(
+    fixture(path, 'product', {
+      ...product,
+      offers: { '@type': 'Offer', price: '0.00', priceCurrency: 'USD' },
+    }),
+    path,
+    origin,
+  );
+  await inspectPage(
+    fixture(path, 'product', {
+      ...product,
+      offers: {
+        '@type': 'AggregateOffer',
+        lowPrice: '1.20',
+        highPrice: '3.10',
+        priceCurrency: 'USD',
+      },
+    }),
+    path,
+    origin,
+  );
+  await assert.rejects(
+    inspectPage(
+      fixture(path, 'product', {
+        ...product,
+        url: 'https://other.test/item',
+        offers: { '@type': 'Offer', price: 1, priceCurrency: 'USD' },
+      }),
+      path,
+      origin,
+    ),
+    /Product/,
+  );
+  await assert.rejects(
+    inspectPage(
+      fixture(path, 'product', {
+        ...product,
+        offers: {
+          '@type': 'AggregateOffer',
+          lowPrice: '3.10',
+          highPrice: '1.20',
+          priceCurrency: 'USD',
+        },
+      }),
+      path,
+      origin,
+    ),
+    /Product/,
   );
 });
 

@@ -8,6 +8,9 @@ import {
   type NumberedCatalogQuery,
   type NumberedCatalogState,
   cancelNumberedPage,
+  catalogDocumentTarget,
+  catalogFilteredPathRedirect,
+  catalogPathPage,
   catalogQueryEquals,
   catalogQueryWithFilters,
   catalogUrl,
@@ -45,8 +48,15 @@ function executableDeclarations(sourceUrl: URL, names: string[]): string {
 function bindHandlers<Handlers>(
   sourceUrl: URL,
   names: string[],
-  bindings: Record<string, unknown>,
+  provided: Record<string, unknown>,
 ): Handlers {
+  const bindings = {
+    pageMetadata: undefined,
+    catalogDocumentTarget,
+    deliveredPageCount: Number.POSITIVE_INFINITY,
+    requestQueryRef: { current: null },
+    ...provided,
+  };
   const source = `const { ${Object.keys(bindings).join(', ')} } = bindings;
     ${executableDeclarations(sourceUrl, names)}
     return { ${names.join(', ')} };`;
@@ -158,7 +168,7 @@ test('clear filters recovers an invalid URL with no active checkboxes', () => {
   assert.equal(harness.invalidSelectionRef.current, false);
   assert.deepEqual(harness.requests, [{ page: 1, search: '', categories: null }]);
   assert.deepEqual(harness.inputs(), { selected: [], search: '' });
-  assert.deepEqual(harness.historyWrites, ['/headphones/?page=1']);
+  assert.deepEqual(harness.historyWrites, ['/headphones/']);
 });
 
 test('automatic invalid URL reads abort pending products without requesting an unfiltered list', () => {
@@ -179,12 +189,14 @@ test('automatic invalid URL reads abort pending products without requesting an u
       ['readLocation'],
       {
         useCallback: (callback: () => void) => callback,
-        window: { location: { search: '?category=retired' } },
+        window: { location: new URL('https://example.test/headphones/?category=retired') },
         registry,
         stateRef,
         invalidSelectionRef,
         abortRef,
         taxonomyPending,
+        bootstrap: undefined,
+        catalogFilteredPathRedirect,
         content: { list: { errorLabel: 'Catalog failed' } },
         parseTaxonomyCatalogQuery,
         parseCatalogQuery,
@@ -212,6 +224,73 @@ test('automatic invalid URL reads abort pending products without requesting an u
     assert.equal(stateRef.current.error === null, taxonomyPending);
     assert.deepEqual(stateRef.current.products, []);
   }
+});
+
+test('a supplied static page still requests current data once and keeps cards during that request', () => {
+  const bootstrap = {
+    page: 2,
+    pageSize: 12,
+    total: 25,
+    items: [{ _id: 'static', name: 'Static body' }],
+  };
+  const stateRef = { current: initialNumberedCatalogState(bootstrap) };
+  const requests: unknown[][] = [];
+  const needsRefresh = { current: true };
+  const abortRef = { current: new AbortController() };
+  const requestQueryRef: { current: NumberedCatalogQuery | null } = { current: null };
+  const { readLocation } = bindHandlers<{ readLocation: () => void }>(
+    new URL('./CatalogFamilyPage.tsx', import.meta.url),
+    ['readLocation'],
+    {
+      useCallback: (callback: () => void) => callback,
+      window: { location: new URL('https://example.test/headphones/page/2/') },
+      bootstrap,
+      bootstrapNeedsRefresh: needsRefresh,
+      registry: null,
+      taxonomyPending: true,
+      stateRef,
+      invalidSelectionRef: { current: false },
+      abortRef,
+      requestQueryRef,
+      content: { list: { errorLabel: 'Failed' } },
+      catalogPathPage,
+      catalogFilteredPathRedirect,
+      catalogQueryEquals,
+      parseTaxonomyCatalogQuery,
+      parseCatalogQuery,
+      catalogRequestIsPending: () => false,
+      detailIsOpen: () => false,
+      restoreInputs: () => {},
+      commit: () => {
+        throw new Error('A ready page did not need a state change');
+      },
+      navigate: (...args: unknown[]) => requests.push(args),
+    },
+  );
+  readLocation();
+  assert.deepEqual(requests, [[{ page: 2, search: '', categories: null }, 'replace', false, true]]);
+  needsRefresh.current = false;
+  readLocation();
+  assert.equal(requests.length, 1);
+  needsRefresh.current = true;
+  abortRef.current = new AbortController();
+  requestQueryRef.current = { page: 2, search: '', categories: null };
+  stateRef.current = {
+    ...stateRef.current,
+    pending: true,
+    recovered: true,
+    requested: { page: 1, search: '', categories: null },
+  };
+  readLocation();
+  assert.equal(
+    requests.length,
+    1,
+    'a late taxonomy result must not restart a shrinking-page retry',
+  );
+  requestQueryRef.current = { page: 1, search: 'usb', categories: null };
+  stateRef.current = { ...stateRef.current, recovered: false, requested: requestQueryRef.current };
+  readLocation();
+  assert.equal(requests.length, 1, 'a late taxonomy result must not cancel the pending search');
 });
 
 function taxonomy(

@@ -36,6 +36,17 @@ test('explicit env mismatch is rejected before SDK resources are read', () => {
   );
   assert.equal(state.calls.length, 0);
 });
+test('only the exact owned category manifest gains JSON removal permission', async () => {
+  const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
+  const port = createCloudbaseHostingProvider({ manager, target });
+  state.files.set('catalog-pages/manifest.json', Buffer.from('{}'));
+  state.files.set('catalog-pages/customer-data.json', Buffer.from('{}'));
+  await port.remove('catalog-pages/manifest.json');
+  assert.equal(state.files.has('catalog-pages/manifest.json'), false);
+  await assert.rejects(port.remove('catalog-pages/customer-data.json'), /deletion not allowed/);
+  assert.equal(state.files.has('catalog-pages/customer-data.json'), true);
+  assert.equal(state.deleted, 1);
+});
 test('domain header patch uses the installed SDK and preserves all routes and certificate', async () => {
   const { manager, state } = managerFixture({ initialConfiguration: domainConfiguration() });
   const port = createCloudbaseHostingProvider({ manager, target });

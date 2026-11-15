@@ -54,7 +54,13 @@ test('one stable identity drives metadata schema and breadcrumbs without inferri
   assert.equal(page.canonicalPath, '/products/p-canonical-product/');
   assert.match(page.description, /Public summary/);
   assert.doesNotMatch(JSON.stringify(page.schemaNodes), /localhost|products\/item|Offer/);
-  assert.equal(page.schemaNodes[0]?.url, 'https://example.com/products/p-canonical-product/');
+  assert.equal(page.robots, 'index,follow');
+  assert.equal(page.content.revision, detail.revision);
+  assert.ok(page.schemaNodes.every((node) => node['@type'] !== 'Product'));
+  const breadcrumb = page.schemaNodes.find((node) => node['@type'] === 'BreadcrumbList');
+  const items = breadcrumb?.itemListElement;
+  assert.ok(Array.isArray(items));
+  assert.equal(items.at(-1)?.item, 'https://example.com/products/p-canonical-product/');
 });
 test('plain clicks expand in place and modifier clicks retain native link navigation', () => {
   const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
