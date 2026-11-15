@@ -1,11 +1,19 @@
 name: SEO performance baseline (read only)
 on:
-  push:
-    branches: [feat/seo-foundation]
-    paths:
-      - .github/workflows/seo-performance-baseline.yml
-      - scripts/performance/us-lighthouse.mjs
   workflow_dispatch:
+    inputs:
+      phase:
+        description: Before or After measurement
+        type: choice
+        required: true
+        default: before
+        options: [before, after]
+      scope:
+        description: All public page types or four affected image pages
+        type: choice
+        required: true
+        default: all
+        options: [all, image-pages]
 permissions:
   contents: read
 jobs:
@@ -26,10 +34,12 @@ jobs:
       - name: Measure public pages from verified US egress; no deployment or credentials
         env:
           LIGHTHOUSE_CLI: ${{ runner.temp }}/lighthouse/node_modules/lighthouse/cli/index.js
-        run: node scripts/performance/us-lighthouse.mjs '${{ matrix.profile }}'
+          MEASUREMENT_PHASE: ${{ inputs.phase }}
+          MEASUREMENT_SCOPE: ${{ inputs.scope }}
+        run: node scripts/performance/us-lighthouse.mjs '${{ matrix.profile }}' "$MEASUREMENT_PHASE" "$MEASUREMENT_SCOPE"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: seo-before-${{ matrix.profile }}-${{ github.run_id }}
+          name: seo-${{ inputs.phase }}-${{ inputs.scope }}-${{ matrix.profile }}-${{ github.run_id }}
           path: performance-evidence/
           retention-days: 30
