@@ -52,7 +52,7 @@ function receipt(row: z.infer<typeof importSchema>, replayed: boolean): ArticleI
     replayed,
   };
 }
-async function validateStored(
+export async function validateStoredArticleImport(
   store: ArticleStore,
   value: unknown,
   key: ArticleIntegration,
@@ -131,7 +131,7 @@ export function createArticleImportService(
             return unauthorized();
           const existing = await store.read('articleImports', operationId);
           if (existing !== null) {
-            const row = await validateStored(store, existing, current);
+            const row = await validateStoredArticleImport(store, existing, current);
             if (row._id !== operationId || row.requestHash !== prepared.requestHash)
               return denied(
                 'CONFLICT',
@@ -226,7 +226,7 @@ export function createArticleImportService(
             Reflect.get(value, 'integrationId') !== current.integrationId
           )
             return denied('NOT_FOUND', 'Draft import not found.');
-          const row = await validateStored(store, value, current);
+          const row = await validateStoredArticleImport(store, value, current);
           if (row._id !== operationId) throw Error('Import operation differs');
           return { value: receipt(row, true) };
         });

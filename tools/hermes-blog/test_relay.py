@@ -121,6 +121,23 @@ class RelayTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             relay.parse_document(doc)
 
+    def test_publication_handoff_keeps_author_source_and_fixed_command(self):
+        ident = relay.save_source(self.kb, {**ARTICLE, "authorName": "SupplyChainsAI"})
+        config = {"siteId": relay.SITE, "workspaceId": 2, "role": "content", "sshConfig": "/private/ssh", "sshHost": "publisher"}
+        approval = {"decision": "publish-now", "messageRef": "wecom:approved", "instruction": "Publish this article on our Blog"}
+        calls = []
+        def execute(command, payload):
+            calls.append((command, payload))
+            return {"state": "published", "articleId": "article-" + "a"*64, "publicVerified": True}
+        result = relay.invoke(config, "publish", {"documentId": ident, "approval": approval}, kb=self.kb, execute=execute)
+        self.assertTrue(result["publicVerified"])
+        self.assertEqual(calls[0][0][-1], "channel-blog-publish")
+        self.assertEqual(calls[0][1], {"documentId": ident, "approval": approval})
+        self.assertNotIn("credential", json.dumps(calls))
+        for op in ("withdraw", "publication-status"):
+            with self.assertRaises(ValueError):
+                relay.invoke(config, op, {"documentId": ident}, kb=self.kb, execute=execute)
+
     def test_private_configuration_and_strict_task_bounds(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/"binding.json"

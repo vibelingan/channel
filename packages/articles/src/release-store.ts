@@ -13,6 +13,7 @@ import {
 import { articleMediaPath, parsePublishedArticle } from './publication.ts';
 import {
   ArticleReleaseControlSchema,
+  type ArticleReleaseRequest,
   ArticleReleaseRequestSchema,
   ArticleReleaseViewSchema,
   type ArticleReleases,
@@ -141,6 +142,12 @@ export const ArticlePublicationModeSchema = z.enum(['static', 'server']).default
 export interface ArticlePublicationOptions {
   /** Trusted server configuration; never selected by browser input. */
   mode?: 'static' | 'server';
+  /** Server-only restricted authority. Browser/admin callers keep the default admin check. */
+  authorizeRequest?: (
+    store: ArticleStore,
+    actorId: string,
+    request: ArticleReleaseRequest,
+  ) => Promise<void>;
 }
 
 function publishedProjection(
@@ -336,7 +343,8 @@ export function createArticleReleaseStore(
     request: (actorId, input) =>
       transaction(async (store) => {
         const request = ArticleReleaseRequestSchema.parse(input);
-        await admin(store, actorId);
+        if (options.authorizeRequest) await options.authorizeRequest(store, actorId, request);
+        else await admin(store, actorId);
         const id = `release-${digest([actorId, request.requestId])}`;
         const requestHash = digest([
           request.operation,

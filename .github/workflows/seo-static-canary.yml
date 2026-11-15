@@ -7,7 +7,7 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, site-reconcile, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, site-reconcile, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare, blog-publication-prepare]
         default: plan
         required: true
       catalog_runtime_action:
@@ -597,4 +597,11 @@ jobs:
     uses: ./.github/workflows/seo-blog-server-stage.yml
     with:
       operation: update
+    secrets: inherit
+
+  blog_publication_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-publication-prepare' }}
+    uses: ./.github/workflows/seo-blog-publication.yml
+    with:
+      expected_package: ${{ inputs.plan_token }}
     secrets: inherit

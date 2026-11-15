@@ -34,8 +34,19 @@ for (const role of ['content', 'publisher']) {
     assert.deepEqual(
       names,
       role === 'content'
-        ? ['channel_blog_attach_images', 'channel_blog_save_draft', 'channel_blog_submit_document']
-        : ['channel_blog_create_draft', 'channel_blog_get_import'],
+        ? [
+            'channel_blog_attach_images',
+            'channel_blog_request_publication',
+            'channel_blog_save_draft',
+            'channel_blog_submit_document',
+          ]
+        : [
+            'channel_blog_create_draft',
+            'channel_blog_get_import',
+            'channel_blog_get_publication',
+            'channel_blog_publish_document',
+            'channel_blog_withdraw_document',
+          ],
     );
   });
 }

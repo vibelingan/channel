@@ -3,6 +3,11 @@ import type { createArticleImportService } from '@vibelingan-channel/articles/im
 type ImportService = ReturnType<typeof createArticleImportService>;
 type Service = Pick<ImportService, 'create' | 'get'> &
   Partial<Pick<ImportService, 'rotate'>> & {
+    publication?: {
+      state(credential: string, operationId: string): Promise<unknown>;
+      sync(credential: string, operationId: string, input: unknown): Promise<unknown>;
+      change(credential: string, operationId: string, input: unknown): Promise<unknown>;
+    };
     images?: {
       state(credential: string, operationId: string): Promise<unknown>;
       intent(credential: string, operationId: string, input: unknown): Promise<unknown>;
@@ -51,6 +56,9 @@ export async function handleArticleImportEvent(
       return failure(400, 'INVALID_REQUEST', 'An HTTP request is required.');
     const method = event.httpMethod.toUpperCase();
     const path = event.path;
+    const publicationRoute = new RegExp(
+      `^${root}/(article-import-[a-f0-9]{64})/(publication|source)$`,
+    ).exec(path);
     const imageRoute = new RegExp(
       `^${root}/(article-import-[a-f0-9]{64})/images/(state|intent|complete|attach)$`,
     ).exec(path);
@@ -59,7 +67,8 @@ export async function handleArticleImportEvent(
       !new RegExp(`^${root}/article-import-[a-f0-9]{64}$`).test(path) &&
       path !== `${root}/health` &&
       path !== `${root}/credential-rotation` &&
-      !imageRoute
+      !imageRoute &&
+      !publicationRoute
     )
       return failure(404, 'NOT_FOUND', 'Route not found.');
     if (!service) return failure(503, 'UNAVAILABLE', 'Draft integration is not enabled.');
@@ -77,9 +86,14 @@ export async function handleArticleImportEvent(
       path === root ||
       path === `${root}/credential-rotation` ||
       Boolean(imageRoute && imageRoute[2] !== 'state');
-    if (isPost ? method !== 'POST' : method !== 'GET')
+    const allowedMethods = publicationRoute
+      ? publicationRoute[2] === 'source'
+        ? ['POST']
+        : ['GET', 'POST']
+      : [isPost ? 'POST' : 'GET'];
+    if (!allowedMethods.includes(method))
       return failure(405, 'INVALID_REQUEST', 'Method not allowed.', {
-        Allow: isPost ? 'POST' : 'GET',
+        Allow: allowedMethods.join(', '),
       });
     const headers: Record<string, string> = {};
     if (record(event.headers))
@@ -93,15 +107,19 @@ export async function handleArticleImportEvent(
       /^Bearer ([A-Za-z0-9][A-Za-z0-9_-]{0,47}\.[a-f0-9]{64})$/,
     )?.[1];
     if (!credential) return failure(401, 'UNAUTHORIZED', 'Draft integration is unavailable.');
+    if (publicationRoute && !service.publication)
+      return failure(503, 'UNAVAILABLE', 'Publication integration is not enabled.');
     if (imageRoute && !service.images)
       return failure(503, 'UNAVAILABLE', 'Draft image integration is not enabled.');
     if (method === 'GET') {
       if (event.body !== undefined && event.body !== null && event.body !== '')
         return failure(400, 'INVALID_REQUEST', 'GET requests cannot contain an article.');
       const result =
-        imageRoute && service.images
-          ? await service.images.state(credential, String(imageRoute[1]))
-          : await service.get(credential, path.slice(root.length + 1));
+        publicationRoute && service.publication
+          ? await service.publication.state(credential, String(publicationRoute[1]))
+          : imageRoute && service.images
+            ? await service.images.state(credential, String(imageRoute[1]))
+            : await service.get(credential, path.slice(root.length + 1));
       return response(200, { ok: true, data: result });
     }
     if (headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
@@ -128,6 +146,13 @@ export async function handleArticleImportEvent(
     } catch {
       return failure(400, 'INVALID_REQUEST', 'Invalid UTF-8 JSON body.');
     }
+    if (publicationRoute && service.publication)
+      return response(200, {
+        ok: true,
+        data: await (publicationRoute[2] === 'source'
+          ? service.publication.sync(credential, String(publicationRoute[1]), body)
+          : service.publication.change(credential, String(publicationRoute[1]), body)),
+      });
     if (path === `${root}/credential-rotation`) {
       if (!service.rotate)
         return failure(503, 'UNAVAILABLE', 'Credential maintenance is not enabled.');

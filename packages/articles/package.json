@@ -22,6 +22,7 @@
     "./public-read": "./src/public-read.ts",
     "./import": "./src/import.ts",
     "./import-store": "./src/import-store.ts",
+    "./import-publication": "./src/import-publication.ts",
     "./import-media": "./src/import-media.ts"
   },
   "scripts": {

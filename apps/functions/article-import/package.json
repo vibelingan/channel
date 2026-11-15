@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "dist/index.cjs",
-  "description": "Restricted server-to-server draft ingestion; no publication or administrator capability.",
+  "description": "Restricted server-to-server article ingestion with separately granted publication of owned articles.",
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",

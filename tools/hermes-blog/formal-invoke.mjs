@@ -1,9 +1,12 @@
 import { isAbsolute } from 'node:path';
+import { z } from 'zod';
+import { BlogToolError } from './client.mjs';
 import { createBlogToolClient } from './client.mjs';
 import { readPrivateJson } from './credential-file.mjs';
 import { completeImageJob } from './image-client.mjs';
 import { kbDraftRequest } from './kb-draft.mjs';
 import { maintainCredentialFile } from './maintenance.mjs';
+import { publishKbDocument } from './publication.mjs';
 
 try {
   const args = process.argv.slice(2);
@@ -11,7 +14,8 @@ try {
     args[0] !== '--credential' ||
     !args[1] ||
     args.length > 4 ||
-    (args[2] && !['--maintain', '--get-import', '--image-job'].includes(args[2])) ||
+    (args[2] &&
+      !['--maintain', '--get-import', '--image-job', '--publication'].includes(args[2])) ||
     (args[2] === '--get-import'
       ? !/^article-import-[a-f0-9]{64}$/.test(args[3] ?? '')
       : args[2] === '--image-job'
@@ -56,20 +60,59 @@ try {
       new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)),
     );
     const privateFile = await readPrivateJson(args[1]);
-    const input = kbDraftRequest(
-      {
-        siteId: 'supplychainsai.com',
-        integrationId: state.config.integrationId,
-        workspaceId: privateFile.value.CHANNEL_BLOG_KB_WORKSPACE,
-      },
-      source,
-    );
+    const binding = {
+      siteId: 'supplychainsai.com',
+      integrationId: state.config.integrationId,
+      workspaceId: privateFile.value.CHANNEL_BLOG_KB_WORKSPACE,
+    };
     const client = createBlogToolClient(state.config);
-    const created = await client.createDraft(input);
-    const confirmed = await client.getImport(created.operationId);
-    console.log(JSON.stringify(confirmed));
+    if (args[2] === '--publication') {
+      const input = z
+        .object({
+          documentId: z.number().int().positive().safe(),
+          workspaceId: z.string(),
+          article: z.record(z.unknown()),
+          action: z.enum(['publish', 'withdraw', 'status']),
+          approval: z.record(z.unknown()).optional(),
+        })
+        .strict()
+        .parse(source);
+      const selected = {
+        documentId: input.documentId,
+        workspaceId: input.workspaceId,
+        article: input.article,
+      };
+      if (input.action === 'status') {
+        const { kbImportOperation } = await import('./kb-draft.mjs');
+        console.log(
+          JSON.stringify(
+            await client.getPublication(
+              kbImportOperation(binding, input.documentId, input.workspaceId),
+            ),
+          ),
+        );
+      } else
+        console.log(
+          JSON.stringify(await publishKbDocument(client, binding, selected, input.approval)),
+        );
+    } else {
+      const input = kbDraftRequest(binding, source);
+      const created = await client.createDraft(input);
+      const confirmed = await client.getImport(created.operationId);
+      console.log(JSON.stringify(confirmed));
+    }
   }
-} catch {
-  console.error('网站草稿操作尚未确认，请保留原任务检查连接或凭证维护记录。');
+} catch (error) {
+  console.log(
+    JSON.stringify({
+      ok: false,
+      state: 'operation-unconfirmed',
+      ...(error instanceof BlogToolError && error.receipt ? error.receipt : {}),
+      message:
+        error instanceof BlogToolError
+          ? error.message
+          : '网站操作尚未确认，请保留原任务检查连接或凭证维护记录。',
+    }),
+  );
   process.exitCode = 1;
 }

@@ -1,4 +1,4 @@
-"""Narrow VibeKB -> publisher -> private website draft adapter. No model or public publishing."""
+"""Fixed VibeKB -> publisher adapter. Publication requires a separate website grant."""
 import argparse
 import fcntl
 import hashlib
@@ -105,7 +105,7 @@ def validate_article(value):
         raise ValueError("文章标题或正文缺失")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value.get("slug", "")):
         raise ValueError("文章需要稳定的英文网址名")
-    if value.get("authorName") != "Diversity Technology Limited":
+    if value.get("authorName") not in ("Diversity Technology Limited", "SupplyChainsAI"):
         raise ValueError("文章作者与企业绑定不符")
     return dict(value)
 
@@ -195,9 +195,11 @@ def run_json(command, payload, timeout=120):
     completed = subprocess.run(command, input=json.dumps(payload).encode(), capture_output=True,
                                timeout=timeout, env={k: v for k, v in os.environ.items()
                                                      if k in ("PATH", "HOME", "LANG", "LC_ALL")})
-    if completed.returncode or len(completed.stdout) > 32768:
-        raise ValueError("网站草稿交接未确认，请保留原文档编号重试")
+    if len(completed.stdout) > 32768:
+        raise ValueError("网站交接回复过大，保留原任务")
     value = json.loads(completed.stdout)
+    if completed.returncode and not (isinstance(value, dict) and value.get("ok") is False and isinstance(value.get("message"), str)):
+        raise ValueError("网站操作尚未确认，保留原任务")
     if not isinstance(value, dict):
         raise ValueError("网站草稿回执不正确")
     return value
@@ -222,6 +224,26 @@ def invoke(config, operation, payload, kb=None, execute=run_json):
         raise ValueError("专用连接与企业工作区不符")
     if config.get("role") not in ("content", "publisher") or not isinstance(payload, dict):
         raise ValueError("专用连接角色不正确")
+    if operation in ("publish", "withdraw", "publication-status"):
+        if config["role"] == "content" and operation != "publish":
+            raise ValueError("内容侧只能交接明确的发布任务")
+        fields = {"documentId"} if operation == "publication-status" else {"documentId", "approval"}
+        if set(payload) != fields:
+            raise ValueError("发布任务字段不正确")
+        ident = document_id(payload["documentId"])
+        kb = kb or connect_kb(config)
+        document = fetch_document(kb, ident)
+        if config["role"] == "content":
+            result = execute(["/usr/bin/ssh", "-F", config["sshConfig"], "-o", "BatchMode=yes", "-o", "ConnectTimeout=12", config["sshHost"], "channel-blog-publish"], payload)
+        else:
+            command = [config["python"], config["lockedInvoke"], "--node", config["node"], "--bundle", config["invokeBundle"], "--credential", config["credentialFile"], "--publication"]
+            selected = {"documentId": ident, "workspaceId": str(WORKSPACE), "article": parse_document(document), "action": "status" if operation == "publication-status" else operation}
+            if operation != "publication-status": selected["approval"] = payload["approval"]
+            result = execute(command, selected)
+        if result.get("ok") is False: return {**result, "documentId": ident, "workspaceId": WORKSPACE}
+        if (not re.fullmatch(r"article-[a-f0-9]{64}", result.get("articleId", "")) or result.get("state") not in ("ready", "published", "withdrawn")):
+            raise ValueError("网站发布回执未确认")
+        return {**result, "documentId": ident, "workspaceId": WORKSPACE}
     if config["role"] == "publisher" and operation == "get-import":
         if set(payload) != {"operationId"} or not re.fullmatch(r"article-import-[a-f0-9]{64}", payload["operationId"]):
             raise ValueError("草稿结果编号不正确")
@@ -247,6 +269,7 @@ def invoke(config, operation, payload, kb=None, execute=run_json):
         result = execute([config["python"], config["lockedInvoke"], "--node", config["node"],
                           "--bundle", config["invokeBundle"], "--credential", config["credentialFile"]],
                          {"documentId": ident, "workspaceId": str(WORKSPACE), "article": parse_document(document)})
+    if result.get("ok") is False: return {**result, "documentId": ident, "workspaceId": WORKSPACE}
     if (result.get("state") != "ready" or not re.fullmatch(r"article-[a-f0-9]{64}", result.get("articleId", ""))
             or result.get("editUrl") != "https://supplychainsai.com/admin/?section=articles&article=" + result["articleId"]):
         raise ValueError("网站草稿结果身份未确认")
@@ -256,12 +279,13 @@ def invoke(config, operation, payload, kb=None, execute=run_json):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--operation", choices=("save", "submit", "get-import"), required=True)
+    parser.add_argument("--operation", choices=("save", "submit", "get-import", "publish", "withdraw", "publication-status"), required=True)
     parser.add_argument("--ssh", action="store_true")
     args = parser.parse_args()
     config = private_json(args.config)
-    if args.ssh and (config.get("role") != "publisher" or args.operation != "submit"
-                     or os.environ.get("SSH_ORIGINAL_COMMAND") != "channel-blog-submit"):
+    expected_ssh = {"submit": "channel-blog-submit", "publish": "channel-blog-publish"}.get(args.operation)
+    if args.ssh and (config.get("role") != "publisher" or expected_ssh is None
+                     or os.environ.get("SSH_ORIGINAL_COMMAND") != expected_ssh):
         raise ValueError("只允许专用草稿交接命令")
     data = sys.stdin.buffer.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
