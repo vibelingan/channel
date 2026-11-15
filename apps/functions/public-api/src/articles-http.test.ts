@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseArticleContent } from '@vibelingan-channel/articles';
+import { articleContentHash } from '@vibelingan-channel/articles/drafts';
 import type { PublicArticles } from '@vibelingan-channel/articles/public-read';
+import { parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 import { handlePublicApiEvent } from './http-adapter.ts';
 const articles: PublicArticles = {
   list: async () => ({ articles: [], next: null }),
   get: async () => null,
+  getRender: async () => null,
   media: async () => null,
 };
 const call = (path: string, reader: PublicArticles | undefined = articles, method = 'GET') =>
@@ -19,6 +23,97 @@ test('public article routes are read-only, bounded and explicitly disabled until
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers['Cache-Control'], 'no-store');
   assert.deepEqual(JSON.parse(response.body), { ok: true, data: { articles: [], next: null } });
+});
+
+test('render-web-v1 is explicit and rejects unknown or duplicate views before reading articles', async () => {
+  const calls: string[] = [];
+  const reader: PublicArticles = {
+    ...articles,
+    get: async (slug) => {
+      calls.push(`old:${slug}`);
+      return null;
+    },
+    getRender: async (slug) => {
+      calls.push(`render:${slug}`);
+      return null;
+    },
+  };
+  await call('/api/articles/slug/missing?view=render-web-v1', reader);
+  assert.deepEqual(calls, ['render:missing']);
+  calls.length = 0;
+  for (const query of ['view=unknown', 'view=', 'view=render-web-v1&view=render-web-v1'])
+    assert.equal((await call(`/api/articles/slug/missing?${query}`, reader)).statusCode, 400);
+  assert.deepEqual(calls, []);
+  await call('/api/articles/slug/missing', reader);
+  assert.deepEqual(calls, ['old:missing']);
+});
+
+test('new render response is separate from unchanged old GET and media filenames pass through unchanged', async () => {
+  const content = parseArticleContent({
+    title: 'Guide',
+    slug: 'guide',
+    authorName: 'Diversity',
+    excerpt: 'Summary',
+    body: {
+      schemaVersion: 1,
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Accepted body' }] }],
+      },
+    },
+  });
+  const article = parsePublishedArticle({
+    articleId: 'article-one',
+    status: 'accepted',
+    deliveryId: 'delivery-one',
+    revision: 1,
+    contentHash: articleContentHash(content),
+    content,
+    media: {},
+    publishedAt: '2026-11-16T00:00:00.000Z',
+    modifiedAt: '2026-11-16T00:00:00.000Z',
+    acceptedAt: '2026-11-16T00:00:01.000Z',
+  });
+  const render = { schemaVersion: 1 as const, article, presentation: { media: {} } };
+  const file = `web-v1-${'a'.repeat(64)}.webp`;
+  const reader: PublicArticles = {
+    ...articles,
+    get: async () => article,
+    getRender: async () => render,
+    media: async (id, requested) => {
+      assert.equal(id, 'image-one');
+      assert.equal(requested, file);
+      return { body: 'AQI=', mimeType: 'image/webp' };
+    },
+  };
+  assert.deepEqual(JSON.parse((await call('/api/articles/slug/guide', reader)).body).data, article);
+  const response = await call('/api/articles/slug/guide?view=render-web-v1', reader);
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(JSON.parse(response.body).data, render);
+  const media = await call(`/api/articles/media/image-one/${file}`, reader);
+  assert.equal(media.statusCode, 200);
+  assert.equal(media.isBase64Encoded, true);
+  assert.equal(media.headers['Cache-Control'], 'no-store');
+  assert.equal(media.headers['Content-Type'], 'image/webp');
+});
+
+test('an unavailable render read is a no-store 503 and never silently retries the old article mode', async () => {
+  let oldReads = 0;
+  const response = await call('/api/articles/slug/guide?view=render-web-v1', {
+    ...articles,
+    get: async () => {
+      oldReads++;
+      return null;
+    },
+    getRender: async () => {
+      throw Error('cloud://private/image token=secret');
+    },
+  });
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.headers['Cache-Control'], 'no-store');
+  assert.equal(response.headers['Retry-After'], '30');
+  assert.equal(oldReads, 0);
+  assert.doesNotMatch(response.body, /cloud:|token|secret/);
 });
 test('missing and unavailable content keep distinct HTTP status and never disclose error details', async () => {
   assert.equal((await call('/api/articles/slug/missing')).statusCode, 404);

@@ -3,6 +3,10 @@ import { articleText, renderArticle } from '@vibelingan-channel/articles';
 import type { ArticlePageData } from '@vibelingan-channel/articles/build';
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
 import { articleMediaPath } from '@vibelingan-channel/articles/publication';
+import {
+  type ArticleWebPresentation,
+  parseArticleWebPresentation,
+} from '@vibelingan-channel/articles/web-media';
 import { canonicalUrl, createPageDescriptor } from '../seo/page.ts';
 
 export const blogCopy = {
@@ -34,21 +38,37 @@ export const articleDate = (time: string) =>
     timeZone: 'UTC',
   }).format(new Date(time));
 
-export function articleBody(article: ArticlePageData, location = publicBlogLocation): string {
-  return renderArticle(article.content.body, {
-    mode: 'public',
-    media: Object.fromEntries(
-      Object.entries(article.media).map(([id, media]) => [
+function displayMedia(
+  article: ArticlePageData,
+  location: typeof publicBlogLocation,
+  presentation?: ArticleWebPresentation,
+) {
+  const prepared = presentation ? parseArticleWebPresentation(article, presentation).media : {};
+  return Object.fromEntries(
+    Object.entries(article.media).map(([id, original]) => {
+      const web = prepared[id];
+      return [
         id,
         {
-          kind: 'public',
-          url: blogMediaPath(id, media, location),
-          mimeType: media.mimeType,
-          width: media.width,
-          height: media.height,
+          kind: 'public' as const,
+          url: web ? `${location.mediaPrefix}${web.url}` : blogMediaPath(id, original, location),
+          mimeType: web?.mimeType ?? original.mimeType,
+          width: web?.width ?? original.width,
+          height: web?.height ?? original.height,
         },
-      ]),
-    ),
+      ];
+    }),
+  );
+}
+
+export function articleBody(
+  article: ArticlePageData,
+  location = publicBlogLocation,
+  presentation?: ArticleWebPresentation,
+): string {
+  return renderArticle(article.content.body, {
+    mode: 'public',
+    media: displayMedia(article, location, presentation),
   }).html;
 }
 
@@ -57,12 +77,13 @@ export function articlePage(
   origin: string,
   brand: string,
   location = publicBlogLocation,
+  presentation?: ArticleWebPresentation,
 ) {
   const { content } = article;
   const path = articlePath(article, location);
   const url = canonicalUrl(path, origin);
-  const images = Object.entries(article.media).map(
-    ([id, media]) => new URL(blogMediaPath(id, media, location), origin).href,
+  const images = Object.values(displayMedia(article, location, presentation)).map(
+    (media) => new URL(media.url, origin).href,
   );
   return createPageDescriptor({
     path,

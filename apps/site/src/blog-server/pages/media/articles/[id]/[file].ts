@@ -6,7 +6,7 @@ export const GET: APIRoute = async ({ params }) => {
   const file = params.file ?? '';
   if (
     !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id) ||
-    !/^[a-f0-9]{64}\.(?:jpg|png|webp)$/.test(file)
+    !/^(?:[a-f0-9]{64}\.(?:jpg|png|webp)|web-v1-[a-f0-9]{64}\.webp)$/.test(file)
   )
     return new Response('Not found', { status: 404, headers });
   try {

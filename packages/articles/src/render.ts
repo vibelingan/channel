@@ -29,6 +29,14 @@ export function renderArticle(
   const doc = parseArticleDocument(input);
   if (!['public', 'preview'].includes(options.mode))
     throw new Error('Explicit article render mode required');
+  const firstBlock =
+    options.mode === 'public'
+      ? doc.document.content.find(
+          (node) =>
+            (node.type !== 'paragraph' && node.type !== 'heading') ||
+            node.content.some((child) => child.type === 'hardBreak' || !!child.text.trim()),
+        )
+      : undefined;
   const mediaIds = new Set<string>();
   const children = (nodes: ArticleNode[]) => nodes.map(html).join('');
   const alignment = (value: string | null) => (value ? ` class="article-align-${value}"` : '');
@@ -75,7 +83,8 @@ export function renderArticle(
         } else if (!safeArticleHref(media.url) || media.url.startsWith('#'))
           throw new Error('Invalid public article image URL');
         mediaIds.add(id);
-        return `<figure class="article-image article-image-${node.attrs.align}"><img src="${escapeHtml(media.url)}" alt="${escapeHtml(node.attrs.alt)}" width="${media.width}" height="${media.height}" loading="lazy" decoding="async">${node.attrs.caption ? `<figcaption>${escapeHtml(node.attrs.caption)}</figcaption>` : ''}</figure>`;
+        const priority = media.kind === 'public' && node === firstBlock;
+        return `<figure class="article-image article-image-${node.attrs.align}"><img src="${escapeHtml(media.url)}" alt="${escapeHtml(node.attrs.alt)}" width="${media.width}" height="${media.height}" loading="${priority ? 'eager' : 'lazy'}"${priority ? ' fetchpriority="high"' : ''} decoding="async">${node.attrs.caption ? `<figcaption>${escapeHtml(node.attrs.caption)}</figcaption>` : ''}</figure>`;
       }
     }
   }

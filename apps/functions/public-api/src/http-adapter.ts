@@ -340,7 +340,19 @@ async function routeGet(
         return jsonResponse(event, config, ok(await config.articles.list(after)), 200, headers);
       }
       if (segments.length === 3 && segments[1] === 'slug') {
-        const article = await config.articles.get(decodeSegment(segments[2] ?? ''));
+        const views = params.getAll('view');
+        if (views.length > 1 || (views.length === 1 && views[0] !== 'render-web-v1'))
+          return jsonResponse(
+            event,
+            config,
+            err('VALIDATION_ERROR', 'Invalid article view'),
+            400,
+            headers,
+          );
+        const slug = decodeSegment(segments[2] ?? '');
+        const article = views.length
+          ? await config.articles.getRender(slug)
+          : await config.articles.get(slug);
         return jsonResponse(
           event,
           config,

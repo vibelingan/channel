@@ -10,6 +10,7 @@ export const ARTICLE_NOSQL_RESOURCES = Object.freeze(
     'articleReleaseTasks',
     'articleReleaseHeads',
     'articleAccepted',
+    'articleWebMedia',
   ].map((collectionName) =>
     Object.freeze({
       collectionName,

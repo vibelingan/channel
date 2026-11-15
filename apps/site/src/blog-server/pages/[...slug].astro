@@ -1,16 +1,23 @@
 ---
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
+import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
 import BlogView from '../../components/BlogView.astro';
-import { publicArticle, publicArticleList } from '../../lib/blog/server-client.ts';
+import { publicArticleForRender, publicArticleList } from '../../lib/blog/server-client.ts';
 import NotFound from '../../pages/404.astro';
 const slug = Astro.params.slug;
 let article = null;
+let presentation: ArticleWebPresentation | undefined;
 let articles: ArticleSummary[] = [];
 let next = null;
 let unavailable = false;
 Astro.response.headers.set('Cache-Control', 'no-store');
 try {
-  if (slug) article = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? await publicArticle(slug) : null;
+  if (slug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    const rendered = await publicArticleForRender(slug);
+    article = rendered?.article ?? null;
+    presentation = rendered?.presentation;
+    if (rendered) Astro.response.headers.set('X-Article-Presentation', rendered.format);
+  } else if (slug) article = null;
   else ({ articles, next } = await publicArticleList());
 } catch {
   unavailable = true;
@@ -21,4 +28,4 @@ if (unavailable) {
   Astro.response.headers.set('X-Robots-Tag', 'noindex');
 } else if (slug && !article) Astro.response.status = 404;
 ---
-{unavailable ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : slug && !article ? <NotFound /> : <BlogView articles={articles} article={article} next={next} server />}
+{unavailable ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : slug && !article ? <NotFound /> : <BlogView articles={articles} article={article} presentation={presentation} next={next} server />}

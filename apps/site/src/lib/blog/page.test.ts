@@ -1,8 +1,80 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { articleContentHash } from '@vibelingan-channel/articles/drafts';
-import { articlePage, articleSummary, blogPage } from './page.ts';
+import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
+import { articleBody, articlePage, articleSummary, blogPage, publicBlogLocation } from './page.ts';
 import { publishedArticleFixture } from './testing.ts';
+
+function imageFixture() {
+  const article = publishedArticleFixture();
+  article.content.body.document.content.unshift({
+    type: 'articleImage',
+    attrs: {
+      mediaId: 'article-image',
+      alt: 'Headphones beside a notebook',
+      caption: 'Enquiry preparation',
+      align: 'center',
+    },
+  });
+  article.media['article-image'] = {
+    mimeType: 'image/png',
+    sha256: 'a'.repeat(64),
+    byteSize: 2_000_000,
+    width: 1536,
+    height: 1024,
+  };
+  article.contentHash = articleContentHash(article.content);
+  const presentation: ArticleWebPresentation = {
+    media: {
+      'article-image': {
+        sourceSha256: 'a'.repeat(64),
+        url: `/media/articles/article-image/web-v1-${'b'.repeat(64)}.webp`,
+        mimeType: 'image/webp',
+        width: 1280,
+        height: 853,
+        byteSize: 90_000,
+        sha256: 'b'.repeat(64),
+      },
+    },
+  };
+  return { article, presentation };
+}
+
+test('verified presentation changes only display bytes and dimensions, preserving publication and copy', () => {
+  const { article, presentation } = imageFixture();
+  const before = structuredClone(article);
+  const location = { ...publicBlogLocation, mediaPrefix: '/blog' };
+  const html = articleBody(article, location, presentation);
+  assert(html.includes(`/blog/media/articles/article-image/web-v1-${'b'.repeat(64)}.webp`));
+  assert.match(html, /width="1280" height="853"/);
+  assert.match(html, /alt="Headphones beside a notebook"/);
+  assert.match(html, /Enquiry preparation/);
+  assert.match(html, /article-image-center/);
+  assert(!html.includes(`${'a'.repeat(64)}.png`));
+  assert.deepEqual(article, before);
+  const page = articlePage(article, 'https://example.com', 'Brand', location, presentation);
+  assert.equal(page.content.revision, article.contentHash);
+  assert.equal(page.content.updatedAt, article.modifiedAt);
+  assert.deepEqual(page.schemaNodes.find((node) => node['@type'] === 'Article')?.image, [
+    `https://example.com/blog/media/articles/article-image/web-v1-${'b'.repeat(64)}.webp`,
+  ]);
+});
+
+test('absent or partial presentation uses the unchanged original image address', () => {
+  const { article } = imageFixture();
+  const html = articleBody(article, publicBlogLocation, { media: {} });
+  assert(html.includes(`/media/articles/article-image/${'a'.repeat(64)}.png`));
+  assert.match(html, /width="1536" height="1024"/);
+});
+
+test('a stale source mapping is rejected by both body and metadata rendering', () => {
+  const { article, presentation } = imageFixture();
+  presentation.media['article-image'].sourceSha256 = 'c'.repeat(64);
+  assert.throws(() => articleBody(article, publicBlogLocation, presentation));
+  assert.throws(() =>
+    articlePage(article, 'https://example.com', 'Brand', publicBlogLocation, presentation),
+  );
+});
 
 test('article metadata, links and schema share an identity and stable publication dates', () => {
   const article = publishedArticleFixture();
