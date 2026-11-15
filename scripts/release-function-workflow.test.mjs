@@ -32,6 +32,10 @@ test('all manual modes select exactly one job and retain the existing shared tar
     const selected = Object.entries(workflow.jobs)
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
+    if (mode === 'image-delivery-prepare') {
+      assert.deepEqual(selected, ['image_delivery_prepare']);
+      continue;
+    }
     if (mode === 'blog-publication-prepare') {
       assert.deepEqual(selected, ['blog_publication_prepare']);
       continue;

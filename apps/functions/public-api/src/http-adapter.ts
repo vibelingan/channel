@@ -466,7 +466,9 @@ async function routeGet(
     const result = await getCatalogImage(decodeSegment(segments[1] ?? ''));
     return result.ok && 'isBase64Encoded' in result
       ? binaryResponse(event, config, result)
-      : jsonResponse(event, config, result);
+      : !result.ok && result.error.code === 'INTERNAL_ERROR'
+        ? jsonResponse(event, config, result, 503, { 'Retry-After': '30' })
+        : jsonResponse(event, config, result);
   }
 
   return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'));

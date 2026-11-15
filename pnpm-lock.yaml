@@ -38,6 +38,9 @@ importers:
       yaml:
         specifier: 2.9.0
         version: 2.9.0
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
 
   apps/ai-bff:
     dependencies:

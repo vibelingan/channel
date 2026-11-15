@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { verifySession } from '@vibelingan-channel/auth/jwt';
 import {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
@@ -8,6 +9,7 @@ import {
   readCatalogImageReference,
 } from '@vibelingan-channel/db';
 import type { CatalogSeoPageReader } from '@vibelingan-channel/db/catalog-seo-pages';
+import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -393,7 +395,9 @@ const PUBLIC_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   'image/svg+xml',
 ]);
 
-function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
+function binaryImage(doc: CollectionDoc, body: string): BinaryResult | ApiResult<unknown> {
+  if (body.length > 5_900_000)
+    return err('INTERNAL_ERROR', 'Image delivery preparation is required');
   const declared = typeof doc.mimeType === 'string' ? doc.mimeType.trim().toLowerCase() : '';
   return {
     ok: true,
@@ -485,10 +489,25 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
   ) {
     return err('NOT_FOUND', 'Image not found');
   }
+  const web = readCatalogWebImage(doc);
+  if (!web && typeof doc.byteSize === 'number' && doc.byteSize > 4_400_000)
+    return err('INTERNAL_ERROR', 'Image delivery preparation is required');
   try {
-    const object = await mediaStorage().getObjectAsBase64(storageFileId);
-    return binaryImage(doc, object.body);
+    const object = await mediaStorage().getObjectAsBase64(
+      web?.storageFileId ?? storageFileId,
+      web ? { maxBytes: web.byteSize, timeoutMs: 15000 } : undefined,
+    );
+    if (web) {
+      const bytes = Buffer.from(object.body, 'base64');
+      if (
+        bytes.byteLength !== web.byteSize ||
+        createHash('sha256').update(bytes).digest('hex') !== web.checksumSha256
+      )
+        throw Error('Web image bytes do not match the prepared version');
+    }
+    return binaryImage(web ? { ...doc, mimeType: web.mimeType } : doc, object.body);
   } catch (e) {
+    if (web) return err('INTERNAL_ERROR', 'Prepared image is temporarily unavailable');
     // Active metadata but unfetchable bytes (missing object / transient store
     // error): 404 for public delivery rather than leaking a 500.
     console.error(`[fn-public-api] storage fetch failed for image ${imageId}:`, e);
