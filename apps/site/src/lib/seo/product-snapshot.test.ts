@@ -126,7 +126,11 @@ test('emergency reuse preserves accepted detail and interactions, filters withdr
   );
 });
 
-function refreshTransport(items: Array<typeof row>, counts: Map<string, number>): typeof fetch {
+function refreshTransport(
+  items: Array<typeof row>,
+  counts: Map<string, number>,
+  revision: string | null = 'approved-r1',
+): typeof fetch {
   return async (input) => {
     const url = new URL(String(input));
     if (url.pathname === '/api/products')
@@ -138,8 +142,17 @@ function refreshTransport(items: Array<typeof row>, counts: Map<string, number>)
     counts.set(id, (counts.get(id) ?? 0) + 1);
     const product = items.find((p) => p._id === id);
     assert.ok(product);
-    if (url.pathname.endsWith('/detail'))
-      return Response.json({ ok: true, data: { ...detailFixture(), _id: id, name: product.name } });
+    if (url.pathname.endsWith('/detail')) {
+      if (revision === null)
+        return Response.json(
+          { ok: false, error: { code: 'NOT_FOUND', message: 'Legacy product' } },
+          { status: 404 },
+        );
+      return Response.json({
+        ok: true,
+        data: { ...detailFixture(), _id: id, name: product.name, revision },
+      });
+    }
     return Response.json({ ok: true, data: product });
   };
 }
@@ -183,6 +196,115 @@ test('incremental capture reads only changed and new product details, retaining 
     result.products.find((p) => p.product._id === row._id)?.publicVersion?.changedAt,
     null,
   );
+});
+
+test('a detail-only approval revision refreshes the snapshot without increasing its public version', async () => {
+  const head = refreshHead(row._id);
+  const initial = await collectProductSnapshot(origin, origin, refreshTransport([row], new Map()));
+  const accepted = await collectProductRefresh(
+    initial,
+    [head],
+    origin,
+    origin,
+    refreshTransport([row], new Map()),
+  );
+  const nextHead = { ...head, detailRevision: 'approved-r2' };
+  const calls = new Map<string, number>();
+  const requests: URL[] = [];
+  const current = refreshTransport([row], calls, nextHead.detailRevision);
+  const result = await collectProductRefresh(
+    accepted,
+    [nextHead],
+    origin,
+    origin,
+    async (input, init) => {
+      requests.push(new URL(String(input)));
+      return current(input, init);
+    },
+  );
+  const previous = accepted.products[0];
+  const updated = result.products[0];
+  assert.ok(previous?.detail && updated?.detail);
+  assert.equal(updated.revision, 'approved-r2');
+  assert.equal(updated.detail.revision, nextHead.detailRevision);
+  assert.deepEqual(updated.product, previous.product);
+  const { revision: _before, ...beforeBody } = previous.detail;
+  const { revision: _after, ...afterBody } = updated.detail;
+  assert.deepEqual(afterBody, beforeBody);
+  assert.deepEqual(updated.publicVersion, previous.publicVersion);
+  assert.equal(updated.publicVersion?.sequence, head.sequence);
+  assert.equal(calls.get(row._id), 2);
+  assert.deepEqual(
+    requests
+      .filter((url) => url.pathname.endsWith('/detail'))
+      .map((url) => url.searchParams.get('revision')),
+    [null, 'approved-r2'],
+  );
+  assert.deepEqual(
+    requests
+      .filter((url) => url.pathname === '/api/products')
+      .map((url) => url.searchParams.get('page')),
+    ['1', '1'],
+  );
+  assert.equal(previous.detail.revision, 'approved-r1');
+});
+
+for (const detailRevision of ['approved-r1', null]) {
+  test(`an unchanged tracked ${detailRevision ?? 'legacy'} entry only rechecks inventory`, async () => {
+    const head = { ...refreshHead(row._id), detailRevision };
+    const initial = await collectProductSnapshot(
+      origin,
+      origin,
+      refreshTransport([row], new Map(), detailRevision),
+    );
+    const accepted = await collectProductRefresh(
+      initial,
+      [head],
+      origin,
+      origin,
+      refreshTransport([row], new Map(), detailRevision),
+    );
+    const requests: string[] = [];
+    const current = refreshTransport([row], new Map(), detailRevision);
+    const result = await collectProductRefresh(
+      accepted,
+      [head],
+      origin,
+      origin,
+      async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        requests.push(path);
+        assert.equal(path, '/api/products', 'unchanged details must not be fetched');
+        return current(input, init);
+      },
+    );
+    assert.deepEqual(result.products, accepted.products);
+    assert.equal(result.products[0]?.detail?.revision ?? null, detailRevision);
+    assert.deepEqual(requests, ['/api/products', '/api/products']);
+  });
+}
+
+test('a revision-only refresh rejects detail that does not match the tracked revision', async () => {
+  const head = refreshHead(row._id);
+  const initial = await collectProductSnapshot(origin, origin, refreshTransport([row], new Map()));
+  const accepted = await collectProductRefresh(
+    initial,
+    [head],
+    origin,
+    origin,
+    refreshTransport([row], new Map()),
+  );
+  await assert.rejects(
+    collectProductRefresh(
+      accepted,
+      [{ ...head, detailRevision: 'approved-r2' }],
+      origin,
+      origin,
+      refreshTransport([row], new Map(), 'approved-r3'),
+    ),
+    /Tracked product revision changed/,
+  );
+  assert.equal(accepted.products[0]?.detail?.revision, 'approved-r1');
 });
 
 test('withdrawal requires an explicit nonvisible head, and an outage keeps the old candidate intact', async () => {

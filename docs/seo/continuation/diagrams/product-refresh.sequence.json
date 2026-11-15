@@ -2,20 +2,17 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "商品自动更新：已暂停，①—⑦尚未执行",
+    "title": "商品自动更新：11月16日已恢复并真实验收",
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "column_fit": "spread",
-    "viewBox": [1040, 500],
+    "viewBox": [1040, 520],
     "animation": "none",
     "legend": {
       "mode": "auto",
       "entries": {
         "security": {
-          "label": "已经发生的操作"
-        },
-        "dashed": {
-          "label": "后续步骤：尚未执行"
+          "label": "已实际执行并验收"
         }
       }
     }
@@ -49,7 +46,7 @@
       "id": "clock",
       "type": "backend",
       "label": "自动检查",
-      "sublabel": "clock 当前已暂停"
+      "sublabel": "每分钟检查 · 有变化才唤醒"
     }
   ],
   "segments": [
@@ -60,8 +57,8 @@
     },
     {
       "from": 222,
-      "to": 450,
-      "label": "接下来按顺序恢复 · 尚未执行"
+      "to": 466,
+      "label": "恢复操作 · 全部实际执行"
     }
   ],
   "messages": [
@@ -78,7 +75,7 @@
       "from": "deploy",
       "to": "clock",
       "y": 188,
-      "label": "11/16：已暂停 · 43760783967",
+      "label": "11/16：先暂停，隔离恢复步骤",
       "variant": "security"
     },
     {
@@ -87,7 +84,7 @@
       "to": "api",
       "y": 236,
       "label": "① 两条写入程序：恢复并实测记录",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "drain-old-requests",
@@ -95,7 +92,7 @@
       "to": "api",
       "y": 264,
       "label": "② 本次等待 1020 秒，再核对版本",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "deliver-current",
@@ -103,7 +100,7 @@
       "to": "host",
       "y": 292,
       "label": "③ 当前商品 SSG 交付并登记 renderer",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "verify-accepted",
@@ -111,7 +108,7 @@
       "to": "deploy",
       "y": 320,
       "label": "④ 验证新接受的网站：正文、版本、地图",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "verify-readiness",
@@ -119,7 +116,7 @@
       "to": "api",
       "y": 348,
       "label": "⑤ 实测公开 API 的页面就绪判断",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "persist-test-config",
@@ -127,15 +124,23 @@
       "to": "config",
       "y": 376,
       "label": "⑥ test 环境持久保存配置",
-      "variant": "dashed"
+      "variant": "security"
     },
     {
       "id": "enable-clock",
       "from": "deploy",
       "to": "clock",
       "y": 404,
-      "label": "⑦ 前面全部通过后，才启用 clock",
-      "variant": "dashed"
+      "label": "⑦ 528项补查登记后，开启定时检查",
+      "variant": "security"
+    },
+    {
+      "id": "accept-automatic",
+      "from": "clock",
+      "to": "deploy",
+      "y": 432,
+      "label": "⑧ 真实自动唤醒完成 · 43769627109",
+      "variant": "security"
     }
   ],
   "cards": [
@@ -149,11 +154,8 @@
     },
     {
       "dot": "cyan",
-      "title": "恢复后的日常更新",
-      "items": [
-        "公开商品变化 → 同事务记待办 → 自动检查唤醒",
-        "使用当前商品更新初始 HTML，实测通过才更新接受记录"
-      ]
+      "title": "日常更新已经恢复",
+      "items": ["528项来源复核完成，自动任务真实接受", "本次内容未变；不是正文替换或撤回演练"]
     },
     {
       "dot": "emerald",
