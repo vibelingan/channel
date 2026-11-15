@@ -37,7 +37,10 @@ export async function registerArticleWebMedia(
     if (raw === null) throw Error('Article web image original is missing');
     assertArticleWebMediaSource(entry, document(raw, entry.source.mediaId));
     const current = await readArticleWebMedia(store, entry.source.articleId);
-    const previous = current?.media[entry.source.mediaId];
+    const previous =
+      current && Object.hasOwn(current.media, entry.source.mediaId)
+        ? current.media[entry.source.mediaId]
+        : undefined;
     if (previous) {
       if (isDeepStrictEqual(previous, entry)) return 'unchanged';
       throw Error('An existing ready article web image must not be replaced');

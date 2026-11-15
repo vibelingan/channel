@@ -215,7 +215,11 @@ test('public images require an accepted reference and are checked again after do
   assert.equal(reads, 2);
 });
 
-async function webFixture(t: Parameters<typeof articleSdkFixture>[0], sameWebpBytes = false) {
+async function webFixture(
+  t: Parameters<typeof articleSdkFixture>[0],
+  sameWebpBytes = false,
+  mediaId = 'web-image-one',
+) {
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
   const bytes = Buffer.from('original article pixels');
@@ -235,7 +239,7 @@ async function webFixture(t: Parameters<typeof articleSdkFixture>[0], sameWebpBy
             {
               type: 'articleImage',
               attrs: {
-                mediaId: 'web-image-one',
+                mediaId,
                 alt: 'Original human alt',
                 caption: 'Original human caption',
               },
@@ -254,7 +258,7 @@ async function webFixture(t: Parameters<typeof articleSdkFixture>[0], sameWebpBy
     storagePath: 'articles/2026/11/original/photo.png',
   };
   const image = {
-    id: 'web-image-one',
+    id: mediaId,
     articleId: draft.id,
     purpose: 'article-image' as const,
     requestHash: 'a'.repeat(64),
@@ -440,4 +444,25 @@ test('malformed sidecars fail the new render read while the old article GET stay
   x.f.put('articleWebMedia', x.draft.id, { ...x.sidecar, storageFileId: 'must-not-leak' });
   await assert.rejects(x.reader.getRender('web-image-guide'));
   assert.equal((await x.reader.get('web-image-guide'))?.articleId, x.draft.id);
+});
+
+test('unreferenced active images named constructor or toString return null without reading storage', async (t) => {
+  const x = await webFixture(t);
+  for (const id of ['constructor', 'toString']) {
+    x.f.put('articleMedia', id, { ...x.image, id });
+    assert.equal(await x.reader.media(id, `${x.image.checksumSha256}.png`), null);
+    assert.equal(await x.reader.media(id, x.file), null);
+  }
+  assert.deepEqual(x.reads, []);
+});
+
+test('an own constructor media entry serves its ready image but an empty ready map returns null', async (t) => {
+  const x = await webFixture(t, false, 'constructor');
+  assert.deepEqual(await x.reader.media(x.image.id, x.file), {
+    body: x.webBytes.toString('base64'),
+    mimeType: 'image/webp',
+  });
+  x.f.put('articleWebMedia', x.draft.id, { schemaVersion: 1, articleId: x.draft.id, media: {} });
+  assert.equal(await x.reader.media(x.image.id, x.file), null);
+  assert.equal(x.reads.length, 1);
 });

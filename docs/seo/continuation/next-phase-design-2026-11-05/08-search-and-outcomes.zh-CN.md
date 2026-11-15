@@ -76,6 +76,8 @@ SEARCH-1的Google首轮证据和修复前速度记录已保存，后续按同一
 
 商品标题/简介生成缺少整串长度预算，已列入本轮窄修复；商品原名、H1、正文、URL和人工数据不改。65/160是本项目显示预算，不是Google收录硬门槛；Google说明标题与简介可按设备宽度截短，也可能自行选用其他文本。[标题说明](https://developers.google.com/search/docs/appearance/title-link)、[简介说明](https://developers.google.com/search/docs/appearance/snippet)。实时检查截图为本机忽略目录的 `bing-product-live-issues.png`，还不能当作修复后的验证。
 
+上述为修复前记录。11月16日分类与元数据上线后，再次点击Bing的Live URL刷新：页面仍允许收录，原来的标题/简介两项错误均消失，从3项变为1项Notice，只剩7处图片alt提示。独立HTML核对的缩略图/装饰图语义仍如上所述，不为压低提示数量随意加关键词。随后只对这一个正式商品申请抓取，Bing显示“Indexing requested.”；尚不能说它已经进入Bing索引。新版截图为同目录 `bing-product-live-after-20261116.png` 和 `bing-product-indexing-requested-20261116.png`，Google的实时测试和申请回执另存，两个平台结果不混用。
+
 ## 一份网址清单，分四种结果
 
 | 结果 | 保存证据 | 如何处理 |

@@ -284,3 +284,9 @@ test('local-disk ready files remain provider-bound and same-byte WebP uses a dis
     }),
   );
 });
+
+test('a legal inherited-property media ID without a ready entry keeps the original display', () => {
+  const article = { ...published, media: { constructor: published.media['image-one'] } };
+  const sidecar = { schemaVersion: 1, articleId: 'article-one', media: { 'image-one': ready() } };
+  assert.deepEqual(buildArticleWebPresentation(article, sidecar), { media: {} });
+});

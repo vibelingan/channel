@@ -237,3 +237,17 @@ test('local-disk output uses the same canonical storage recipe and metadata-only
   const writes = f.calls.filter((call) => call.api === 'database.modifyDocument');
   assert.equal(writes.length, 1);
 });
+
+test('a legal inherited-property media ID can join an existing sidecar exactly once', async (t) => {
+  const f = articleSdkFixture(t);
+  const initial = original();
+  const inheritedName = original('constructor');
+  for (const image of [initial, inheritedName]) f.put('articleMedia', image.id, image);
+  const tx = articleTransaction(f.db);
+  await registerArticleWebMedia(tx, ready(initial));
+  assert.equal(await registerArticleWebMedia(tx, ready(inheritedName)), 'registered');
+  assert.equal(await registerArticleWebMedia(tx, ready(inheritedName)), 'unchanged');
+  const sidecar = await tx((store) => readArticleWebMedia(store, initial.articleId));
+  assert.deepEqual(sidecar?.media.constructor, ready(inheritedName));
+  assert.deepEqual(sidecar?.media[initial.id], ready(initial));
+});

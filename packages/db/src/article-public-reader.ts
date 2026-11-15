@@ -56,7 +56,7 @@ export function createCloudBasePublicArticles(
       const image = ArticleMediaRecordSchema.parse(raw);
       if (image.id !== id || image.status !== 'active') return null;
       const article = await accepted(store, image.articleId);
-      const media = article?.media[id];
+      const media = article && Object.hasOwn(article.media, id) ? article.media[id] : undefined;
       if (!article || !media) return null;
       if (
         image.checksumSha256 !== media.sha256 ||
@@ -85,9 +85,12 @@ export function createCloudBasePublicArticles(
       if (file.startsWith('web-v1-')) {
         const sidecar = await readArticleWebMedia(store, image.articleId);
         const presentation = buildArticleWebPresentation(article, sidecar);
-        const descriptor = presentation.media[id];
+        const descriptor = Object.hasOwn(presentation.media, id)
+          ? presentation.media[id]
+          : undefined;
         if (!descriptor || descriptor.url !== `/media/articles/${id}/${file}`) return null;
-        const registered = sidecar?.media[id];
+        const registered =
+          sidecar && Object.hasOwn(sidecar.media, id) ? sidecar.media[id] : undefined;
         if (!registered) return null;
         const ready = assertArticleWebMediaSource(registered, image);
         return {

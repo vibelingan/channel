@@ -46,7 +46,7 @@ function displayMedia(
   const prepared = presentation ? parseArticleWebPresentation(article, presentation).media : {};
   return Object.fromEntries(
     Object.entries(article.media).map(([id, original]) => {
-      const web = prepared[id];
+      const web = Object.hasOwn(prepared, id) ? prepared[id] : undefined;
       return [
         id,
         {

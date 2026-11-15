@@ -67,6 +67,21 @@ test('absent or partial presentation uses the unchanged original image address',
   assert.match(html, /width="1536" height="1024"/);
 });
 
+test('a valid media identity matching an inherited object key still uses its original', () => {
+  for (const id of ['constructor', 'toString']) {
+    const { article } = imageFixture();
+    const original = article.media['article-image'];
+    const image = article.content.body.document.content[0];
+    assert(original && image?.type === 'articleImage');
+    image.attrs.mediaId = id;
+    article.media = { [id]: original };
+    article.contentHash = articleContentHash(article.content);
+    const html = articleBody(article, publicBlogLocation, { media: {} });
+    assert(html.includes(`/media/articles/${id}/${'a'.repeat(64)}.png`));
+    assert(!html.includes('undefined'));
+  }
+});
+
 test('a stale source mapping is rejected by both body and metadata rendering', () => {
   const { article, presentation } = imageFixture();
   presentation.media['article-image'].sourceSha256 = 'c'.repeat(64);

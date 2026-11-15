@@ -184,7 +184,7 @@ export function buildArticleWebPresentation(
     throw Error('Article web media belongs to another article');
   const entries: [string, ArticleWebPresentation['media'][string]][] = [];
   for (const [id, original] of Object.entries(article.media)) {
-    const entry = sidecar.media[id];
+    const entry = Object.hasOwn(sidecar.media, id) ? sidecar.media[id] : undefined;
     if (!entry) continue;
     articleMediaPath(id, original);
     if (
