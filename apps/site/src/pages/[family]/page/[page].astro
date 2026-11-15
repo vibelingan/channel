@@ -2,31 +2,49 @@
 import AssistantHost from '../../../components/AssistantHost.astro';
 import SiteFooter from '../../../components/SiteFooter.astro';
 import SiteHeader from '../../../components/SiteHeader.astro';
-import { getCatalogContent, getCatalogFamily, getSharedDetailContent } from '../../../i18n/catalog.ts';
+import {
+  getCatalogContent,
+  getCatalogFamily,
+  getSharedDetailContent,
+} from '../../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../../i18n/site.ts';
 import { CatalogFamilyPage } from '../../../islands/shop/CatalogFamilyPage.tsx';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { categoryPageIdentity } from '../../../lib/seo/category-page-metadata.ts';
-import { categoryPages, type CategoryPageData } from '../../../lib/seo/category-snapshot.ts';
+import { type CategoryPageData, categoryPages } from '../../../lib/seo/category-snapshot.ts';
 import { readProductSnapshot } from '../../../lib/seo/product-snapshot.ts';
 import { OEM_INQUIRY_HREF } from '../../../lib/site-navigation.ts';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
-  return categoryPages(snapshot).filter(({ page }) => page > 1).map((bootstrap) => ({
-    params: { family: bootstrap.family, page: String(bootstrap.page) },
-    props: { bootstrap },
-  }));
+  return categoryPages(snapshot)
+    .filter(({ page }) => page > 1)
+    .map((bootstrap) => ({
+      params: { family: bootstrap.family, page: String(bootstrap.page) },
+      props: { bootstrap },
+    }));
 }
 
-interface Props { bootstrap: CategoryPageData }
+interface Props {
+  bootstrap: CategoryPageData;
+}
 const { bootstrap } = Astro.props;
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
 const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily(bootstrap.family, DEFAULT_LOCALE);
-const identity = categoryPageIdentity(family, bootstrap, site.brand.name, Astro.site ?? Astro.url.origin);
-const root = categoryPageIdentity(family, { ...bootstrap, page: 1, path: family.href }, site.brand.name, Astro.site ?? Astro.url.origin);
+const identity = categoryPageIdentity(
+  family,
+  bootstrap,
+  site.brand.name,
+  Astro.site ?? Astro.url.origin,
+);
+const root = categoryPageIdentity(
+  family,
+  { ...bootstrap, page: 1, path: family.href },
+  site.brand.name,
+  Astro.site ?? Astro.url.origin,
+);
 const { page, heading, breadcrumbs } = identity;
 const pageMetadata = { current: identity, root };
 ---

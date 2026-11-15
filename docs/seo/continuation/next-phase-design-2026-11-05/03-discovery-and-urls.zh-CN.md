@@ -12,7 +12,7 @@
 
 `当前公开商品快照 → 同版分类清单 → 分类首屏 / 分页 HTML + 真实链接 → React 接管并读取当前公开 API`。
 
-分类首屏继续用现有页面和卡片，不另建一套 SEO 专用页面。后续页建议使用 `/headphones/page/2/` 这类可生成的路径，其他大类采用同一规则。每页有对应商品及自己的 canonical；第一页保持现有 `/headphones/`。新路径是待实现方案，不是现有线上地址。
+分类首屏继续用现有页面和卡片，不另建一套 SEO 专用页面。后续页已在本分支实现 `/headphones/page/2/` 这类可生成的路径，其他大类采用同一规则。每页有对应商品及自己的 canonical；第一页保持现有 `/headphones/`。截至本次交付前检查，新路径仍未发布到线上。
 
 快照按现有公开排序加唯一稳定键分页。同一次交付中的商品、分类和 sitemap 使用同版内容；既有自动交付增加受影响分类集合，不新增一套商品保存机制。创建、移类、撤回及排序变化须重新计算相关页码；过界页返回真实 404，不继续展示旧商品。
 
@@ -43,9 +43,9 @@ www 301 已验收，不重复做。主域 HTTP 301 仍未完成：CloudBase 原�
 
 ## 底层设计：同一份数据生成分类和分页
 
-新增 `lib/seo/category-snapshot.ts`，从已校验的 `ProductSnapshot` 生成 `CategoryPageData`：`family`、`page`、`pageSize`、`total`、`pageCount`、当前页公开商品、集合revision、canonical路径和邻页路径。沿用现有页面大小和公开排序，增加唯一ID作为同序项的稳定次序，不另造与API不一致的排序。
+新增 `lib/seo/category-snapshot.ts`，从已校验的 `ProductSnapshot` 生成 `CategoryPageData`：`family`、`page`、`pageSize`、`total`、`pageCount`、当前页公开商品、集合revision、canonical路径和邻页路径。沿用每页12件，以商品ID升序分页；公开列表API与构建使用同一排序，避免翻页时重复或漏项。
 
-`headphones.astro` 等既有四个family页接收第一页数据；`electronics-toys.astro` 沿用聚合目录规则。后续页使用待新增 `pages/[family]/page/[page].astro`，`getStaticPaths()`只允许已知family与合法页码。第一页仍由原文件负责；`/page/1/`不再生成第二份正式内容，使用受控跳转到根分类。第N页有对应商品、独立canonical和普通前后页链接。
+`headphones.astro` 等既有四个family页接收第一页数据；`electronics-toys.astro` 沿用聚合目录规则。后续页使用 `pages/[family]/page/[page].astro`，`getStaticPaths()`只生成已知family与实际存在的第二页及以后。第一页仍由原文件负责；`/page/1/`不生成，返回真实404，所有第一页内链均指根分类。第N页有对应商品、独立canonical和普通前后页链接。
 
 将初始数据传给现有 `CatalogFamilyPage` / `CatalogFamilyGrid`；Astro服务端渲染与浏览器首轮使用相同数据，不能只在effect填。`CatalogPagination` 支持真实href，普通点击可由React接管，修饰键、新标签和无脚本导航仍使用链接。当前详情展开、筛选参数、价格显示和询盘流程不重做。任意筛选不生成无穷静态组合。
 

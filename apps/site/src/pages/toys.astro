@@ -5,23 +5,31 @@ import { getCatalogContent, getCatalogFamily, getSharedDetailContent } from '../
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { categoryPage } from '../lib/seo/category-snapshot.ts';
-import { categoryPageIdentity } from '../lib/seo/category-page-metadata.ts';
-import { readProductSnapshot } from '../lib/seo/product-snapshot.ts';
 import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
+import { categoryPageIdentity } from '../lib/seo/category-page-metadata.ts';
+import { categoryPage } from '../lib/seo/category-snapshot.ts';
+import { readProductSnapshot } from '../lib/seo/product-snapshot.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
 const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('toys', DEFAULT_LOCALE);
-const bootstrap = categoryPage(await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321'), family.key);
+const bootstrap = categoryPage(
+  await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321'),
+  family.key,
+);
 const brand = site.brand;
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
 const seoDescription = family.seoDescription;
 const breadcrumbs = familyBreadcrumbs(family.heading, family.href);
 const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.url.origin)];
-const page = categoryPageIdentity(family, bootstrap, brand.name, Astro.site ?? Astro.url.origin).page;
+const page = categoryPageIdentity(
+  family,
+  bootstrap,
+  brand.name,
+  Astro.site ?? Astro.url.origin,
+).page;
 ---
 
 <BaseLayout page={page} title={seoTitle} description={seoDescription} canonicalPath="/toys/" schemaNodes={schemaNodes}>
