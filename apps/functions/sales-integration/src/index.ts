@@ -181,6 +181,8 @@ export function createScfSalesHandler(
         headers: { 'Cache-Control': 'private, no-store' },
         body: Buffer.from('{"code":"UNAUTHENTICATED"}'),
       };
+    let stage: 'platform_context' | 'runtime_initialization' | 'request_handler' =
+      'platform_context';
     try {
       const identity = scfRuntimeCredential(request.headers, {
         namespace: required('TCB_ENV'),
@@ -191,11 +193,21 @@ export function createScfSalesHandler(
         'x-sales-authorization': _application,
         ...headers
       } = request.headers;
-      return await initialize(identity)({
+      stage = 'runtime_initialization';
+      const handler = initialize(identity);
+      stage = 'request_handler';
+      return await handler({
         ...request,
         headers: { ...headers, authorization: application },
       });
     } catch {
+      // Error names/codes/messages can contain provider credentials or buyer data.
+      // Only application-owned labels cross into logs; diagnostics must not change the response.
+      try {
+        console.error(JSON.stringify({ event: 'sales_integration_request_failed', stage }));
+      } catch {
+        // Keep the original fail-closed response if the logging sink is unavailable.
+      }
       return {
         status: 503,
         headers: { 'Cache-Control': 'private, no-store' },

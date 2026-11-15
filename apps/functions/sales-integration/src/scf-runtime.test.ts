@@ -65,3 +65,86 @@ test('SCF requests use distinct credentials and preserve business authorization 
     }
   }
 });
+
+test('SCF failures log only a fixed event and stage, never credentials or exception content', async () => {
+  const prior = { enabled: process.env.SALES_INTEGRATION_ENABLED, env: process.env.TCB_ENV };
+  process.env.SALES_INTEGRATION_ENABLED = '1';
+  process.env.TCB_ENV = 'test-env';
+  const logs: unknown[][] = [];
+  const error = console.error;
+  console.error = (...values: unknown[]) => logs.push(values);
+  const privateValue = 'private-buyer-and-credential-value';
+  const failure = Object.assign(new Error(privateValue), {
+    name: privateValue,
+    code: privateValue,
+    requestId: privateValue,
+  });
+  try {
+    for (const stage of ['platform_context', 'runtime_initialization', 'request_handler']) {
+      const handler = createScfSalesHandler(() => {
+        if (stage === 'platform_context') throw new Error('must not initialize');
+        if (stage === 'runtime_initialization') throw failure;
+        return async () => {
+          throw failure;
+        };
+      });
+      const response = await handler({
+        method: 'POST',
+        url: '/?private=' + privateValue,
+        headers: {
+          ...platform(privateValue),
+          ...(stage === 'platform_context' ? { 'x-scf-session-token': undefined } : {}),
+        },
+        body: Buffer.from(privateValue),
+      });
+      assert.equal(response.status, 503);
+      assert.deepEqual(JSON.parse(response.body.toString()), { code: 'SERVICE_UNAVAILABLE' });
+      assert.equal(
+        logs.length,
+        ['platform_context', 'runtime_initialization', 'request_handler'].indexOf(stage) + 1,
+      );
+      assert.deepEqual(JSON.parse(String(logs.at(-1)?.[0])), {
+        event: 'sales_integration_request_failed',
+        stage,
+      });
+    }
+    assert.equal(logs.length, 3);
+    assert.ok(!JSON.stringify(logs).includes(privateValue));
+  } finally {
+    console.error = error;
+    for (const [key, value] of Object.entries({
+      SALES_INTEGRATION_ENABLED: prior.enabled,
+      TCB_ENV: prior.env,
+    })) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test('a broken SCF diagnostic sink cannot replace the fail-closed response', async () => {
+  const prior = { enabled: process.env.SALES_INTEGRATION_ENABLED, env: process.env.TCB_ENV };
+  process.env.SALES_INTEGRATION_ENABLED = '1';
+  process.env.TCB_ENV = 'test-env';
+  const error = console.error;
+  console.error = () => {
+    throw new Error('diagnostic sink unavailable');
+  };
+  try {
+    const handler = createScfSalesHandler(() => {
+      throw new Error('private provider failure');
+    });
+    const response = await handler({ method: 'POST', url: '/', headers: platform('a') });
+    assert.equal(response.status, 503);
+    assert.deepEqual(JSON.parse(response.body.toString()), { code: 'SERVICE_UNAVAILABLE' });
+  } finally {
+    console.error = error;
+    for (const [key, value] of Object.entries({
+      SALES_INTEGRATION_ENABLED: prior.enabled,
+      TCB_ENV: prior.env,
+    })) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

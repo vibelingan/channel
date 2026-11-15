@@ -1,5 +1,65 @@
 # 2026-11-16 官网询盘到 Sales：修复与验收记录
 
+## 独立 Sales 函数的固定版本打包与代码发布清单
+
+Claude 在 [PR #91](https://github.com/vibelingan/channel/pull/91) 指出：`sales-integration` 的线上程序来自本分支，但不在普通官网的三个函数发布清单里，接手者缺少可重复的交付步骤。本节补齐独立入口，**不把它加入普通 `FUNCTION_NAMES`，不合并到 `test`，不触发官网发布**。下面较早的验收段保留当时事实；Hermes 实例和客户群的最新状态以 Hermes PR #2 的 `IMPLEMENTATION.md` 顶部为准。
+
+### 1. 只打已提交的版本
+
+在仓库根目录运行，`--sha` 必须替换为本次审查及 CI 已通过的完整 40 位提交号；输出目录的上级须已存在，目标目录不得存在：
+
+```sh
+node scripts/package-sales-integration.mjs \
+  --sha FULL_40_CHARACTER_COMMIT_SHA \
+  --output /absolute/private/path/new-sales-release
+```
+
+脚本先核对该提交存在，再用 `git archive` 提取该提交内的函数、公共包、工作区配置和锁文件。构建在一次性临时目录运行，原工作树里的未提交文件、`.env`、浏览器状态和当前进程的云凭据变量不会复制进去。pnpm 版本必须匹配该提交的 `packageManager`；默认建议使用 CI 同款 Node 22.13.0，清单如实记录实际构建 Node 和 pnpm 版本。
+
+它实际依次执行现有 `fn-sales-integration` 的依赖安装（冻结锁文件）、`build`、`package:artifact`、`check:artifact`。最后一项已有裸目录加载检查，不能跳过。脚本只允许 `index.js`、`reconcile.js`、`scf_bootstrap`、`package.json` 四个普通文件进入包；符号链接、额外文件、已存在的输出目录均拒绝。不会把未提交工作冒称为给定 SHA。
+
+输出包括 `package/`、`sales-integration-完整SHA.zip` 和 `manifest.json`。清单有源码提交号、HTTP/Nodejs20.19/9000 运行要求、ZIP 大小和 SHA256，以及四个文件各自的大小和 SHA256。它固定源码并记录实际产物，不承诺不同 Node/操作系统的构建逐字节相同；包不能代替源码审查，也不是源码里的密钥检测器。
+
+本轮已用已提交的 `af124ebcdefafd2fccae1d687107a3908e56b638` 实际隔离打包成功，运行了上述三项构建／检查；此时安全日志修复仍未提交，因而没有被错误打进这个 SHA。首次验证使用 Node v25.6.1、pnpm 11.5.0，ZIP 为 787960 字节，SHA256 `a88688f88cd5187ee539e66a960aa6567c64b921a979128b278b5aace2363ad8`。这是打包验证，**没有因此更新线上函数**。打包器四项测试还验证了脏工作树隔离、短 SHA／分支名／覆盖拒绝、额外 `.env` 和 pnpm 版本拒绝、提交中符号链接拒绝。
+
+### 2. 发布前备份现用程序和配置
+
+由接手技术人员通过现有 CloudBase MCP 做以下步骤，脚本本身不调用云。已读取本机 CloudBase、Cloud Functions、CloudBase engineering 技能和项目 SDK 合同规则，并核对当前 MCP 的操作 schema；本节没有新造 SDK 接口，也没有改运行权限。
+
+1. `auth(action="status")`，确认现用账号仍仅绑定预期环境 `diversity-123-d9grnqfux221323bb`，地域 `ap-shanghai`。不匹配就停止，不能依赖上次选中的环境。
+2. `queryFunctions(action="getFunctionDetail", functionName="sales-integration", qualifier="$LATEST")`，确认是既有 HTTP 函数、Nodejs20.19、9000 端口，并记录当前角色、资源限制、CAM Function URL 和触发器身份。需要完整环境变量备份时仅存仓库外私有文件（目录 0700、文件 0600），不打印或提交其值。
+3. `queryFunctions(action="getFunctionDownloadUrl", functionName="sales-integration", qualifier="$LATEST")`，下载工具返回的现用程序地址，保存旧 ZIP、各文件摘要和上述配置。下载地址本身也不写进公开日志；不要自行拼接 COS 地址。旧包及完整配置未能取得时停止发布。
+4. 核对待发 `manifest.json` 的完整提交号、ZIP 摘要、四个文件摘要，并确认对应 CI、审查和本次发布授权。包的提交号来自固定快照，不以工作树当前 HEAD 或文件名代替。
+
+### 3. 只更新这一个函数的程序
+
+当前 MCP schema 支持以下代码更新请求；`zipFile` 使用上一节通过校验的真实绝对路径，`functionName` 固定为 `sales-integration`：
+
+```json
+{
+  "action": "updateFunctionCode",
+  "functionName": "sales-integration",
+  "zipFile": "/absolute/private/path/new-sales-release/sales-integration-FULL_SHA.zip",
+  "confirm": true
+}
+```
+
+使用 `manageFunctions` 执行这一请求；**不调用 `updateFunctionConfig`**，不新增／重建函数、路由、角色或凭据。HTTP 运行类型、原生 CAM 地址和全部现用环境变量保留。若工具拒绝参数、权限或包，不临时改成公开入口，也不顺带走普通 Deploy Test；记录错误并停止这次发布。
+
+更新后用 `queryFunctions(action="getFunctionDetail", functionName="sales-integration", qualifier="$LATEST")` 有界等待实际 Active；遇到明确权限／凭据错误立即停止，不靠重复轮询解决。再次取得下载地址，下载真正运行的代码包，核对四个文件 SHA256 与清单一致。云平台可能重新打 ZIP 元数据，因此以文件摘要核对内容，不把整个下载 ZIP 摘要必须相同当作条件。配置与备份逐项比较：环境变量、角色、运行类型、运行时、端口、资源限制和入口／触发器身份应一致；代码大小、更新时间等发布元数据允许变化。
+
+不要直接调用现有 `confirmFunctionCode` 当作 Sales 验收：它要求普通函数的 `/health` 和 releaseId 响应，本 Sales HTTP 服务没有这一合同。
+
+### 4. 发布后验业务，恢复只退程序
+
+先用 Hermes 现有专用调用身份读取一条获授权询盘或产品，核对来源和实际数据库读回；缺少／错误云签名应被平台拒绝，正确签名但错误业务凭据应被程序拒绝。验证伪造 `x-scf-*` 头时，必须比较同一条确实访问数据库的合法只读请求，不能用空请求的 400 或错误业务凭据的 401 证明运行头可信。
+
+本函数程序更新稳定后，再按本轮授权做必要的真实官网询盘到未发送草稿验证。若以后合并 PR #91 导致普通 `admin/public-api` 首次按 GitHub 配置重写，必须分别从 OEM 表单及产品询价各新提交一条明确标注的测试记录，检查来源捕获、Sales 处理、Resend 未发送草稿和目标客户群通知；只查变量名存在不能代替这次验收。保持发信开关 0。
+
+失败时只使用备份的旧代码包对同一函数执行代码更新，保留当前询盘、草稿回执和数据库；不恢复旧数据库快照、不把旧环境变量整份覆盖回去。记录恢复后文件摘要、配置保持情况及合法只读结果。若曾有超出代码的配置变化，先停下检查，不能把本代码恢复清单当作配置恢复授权。
+
+---
+
 本轮负责现有 Sales 业务，不接管 Claude 在 HermesInfra PR #3 的新架构实现。Hermes 的修复和完整验收结果集中回 PR #2；Channel 配套代码在原 `fix/sales-live-wiring-20261108` 分支。当前代码基于官网 `test` 的 `4a6b6c8180b194c6b2da7e8585f90eb03e1e535f`，没有改官网的其他业务分支。
 
 ## 已查明的问题
