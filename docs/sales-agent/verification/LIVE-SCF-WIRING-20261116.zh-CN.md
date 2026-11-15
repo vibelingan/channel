@@ -14,7 +14,7 @@ node scripts/package-sales-integration.mjs \
   --output /absolute/private/path/new-sales-release
 ```
 
-脚本先核对该提交存在，再用 `git archive` 提取该提交内的函数、公共包、工作区配置和锁文件。构建在一次性临时目录运行，原工作树里的未提交文件、`.env`、浏览器状态和当前进程的云凭据变量不会复制进去。pnpm 版本必须匹配该提交的 `packageManager`；默认建议使用 CI 同款 Node 22.13.0，清单如实记录实际构建 Node 和 pnpm 版本。
+脚本先核对该提交存在，再用 `git archive` 提取该提交内已跟踪的函数、公共包、工作区配置和锁文件。构建在一次性临时目录运行，不读取原工作树的未提交修改或未跟踪文件，因此未跟踪的本机 `.env` 及已跟踪文件的未提交修改不在快照里。**这不表示任何 `.env` 或凭据都能自动排除：若敏感文件或内容已提交到这些输入路径，仍会进入构建快照，发布者必须审查已跟踪输入。** 构建子进程只继承脚本列明的基础环境变量，不继承当前进程的云凭据变量；这也不是对已跟踪内容或工具从 `HOME` 读取配置的通用防泄漏保证。pnpm 版本必须匹配该提交的 `packageManager`；默认建议使用 CI 同款 Node 22.13.0，清单如实记录实际构建 Node 和 pnpm 版本。
 
 它实际依次执行现有 `fn-sales-integration` 的依赖安装（冻结锁文件）、`build`、`package:artifact`、`check:artifact`。最后一项已有裸目录加载检查，不能跳过。脚本只允许 `index.js`、`reconcile.js`、`scf_bootstrap`、`package.json` 四个普通文件进入包；符号链接、额外文件、已存在的输出目录均拒绝。不会把未提交工作冒称为给定 SHA。
 
@@ -33,22 +33,50 @@ node scripts/package-sales-integration.mjs \
 
 ### 3. 只更新这一个函数的程序
 
-当前 MCP schema 支持以下代码更新请求；`zipFile` 使用上一节通过校验的真实绝对路径，`functionName` 固定为 `sales-integration`：
+**本次实际更新暴露了工具参数与执行行为的差别：只传 `zipFile` 时，工具报 `paths[0]` 为 `undefined`；补上产物所在目录作为 `functionRootPath` 后，工具又要求该目录下必须有 `sales-integration/`。** 最终成功的请求同时提供 `functionRootPath` 和 `zipFile`，并把四个已验证文件放在 `functionRootPath/sales-integration/`。这条 HTTP 函数更新路径实际会从该子目录重新打包，不能把填了 `zipFile` 当作上传了原 ZIP 字节的证明。
+
+先在本次输出目录准备工具需要的子目录。下面的 `package/` 须已按上一节核对清单；目标 `functions/sales-integration/` 必须是新目录，不能混进旧产物或额外文件：
+
+```sh
+set -eu
+sales_release='/absolute/private/path/new-sales-release'
+mkdir -p "$sales_release/functions"
+mkdir "$sales_release/functions/sales-integration"
+for sales_file in index.js reconcile.js scf_bootstrap package.json; do
+  cp "$sales_release/package/$sales_file" "$sales_release/functions/sales-integration/$sales_file"
+  cmp "$sales_release/package/$sales_file" "$sales_release/functions/sales-integration/$sales_file" || exit 1
+done
+chmod 755 "$sales_release/functions/sales-integration/scf_bootstrap"
+```
+
+`cmp` 核对副本与已验证产物逐字节相同。发布前再核对目录中恰好只有上述四个普通文件；`manifest.json` 和 ZIP 保留在外层，不放进函数子目录。只执行目录准备和比对不会更新云端。实际调用 `manageFunctions` 的请求如下，路径都替换为本次真实绝对路径：
 
 ```json
 {
   "action": "updateFunctionCode",
   "functionName": "sales-integration",
+  "functionRootPath": "/absolute/private/path/new-sales-release/functions",
   "zipFile": "/absolute/private/path/new-sales-release/sales-integration-FULL_SHA.zip",
   "confirm": true
 }
 ```
 
-使用 `manageFunctions` 执行这一请求；**不调用 `updateFunctionConfig`**，不新增／重建函数、路由、角色或凭据。HTTP 运行类型、原生 CAM 地址和全部现用环境变量保留。若工具拒绝参数、权限或包，不临时改成公开入口，也不顺带走普通 Deploy Test；记录错误并停止这次发布。
+`functionRootPath` 指向 `functions/`，不是它里面的 `sales-integration/`，也不是原输出目录根。按本次已验证方式保留 `zipFile` 参数，但实际交付核对以子目录四文件和云端读回为准。使用 `manageFunctions` 执行这一请求；**不调用 `updateFunctionConfig`**，不新增／重建函数、路由、角色或凭据。HTTP 运行类型、原生 CAM 地址和全部现用环境变量应保持原值，并在发布后读回核对。若仍报目录／参数错误，先停止这次发布、核对真实目录与工具行为；不要换成公开入口或普通 Deploy Test。
 
 更新后用 `queryFunctions(action="getFunctionDetail", functionName="sales-integration", qualifier="$LATEST")` 有界等待实际 Active；遇到明确权限／凭据错误立即停止，不靠重复轮询解决。再次取得下载地址，下载真正运行的代码包，核对四个文件 SHA256 与清单一致。云平台可能重新打 ZIP 元数据，因此以文件摘要核对内容，不把整个下载 ZIP 摘要必须相同当作条件。配置与备份逐项比较：环境变量、角色、运行类型、运行时、端口、资源限制和入口／触发器身份应一致；代码大小、更新时间等发布元数据允许变化。
 
 不要直接调用现有 `confirmFunctionCode` 当作 Sales 验收：它要求普通函数的 `/health` 和 releaseId 响应，本 Sales HTTP 服务没有这一合同。
+
+本次已按上述目录布局更新 `sales-integration`，源码为 `5324aada289944b9ed357d886e22b81bdcbab861`，PR #91 对应 22 项 CI 通过。固定快照包为 788029 字节，ZIP SHA256 为 `92925cfd696b98ad1c5c8aeb60ca5a54b85bc933fd5f887c6f44b532a3a63300`。更新后重新下载线上代码包，四个文件的大小及 SHA256 均与该版本 `manifest.json` 完全一致：
+
+| 文件 | 字节数 | 线上读回 SHA256（与清单一致） |
+| --- | ---: | --- |
+| `index.js` | 1558990 | `62ccd5d679cdce2ba5a943f557f0c501d4f651363fdeeef2d8d82daf9b5582b0` |
+| `reconcile.js` | 1506526 | `ee0df4a0e9da85e120c660a5e2d3a41782d2b0f53dfbc998929d65bd3482bc09` |
+| `scf_bootstrap` | 58 | `181bde7604b7378d87498919af822f5394e13f244f94479c491accaebe02125c` |
+| `package.json` | 104 | `5821d84d7f7fb8d196247776d5a553f9bf40c07029fb937facfd900db430bc22` |
+
+发布前后脱敏配置逐项比较，差异只有代码大小、更新时间和请求编号；运行类型、运行时、端口、角色、CAM／触发器和资源配置一致，环境变量的名称及脱敏长度也一致。本轮未调用配置更新。环境变量脱敏比较没有公开其值，也不能仅凭名称和长度证明明文逐值相同。程序交付读回已完成。V8 也已在真实任务 #3 的改稿读取中验证：使用合法 TC3 签名和业务/任务权限，正常请求及另加六个假的 X-Scf 头的对照请求均为 200，JSON 完全相同，正文摘要为 `ee9b38ec99a4600063d7b18e6682e2d8d637215344c9af1705c14b5b15c6935d`。对照增加一次只读请求，未跳过来源、任务或数据库检查。六个假头覆盖 Secret-Id、Secret-Key、Session-Token、Namespace、Name、Request-Id；合法查询实际访问了生产云库。这项证明腾讯入口没有采用这些外来假头，不代表附件出稿等其他步骤全部通过。Hermes 的两份约 9 MiB 附件另在摘要计算处发现独立缺陷，修复和恢复结果继续记在 PR #2。
 
 ### 4. 发布后验业务，恢复只退程序
 
@@ -56,7 +84,7 @@ node scripts/package-sales-integration.mjs \
 
 本函数程序更新稳定后，再按本轮授权做必要的真实官网询盘到未发送草稿验证。若以后合并 PR #91 导致普通 `admin/public-api` 首次按 GitHub 配置重写，必须分别从 OEM 表单及产品询价各新提交一条明确标注的测试记录，检查来源捕获、Sales 处理、Resend 未发送草稿和目标客户群通知；只查变量名存在不能代替这次验收。保持发信开关 0。
 
-失败时只使用备份的旧代码包对同一函数执行代码更新，保留当前询盘、草稿回执和数据库；不恢复旧数据库快照、不把旧环境变量整份覆盖回去。记录恢复后文件摘要、配置保持情况及合法只读结果。若曾有超出代码的配置变化，先停下检查，不能把本代码恢复清单当作配置恢复授权。
+失败时先在新的私有恢复目录中展开备份旧包，只取原四个运行文件放到 `functions/sales-integration/`，逐个核对发布前保存的摘要和启动文件可执行权限，再用上面的同一函数代码更新请求恢复：`functionRootPath` 指向恢复目录的 `functions/`，`zipFile` 指向备份旧包。不能退回只传 `zipFile` 的失败调用方式。保留当前询盘、草稿回执和数据库；不恢复旧数据库快照、不把旧环境变量整份覆盖回去。记录恢复后文件摘要、配置保持情况及合法只读结果。若曾有超出代码的配置变化，先停下检查，不能把本代码恢复清单当作配置恢复授权。
 
 ---
 
