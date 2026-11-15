@@ -21,7 +21,7 @@
 - `/blue-ocean`（及 `/blue-ocean/[slug]`）
 - `/success-stories`
 
-![500 error](screenshots/04-teardown-lab-500-error.png)
+[500 error（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/oem-refresh/review/screenshots/04-teardown-lab-500-error.png)
 
 ### 根因（已确认，两条独立证据）
 页面和卡片组件 import 了本地静态数据模块，但**整个 `apps/site/src/data/` 目录从未被提交进这个分支**：
@@ -56,7 +56,7 @@ apps/site/src/components/CaseStudyCard.astro:10  import type { CaseStudy } from 
 ### 现象
 首页 `BlueOceanTeaser` 板块，产品卡右上角的价格徽章（`$199` / `$229`）**压在产品标题文字上面**。标题只要够长（末词顶到右边），就会被徽章盖住：
 
-![overlap bug](screenshots/03-blueocean-teaser-overlap-BUG.png)
+[overlap bug（已归档）](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/oem-refresh/review/screenshots/03-blueocean-teaser-overlap-BUG.png)
 
 - ❌ "SomniFlow AI Sleep Pods" 被 `$199` 压住
 - ❌ "AeroSense AI Sports Headband" 被 `$229` 压住（"Headband" 被盖）

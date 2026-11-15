@@ -11,6 +11,20 @@
 
 2026-11-05 当前入口：[实际搜索效果](../seo/continuation/effect-review-2026-11-05/README.zh-CN.md)、[平台逐项核查](../seo/continuation/audit-2026-11-05/README.zh-CN.md)、[下一阶段九模块高层设计](../seo/continuation/next-phase-design-2026-11-05/README.zh-CN.md)。商品自动更新已于11月4日启用并真实验收；www 301已上线，主域HTTP 301仍待完成；美国与本机各54次优化前基准完成，性能和海外CDN尚未实施。三张原图正常、网站传输超限；先前Blog分类400诊断依据不足，已在新设计更正。下方保留历史记录，不能把其中的“当前”当作今日状态。
 
+AI／Sales／Apollo本轮仅做规整与设计评审，入口为[统一评审稿](../ai-platform/review-20261110/README.zh-CN.md)。交付分支统一为`release/assistant-seo-20261104`；不因此发布官网或修改本页其他交付状态。
+
+2026-11-09 官网旧版聊天回复修复：代码 `0b9a78f6` 已经正常发布到 supplychainsai.com，[42582880958](https://github.com/vibelingan/channel/actions/runs/42582880958) 的部署、托管读回和后台冒烟作业成功，受控交付 `site-42582880958-1` 已接受。根因是后台只返回最终正文时，旧组件没有显示它，留下省略号；本次补齐最终正文、空答案提示和立即显示的 Thinking。官网真实桌面／手机尺寸五项问答均收到回复（3.4–10.1 秒），用户原 Chrome 标签页也已复测；未使用本地 API 或数据库替代线上。为保留既有入口，`PUBLIC_AI_CHAT_V2` 从待发布的 `1` 改为 `0`；询盘和 Sales 开关保留原值，没有启用整套新 UI、重启 AI／Hermes Agent 或发邮件。新卡片、询盘交互及完整 Sales 流程仍须分别验收。详见[修复及真实官网结果](../ai-platform/assistant-ui/README.md#已发布与真实官网复验)。下方 11 月 7 日及更早状态保留作历史记录，不能覆盖本次上线结果。
+
+2026-11-07 AI 发布：继续沿用 Claude 整合的发布分支，业务源码 `25f2ddfe`。AI BFF／worker 的 [42274705769](https://github.com/vibelingan/channel/actions/runs/42274705769) 已成功，两项服务版本 014 正常，真实库、模型和 VibeKB 问答已验收。网站发布 [42278206855](https://github.com/vibelingan/channel/actions/runs/42278206855) 的完整 CI 通过，但创建临时区域函数被腾讯云以“账户余额不足”拒绝，尚未上传新版网页；原网站保持现状。负责人充值后，核对最新改动并只重跑失败的发布任务。新界面在本机接真实后端的八项检查通过；手机刷新后卡片图片及正式域名下的新界面仍待验收。Hermes Sales 的 `6d9793a` 已推远端，真实 MySQL／容器／缺陷注入 CI 成功，但实际中枢的合法 SSH 入口未核实，未安装或重启生产 Agent。Resend 仅验证未发送草稿，未发邮件。当前结果、恢复材料、两项外部条件及下一步统一见[助手发布记录 §7.1](../ai-platform/assistant-ui/ROADMAP.md#71-现在本轮按顺序不需要再决定)。
+
+2026-11-06 页脚合作方发布：main 已有代码提交 `16c86ed5` 和交接记录 `8d3dca6b`。用户确认允许只将页脚补丁同步到现用发布版本，保留现站助手、隐私页及其他行为。本次在 `test=fa8c8cd1` 上仅增加 Contact Us 下的 Manufacturing partner 说明与 Channel Technology Limited 官网链接，既有 Privacy 入口保留；34 项相关测试通过。准备经正常 Deploy Test 运行完整检查和发布，文章服务另走既有独立发布入口；此时尚未上线。恢复来源是本次写入前对 fa8c8cd1 的备份及现用 Blog 镜像，不回灌数据库。详见[工作记录](footer-manufacturing-partner/WORKLOG.zh-CN.md)。
+
+2026-11-06 最终测试发布：release/assistant-seo-20261104 在 a7ee7b90 之后又合入 #72（docs 证据归档到标签 archive/docs-evidence-2026-11-05）、#73–#76（部署提速）、#77（函数备份名带重跑次数）、#78（CloudBase 项目技能 .claude/skills/cloudbase-engineering）、#79（Codex 在 #71 的三条发现：BFF 暴露 Retry-After、worker 自身超时会终止运行、刷新保留可续接的回答；外加 sales-integration 冻结时钟导致的 CI 偶发失败）。test 快进到 3984f6b5，Deploy Test 42101386132 一次通过，总用时 31.4 分钟（11月4日含重跑为 127.6 分钟）：CloudBase 步骤 4.8 分钟，网页送达 4.3 分钟；网页产物与上一版相同（52a8a8b2…），因此仍是 0 页上传，大量页面变化时的耗时尚未实测。线上读回：三个函数 deployedReleaseId 均为 3984f6b5（代码未变，releaseId 保持 f2226549）；11 个页面及 sitemap/robots 为 200；首页新主体名 15 处、旧名 0 处；区域临时函数两次清理均已确认；函数备份名为 function-backup-before-3984f6b5…-42101386132-1。AI 新聊天仍关闭，BFF/worker 的修复需新 DATABASE_URL 后经 ai-cloudrun-deploy 标签单独发布。经验已提交 engineering-craft #4、#5（待 Nina 审核）。回滚点不变：标签 rollback/test-live-before-20261105 → 91443842。
+
+2026-11-05 发布：release/assistant-seo-20261104 汇合了 main（含 #70 公司主体名称）、test、feat/seo-foundation 和 Codex 的逐句流式回答修复，test 快进到 a7ee7b90，Deploy Test 41850270700 第2次运行通过（第1次在 alibaba-catalog-sync 私有压缩包上传失败，admin/public-api 已先更新，重跑失败步骤后通过）。线上读回：public-api health 为 a7ee7b90；首页显示 Diversity Innovations Limited 共15处、旧名0处；首页、/headphones/、/blog/、/privacy/、/oem/、/portfolio/、/admin/ 均为200。AI 新聊天仍关闭（PUBLIC_AI_CHAT_V2 未设，PUBLIC_AI_INQUIRIES=0）；PostgreSQL 已过期，AI BFF 需新 DATABASE_URL 后再经 ai-cloudrun-deploy 标签单独发布。回滚点：标签 rollback/test-live-before-20261105 → 91443842；函数恢复用第1次运行的 function-backup-before-a7ee7b90…-41850270700（第2次运行的同名备份已含新版 admin/public-api），网页用同次运行的 hosting-backup / site-recovery 产物。第1次失败原因是超时：该函数带 sharp 原生解码库，压缩包约9 MB，从 GitHub 机器传到上海通常要4–5分钟，旧上限300秒且不重试；已改为600秒，失败信息写明用时。本次尚未合入 main。
+
+2026-11-04 当前状态以[本轮逐项验收](../seo/continuation/review-2026-11-04/README.zh-CN.md)为准：www 301已上线；主域HTTP 301未完成，试改已恢复；商品自动通知等待GitHub App授权；美国与本机各54次性能基准完成，性能优化尚未实施。下方保留此前阶段记录，不能把其中的“当前”当作今日状态。
+
 ## 此前阶段记录
 
 
@@ -61,7 +75,7 @@ test分支仍为91443842；当前静态网站已通过10月29日受控入口4081
 
 ## 现在可以怎样看效果
 
-用现有管理员账号打开 [本轮助手草稿](https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683)，可查看第 3 版正文和私有预览。测试文章已发布验收后撤回，故它的公开地址现在返回 404；草稿仍在。公开效果保留了[桌面截图](2026-10-26/evidence/assistant-public-desktop.png)、[手机截图](2026-10-26/evidence/assistant-public-mobile.png)和[后台截图](2026-10-26/evidence/assistant-private-preview.png)。此前的[手工验收文章](https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/)仍可查看。
+用现有管理员账号打开 [本轮助手草稿](https://supplychainsai.com/admin/?section=articles&article=article-79b0419f77127ad6382dcab4bfe2b5ba58f152b3b8b7d89e93e5f1550c02a683)，可查看第 3 版正文和私有预览。测试文章已发布验收后撤回，故它的公开地址现在返回 404；草稿仍在。公开效果保留了[桌面截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-public-desktop.png)、[手机截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-public-mobile.png)和[后台截图](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-private-preview.png)。此前的[手工验收文章](https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/)仍可查看。
 
 客户日常流程是保存草稿、Preview、确认后 Save and publish。保存草稿不改变公开文章；更新公开内容仍须点击发布。Withdraw article 撤回后保留草稿，公开页面返回 404，列表与 sitemap 移除。这里的“人工操作验收”由自动化浏览器模拟管理员完成，不表示客户本人已验收。
 
@@ -73,9 +87,9 @@ test分支仍为91443842；当前静态网站已通过10月29日受控入口4081
 - [图文群测入口](2026-10-26/wecom/START-HERE.html)、[WeCom 群测配置与图文示例](2026-10-26/wecom/GUIDE.zh-CN.md)、[可直接发送的测试任务](2026-10-26/wecom/TEST-PROMPT.zh-CN.md)。
 - [完整总图](2026-10-26/diagrams/complete-delivery.html)、[文章发布时序](2026-10-26/diagrams/article-publication.html)、[助手草稿时序](2026-10-26/diagrams/assistant-draft.html)。
 - [按模块实施](2026-10-26/EXECUTION.zh-CN.md)、[当前工作记录](2026-10-26/WORKLOG.zh-CN.md)、[无害恢复演练范围](2026-10-26/DUMMY-LIVE-DRILL.zh-CN.md)。
-- [线上桌面文章](2026-10-26/evidence/live-blog-public-desktop.png)、[线上手机文章](2026-10-26/evidence/live-blog-public-mobile.png)、[实际私有预览](2026-10-26/evidence/live-blog-admin-preview.png)。
-- [商品前端交付结果](2026-10-26/evidence/site-20-accepted.json)、[文章真实发布结果](2026-10-26/evidence/blog-server-republish.json)、[文章服务器 A→B→A](2026-10-26/evidence/blog-server-aba.json)、[测试函数 A→A](2026-10-26/evidence/dummy-AA.json)、[测试函数 B→A](2026-10-26/evidence/dummy-BA.json)。
-- [助手整体验收](2026-10-26/evidence/assistant-acceptance.json)、[本轮测试资源清理](2026-10-26/evidence/dummy-cleanup.json)。
+- [线上桌面文章](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-public-desktop.png)、[线上手机文章](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-public-mobile.png)、[实际私有预览](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/live-blog-admin-preview.png)。
+- [商品前端交付结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/site-20-accepted.json)、[文章真实发布结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/blog-server-republish.json)、[文章服务器 A→B→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/blog-server-aba.json)、[测试函数 A→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-AA.json)、[测试函数 B→A](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-BA.json)。
+- [助手整体验收](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)、[本轮测试资源清理](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/dummy-cleanup.json)。
 - [内容助手设计](../blog/agent-design/HIGH-LEVEL.zh-CN.md)、[CloudBase 故障调查](2026-10-25/CLOUDBASE-FINDINGS.zh-CN.md)。
 
 Google/Bing 此前完成过网站验证和 sitemap 提交。本轮未重新读取收录数据；提交成功、页面可访问与搜索引擎已经收录是不同结果。

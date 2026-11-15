@@ -45,8 +45,8 @@
 
 这次每张 HTML 的主体都是一张完整 SVG，分别呈现完整流程与完整时序；不是把六张旧图装进 iframe 或分章阅读。它们描述目标设计，不是生产执行记录。
 
-- [完整流程大图](../../output/seo-design-r2-2026-10-20/DELIVERY-COMPLETE-FLOW.html)：从 CI、快照、构建和备份，到接口/静态发布、验收、失败分类、一次自动恢复、人工处理、数据修复和搜索时机。
-- [端到端完整时序大图](../../output/seo-design-r2-2026-10-20/DELIVERY-COMPLETE-SEQUENCE.html)：操作人、Actions、可信产物、数据库、API、托管、访客与搜索之间的交互。末尾恢复消息属于条件分支；访客可在任意时间访问。
+- [完整流程大图](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/output/seo-design-r2-2026-10-20/DELIVERY-COMPLETE-FLOW.html)：从 CI、快照、构建和备份，到接口/静态发布、验收、失败分类、一次自动恢复、人工处理、数据修复和搜索时机。
+- [端到端完整时序大图](https://github.com/vibelingan/channel/blob/archive/process-evidence-2026-11-02/output/seo-design-r2-2026-10-20/DELIVERY-COMPLETE-SEQUENCE.html)：操作人、Actions、可信产物、数据库、API、托管、访客与搜索之间的交互。末尾恢复消息属于条件分支；访客可在任意时间访问。
 - 图源：`docs/seo/diagrams/delivery-complete.workflow.json`、`delivery-complete.sequence.json`。结构、浏览器和图像审阅收据随新交付目录保存。
 
 旧 `output/seo-final-2026-10-20/SEO-DELIVERY-ATLAS.html` 是历史多图合集，手动恢复策略已被本轮设计取代，不作为当前综合大图或政策入口。

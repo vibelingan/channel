@@ -206,6 +206,10 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       name: 'products/item',
       ...extractPageMetadata('../pages/products/item.astro', brandName),
     },
+    {
+      name: 'privacy',
+      ...extractPageMetadata('../pages/privacy.astro', brandName),
+    },
   ];
 
   assert.deepEqual(
@@ -252,6 +256,10 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'seoDescription',
     }),
     assertBaseLayoutBindings('../pages/products/item.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/privacy.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),

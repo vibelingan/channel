@@ -43,7 +43,12 @@ export function assertHostingBatchMembers(members) {
 }
 export function siteUploadBatches(plan) {
   if (!plan.delivery) return null;
-  if (plan.scope.kind !== 'site' || plan.delivery.batchSize !== 12 || plan.delivery.parallel !== 4)
+  if (
+    plan.scope.kind !== 'site' ||
+    plan.delivery.batchSize !== 12 ||
+    plan.delivery.parallel !== 4 ||
+    ![undefined, 12].includes(plan.delivery.uploadParallel)
+  )
     throw Error('Unreviewed hosting batch settings');
   const batches = [];
   for (const entry of plan.uploads) {
@@ -78,13 +83,28 @@ export function withSiteUploadBatches(plan) {
   const { planSha256, ...body } = plan;
   if (identity(body) !== planSha256 || plan.delivery || plan.scope.kind !== 'site')
     throw Error('Invalid unbatched site plan');
-  const next = { ...body, delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4 } };
+  // One SDK call writes a whole journaled batch; journal steps and HTTP readback are unchanged.
+  const next = {
+    ...body,
+    delivery: { batchSize: 12, removeBatchSize: 12, parallel: 4, uploadParallel: 12 },
+  };
   return freeze({ ...next, planSha256: identity(next) });
 }
 /** Stop scheduling after failure; wait for all already started work before rejecting. */
 export async function mapHostingBounded(items, parallel, callback) {
   if (!Number.isSafeInteger(parallel) || parallel < 1 || parallel > 4)
     throw Error('Invalid hosting parallel limit');
+  return boundedMap(items, parallel, callback);
+}
+/**
+ * Public HTTP readbacks change nothing, and from outside mainland China each one waits
+ * 0.6–3 s. They overlap twelve at a time; every write (upload, delete) keeps its own bound.
+ */
+export const HOSTING_READ_PARALLEL = 12;
+export function mapHostingReads(items, callback) {
+  return boundedMap(items, HOSTING_READ_PARALLEL, callback);
+}
+async function boundedMap(items, parallel, callback) {
   const results = new Array(items.length);
   let next = 0;
   let failure;

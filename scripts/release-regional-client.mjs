@@ -4,7 +4,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { buildReleaseRegional } from './release-regional-build.mjs';
-import { readCompleteFunctionInventory } from './release/function-inventory.mjs';
+import {
+  deleteFunctionUntilAbsent,
+  readCompleteFunctionInventory,
+} from './release/function-inventory.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import {
   releaseRegionalDiagnostic,
@@ -254,18 +257,14 @@ export async function createReleaseRegionalClient({
     try {
       if (created) {
         own(await manager.functions.getFunctionDetail(name));
-        try {
-          await manager.functions.deleteFunction(name);
-        } catch {}
-        let absent = false;
-        for (let n = 0; n < 6; n++) {
-          if (n) await wait(250 * 2 ** (n - 1));
-          if (!(await inventory()).includes(name)) {
-            absent = true;
-            break;
-          }
-        }
-        assert.ok(absent);
+        const deletion = await deleteFunctionUntilAbsent({
+          remove: (target) => manager.functions.deleteFunction(target),
+          inventory,
+          name,
+          wait,
+        });
+        receipt.deletion = { attempts: deletion.attempts, errors: deletion.errors };
+        assert.ok(deletion.absent);
         receipt.cleaned = true;
       }
       closed = true;
@@ -277,7 +276,15 @@ export async function createReleaseRegionalClient({
   };
   await persist();
   try {
-    assert.equal((await inventory()).includes(name), false, 'Release regional name is occupied');
+    const existing = await inventory();
+    assert.equal(existing.includes(name), false, 'Release regional name is occupied');
+    // Earlier runs whose cleanup stayed unconfirmed leave their helper behind; record the
+    // names only (read-only) so an operator can remove them deliberately.
+    receipt.leftoverHelpers = existing.filter(
+      (other) => other !== name && /^seo-release-region-\d+-\d+$/.test(other),
+    );
+    if (receipt.leftoverHelpers.length)
+      notify({ method: 'inventory', state: 'leftover-helpers', names: receipt.leftoverHelpers });
     await build(join(directory, 'function'), codeSha);
     creationStarted = true;
     try {

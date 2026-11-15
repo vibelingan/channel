@@ -60,10 +60,11 @@ const SAMPLE_REQUEST: EngineRunRequest = {
   limits: { maxDeliveredOutputUnits: 256, maxStreamDurationMs: 5_000, maxToolCalls: 4 },
 };
 
-const EVENT_TYPES = new Set(['token', 'citation', 'final', 'error']);
+const EVENT_TYPES = new Set(['token', 'citation', 'final', 'error', 'activity']);
 
 /** Every key the schema permits, per event type. Anything else is vendor leakage. */
 const ALLOWED_KEYS: Record<string, Set<string>> = {
+  activity: new Set(['type', 'action']),
   token: new Set(['type', 'text']),
   citation: new Set(['type', 'citation']),
   final: new Set(['type', 'text', 'citations', 'usage']),

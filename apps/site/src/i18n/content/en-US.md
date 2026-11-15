@@ -238,6 +238,7 @@ footer:
         url: 'https://www.channel-hk.com/'
         domain: channel-hk.com
   legal: © 2026 Diversity Innovations Limited. All rights reserved.
+  privacy: { label: Privacy, href: '/privacy/' }
   filingNumber: 粤ICP备2026092477号-1
   filingUrl: 'https://beian.miit.gov.cn/'
 ---

@@ -29,6 +29,7 @@ test('independent browser groups cover the complete original suites exactly once
     assert.deepEqual(all, original);
     const groups = [
       'storefront',
+      'sku-detail',
       ...(formal ? ['admin-workflows'] : []),
       'admin',
       'taxonomy',
@@ -42,6 +43,17 @@ test('independent browser groups cover the complete original suites exactly once
     assert.equal(all.includes('tests/e2e/catalog-admin.spec.ts'), !formal);
   }
   assert.throws(() => catalogE2eSuites({ formal: true, group: 'skip' }));
+  for (const formal of [true, false]) {
+    assert.deepEqual(catalogE2eSuites({ formal, group: 'sku-detail' }), [
+      ['tests/e2e/sku-detail.spec.ts'],
+    ]);
+    assert.equal(
+      catalogE2eSuites({ formal, group: 'storefront' })
+        .flat()
+        .includes('tests/e2e/sku-detail.spec.ts'),
+      false,
+    );
+  }
   assert.throws(() => catalogE2eSuites({ formal: false, group: 'admin-workflows' }));
   assert.deepEqual(catalogE2eSuites({ formal: true, group: 'admin' }), [
     ['tests/e2e/admin-subcategory-visibility.spec.ts'],
@@ -54,7 +66,12 @@ test('independent browser groups cover the complete original suites exactly once
 test('parallel browser jobs retain the old required check names and no failing group can become green', () => {
   const workflow = parse(readFileSync('.github/workflows/browser-regression.yml', 'utf8'));
   const browser = workflow.jobs.browser;
-  assert.deepEqual(browser.strategy.matrix.group, ['storefront', 'admin', 'taxonomy']);
+  assert.deepEqual(browser.strategy.matrix.group, [
+    'storefront',
+    'sku-detail',
+    'admin',
+    'taxonomy',
+  ]);
   assert.deepEqual(browser.strategy.matrix.include, [{ formal: '1', group: 'admin-workflows' }]);
   assert.equal(browser.env.E2E_CATALOG_GROUP, '${{ matrix.group }}');
   assert.equal(browser.strategy['fail-fast'], false);

@@ -60,11 +60,11 @@ Google对样品检查文章的旧记录显示：10月29日凌晨曾抓取成功�
 
 另一篇采购准备文章的旧记录也因noindex被排除；开放后的实时测试显示10月29日13:51:49、抓取成功、允许收录、声明canonical正确。其重新收录请求也已被接受。两篇均只在Google接受一次请求后停止，不重复提交。
 
-Blog列表的旧记录同样因noindex被排除，并显示旧的地图发现临时处理错误；当前地图总报告自身是成功的539个网址。列表开放后的实时测试显示10月29日14:07:09、抓取成功、允许收录、声明canonical正确；列表的重新收录请求也已接受。三个地址都只记为技术允许和请求已接受，不能写成已经进入索引。没有申请移除网址。真实账号截图保存在本机私有证据目录；仓库只保存[脱敏平台记录](evidence/platform-observation.json)。
+Blog列表的旧记录同样因noindex被排除，并显示旧的地图发现临时处理错误；当前地图总报告自身是成功的539个网址。列表开放后的实时测试显示10月29日14:07:09、抓取成功、允许收录、声明canonical正确；列表的重新收录请求也已接受。三个地址都只记为技术允许和请求已接受，不能写成已经进入索引。没有申请移除网址。真实账号截图保存在本机私有证据目录；仓库只保存[脱敏平台记录](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/platform-observation.json)。
 
 
 ### 全量技术验收与Bing重新读取
 
-静态站点发布被接受后，独立工具逐一读取539个公开网址，539通过、问题0；地图中的528商品与当前公开API一致。[全量报告](evidence/live-all-pages-after.json)。它验证网站技术条件，仍不能代替Google/Bing实际索引结果。
+静态站点发布被接受后，独立工具逐一读取539个公开网址，539通过、问题0；地图中的528商品与当前公开API一致。[全量报告](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/live-all-pages-after.json)。它验证网站技术条件，仍不能代替Google/Bing实际索引结果。
 
 本轮随后仅重新提交Bing已有的`sitemap-index.xml`，平台提示成功接收并进入Processing，提交日期变为10月29日。旧的517发现数量仍显示，尚未完成新一轮读取；没有创建重复地图或把Processing写成已收录。Google地图当前已发现539，未重复提交地图，只对已经验证的Blog列表和两篇文章各请求一次重新收录。自动IndexNow与搜索事件发送器仍未启用。

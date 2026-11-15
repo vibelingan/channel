@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   REQUIRED_NOSQL_RESOURCES,
   ensureNoSqlResourceSet,
+  ensureNoSqlResourceSetConcurrently,
   ensureNoSqlResources,
 } from './cloudbase-nosql-resources.mjs';
 
@@ -414,6 +415,16 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
     calls.filter(({ selector }) => selector === 'cloudbase.managePermissions').length,
     REQUIRED_NOSQL_RESOURCES.length,
   );
+  // Every provisioned collection is read again after its writes.
+  for (const action of ['checkCollection', 'listIndexes'])
+    assert.equal(
+      calls.filter(({ args }) => args.action === action).length,
+      REQUIRED_NOSQL_RESOURCES.length * 2,
+    );
+  assert.equal(
+    calls.filter(({ selector }) => selector === 'cloudbase.queryPermissions').length,
+    REQUIRED_NOSQL_RESOURCES.length * 2,
+  );
   assert.ok(messages.some((message) => message.includes('rateLimitHits: ready')));
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
@@ -450,6 +461,8 @@ test('ensureNoSqlResources is idempotent when the collection and indexes exist',
     calls.some(({ selector }) => selector === 'cloudbase.writeNoSqlDatabaseStructure'),
     false,
   );
+  // With no write, the first collection, index and permission reads are the proof.
+  assert.equal(calls.length, REQUIRED_NOSQL_RESOURCES.length * 3);
   assert.equal(
     calls.some(({ args }) => args.action === 'checkIndex'),
     false,
@@ -503,14 +516,104 @@ test('ensureNoSqlResources fails safely on a same-name index with the wrong defi
   assert.deepEqual(writes, []);
 });
 
-test('deploy provisions NoSQL resources before functions and smoke crosses the limiter', () => {
-  assert.match(
-    deploySource,
-    /import \{ ensureNoSqlResources \} from '\.\/cloudbase-nosql-resources\.mjs';/,
+function readyTool(resources, { delayMs = 5, fail } = {}) {
+  const state = { inFlight: 0, peak: 0, calls: [] };
+  state.call = async (selector, args) => {
+    state.calls.push({ selector, args });
+    state.inFlight++;
+    state.peak = Math.max(state.peak, state.inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (fail?.(selector, args)) return { success: false, message: 'provider rejected' };
+      if (args.action === 'checkCollection') return { success: true, exists: true };
+      if (args.action === 'listIndexes')
+        return {
+          success: true,
+          indexes: resources
+            .find((r) => r.collectionName === args.collectionName)
+            .indexes.map(listedIndex),
+        };
+      if (selector === 'cloudbase.queryPermissions')
+        return { success: true, data: { aclTag: 'ADMINONLY' } };
+      throw new Error(`Unexpected write call: ${selector} ${JSON.stringify(args)}`);
+    } finally {
+      state.inFlight--;
+    }
+  };
+  return state;
+}
+
+test('concurrent provisioning checks every collection with the same reads, never above its bound', async () => {
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES);
+  const messages = [];
+  await ensureNoSqlResourceSetConcurrently(tool.call, REQUIRED_NOSQL_RESOURCES, (message) =>
+    messages.push(message),
   );
-  const provisionAt = deploySource.indexOf('ensureNoSqlResources(callTool);');
+  assert.equal(tool.peak, 4);
+  assert.deepEqual(
+    messages.sort(),
+    REQUIRED_NOSQL_RESOURCES.map(
+      (r) => `${r.collectionName}: ready (${r.indexes.length} indexes, ${r.permission})`,
+    ).sort(),
+  );
+  const sequential = [];
+  ensureNoSqlResourceSet(
+    (selector, args) => {
+      sequential.push({ selector, args });
+      return args.action === 'checkCollection'
+        ? { success: true, exists: true }
+        : args.action === 'listIndexes'
+          ? {
+              success: true,
+              indexes: REQUIRED_NOSQL_RESOURCES.find(
+                (r) => r.collectionName === args.collectionName,
+              ).indexes.map(listedIndex),
+            }
+          : { success: true, data: { aclTag: 'ADMINONLY' } };
+    },
+    REQUIRED_NOSQL_RESOURCES,
+    () => {},
+  );
+  const key = ({ selector, args }) => `${selector} ${JSON.stringify(args)}`;
+  assert.deepEqual(tool.calls.map(key).sort(), sequential.map(key).sort());
+});
+
+test('a failed concurrent check starts no further collection and still reports the first error', async () => {
+  const failing = REQUIRED_NOSQL_RESOURCES[5].collectionName;
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES, {
+    fail: (selector, args) =>
+      selector === 'cloudbase.queryPermissions' && args.resourceId === failing,
+  });
+  await assert.rejects(
+    ensureNoSqlResourceSetConcurrently(tool.call, REQUIRED_NOSQL_RESOURCES, () => {}),
+    new RegExp(`${failing}: query permission failed: provider rejected`),
+  );
+  assert.equal(tool.inFlight, 0, 'checks already running finish before the error is thrown');
+  const started = new Set(tool.calls.map(({ args }) => args.collectionName ?? args.resourceId));
+  assert.ok(started.size < REQUIRED_NOSQL_RESOURCES.length);
+});
+
+test('concurrent provisioning refuses a duplicated collection or an unbounded concurrency', async () => {
+  const tool = readyTool(REQUIRED_NOSQL_RESOURCES);
+  const [first] = REQUIRED_NOSQL_RESOURCES;
+  await assert.rejects(ensureNoSqlResourceSetConcurrently(tool.call, [first, first], () => {}));
+  for (const concurrency of [0, 9, 1.5, '4'])
+    await assert.rejects(
+      ensureNoSqlResourceSetConcurrently(tool.call, [first], () => {}, { concurrency }),
+    );
+  assert.equal(tool.calls.length, 0);
+});
+
+test('deploy provisions NoSQL resources before functions and smoke crosses the limiter', () => {
+  const provisionAt = deploySource.indexOf(
+    'await ensureNoSqlResourceSetConcurrently(callToolAsync, [\n  ...REQUIRED_NOSQL_RESOURCES,\n  ...ARTICLE_NOSQL_RESOURCES,\n]);',
+  );
+  const setEnvAt = deploySource.indexOf(
+    "callTool('cloudbase.auth', { action: 'set_env', envId });",
+  );
   const functionDeployAt = deploySource.indexOf('for (const def of functionDefs)');
-  assert.ok(provisionAt >= 0, 'deploy must provision required NoSQL resources');
+  assert.ok(provisionAt >= 0, 'deploy must provision required and article NoSQL resources');
+  assert.ok(setEnvAt >= 0 && setEnvAt < provisionAt, 'set_env must finish before checks start');
   assert.ok(provisionAt < functionDeployAt, 'NoSQL resources must exist before function deploy');
 
   assert.match(smokeSource, /drawingFileId: '__deployment_smoke_partial_upload__'/);
@@ -602,7 +705,10 @@ test('durable preparation jobs are provisioned privately before any worker can w
   );
   assert.match(source, /CATALOG_PREPARATION_JOBS = 'catalogPreparationJobs'/);
   // Background workers remain disabled until explicitly configured; provisioning is independent.
-  assert.ok(deploySource.includes('ensureNoSqlResources'));
+  assert.match(
+    deploySource,
+    /ensureNoSqlResourceSetConcurrently\(callToolAsync, \[\s*\.\.\.REQUIRED_NOSQL_RESOURCES,/,
+  );
 });
 
 test('image observations are private coordination state provisioned with the preparation jobs', () => {

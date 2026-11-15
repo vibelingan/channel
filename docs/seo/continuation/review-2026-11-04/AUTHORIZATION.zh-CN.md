@@ -10,7 +10,7 @@
 
 修复版部署41778498332、启用41778728674均成功。真实timer通过专用App启动[自动交付41778917828](https://github.com/vibelingan/channel/actions/runs/41778917828)，发起者确认为channel-catalog-html-delivery[bot]，并非人工点击重跑。最终accepted，528商品页面均ready，原待办checked、队列空、锁释放，两临时函数清理确认。当前health读回enabled=true、代码7a025b86，唯一每分钟timer保留；空队列真实执行返回idle，不启动构建。
 
-本次安排的是现有商品内容重查，没有修改客户商品或文章。前后19+19项公开GET/HEAD检查通过：528商品清单和抽查初始HTML的hash相同，两篇Blog正文、修订、图片资料、发布时间和文章服务版本均保持。浏览器验收还覆盖分类页刷新、API更新及询盘入口，业务写入0。证据见[本轮验收索引](../evidence/2026-11-04-clock/README.zh-CN.md)。
+本次安排的是现有商品内容重查，没有修改客户商品或文章。前后19+19项公开GET/HEAD检查通过：528商品清单和抽查初始HTML的hash相同，两篇Blog正文、修订、图片资料、发布时间和文章服务版本均保持。浏览器验收还覆盖分类页刷新、API更新及询盘入口，业务写入0。证据见[本轮验收索引](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/2026-11-04-clock/README.zh-CN.md)。
 
 [安装位置、流程和停用方法](../07-github-app-setup.zh-CN.md)已补充。临时本机创建服务器已经关闭，正式运行不依赖Mac。后续维护同一个App和私钥，不重复创建或要求重新授权。
 

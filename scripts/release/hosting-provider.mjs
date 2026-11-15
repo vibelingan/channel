@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { hostingConfigurationIdentity, inventoryIdentity } from '../hosting-recovery.mjs';
@@ -71,6 +71,64 @@ export function createCloudbaseHostingProvider({ manager, target }) {
         }),
       );
     });
+  /** Every member needs its own file completion; SDK counts alone never confirm an object. */
+  async function uploadFiles(input, parallel, signal) {
+    const files = input.map(({ path, body: bytes }) => {
+      assertHostingPath(path);
+      if (path === '404.html') throw new Error('Reserved CloudBase fallback path');
+      if (/^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/.test(path))
+        throw new Error('Protected hosting path');
+      const body = Buffer.from(bytes);
+      if (body.length > limits.fileBytes) throw new Error('Hosting object size limit');
+      return { path, body };
+    });
+    if (new Set(files.map((file) => file.path)).size !== files.length)
+      throw new Error('Duplicate hosting upload path');
+    signal?.throwIfAborted();
+    const directory = mkdtempSync(join(tmpdir(), 'seo-hosting-upload-'));
+    const completed = new Map();
+    try {
+      // A directory per member keeps same-named files apart and their extension for COS MIME.
+      const staged = files.map((file, index) => {
+        mkdirSync(join(directory, String(index)));
+        const localPath = join(directory, String(index), basename(file.path));
+        writeFileSync(localPath, file.body, { mode: 0o400 });
+        return { localPath, cloudPath: file.path };
+      });
+      return await safe(async () => {
+        const result = await hosting.uploadFiles({
+          files: staged,
+          parallel,
+          retryCount: 0,
+          safe: false,
+          prune: false,
+          verify: false,
+          onFileFinish: (error, result, file) => {
+            if (
+              !error &&
+              files.some((member) => member.path === file?.cloudFileKey) &&
+              (result?.statusCode === 200 || (result && Object.keys(result).length === 0))
+            )
+              completed.set(file.cloudFileKey, result.headers?.['x-cos-request-id']);
+          },
+        });
+        if (
+          completed.size !== files.length ||
+          result?.successCount !== files.length ||
+          result?.totalFiles !== files.length ||
+          !Array.isArray(result.failedFiles) ||
+          result.failedFiles.length
+        )
+          throw new Error('Unconfirmed upload result');
+        return files.map(({ path }) => {
+          const providerOperationId = completed.get(path);
+          return { path, ...(providerOperationId ? { providerOperationId } : {}) };
+        });
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
   let backupReader;
   return Object.freeze({
     target: fixed,
@@ -114,51 +172,19 @@ export function createCloudbaseHostingProvider({ manager, target }) {
       });
     },
     async upload(path, input, { signal } = {}) {
-      assertHostingPath(path);
-      if (path === '404.html') throw new Error('Reserved CloudBase fallback path');
-      if (/^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/.test(path))
-        throw new Error('Protected hosting path');
-      const body = Buffer.from(input);
-      if (body.length > limits.fileBytes) throw new Error('Hosting object size limit');
-      signal?.throwIfAborted();
-      const directory = mkdtempSync(join(tmpdir(), 'seo-hosting-upload-'));
-      const localPath = join(directory, basename(path));
-      writeFileSync(localPath, body, { mode: 0o400 });
-      let providerOperationId;
-      let completed = false;
-      try {
-        return await safe(async () => {
-          const result = await hosting.uploadFiles({
-            files: [{ localPath, cloudPath: path }],
-            parallel: 1,
-            retryCount: 0,
-            safe: false,
-            prune: false,
-            verify: false,
-            onFileFinish: (error, result, file) => {
-              if (
-                !error &&
-                file?.cloudFileKey === path &&
-                (result?.statusCode === 200 || (result && Object.keys(result).length === 0))
-              ) {
-                completed = true;
-                providerOperationId = result.headers?.['x-cos-request-id'];
-              }
-            },
-          });
-          if (
-            !completed ||
-            result?.successCount !== 1 ||
-            result?.totalFiles !== 1 ||
-            !Array.isArray(result.failedFiles) ||
-            result.failedFiles.length
-          )
-            throw new Error('Unconfirmed upload result');
-          return { terminal: true, ...(providerOperationId ? { providerOperationId } : {}) };
-        });
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
+      const [file] = await uploadFiles([{ path, body: input }], 1, signal);
+      return {
+        terminal: true,
+        ...(file.providerOperationId ? { providerOperationId: file.providerOperationId } : {}),
+      };
+    },
+    /** One SDK call per journaled batch: one bucket lookup and one COS client for all members. */
+    async uploadBatch(files, { signal, parallel } = {}) {
+      if (!Array.isArray(files) || !files.length || files.length > 12)
+        throw new Error('Invalid hosting upload batch size');
+      if (!Number.isSafeInteger(parallel) || parallel < 1 || parallel > files.length)
+        throw new Error('Invalid hosting upload parallel limit');
+      return { terminal: true, files: await uploadFiles(files, parallel, signal) };
     },
     async remove(path, { signal } = {}) {
       assertHostingPath(path);

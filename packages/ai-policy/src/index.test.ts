@@ -134,3 +134,22 @@ test('an ordinary empty answer is NOT reported as a publication block', () => {
   assert.equal(result.type === 'error' ? result.category : '', 'knowledge_empty');
   assert.notEqual(result.type === 'error' ? result.category : '', PUBLICATION_BLOCKED);
 });
+
+test('public catalog context preserves product identities while redacting prose and dropping extra fields', () => {
+  const p = {
+    id: '123456789012345',
+    name: 'Public product',
+    summary: 'Ask alice@example.com for details',
+    privateNote: 'PRIVATE_CANARY',
+  };
+  const result = preparePublicTurns([
+    {
+      role: 'assistant',
+      text: 'Product options',
+      publicCatalog: { products: [p], unavailableProductIds: [] },
+    },
+  ]);
+  assert.equal(result[0]?.publicCatalog?.products[0]?.id, p.id);
+  assert.equal(result[0]?.publicCatalog?.products[0]?.summary, 'Ask [email redacted] for details');
+  assert.equal(JSON.stringify(result).includes('PRIVATE_CANARY'), false);
+});

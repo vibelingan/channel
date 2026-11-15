@@ -10,6 +10,17 @@ export const ARCHIVE_COS_OPTIONS = Object.freeze({
   ChunkRetryTimes: 1,
 });
 
+// The SDK queues whole files at FileParallelLimit, while each transfer's deadline starts
+// when it is handed over. A caller running several transfers at once must let the SDK run
+// them all, or the queued ones time out before they start (run 43212545234).
+/** No single archive transfer may run longer; callers' deadlines must stay within it. */
+export const ARCHIVE_TRANSFER_MAX_MS = 300000;
+
+export const PARALLEL_ARCHIVE_COS_OPTIONS = Object.freeze({
+  ...ARCHIVE_COS_OPTIONS,
+  FileParallelLimit: 8,
+});
+
 /** Official SDK multipart/range transfers; the caller still checks private ACL, lifecycle and full SHA-256. */
 export function createCosArchiveTransfer({
   cos,
@@ -98,6 +109,22 @@ export function createCosArchiveTransfer({
         trace.close();
         await rm(directory, { recursive: true, force: true });
       }
+    },
+    /** One HEAD: the stored size and ETag, which changes whenever the object is rewritten. */
+    async head(_sdk, fileId) {
+      const params = target(fileId);
+      let result;
+      try {
+        result = await cos.headObject(params);
+      } catch (error) {
+        if (error?.statusCode === 404)
+          throw Object.assign(Error('Archive object is absent'), {
+            code: 'ARCHIVE_OBJECT_NOT_FOUND',
+            statusCode: 404,
+          });
+        throw error;
+      }
+      return { bytes: Number(result?.headers?.['content-length']), etag: result?.ETag };
     },
     async read(_sdk, fileId, { maxBytes, timeoutMs }) {
       const params = target(fileId);
@@ -255,7 +282,7 @@ function traceTransfer(cos, params, totalBytes, observe) {
 
 /** Failed or timed-out SDK tasks release local ownership; late results cannot extend the budget. */
 function boundedTransfer(timeoutMs, start, cancel = () => {}) {
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000)
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > ARCHIVE_TRANSFER_MAX_MS)
     throw Error('Invalid archive transfer time limit');
   return new Promise((resolve, reject) => {
     let finished = false;

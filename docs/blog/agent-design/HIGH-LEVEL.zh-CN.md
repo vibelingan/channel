@@ -1,6 +1,6 @@
 # 内容助手接入：高层设计
 
-状态：2026-10-26 已用本地原生 Hermes 和真实 CloudBase 验收“生成草稿 → 管理员编辑预览 → 发布 → 撤回”。重复投递保留人工修订，测试凭证停用和本机配置清理均已验证。生产 HermesInfra / 企业微信未改，正式工具安装和客户隔离仍单独安排。[实际结果](../../delivery/2026-10-26/evidence/assistant-acceptance.json)与设计分开记录。
+状态：2026-10-26 已用本地原生 Hermes 和真实 CloudBase 验收“生成草稿 → 管理员编辑预览 → 发布 → 撤回”。重复投递保留人工修订，测试凭证停用和本机配置清理均已验证。生产 HermesInfra / 企业微信未改，正式工具安装和客户隔离仍单独安排。[实际结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-26/evidence/assistant-acceptance.json)与设计分开记录。
 
 ## 用户会怎样使用
 

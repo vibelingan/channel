@@ -11,9 +11,14 @@ import { createCloudBaseArticleRepository } from '@vibelingan-channel/db/article
 import { createCatalogPreparationAuthority } from '@vibelingan-channel/db/catalog-preparation-authority';
 import { readCatalogSeoRecordingConfig } from '@vibelingan-channel/db/catalog-seo-requests';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import {
+  configuredWebsiteDelivery,
+  submissionDelivery,
+} from '../../sales-integration/src/runtime-delivery.ts';
 import { createCatalogPreparationInvoker } from './catalog-preparation-invoker.ts';
 import { handleAdminRequest } from './handler.ts';
 import {
@@ -29,9 +34,13 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 const articleDeliveryMode = ArticlePublicationModeSchema.parse(
   optionalEnv('ARTICLE_DELIVERY_MODE') || undefined,
 );
+const salesCapture = salesCaptureFromEnv(process.env);
+const salesAfterSave = submissionDelivery(configuredWebsiteDelivery());
 const config: AdminHttpConfig = {
   catalogSeoRecording: Boolean(readCatalogSeoRecordingConfig(process.env)),
   articleDeliveryMode,
+  ...(salesCapture ? { salesCapture } : {}),
+  salesAfterSave,
   jwtSecret: requireEnv('JWT_SECRET'),
   enableArticleReleases: optionalEnv('ARTICLE_PUBLISHING_ENABLED') === '1',
   articleQueueStatusKeyHash: optionalEnv('BLOG_QUEUE_STATUS_KEY_HASH'),

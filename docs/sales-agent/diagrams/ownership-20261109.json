@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "当前分工：Channel 接口与 Hermes 销售执行服务",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      600
+    ]
+  },
+  "components": [
+    {
+      "id": "visitor",
+      "type": "frontend",
+      "label": "官网访客",
+      "sublabel": "确认需求后提交询盘",
+      "pos": [
+        40,
+        4
+      ],
+      "size": [
+        260,
+        60
+      ]
+    },
+    {
+      "id": "chat_backend",
+      "type": "backend",
+      "label": "官网小助手后台",
+      "sublabel": "接待访客；确认后请求保存",
+      "tag": "Channel 的 AI 后台",
+      "pos": [
+        40,
+        140
+      ],
+      "size": [
+        260,
+        80
+      ]
+    },
+    {
+      "id": "inquiry_api",
+      "type": "backend",
+      "label": "询盘与资料接口",
+      "sublabel": "普通代码；校验、保存、受控读取",
+      "tag": "代码名 sales-integration，不是 AI Agent",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        260,
+        90
+      ]
+    },
+    {
+      "id": "business_data",
+      "type": "database",
+      "label": "Channel 业务数据",
+      "sublabel": "询盘、公开产品、客户上传附件",
+      "tag": "保留在 Channel 云环境",
+      "pos": [
+        40,
+        460
+      ],
+      "size": [
+        260,
+        80
+      ]
+    },
+    {
+      "id": "sales_worker",
+      "type": "backend",
+      "label": "Sales Agent 执行服务",
+      "sublabel": "模型选产品与缺项；正文由模板生成",
+      "tag": "channel-website · 自动处理停用",
+      "pos": [
+        480,
+        300
+      ],
+      "size": [
+        280,
+        90
+      ]
+    },
+    {
+      "id": "task_data",
+      "type": "database",
+      "label": "此客户的 Sales 任务库",
+      "sublabel": "sales_channel_website",
+      "tag": "独立逻辑库，复用本机 MySQL 引擎",
+      "pos": [
+        480,
+        460
+      ],
+      "size": [
+        280,
+        80
+      ]
+    },
+    {
+      "id": "resend",
+      "type": "external",
+      "label": "Resend 邮件平台",
+      "sublabel": "保存未发送草稿，供完整预览",
+      "pos": [
+        940,
+        300
+      ],
+      "size": [
+        230,
+        90
+      ]
+    },
+    {
+      "id": "wecom",
+      "type": "external",
+      "label": "企业微信通知群",
+      "sublabel": "两次通知的先后顺序见流程图",
+      "pos": [
+        940,
+        140
+      ],
+      "size": [
+        230,
+        80
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Channel 的腾讯云环境 · 上海",
+      "wraps": [
+        "chat_backend",
+        "inquiry_api",
+        "business_data"
+      ],
+      "pad": 34
+    },
+    {
+      "kind": "region",
+      "label": "现有 Hermes Hub 主机 · 法兰克福",
+      "wraps": [
+        "sales_worker",
+        "task_data"
+      ],
+      "pad": 34
+    },
+    {
+      "kind": "security-group",
+      "label": "外部平台",
+      "wraps": [
+        "resend",
+        "wecom"
+      ],
+      "pad": 26
+    }
+  ],
+  "connections": [
+    {
+      "id": "confirm",
+      "from": "visitor",
+      "to": "chat_backend",
+      "label": "确认提交",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 38
+    },
+    {
+      "id": "save",
+      "from": "chat_backend",
+      "to": "inquiry_api",
+      "label": "保存询盘请求",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 60
+    },
+    {
+      "id": "business_store",
+      "from": "inquiry_api",
+      "to": "business_data",
+      "label": "保存询盘；按需查产品与附件",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 55
+    },
+    {
+      "id": "notify_new",
+      "from": "inquiry_api",
+      "to": "sales_worker",
+      "label": "通知已有新询盘",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "read_context",
+      "from": "sales_worker",
+      "to": "inquiry_api",
+      "label": "按任务调用资料接口",
+      "fromSide": "left",
+      "toSide": "right",
+      "labelDy": 40
+    },
+    {
+      "id": "save_task",
+      "from": "sales_worker",
+      "to": "task_data",
+      "label": "保存任务与处理成果",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 55
+    },
+    {
+      "id": "save_draft",
+      "from": "sales_worker",
+      "to": "resend",
+      "label": "创建未发送草稿",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "notify_state",
+      "from": "sales_worker",
+      "to": "wecom",
+      "label": "程序发送阶段通知",
+      "fromSide": "top",
+      "toSide": "left"
+    }
+  ]
+}

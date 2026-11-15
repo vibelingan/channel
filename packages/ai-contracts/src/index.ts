@@ -1,3 +1,5 @@
+import type { InquiryOutcome, InquiryRejectionReason } from './inquiry.ts';
+import { type CatalogAction, isCatalogAction } from './products.ts';
 export interface CreateConversationRequest {
   locale?: string;
 }
@@ -11,6 +13,7 @@ export interface CreateConversationResponse {
 export interface AppendMessageRequest {
   message: string;
   idempotencyKey: string;
+  catalogAction?: CatalogAction;
 }
 
 export interface AppendMessageResponse {
@@ -24,6 +27,11 @@ export interface CancelResponse {
 }
 
 export type PublicSseEvent =
+  | {
+      type: 'tool.progress';
+      sequence: number;
+      action: 'knowledge_search' | 'model_answer' | 'product_search';
+    }
   | { type: 'token'; sequence: number; text: string }
   | {
       type: 'citation';
@@ -47,6 +55,7 @@ export type AiApiErrorCode =
   | 'RATE_LIMITED'
   | 'BUDGET_EXHAUSTED'
   | 'UNAVAILABLE'
+  | 'INQUIRY_REJECTED'
   | 'INTERNAL';
 
 export interface AiApiErrorEnvelope {
@@ -54,6 +63,9 @@ export interface AiApiErrorEnvelope {
     code: AiApiErrorCode;
     message: string;
     requestId: string;
+    /** Inquiry submissions only: whether anything may have been saved. */
+    outcome?: InquiryOutcome;
+    reason?: InquiryRejectionReason;
   };
 }
 
@@ -65,7 +77,8 @@ export function isAppendMessageRequest(value: unknown): value is AppendMessageRe
     value.message.length <= 8000 &&
     typeof value.idempotencyKey === 'string' &&
     value.idempotencyKey.length >= 8 &&
-    value.idempotencyKey.length <= 128
+    value.idempotencyKey.length <= 128 &&
+    (value.catalogAction === undefined || isCatalogAction(value.catalogAction))
   );
 }
 
@@ -80,3 +93,32 @@ export function isCreateConversationRequest(value: unknown): value is CreateConv
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+export {
+  type AnswerExtrasV2,
+  type ChatTurnV2,
+  type ChatEventV2,
+  type ConversationSnapshotV2,
+  isChatTurnV2,
+  isChatEventV2,
+  isConversationSnapshotV2,
+  isUuid,
+  isOperationKey,
+} from './chat-v2.ts';
+export {
+  type PublicProductCard,
+  type CatalogAction,
+  isCatalogAction,
+  isPublicProductCard,
+  isProductCards,
+  PRODUCT_KINDS,
+  PRODUCT_BATCH_SIZE,
+  type ProductResultSet,
+  isProductResultSet,
+  isFeatureList,
+  type InquirySuggestion,
+  isInquirySuggestion,
+  type AnswerSuggestion,
+  isAnswerSuggestions,
+  MAX_SUGGESTIONS,
+} from './products.ts';

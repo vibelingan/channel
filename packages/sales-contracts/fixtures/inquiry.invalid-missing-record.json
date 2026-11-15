@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "event_id": "inquiry.demo.oem.001",
+  "client_id": "client_demo_a",
+  "business_line": "gift_oem",
+  "source_installation_id": "channel_demo_a",
+  "source": "website_oem",
+  "source_revision": "1",
+  "submitted_at": "2026-10-23T09:00:00Z",
+  "contact": {
+    "email": "buyer@example.invalid",
+    "name": "示例买家",
+    "company": "示例公司"
+  },
+  "requirements": {
+    "confirmed_summary": "采购500份客户礼品，型号未定，请提供方案；已确认提交。",
+    "quantity": 500
+  },
+  "product_snapshot_refs": [],
+  "attachment_refs": []
+}

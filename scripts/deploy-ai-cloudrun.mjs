@@ -55,7 +55,12 @@ const READY_TIMEOUT_MS = 5 * 60 * 1000;
 const SMOKE_ATTEMPTS = 3;
 // Includes source upload and the MCP server's 45-second registration wait.
 // mcporter otherwise times out at 60 seconds, before execFileSync's deadline.
-const MCP_CALL_TIMEOUT_MS = 240_000;
+// The upload from a GitHub runner took 35 seconds on 2026-11-06 and 150 to 230
+// on 2026-11-11, then passed four minutes twice the same day; a deploy call is
+// made once (a repeat queues a second deploy), so it has to be allowed to finish.
+const MCP_CALL_TIMEOUT_MS = 540_000;
+// The process running the call outlives it, so the call's own error is the one reported.
+const MCP_PROCESS_TIMEOUT_MS = 600_000;
 
 const secretValues = [...GITHUB_SECRETS].map((name) => process.env[name]);
 const safe = (text) => redactValues(text, secretValues);
@@ -93,7 +98,7 @@ function callTool(tool, args, { attempts = 3 } = {}) {
           cwd: root,
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'pipe'],
-          timeout: 5 * 60 * 1000,
+          timeout: MCP_PROCESS_TIMEOUT_MS,
           maxBuffer: 64 * 1024 * 1024,
           env: {
             ...process.env,
@@ -222,7 +227,7 @@ function printRuntimeSignals(name) {
     const signals = [
       ...new Set(
         JSON.stringify(result).match(
-          /\b(database_unavailable|knowledge_base_unreachable|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|28P01|3D000|42501|startup_failed)\b/g,
+          /\b(database_unavailable|database_idle_connection_lost|knowledge_base_unreachable|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EHOSTUNREACH|28P01|3D000|42501|57P01|startup_failed)\b/g,
         ) ?? [],
       ),
     ];
@@ -391,10 +396,10 @@ async function smokeRoundTrip(url) {
     }
   }
   throw new Error(
-    'The BFF is ready but no answer came back, so the worker is not processing questions. ' +
-      'It keeps retrying rather than exiting, so CloudRun still shows it as running: open ai-worker ' +
-      'in the CloudRun console and look for knowledge_base_unreachable (it cannot reach the ' +
-      'knowledge base) or database_unavailable (it cannot reach PostgreSQL).',
+    'The BFF reached PostgreSQL, but the post-deploy question did not pass. ' +
+      'Check the error category above: an answer rejected by the publication policy does not ' +
+      'mean the worker stopped processing. If the stream timed out, also inspect worker startup ' +
+      'and database/knowledge connectivity before retrying the deployment.',
   );
 }
 
@@ -438,9 +443,15 @@ async function main() {
       if (name === 'ai-bff') {
         const url = publicUrl(detail);
         for (const path of ['/api/ai/healthz', '/api/ai/readyz']) {
-          const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(15_000) });
-          const body = await response.json();
-          log(JSON.stringify({ url: `${url}${path}`, httpStatus: response.status, body }));
+          // A hanging probe is itself the finding; it must not stop the logs
+          // and database checks below from being read.
+          try {
+            const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(15_000) });
+            const body = await response.json();
+            log(JSON.stringify({ url: `${url}${path}`, httpStatus: response.status, body }));
+          } catch (error) {
+            log(JSON.stringify({ url: `${url}${path}`, failed: error?.name ?? 'error' }));
+          }
         }
       }
       printProcessLog(name);
@@ -467,7 +478,9 @@ async function main() {
     printDatabaseNetwork(env);
     return;
   }
-  env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);
+  // Only the AnythingLLM path ships a recorded proof of its workspace; the
+  // vibekb worker checks each document's workspace and public tag as it reads.
+  if (env.AI_ENGINE_ID?.trim() === 'anythingllm') env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);
   // Builds every service definition, so a missing setting stops the deploy
   // here, before either service has changed.
   const ctx = deployContextFromEnv(env);

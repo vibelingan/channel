@@ -39,4 +39,4 @@
 
 SSH使用独立目录~/.ssh/channel-blog-publisher-20261027，未改默认密钥、全局SSH配置或共享agent。主机指纹与授权前保存的首次扫描一致并已固定；本轮未收到管理员独立指纹回传，因此采用的是首次使用信任，不将其描述为独立的带外验证。后续连接拒绝指纹变化。
 
-[机器可读验收结果](evidence/publisher-installation.json)只含状态、版本和摘要，不含任何凭证。
+[机器可读验收结果](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/delivery/2026-10-27/wecom/evidence/publisher-installation.json)只含状态、版本和摘要，不含任何凭证。

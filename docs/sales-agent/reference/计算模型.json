@@ -1,0 +1,21 @@
+{
+  "status": "assumed_not_measured",
+  "scope": "官网询盘至首封跟进邮件准备、审核和发送安排，不包含完整成交过程",
+  "defaults": {"daily": 15, "days": 22, "coverage": 0.8, "rework_rate": 0.2, "rework_minutes": 10, "daily_overhead": 15},
+  "steps": [
+    {"name": "阅读并整理需求", "manual": 5, "assisted": 1, "agent": "整理需求与缺失信息", "human": "核对需求摘要"},
+    {"name": "查询产品和资料", "manual": 8, "assisted": 2, "agent": "查询获准产品资料", "human": "核对产品匹配与事实"},
+    {"name": "编写跟进邮件", "manual": 8, "assisted": 3, "agent": "生成定制邮件草稿", "human": "修改内容与语气"},
+    {"name": "准备附件材料", "manual": 4, "assisted": 1.5, "agent": "整理方案和附件", "human": "核对版本与附件"},
+    {"name": "预览并批准发送", "manual": 2, "assisted": 1.5, "agent": "准备完整预览与待发动作", "human": "核对收件人并批准"},
+    {"name": "归档安排下一步", "manual": 3, "assisted": 1, "agent": "保存回执与跟进建议", "human": "核对结果与例外"}
+  ],
+  "outbound": {"unit": "一轮新获客活动，准备100条候选记录", "status": "assumed_not_measured", "steps": [
+    {"name": "目标人群与活动方向", "manual": 60, "assisted": 20},
+    {"name": "搜索筛选候选名单", "manual": 60, "assisted": 20},
+    {"name": "研究买家与匹配", "manual": 60, "assisted": 25},
+    {"name": "邮件序列文案准备", "manual": 45, "assisted": 15},
+    {"name": "名单邮箱及启动审核", "manual": 15, "assisted": 10}
+  ]},
+  "pricing_observed": {"date": "2026-10-15", "currency": "USD", "source": "https://www.apollo.io/pricing", "Basic": {"annual_per_seat_month":49,"monthly_per_seat":65}, "Professional": {"annual_per_seat_month":79,"monthly_per_seat":99}, "Organization": {"annual_per_seat_month":119,"min_seats":3,"monthly_note":"月付切换时仍显示 Annual Only，不作为月付报价"}}
+}

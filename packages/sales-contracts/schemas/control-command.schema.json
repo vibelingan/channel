@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:control-command:1.0",
+  "title": "ControlCommand",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action",
+        "expected_task_revision",
+        "target_version",
+        "target_content_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "approve"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "target_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "target_content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action",
+        "expected_task_revision",
+        "instruction"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "revise"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "instruction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "pattern": "[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action",
+        "expected_task_revision",
+        "target_version"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "reject"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "target_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "instruction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "pattern": "[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "pause"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "takeover"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "command_id",
+        "action",
+        "expected_task_revision"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\r\\n]+$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "action": {
+          "const": "resume"
+        },
+        "expected_task_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "instruction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "pattern": "[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        }
+      }
+    }
+  ]
+}

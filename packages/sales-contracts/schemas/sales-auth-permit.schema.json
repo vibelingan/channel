@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:channel:sales:auth:permit:1",
+  "title": "TaskPermit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "request_sha256",
+    "allowed",
+    "issued_at",
+    "expires_at"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "sales-auth/1"
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "allowed": {
+      "const": true
+    },
+    "issued_at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "expires_at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  }
+}

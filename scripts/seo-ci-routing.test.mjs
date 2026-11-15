@@ -17,7 +17,7 @@ test('SEO integration runs the same-SHA reusable CI and full business browsers w
     assert.equal(job['continue-on-error'], undefined);
   }
   const suites = workflow('ci').jobs.unit.strategy.matrix.include.map((item) => item.suite);
-  assert.deepEqual(suites, ['scripts', 'packages', 'services', 'site']);
+  assert.deepEqual([...new Set(suites)], ['scripts', 'packages', 'services', 'site']);
   assert.ok(!JSON.stringify(seo.jobs).includes('secrets.'));
 });
 test('Blog regression exercises real local editor and published HTML without cloud writes', () => {

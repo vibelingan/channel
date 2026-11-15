@@ -284,6 +284,128 @@ test('lost deletion acknowledgement keeps the whole batch pending and prevents l
   await assert.rejects(f.coordinator.acquire(runner('another-writer')), { code: 'LEASE_BUSY' });
 });
 
+function countedAdapters(f, options = {}) {
+  const calls = [];
+  const coordinator = Object.fromEntries(
+    Object.entries(f.coordinator).map(([name, value]) => [
+      name,
+      typeof value === 'function'
+        ? (...args) => {
+            calls.push(name);
+            return value.apply(f.coordinator, args);
+          }
+        : value,
+    ]),
+  );
+  const batches = [];
+  const provider = {
+    ...f.provider,
+    upload: () => assert.fail('a batched site plan must not upload file by file'),
+    uploadBatch: (files, opts) => {
+      batches.push({ paths: files.map((file) => file.path), parallel: opts.parallel });
+      return f.provider.uploadBatch(files, opts);
+    },
+  };
+  const adapters = createHostingRecoveryAdapters({
+    plan: f.plan,
+    directory: f.source.directory,
+    configurationPlan: f.conf,
+    coordinator,
+    guard: f.guard,
+    runId: 'recover-A',
+    provider,
+    request: f.http.request,
+    errorDocument: entry('errors/not-found.html', errorHtml),
+    operationTimeoutMs: 5000,
+    heartbeatMs: 60_000,
+    pollIntervalMs: 2,
+    requestTimeoutMs: 500,
+    ...options,
+  });
+  return { adapters, calls, batches };
+}
+
+test('each journaled site batch is one SDK upload, and read-only verification adds no run reads', async (t) => {
+  const f = await setup(t, { batchedRemovals: 1 });
+  const { adapters, calls, batches } = countedAdapters(f);
+  f.state.onEffect = () => {
+    const targetRow = f.store.inspect().find(([key]) => key.startsWith('targets/'))?.[1];
+    assert.ok(targetRow?.unresolvedOperation, 'intent must be committed before cloud effect');
+  };
+  await executeHostingRecovery(f.plan, adapters);
+  assert.deepEqual(
+    batches.map((batch) => batch.paths),
+    [['_astro/a.hash.js'], ['errors/not-found.html', 'index.html']],
+  );
+  assert.deepEqual(
+    batches.map((batch) => batch.parallel),
+    [1, 2],
+  );
+  assert.equal(f.state.uploads, batches.length);
+  // Inventory and delete clients carry no upload parallel; each upload batch built one client.
+  assert.deepEqual(
+    f.state.cosClients.flatMap((client) =>
+      client.parallel === undefined ? [] : [client.parallel],
+    ),
+    [1, 2],
+  );
+  // Between an upload's submission and its confirmation, only public HTTP reads happen.
+  let submitted = false;
+  for (const name of calls) {
+    if (name === 'recordSubmitted') submitted = true;
+    else if (name === 'confirmStep') submitted = false;
+    else if (submitted) assert.fail(`verification called ${name}`);
+  }
+  // Every operation finished well inside renewReuseMs, so only the first one renewed.
+  assert.equal(calls.filter((name) => name === 'renew').length, 1);
+  assert.equal((await f.coordinator.runStatus('recover-A')).verifiedSteps, f.descriptor.stepCount);
+});
+
+test('with renewal reuse off, every leased hosting operation renews first', async (t) => {
+  const f = await setup(t, { batchedRemovals: 1 });
+  const { adapters, calls } = countedAdapters(f, { renewReuseMs: 0 });
+  await executeHostingRecovery(f.plan, adapters);
+  // Two upload batches, their two verifications, one removal batch, configuration, acceptance.
+  assert.equal(calls.filter((name) => name === 'renew').length, 7);
+});
+
+test('a lost file acknowledgement keeps its whole batch unknown and starts no later batch', async (t) => {
+  const f = await setup(t, { batchedRemovals: 1 });
+  const { adapters, batches } = countedAdapters(f);
+  f.state.missingAck = new Set(['_astro/a.hash.js']);
+  await assert.rejects(executeHostingRecovery(f.plan, adapters));
+  assert.equal(batches.length, 1);
+  const status = await f.coordinator.status();
+  assert.equal(status.pendingStep.state, 'unknown');
+  assert.deepEqual(
+    status.pendingStep.members.map((member) => member.path),
+    ['_astro/a.hash.js'],
+  );
+  assert.equal(f.state.files.get('index.html').toString(), '<h1>Old home</h1>');
+  await assert.rejects(f.coordinator.acquire(runner('another-writer')), { code: 'LEASE_BUSY' });
+});
+
+test('a batched site plan is refused before any journal write when the provider cannot batch', async (t) => {
+  const f = await setup(t, { batchedRemovals: 1 });
+  const { uploadBatch: _omit, ...provider } = f.provider;
+  assert.throws(
+    () =>
+      createHostingRecoveryAdapters({
+        plan: f.plan,
+        directory: f.source.directory,
+        configurationPlan: f.conf,
+        coordinator: f.coordinator,
+        guard: f.guard,
+        runId: 'recover-A',
+        provider,
+        request: f.http.request,
+        errorDocument: entry('errors/not-found.html', errorHtml),
+      }),
+    /requires a batch hosting upload/,
+  );
+  assert.equal((await f.coordinator.status()).pendingStep, null);
+});
+
 test('A2 + B1 + installed Manager SDK restores local HTTP bytes with a journal before every effect', async (t) => {
   const f = await setup(t);
   const before = (await f.coordinator.status()).scope.active;

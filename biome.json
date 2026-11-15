@@ -11,7 +11,11 @@
       "node_modules",
       ".astro",
       "apps/local-server/data",
-      "packages/db/src/cloudbase-adapter.ts"
+      "packages/db/src/cloudbase-adapter.ts",
+      "packages/sales-contracts/schemas",
+      "packages/sales-contracts/fixtures",
+      "packages/sales-contracts/src/*.generated.ts",
+      "docs/sales-agent"
     ]
   },
   "organizeImports": {

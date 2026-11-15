@@ -3,7 +3,12 @@ import type {
   CreateConversationResponse,
   PublicSseEvent,
 } from '@vibelingan-channel/ai-contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChatPanel } from '../../components/chat/ChatPanel';
+import { safePublicChatLink } from '../../components/chat/public-link';
+import { AnswerAttribution } from './assistant/AnswerAttribution';
+import { AssistantActivity } from './assistant/AssistantActivity';
+import type { TurnPhase } from './assistant/model';
 
 interface StoredConversation {
   conversationId: string;
@@ -21,31 +26,49 @@ interface ChatMessage {
 const STORAGE_KEY = 'channel.ai.conversation.v1';
 const SEQUENCE_KEY = 'channel.ai.sequence.v1';
 
+import { ConnectedAssistant } from './assistant/ConnectedAssistant';
+
 export function AssistantWidget() {
-  const apiBase = (import.meta.env.PUBLIC_AI_API_BASE_URL ?? '').replace(/\/$/, '');
+  return import.meta.env.PUBLIC_AI_CHAT_V2 === '1' ? (
+    <ConnectedAssistant />
+  ) : (
+    <LegacyAssistantWidget />
+  );
+}
+
+export function LegacyAssistantWidget({
+  apiBase: configuredApiBase = import.meta.env.PUBLIC_AI_API_BASE_URL ?? '',
+}: { apiBase?: string } = {}) {
+  const apiBase = configuredApiBase.replace(/\/$/, '');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [phase, setPhase] = useState<TurnPhase>('queued');
+  const [activity, setActivity] = useState<string>();
+  const [answerId, setAnswerId] = useState<string>();
   const [status, setStatus] = useState<'ready' | 'streaming' | 'unavailable'>(
     apiBase ? 'ready' : 'unavailable',
   );
   const [conversation, setConversation] = useState<StoredConversation | null>(null);
   const [lastSequence, setLastSequence] = useState(0);
+  // True from a failed turn until the next question is sent. `status` stays
+  // 'ready': 'unavailable' is only for a page with no assistant service at all.
+  const [turnFailed, setTurnFailed] = useState(false);
   const transcriptVersion = messages.reduce(
     (size, message) => size + message.text.length + (message.citations?.length ?? 0),
     0,
   );
   const abortRef = useRef<AbortController | null>(null);
+  const stoppingRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
-  function closeAssistant() {
-    abortRef.current?.abort();
+  const closeAssistant = useCallback(() => {
     setOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
-  }
+  }, []);
 
   useEffect(() => {
     const saved = readConversation();
@@ -62,14 +85,12 @@ export function AssistantWidget() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && open) {
-        abortRef.current?.abort();
-        setOpen(false);
-        requestAnimationFrame(() => triggerRef.current?.focus());
+        closeAssistant();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
+  }, [open, closeAssistant]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -88,15 +109,24 @@ export function AssistantWidget() {
 
   async function submit() {
     const message = draft.trim();
-    if (!message || busy || !apiBase) return;
+    if (!message || busy || abortRef.current || !apiBase) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const assistantId = crypto.randomUUID();
+    setAnswerId(assistantId);
+    setPhase('queued');
+    setTurnFailed(false);
+    setActivity(undefined);
     setBusy(true);
     setDraft('');
     setMessages((current) => [
       ...current,
       { id: crypto.randomUUID(), role: 'visitor', text: message },
+      { id: assistantId, role: 'assistant', text: '' },
     ]);
     try {
-      const active = conversation ?? (await createConversation(apiBase));
+      const active = conversation ?? (await createConversation(apiBase, controller.signal));
+      controller.signal.throwIfAborted();
       if (!conversation) {
         setConversation(active);
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(active));
@@ -111,35 +141,46 @@ export function AssistantWidget() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ message, idempotencyKey: crypto.randomUUID() }),
+          signal: controller.signal,
         },
       );
+      controller.signal.throwIfAborted();
       if (!response.ok) throw new Error('message_failed');
-      const accepted = parseAppendMessage(await response.json());
-      if (accepted.disposition !== 'replayed') await stream(active);
+      parseAppendMessage(await response.json());
+      controller.signal.throwIfAborted();
+      await stream(active, controller, assistantId);
     } catch (caught) {
-      if (isAbortError(caught)) return;
-      setStatus('unavailable');
+      if (isAbortError(caught) || controller.signal.aborted || abortRef.current !== controller)
+        return;
+      // One failed turn is not the end of the conversation: keep the composer
+      // so the visitor can ask again, and offer the team as the other way out.
+      setStatus('ready');
+      setPhase('failed');
+      setTurnFailed(true);
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: 'status',
-          text: 'The assistant is unavailable right now. Please send us your project instead.',
+          text: 'The assistant could not be reached just now. Please try again, or send us your project.',
         },
       ]);
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
+      if (stoppingRef.current === controller) stoppingRef.current = null;
     }
   }
 
-  async function stream(active: StoredConversation) {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  async function stream(
+    active: StoredConversation,
+    controller: AbortController,
+    assistantId: string,
+  ) {
     setStatus('streaming');
-    const assistantId = crypto.randomUUID();
     let cursor = lastSequence;
-    setMessages((current) => [...current, { id: assistantId, role: 'assistant', text: '' }]);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await fetch(
         `${apiBase}/api/ai/conversations/${active.conversationId}/events`,
@@ -153,10 +194,19 @@ export function AssistantWidget() {
       );
       if (!response.ok || !response.body) throw new Error('stream_failed');
       for await (const event of eventStream(response.body)) {
+        if (controller.signal.aborted || abortRef.current !== controller) return;
         cursor = Math.max(cursor, event.sequence);
         setLastSequence(cursor);
         sessionStorage.setItem(SEQUENCE_KEY, String(cursor));
-        if (event.type === 'token') {
+        if (event.type === 'tool.progress') {
+          if (['knowledge_search', 'product_search', 'model_answer'].includes(event.action)) {
+            setPhase('reading');
+            setActivity(event.action);
+          }
+        } else if (event.type === 'token') {
+          if (!event.text) continue;
+          setPhase('streaming');
+          setActivity(undefined);
           setMessages((current) =>
             current.map((item) =>
               item.id === assistantId ? { ...item, text: item.text + event.text } : item,
@@ -184,19 +234,37 @@ export function AssistantWidget() {
                 ? {
                     ...item,
                     role: 'status',
-                    text: 'I could not ground an answer. Please ask our team.',
+                    text: 'I could not answer that just now. Please try again, or send us your project.',
                   }
                 : item,
             ),
           );
-          setStatus('unavailable');
+          setStatus('ready');
+          setPhase('failed');
+          setTurnFailed(true);
           controller.abort();
           return;
         } else if (event.type === 'final') {
+          setMessages((current) =>
+            current.map((item) =>
+              item.id === assistantId
+                ? {
+                    ...item,
+                    text: event.text?.trim()
+                      ? event.text
+                      : item.text.trim()
+                        ? item.text
+                        : 'I could not find an answer for this question. Please ask our team.',
+                  }
+                : item,
+            ),
+          );
+          setPhase('complete');
           setStatus('ready');
           controller.abort();
           return;
         } else if (event.type === 'assistant.cancelled' || event.type === 'handoff.started') {
+          setPhase('stopped');
           setStatus('ready');
           controller.abort();
           return;
@@ -209,185 +277,205 @@ export function AssistantWidget() {
   }
 
   async function stop() {
-    abortRef.current?.abort();
+    const controller = abortRef.current;
     const active = conversation;
-    if (active) {
-      await fetch(`${apiBase}/api/ai/conversations/${active.conversationId}/cancel`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${active.credential}` },
-      }).catch(() => undefined);
+    if (status !== 'streaming' || !controller || !active || stoppingRef.current) return;
+    stoppingRef.current = controller;
+    setPhase('stopping');
+    try {
+      const response = await fetch(
+        `${apiBase}/api/ai/conversations/${active.conversationId}/cancel`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${active.credential}` },
+        },
+      );
+      const result: unknown = response.ok ? await response.json() : undefined;
+      if (abortRef.current !== controller || controller.signal.aborted) return;
+      if (
+        typeof result !== 'object' ||
+        result === null ||
+        !('cancelled' in result) ||
+        result.cancelled !== true
+      )
+        throw new Error('cancellation_unconfirmed');
+      controller.abort();
+      abortRef.current = null;
+      setPhase('stopped');
+      setStatus('ready');
+      setBusy(false);
+    } catch {
+      if (abortRef.current !== controller || controller.signal.aborted) return;
+      setPhase((current) => (current === 'stopping' ? phase : current));
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: 'status',
+          text: 'I could not confirm stopping this answer. It may still arrive.',
+        },
+      ]);
+    } finally {
+      if (stoppingRef.current === controller) stoppingRef.current = null;
     }
-    setStatus('ready');
-    setBusy(false);
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
-      {open && (
-        <dialog
-          open
-          aria-modal="false"
-          aria-label="Diversity Innovations Limited AI assistant"
-          className="relative mb-3 ml-0 flex h-[min(38rem,calc(100svh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white p-0 shadow-2xl"
-        >
-          <header className="flex items-center justify-between bg-brand-950 px-4 py-3 text-white">
-            <div>
-              <h2 className="font-display text-sm font-semibold">Product assistant</h2>
-              <p className="text-xs text-slate-300">AI answers from approved public sources</p>
-            </div>
-            <button
-              type="button"
-              onClick={closeAssistant}
-              className="rounded-lg p-2 text-slate-200 hover:bg-white/10"
-              aria-label="Close assistant"
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </header>
-
-          <div
-            ref={transcriptRef}
-            className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4"
-            aria-live="polite"
-          >
-            {messages.length === 0 && (
-              <div className="rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-soft shadow-sm">
-                Ask about our OEM process, products, MOQ, quality controls, or certifications. I
-                will refuse rather than guess when no approved source supports an answer.
-              </div>
-            )}
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={
-                  message.role === 'visitor'
-                    ? 'ml-8 rounded-xl bg-brand-700 px-4 py-3 text-sm text-white'
-                    : message.role === 'status'
-                      ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
-                      : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
-                }
-              >
-                <p className="whitespace-pre-wrap">{message.text || '…'}</p>
-                {message.citations && message.citations.length > 0 && (
-                  <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
-                    {message.citations.map((citation, index) => (
-                      <li key={`${citation.title}-${index}`}>
-                        {citation.url ? (
-                          <a
-                            href={citation.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-brand-700 underline"
-                          >
-                            {citation.title} ↗
-                          </a>
-                        ) : (
-                          citation.title
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-slate-200 bg-white p-3">
-            {status === 'unavailable' ? (
-              <a
-                href="/#oem-inquiry"
-                className="flex w-full items-center justify-center rounded-lg bg-accent-500 px-4 py-3 text-sm font-semibold text-brand-950 hover:bg-accent-400"
-              >
-                Send your project to our team
-              </a>
-            ) : (
-              <form
-                // The panel only renders once hydrated, so this form never
-                // reaches a browser with no JavaScript. `method="post"` is
-                // declared anyway: a <form> with no method natively submits
-                // GET, which would put whatever the visitor typed into the URL,
-                // their history and the Referer header. Making that safe by
-                // construction beats relying on a render-order argument that a
-                // later refactor can silently invalidate.
-                method="post"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submit();
-                }}
-                className="flex items-end gap-2"
-              >
-                <label htmlFor="ai-assistant-message" className="sr-only">
-                  Your question
-                </label>
-                <textarea
-                  ref={inputRef}
-                  id="ai-assistant-message"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  rows={2}
-                  maxLength={8000}
-                  disabled={busy}
-                  placeholder="Ask a product question…"
-                  className="min-h-11 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
-                />
-                {status === 'streaming' ? (
-                  <button
-                    type="button"
-                    onClick={() => void stop()}
-                    className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-ink"
-                  >
-                    Stop
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={busy || !draft.trim()}
-                    className="rounded-lg bg-brand-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
-                  >
-                    Send
-                  </button>
-                )}
-              </form>
-            )}
-            <p className="mt-2 text-center text-[11px] text-ink-muted">
-              AI can make mistakes. Verify commercial terms with our team.
-            </p>
-          </div>
-        </dialog>
-      )}
-
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        className="ml-auto flex items-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+    <ChatPanel
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setOpen(true);
+        else closeAssistant();
+      }}
+      triggerRef={triggerRef}
+    >
+      <div
+        ref={transcriptRef}
+        className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4"
+        aria-live="polite"
       >
-        <span
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-brand-950"
-          aria-hidden="true"
-        >
-          ✦
-        </span>
-        Ask our AI
-      </button>
-      <noscript>
-        <a
-          href="/#oem-inquiry"
-          className="mt-2 block text-sm font-semibold text-brand-700 underline"
-        >
-          Contact our team
-        </a>
-      </noscript>
-    </div>
+        {messages.length === 0 && (
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 text-sm leading-relaxed text-ink-soft shadow-sm">
+            <p className="mb-2 text-base font-semibold tracking-tight text-brand-950">
+              What are you working on?
+            </p>
+            Ask about our products, OEM process or quality standards. If a detail needs confirming,
+            we will help you reach our team.
+          </div>
+        )}
+        <LegacyTranscript
+          messages={messages}
+          {...(busy && phase === 'streaming' && answerId ? { streamingMessageId: answerId } : {})}
+        />
+        {busy && (
+          <AssistantActivity
+            phase={phase}
+            activity={activity}
+            hasContent={Boolean(messages.find((message) => message.id === answerId)?.text.trim())}
+          />
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 bg-white p-3">
+        {status === 'unavailable' ? (
+          <a
+            href="/#oem-inquiry"
+            className="flex w-full items-center justify-center rounded-lg bg-accent-500 px-4 py-3 text-sm font-semibold text-brand-950 hover:bg-accent-400"
+          >
+            Send your project to our team
+          </a>
+        ) : (
+          <form
+            // The panel only renders once hydrated, so this form never
+            // reaches a browser with no JavaScript. `method="post"` is
+            // declared anyway: a <form> with no method natively submits
+            // GET, which would put whatever the visitor typed into the URL,
+            // their history and the Referer header. Making that safe by
+            // construction beats relying on a render-order argument that a
+            // later refactor can silently invalidate.
+            method="post"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+            className="flex items-end gap-2"
+          >
+            <label htmlFor="ai-assistant-message" className="sr-only">
+              Your question
+            </label>
+            <textarea
+              ref={inputRef}
+              id="ai-assistant-message"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={2}
+              maxLength={8000}
+              disabled={busy}
+              placeholder="Ask about products or your project…"
+              className="min-h-12 min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 bg-surface-alt px-3.5 py-3 text-sm leading-5 focus:border-brand-400 focus:outline-2 focus:outline-offset-1 focus:outline-brand-500 disabled:bg-slate-100"
+            />
+            {status === 'streaming' ? (
+              <button
+                type="button"
+                onClick={() => void stop()}
+                disabled={phase === 'stopping'}
+                className="min-h-12 min-w-[4.5rem] rounded-xl border border-brand-200 bg-brand-50 px-3 text-xs font-semibold text-brand-900 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50"
+              >
+                {phase === 'stopping' ? 'Stopping…' : 'Stop'}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={busy || !draft.trim()}
+                className="min-h-12 min-w-[4.5rem] rounded-xl bg-brand-700 px-3 text-sm font-semibold text-white hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-40"
+              >
+                Send
+              </button>
+            )}
+          </form>
+        )}
+        {status !== 'unavailable' && turnFailed && (
+          <a
+            href="/#oem-inquiry"
+            className="mt-2 block text-center text-sm font-semibold text-brand-700 underline"
+          >
+            Send your project to our team
+          </a>
+        )}
+        <p className="mt-2 text-center text-[11px] text-ink-muted">
+          AI can make mistakes. Verify commercial terms with our team. ·{' '}
+          <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline">
+            Privacy
+          </a>
+        </p>
+      </div>
+    </ChatPanel>
   );
 }
 
-async function createConversation(apiBase: string): Promise<StoredConversation> {
+export function LegacyTranscript({
+  messages,
+  streamingMessageId,
+}: { messages: ChatMessage[]; streamingMessageId?: string }) {
+  return (
+    <>
+      {messages
+        .filter((message) => message.text.trim())
+        .map((message) => (
+          <div key={message.id}>
+            <div
+              data-message-role={message.role}
+              className={
+                message.role === 'visitor'
+                  ? 'assistant-message ml-8 rounded-2xl rounded-br-md bg-brand-700 px-4 py-3 text-sm leading-relaxed text-white'
+                  : message.role === 'status'
+                    ? 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+                    : 'assistant-message mr-2 rounded-2xl rounded-bl-md border border-slate-200/80 bg-white p-4 text-sm leading-7 text-ink shadow-sm'
+              }
+            >
+              <p className="whitespace-pre-wrap break-words">
+                {message.text}
+                {message.id === streamingMessageId && (
+                  <span className="assistant-writing-cursor" aria-hidden="true" />
+                )}
+              </p>
+            </div>
+            {message.role === 'assistant' && <AnswerAttribution citations={message.citations} />}
+          </div>
+        ))}
+    </>
+  );
+}
+
+async function createConversation(
+  apiBase: string,
+  signal: AbortSignal,
+): Promise<StoredConversation> {
   const response = await fetch(`${apiBase}/api/ai/conversations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locale: 'en' }),
+    signal,
   });
   if (!response.ok) throw new Error('conversation_failed');
   return parseCreateConversation(await response.json());
@@ -513,13 +601,7 @@ function isPublicEvent(value: unknown): value is PublicSseEvent {
 }
 
 function safeCitationUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
+  return safePublicChatLink(value, window.location.origin);
 }
 
 function isAbortError(value: unknown): boolean {

@@ -1,6 +1,6 @@
 # Google、Bing 本次复查
 
-观察日期：2026-11-04。以下来自现有登录会话的实际界面；没有重新登录或换浏览器。平台汇总、单网址历史结果和实时测试分开记录。原始摘要见[platform-observation.json](../evidence/2026-11-04-performance/platform-observation.json)。
+观察日期：2026-11-04。以下来自现有登录会话的实际界面；没有重新登录或换浏览器。平台汇总、单网址历史结果和实时测试分开记录。原始摘要见[platform-observation.json](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/seo/continuation/evidence/2026-11-04-performance/platform-observation.json)。
 
 ## 当前结论
 

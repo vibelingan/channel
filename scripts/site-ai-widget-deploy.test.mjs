@@ -29,6 +29,12 @@ test('the live-site build is given the assistant API address from the test envir
   );
 });
 
+test('the new assistant and its inquiries are switched by test-environment variables, off by default', () => {
+  for (const name of ['PUBLIC_AI_CHAT_V2', 'PUBLIC_AI_INQUIRIES']) {
+    assert.equal(String(deploy.env?.[name] ?? ''), `\${{ vars.${name} || '0' }}`);
+  }
+});
+
 test('a site build without a working assistant address never reaches the live site', () => {
   const build = stepIndex('Build site');
   const check = stepIndex('Check the built site can reach the AI assistant');

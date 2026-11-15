@@ -20,7 +20,7 @@ Both images use the same live `/oem#capabilities` section and 390px viewport. Th
 
 | Old failure reproduced | MIU 5 fixed baseline |
 |---|---|
-| [Opacity-zero content](miu5-evidence/old-failure-390.png) | [Default-visible content](miu5-evidence/fixed-390.png) |
+| [Opacity-zero content](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/home-form-headphones-ui-fix/miu5-evidence/old-failure-390.png) | [Default-visible content](https://github.com/vibelingan/channel/blob/archive/docs-evidence-2026-11-05/docs/home-form-headphones-ui-fix/miu5-evidence/fixed-390.png) |
 
 The visual difference is intentionally blunt: in the old state, the section heading, copy, cards, note, and factory media disappear even though they remain in the DOM. The fixed state renders all content before any observer class mutation. Browser assertions remain the authoritative gate.
 

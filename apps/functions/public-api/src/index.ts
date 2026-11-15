@@ -11,9 +11,14 @@ import {
   readCatalogSeoPageOrigin,
 } from '@vibelingan-channel/db/catalog-seo-pages';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { salesCaptureFromEnv } from '@vibelingan-channel/db/sales-inquiry-submission';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
+import {
+  configuredWebsiteDelivery,
+  submissionDelivery,
+} from '../../sales-integration/src/runtime-delivery.ts';
 import {
   type PublicHttpConfig,
   handlePublicApiEvent,
@@ -25,6 +30,8 @@ setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const catalogPageOrigin = readCatalogSeoPageOrigin(process.env);
+const salesCapture = salesCaptureFromEnv(process.env);
+const salesAfterSave = submissionDelivery(configuredWebsiteDelivery());
 const config: PublicHttpConfig = {
   ...(optionalEnv('ARTICLE_PUBLIC_READ_ENABLED') === '1'
     ? {
@@ -34,6 +41,8 @@ const config: PublicHttpConfig = {
         ),
       }
     : {}),
+  ...(salesCapture ? { salesCapture } : {}),
+  salesAfterSave,
   enableCatalogDetail: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   ...(catalogPageOrigin
     ? {
