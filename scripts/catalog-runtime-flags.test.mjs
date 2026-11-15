@@ -82,3 +82,23 @@ test('clock enabling also requires the public API readiness switch after bootstr
   );
   await checkCatalogRuntimeFlags(x.manager, { ...config, requireReadiness: true }, 'fixture-env');
 });
+
+test('normal deployment cannot silently disable already enabled page readiness', async () => {
+  const x = setup();
+  x.records['public-api'].Environment.Variables.push(
+    { Key: 'CATALOG_SEO_PAGE_READINESS', Value: '1' },
+    { Key: 'CATALOG_SEO_SITE_ORIGIN', Value: config.siteOrigin },
+  );
+  for (const pageReadiness of [undefined, '', '0'])
+    await assert.rejects(
+      checkCatalogRuntimeFlags(x.manager, config, 'fixture-env', { pageReadiness }),
+      /normal deployment cannot disable page readiness/,
+    );
+  await checkCatalogRuntimeFlags(x.manager, config, 'fixture-env', { pageReadiness: '1' });
+  // A static-only bootstrap does not update the API's function settings.
+  await checkCatalogRuntimeFlags(x.manager, config, 'fixture-env');
+  x.records['public-api'].Environment.Variables.find(
+    (item) => item.Key === 'CATALOG_SEO_PAGE_READINESS',
+  ).Value = '0';
+  await checkCatalogRuntimeFlags(x.manager, config, 'fixture-env', { pageReadiness: '0' });
+});

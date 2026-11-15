@@ -1,6 +1,13 @@
 const writers = ['admin', 'alibaba-catalog-sync'];
+/** A normal release must not silently disable a website's existing change tracking. */
+export function assertCatalogTrackingContinuity(active, config) {
+  if (active?.catalogTracked === true && !config)
+    throw Error(
+      'Existing tracked product pages require CATALOG_SEO_RECORDING=1 and their site origin; normal publication cannot disable change tracking',
+    );
+}
 /** Read only the managed flags; credentials in the returned SDK details never enter reports. */
-export async function checkCatalogRuntimeFlags(manager, config, envId) {
+export async function checkCatalogRuntimeFlags(manager, config, envId, deployment) {
   const results = [];
   for (const name of [...writers, 'public-api']) {
     const detail = await manager.functions.getFunctionDetail(name);
@@ -34,6 +41,15 @@ export async function checkCatalogRuntimeFlags(manager, config, envId) {
         flag('CATALOG_SEO_SITE_ORIGIN') !== config.siteOrigin)
     )
       throw Error('public-api: existing product-page readiness has not been enabled');
+    if (
+      name === 'public-api' &&
+      deployment &&
+      flag('CATALOG_SEO_PAGE_READINESS') === '1' &&
+      deployment.pageReadiness !== '1'
+    )
+      throw Error(
+        'Existing tracked product pages: normal deployment cannot disable page readiness',
+      );
     results.push({ name, detailEnabled: config.detailEnabled, recording: writers.includes(name) });
   }
   return results;

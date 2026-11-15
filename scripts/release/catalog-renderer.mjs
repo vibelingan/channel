@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { sha256 } from './input.mjs';
 
@@ -62,6 +62,7 @@ export function packCatalogRenderer({
     lockSha256: sha256(lock),
     files: entries.length,
   };
+  mkdirSync(dirname(directory), { recursive: true });
   mkdirSync(directory, { recursive: false });
   writeFileSync(join(directory, 'renderer.tar.gz'), archive, { flag: 'wx', mode: 0o600 });
   writeFileSync(join(directory, 'renderer.json'), JSON.stringify(manifest), {

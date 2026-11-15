@@ -1,4 +1,5 @@
 import { setTimeout as pause } from 'node:timers/promises';
+import { assertCatalogRuntimeProof } from './catalog-runtime-recovery.mjs';
 import { identity, isHash } from './input.mjs';
 const purpose = 'initial-catalog-runtime';
 /** Only the initial switch from untracked writers needs this wait. Ordinary tracked releases do not repeat it. */
@@ -86,28 +87,14 @@ export async function settleInitialCatalogRuntime({
   return row;
 }
 export function assertInitialCatalogRuntime(row, siteOrigin, now = Date.now()) {
-  if (
-    row?.schemaVersion !== 1 ||
-    row.purpose !== purpose ||
-    row.siteOrigin !== siteOrigin ||
-    row.accepted !== true ||
-    !/^[a-f0-9]{40}$/.test(row.codeSha ?? '') ||
-    !/^[1-9][0-9]*$/.test(row.sourceRunId ?? '') ||
-    !isHash(row.configurationHash) ||
-    !Number.isSafeInteger(row.observedAt) ||
-    !Number.isSafeInteger(row.usableAfter) ||
-    !Number.isSafeInteger(row.acceptedAt) ||
-    !Number.isSafeInteger(row.maximumTimeoutSeconds) ||
-    row.maximumTimeoutSeconds < 1 ||
-    row.maximumTimeoutSeconds > 900 ||
-    row.usableAfter !== row.observedAt + (row.maximumTimeoutSeconds + 120) * 1000 ||
-    row.acceptedAt < row.usableAfter ||
-    row.acceptedAt > now
-  )
-    throw Error(
-      'Initial catalog writer activation has not finished; do not build tracked HTML yet',
-    );
-  return row;
+  // SDK document reads add this marker; it is outside the runtime proof schema.
+  if (row !== null && typeof row === 'object' && '_id' in row) {
+    if (!Object.hasOwn(row, '_id') || row._id !== 'runtime-activation')
+      throw Error('Unexpected catalog activation document identifier');
+    const { _id, ...proof } = row;
+    return assertCatalogRuntimeProof(proof, siteOrigin, now);
+  }
+  return assertCatalogRuntimeProof(row, siteOrigin, now);
 }
 async function store(registry, row) {
   try {

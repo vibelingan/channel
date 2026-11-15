@@ -11,7 +11,10 @@ import { captureCatalogRegionalInput } from '../catalog-regional-capture.mjs';
 import { createCatalogRegionalClient } from '../catalog-regional-client.mjs';
 import { createReleaseRegionalClient } from '../release-regional-client.mjs';
 import { assertInitialCatalogRuntime } from '../release/catalog-runtime-activation.mjs';
-import { checkCatalogRuntimeFlags } from '../release/catalog-runtime-flags.mjs';
+import {
+  assertCatalogTrackingContinuity,
+  checkCatalogRuntimeFlags,
+} from '../release/catalog-runtime-flags.mjs';
 import { publicBuildEnvironment } from '../release/public-build-env.mjs';
 import { createSiteGithubSource } from '../release/site-github-source.mjs';
 import { siteArtifact } from '../release/site-payload.mjs';
@@ -46,6 +49,13 @@ export async function prepareProducts(env = process.env) {
     secretKey: env.TENCENTCLOUD_SECRETKEY,
   });
   const catalogConfig = readCatalogSeoRecordingConfig(env);
+  if (!catalogConfig) {
+    const active = await db.collection('catalogSeoBuilders').doc('active').get();
+    assertCatalogTrackingContinuity(
+      Array.isArray(active.data) ? active.data[0] : active.data,
+      catalogConfig,
+    );
+  }
   const manager = new CloudBase({
     envId: policy.envId,
     region: policy.region,
@@ -68,7 +78,9 @@ export async function prepareProducts(env = process.env) {
       const status = await coordinator.status({ scopeKey: 'site' });
       assertCleanAcceptedSite(status);
       if (catalogConfig) {
-        await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
+        await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId, {
+          pageReadiness: env.CATALOG_SEO_PAGE_READINESS,
+        });
         const activation = await db
           .collection('catalogSeoBuilders')
           .doc('runtime-activation')

@@ -11,13 +11,13 @@ on:
         default: plan
         required: true
       catalog_runtime_action:
-        description: Initial catalog runtime setup; code first, recording next, page readiness after tracked HTML acceptance
+        description: Initial setup or settings-only recovery; page readiness follows tracked HTML acceptance
         type: choice
-        options: [stage, record, readiness]
+        options: [stage, record, readiness, resume, resume-readiness]
         default: stage
         required: false
       catalog_runtime_sha:
-        description: Exact deployed and CI-approved function source for recording/readiness; empty uses this workflow commit
+        description: Function source for record/readiness; resume phases require this workflow commit (empty allowed)
         type: string
         required: false
       integration_profile:
@@ -84,7 +84,7 @@ jobs:
   catalog_runtime:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-runtime' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     environment: test
     env:
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
@@ -126,7 +126,10 @@ jobs:
           script: |
             const { spawn } = require('node:child_process');
             await new Promise((resolve, reject) => {
-              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/stage-catalog-runtime.ts'], {stdio:'inherit', env:process.env});
+              const entry = ['resume', 'resume-readiness'].includes(process.env.CATALOG_RUNTIME_ACTION)
+                ? 'scripts/resume-catalog-runtime.ts'
+                : 'scripts/stage-catalog-runtime.ts';
+              const child = spawn('./apps/site/node_modules/.bin/tsx', [entry], {stdio:'inherit', env:process.env});
               child.once('error', reject);
               child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Catalog runtime setup stopped (${code}); inspect its receipt before retrying`)));
             });
