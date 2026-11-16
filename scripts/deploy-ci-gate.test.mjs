@@ -333,7 +333,7 @@ test('browser component units retain both required engines in the site unit grou
   const install = unit.steps.findIndex(
     (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
   );
-  const tests = unit.steps.findIndex((step) => step.run === '${{ matrix.command }}');
+  const tests = unit.steps.findIndex((step) => step.name === 'Run unit group');
   assert.ok(install >= 0 && install < tests);
   // No core dumps while the browser unit groups run: a crashed WebKit helper otherwise makes
   // systemd-coredump stall the runner's disk and time out an unrelated test
@@ -343,10 +343,9 @@ test('browser component units retain both required engines in the site unit grou
   );
   assert.ok(cores >= 0 && cores < tests);
   assert.equal(unit.steps[cores].if, "${{ matrix.suite == 'site' }}");
-  assert.equal(
-    unit.steps[cores].run,
-    'sudo sysctl -w kernel.core_pattern=core\ntest "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }\n',
-  );
+  assert.equal(unit.steps[cores].run, 'sudo sysctl -w kernel.core_pattern=core');
+  // The limit is set in the same shell that starts the tests; a separate step cannot set it.
+  assert.equal(unit.steps[tests].run, 'ulimit -c 0\n${{ matrix.command }}\n');
   const mirror = unit.steps.findIndex(
     (step) => step.name === 'Use the Ubuntu archive for browser dependencies',
   );

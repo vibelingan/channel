@@ -55,11 +55,18 @@ publication a few seconds after such a crash.
 
 `.github/workflows/ci.yml`, unit job, step "Keep crashed browser helpers from
 writing core dumps": `sudo sysctl -w kernel.core_pattern=core`. The runner's
-core limit is already 0, but its default pattern
-(`|/usr/lib/systemd/systemd-coredump … 9223372036854775808 …`) passes a fixed
-unlimited size, so `ulimit -c 0` changes nothing (tested: three dumps were
-still written). With a plain file pattern the kernel honours the limit and
-writes nothing. `scripts/deploy-ci-gate.test.mjs` fails if the step is removed.
+default pattern (`|/usr/lib/systemd/systemd-coredump … 9223372036854775808 …`)
+passes a fixed unlimited size, so `ulimit -c 0` alone changes nothing (tested:
+three dumps were still written). With a plain file pattern the kernel honours
+the limit and writes nothing. `scripts/deploy-ci-gate.test.mjs` fails if the
+step is removed.
+
+The limit itself is set by the step "Run unit group" (`ulimit -c 0` before the
+command). Until 2026-11-16 the runner started every job with a core limit of 0
+and the step above only asserted it; that day the runner image began starting
+jobs with `unlimited`, the assertion failed and every unit job went red before
+running a test. A limit set in one step does not reach the next, so it is set
+in the shell that starts the tests.
 
 **If it comes back**
 
