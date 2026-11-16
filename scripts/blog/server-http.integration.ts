@@ -71,9 +71,10 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   let offline = false;
   let serverOrigin = '';
   const api = createServer(async (req, res) => {
+    const pathname = new URL(req.url ?? '/', 'http://gateway.test').pathname;
     // Mirror the production gateway: Blog goes to Node; existing root assets
     // remain on static hosting. Never duplicate the full media tree in the service.
-    if (req.url?.startsWith('/blog')) {
+    if (pathname === '/blog' || pathname.startsWith('/blog/')) {
       // Node's fetch ignores a custom Host. Use an actual HTTP proxy request so
       // the integration checks the wire authority rather than a forged JS URL.
       const upstream = httpRequest(
@@ -96,12 +97,16 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       return;
     }
     if (
-      req.url === '/media/logo-channel.svg' ||
-      req.url === '/media/logo-diversity.svg' ||
-      req.url === '/favicon.svg'
+      pathname === '/media/logo-channel.svg' ||
+      pathname === '/media/logo-diversity.svg' ||
+      pathname === '/favicon.svg'
     ) {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
-      res.end(await readFile(new URL(`../../apps/site/public${req.url}`, import.meta.url)));
+      res.end(await readFile(new URL(`../../apps/site/public${pathname}`, import.meta.url)));
+      return;
+    }
+    if (pathname !== '/api' && !pathname.startsWith('/api/')) {
+      res.writeHead(404).end('Not found');
       return;
     }
     if (offline) {
@@ -255,15 +260,23 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   });
   assert.match(String(Reflect.get(health, 'releaseId')), /^(?:[a-f0-9]{40}|local)$/);
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
-  const imageResponse = await get(`/blog/media/articles/${imageId}/${imageHash}.webp`);
+  const html = await response.text();
+  const originalImagePath = renderedArticleImagePath(html);
+  const imageResponse = await get(originalImagePath);
   assert.equal(
     imageResponse.status,
     200,
-    'The rendered image URL must work without a trailing slash',
+    `The original image URL emitted by HTML must work: ${originalImagePath}`,
   );
   assert.equal(imageResponse.headers.get('content-type'), 'image/webp');
   assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), imageBytes);
-  const html = await response.text();
+  assertArticleSchemaImage(html, originalImagePath);
+  t.diagnostic(JSON.stringify({ mode: 'original', renderedSrc: originalImagePath, status: 200 }));
+  assert.equal(
+    (await get(`/media/articles/${imageId}/${imageHash}.webp`)).status,
+    404,
+    'Root media paths belong to static hosting, not the article API',
+  );
   const header = /<header\b[^>]*data-site-header[\s\S]*?<\/header>/.exec(html)?.[0];
   assert(header?.includes('href="/blog/"'), 'SSR header must expose the public Blog navigation');
   assert.match(html, /A clear manufacturing brief helps suppliers/);
@@ -309,18 +322,25 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.equal(rendered.status, 200);
   assert.equal(rendered.headers.get('x-article-presentation'), 'render-web-v1');
   const renderedHtml = await rendered.text();
-  const webPath = `/blog/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`;
-  assert(renderedHtml.includes(webPath));
+  const webPath = renderedArticleImagePath(renderedHtml);
   assert.match(renderedHtml, /alt="Factory HTTP image"/);
   assert(!renderedHtml.includes('storageFileId'));
   const webResponse = await get(webPath);
-  assert.equal(webResponse.status, 200);
+  assert.equal(webResponse.status, 200, `The web image URL emitted by HTML must work: ${webPath}`);
   assert.equal(webResponse.headers.get('content-type'), 'image/webp');
   assert.equal(
     createHash('sha256')
       .update(Buffer.from(await webResponse.arrayBuffer()))
       .digest('hex'),
     prepared.entry.web.checksumSha256,
+  );
+  assertArticleSchemaImage(renderedHtml, webPath);
+  t.diagnostic(JSON.stringify({ mode: 'web-v1', renderedSrc: webPath, status: 200 }));
+  assert.equal(
+    (await get(`/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`))
+      .status,
+    404,
+    'A logical backend media path must not be mistaken for a website image URL',
   );
   if (process.env.BLOG_SSR_BROWSER === '1') {
     const { chromium } = await import('@playwright/test');
@@ -486,3 +506,30 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(await failed.text(), /temporarily unavailable/);
   assert.equal((await get('/blog/sitemap.xml')).status, 503);
 });
+
+function renderedArticleImagePath(html: string): string {
+  const source = /<img\b[^>]*\ssrc="([^"]*\/media\/articles\/[^"]+)"/.exec(html)?.[1];
+  assert(source, 'An actual article image src must be present in the rendered HTML');
+  const origin = process.env.SITE_URL || 'http://localhost:4321';
+  const url = new URL(source, origin);
+  assert.equal(url.origin, new URL(origin).origin);
+  return `${url.pathname}${url.search}`;
+}
+
+function assertArticleSchemaImage(html: string, imagePath: string) {
+  const script = /<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/.exec(
+    html,
+  )?.[1];
+  assert(script, 'The rendered article must include structured data');
+  const schema: unknown = JSON.parse(script);
+  assert(schema && typeof schema === 'object');
+  const graph: unknown = Reflect.get(schema, '@graph');
+  assert(Array.isArray(graph));
+  const article: unknown = graph.find(
+    (node) => node && typeof node === 'object' && Reflect.get(node, '@type') === 'Article',
+  );
+  assert(article && typeof article === 'object');
+  assert.deepEqual(Reflect.get(article, 'image'), [
+    new URL(imagePath, process.env.SITE_URL || 'http://localhost:4321').href,
+  ]);
+}
