@@ -9,6 +9,7 @@ export default defineConfig({
   minify: true,
   sourcemap: false,
   noExternal: [
+    '@vibelingan/tencent-service-auth',
     /@vibelingan-channel\//,
     '@cloudbase/node-sdk',
     'wx-server-sdk',

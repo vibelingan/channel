@@ -32,7 +32,11 @@ const ctx = {
 };
 const defs = buildCloudRunServiceDefs(ctx);
 const vibekb = (optional = {}) =>
-  buildCloudRunServiceDefs({ ...ctx, engineId: 'vibekb', optionalEnv: (name) => optional[name] });
+  buildCloudRunServiceDefs({
+    ...ctx,
+    engineId: 'vibekb',
+    optionalEnv: (name) => ({ AI_INQUIRY_AUTH_MODE: 'scf-cam', ...optional })[name],
+  });
 const byName = (list, name) => list.find((d) => d.name === name);
 
 test('each service is built by CloudRun from its own Dockerfile, not from a pre-built image', () => {
@@ -325,9 +329,20 @@ test('the BFF reaches the sales intake only when inquiries are switched on', () 
   assert.equal(on.envVariables.AI_INQUIRY_ENABLED, '1');
   assert.equal(on.envVariables.AI_INQUIRY_BASE_URL, 'secret://AI_INQUIRY_BASE_URL');
   assert.equal(on.envVariables.AI_INQUIRY_TOKEN, 'secret://AI_INQUIRY_TOKEN');
+  assert.equal(on.envVariables.AI_INQUIRY_AUTH_MODE, 'scf-cam');
+  assert.equal(on.envVariables.SALES_CAM_SECRET_ID, 'secret://SALES_CAM_SECRET_ID');
+  assert.equal(on.envVariables.SALES_CAM_SECRET_KEY, 'secret://SALES_CAM_SECRET_KEY');
+  assert.throws(
+    () => vibekb({ AI_INQUIRY_ENABLED: '1', AI_INQUIRY_AUTH_MODE: 'bearer' }),
+    /scf-cam/,
+  );
   // The worker never holds the intake token.
   assert.equal(
     byName(vibekb({ AI_INQUIRY_ENABLED: '1' }), 'ai-worker').envVariables.AI_INQUIRY_TOKEN,
+    undefined,
+  );
+  assert.equal(
+    byName(vibekb({ AI_INQUIRY_ENABLED: '1' }), 'ai-worker').envVariables.SALES_CAM_SECRET_KEY,
     undefined,
   );
 });

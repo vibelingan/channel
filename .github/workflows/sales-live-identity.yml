@@ -1,0 +1,41 @@
+name: Inspect Sales live identity
+on:
+  push:
+    tags: ['ai-cloudrun-deploy-inspect-identity-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Read current cloud caller and role
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/sales/inspect-live-identity.mjs
+      - name: Register only the two dedicated Sales callers
+        if: startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-identity-provision-')
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: node scripts/sales/provision-live-callers.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sales-identity-inspection
+          path: |
+            sales-identity-inspection.json
+            sales-callers-evidence.json
+            sales-callers-encrypted.json

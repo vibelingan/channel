@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
+import * as cloudbase from '@cloudbase/node-sdk';
 import { validateContract } from '@vibelingan-channel/sales-contracts';
 import { issueTaskPermit } from '@vibelingan-channel/sales-contracts/task-access';
 import { createSalesRuntime } from './index.ts';
@@ -107,7 +108,14 @@ test('actual createSalesRuntime reads an unregistered private product inquiry th
       const row = s.rows.get(key);
       return { data: { list: row ? [JSON.stringify(row)] : [] } };
     };
-    const runtime = createSalesRuntime();
+    const runtime = createSalesRuntime(
+      cloudbase.init({
+        env: 'env_a',
+        secretId: 'synthetic-secret-id',
+        secretKey: 'synthetic-secret-key',
+        sessionToken: 'synthetic-session',
+      }),
+    );
     const response = await runtime({
       method: 'GET',
       url: `/integrations/sales/inquiries/product/${registration.source.id}`,
