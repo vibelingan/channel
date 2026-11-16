@@ -1,0 +1,79 @@
+---
+import AssistantHost from '../../../components/AssistantHost.astro';
+import SiteFooter from '../../../components/SiteFooter.astro';
+import SiteHeader from '../../../components/SiteHeader.astro';
+import {
+  getCatalogContent,
+  getCatalogFamily,
+  getSharedDetailContent,
+} from '../../../i18n/catalog.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../../../i18n/site.ts';
+import { CatalogFamilyPage } from '../../../islands/shop/CatalogFamilyPage.tsx';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { categoryPageIdentity } from '../../../lib/seo/category-page-metadata.ts';
+import { type CategoryPageData, categoryPages } from '../../../lib/seo/category-snapshot.ts';
+import { readProductSnapshot } from '../../../lib/seo/product-snapshot.ts';
+import { OEM_INQUIRY_HREF } from '../../../lib/site-navigation.ts';
+
+export async function getStaticPaths() {
+  const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
+  return categoryPages(snapshot)
+    .filter(({ page }) => page > 1)
+    .map((bootstrap) => ({
+      params: { family: bootstrap.family, page: String(bootstrap.page) },
+      props: { bootstrap },
+    }));
+}
+
+interface Props {
+  bootstrap: CategoryPageData;
+}
+const { bootstrap } = Astro.props;
+const site = getSiteContent(DEFAULT_LOCALE);
+const catalog = getCatalogContent(DEFAULT_LOCALE);
+const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
+const family = getCatalogFamily(bootstrap.family, DEFAULT_LOCALE);
+const identity = categoryPageIdentity(
+  family,
+  bootstrap,
+  site.brand.name,
+  Astro.site ?? Astro.url.origin,
+);
+const root = categoryPageIdentity(
+  family,
+  { ...bootstrap, page: 1, path: family.href },
+  site.brand.name,
+  Astro.site ?? Astro.url.origin,
+);
+const { page, heading, breadcrumbs } = identity;
+const pageMetadata = { current: identity, root };
+---
+<BaseLayout page={page}>
+  <SiteHeader brand={site.brand} nav={site.nav} />
+  <main>
+    <section class="border-b border-slate-200 bg-surface-alt">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <nav data-catalog-page-breadcrumbs aria-label="Breadcrumb" class="text-sm text-ink-muted">
+          {breadcrumbs.map((breadcrumb, index) => index < breadcrumbs.length - 1 ? (
+            <><a href={breadcrumb.href} class="hover:text-brand-700">{breadcrumb.label}</a><span class="px-2" aria-hidden="true">/</span></>
+          ) : <span aria-current="page">{breadcrumb.label}</span>)}
+        </nav>
+        <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-sm font-semibold uppercase tracking-[0.12em] text-brand-600">{family.eyebrow}</p>
+            <h1 data-catalog-page-heading data-catalog-heading class="mt-3 font-display text-4xl font-bold text-ink sm:text-5xl">{heading}</h1>
+            <p class="mt-4 text-lg leading-relaxed text-ink-soft">{family.description}</p>
+          </div>
+          <a href={OEM_INQUIRY_HREF} class="inline-flex min-h-11 items-center justify-center bg-accent-500 px-5 py-3 text-sm font-bold text-brand-950 hover:bg-accent-400">{catalog.hub.quoteLabel}</a>
+        </div>
+      </div>
+    </section>
+    <section data-catalog-page-section class="bg-white py-10 sm:py-14" aria-label={heading}>
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} pageMetadata={pageMetadata} client:load />
+      </div>
+    </section>
+  </main>
+  <SiteFooter brand={site.brand} footer={site.footer} />
+  {bootstrap.family === 'headphones' && <AssistantHost />}
+</BaseLayout>

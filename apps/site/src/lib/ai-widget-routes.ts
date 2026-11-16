@@ -10,6 +10,7 @@
 export const AI_WIDGET_ROUTES = Object.freeze([
   '/',
   '/headphones',
+  '/headphones/page/[page]',
   '/oem',
   '/products/item',
   '/products/[publicKey]',

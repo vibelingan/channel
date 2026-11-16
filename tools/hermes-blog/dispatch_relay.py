@@ -9,8 +9,10 @@ root=Path(__file__).resolve().parent
 command=os.environ.get('SSH_ORIGINAL_COMMAND')
 if command=='channel-blog-submit':
     args=['/usr/bin/python3',str(root/'relay.py'),'--config',sys.argv[2],'--operation','submit','--ssh']
+elif command=='channel-blog-publish':
+    args=['/usr/bin/python3',str(root/'relay.py'),'--config',sys.argv[2],'--operation','publish','--ssh']
 elif command=='channel-blog-images':
     args=['/usr/bin/python3',str(root/'image_relay.py'),'--config',sys.argv[2],'--receive']
 else:
-    print('Only the configured draft and image commands are allowed.',file=sys.stderr);sys.exit(1)
+    print('Only the configured article handoff commands are allowed.',file=sys.stderr);sys.exit(1)
 os.execv('/usr/bin/python3',args)

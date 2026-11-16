@@ -2,7 +2,12 @@ import { assertHostingPath, checkEntries, freeze, identity, isHash } from './inp
 export function hostingFilePhase(entry, output) {
   const discovery =
     /(?:^|\/)sitemap(?:-[A-Za-z0-9_-]+)?\.xml$/.test(entry.path) ||
-    ['robots.txt', 'seo-manifest.json', 'products/manifest.json'].includes(entry.path) ||
+    [
+      'robots.txt',
+      'seo-manifest.json',
+      'products/manifest.json',
+      'catalog-pages/manifest.json',
+    ].includes(entry.path) ||
     output.discoveryPaths?.includes(entry.path);
   return discovery
     ? 3

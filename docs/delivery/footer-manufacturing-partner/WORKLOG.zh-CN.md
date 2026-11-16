@@ -1,5 +1,35 @@
 # 页脚制造合作方
 
+## 最终交付（2026-11-06）
+
+已上线并完成独立线上检查，无待处理的发布阻塞。以下为最终状态；后文保留执行时的历史快照。
+
+- main 源码提交 `16c86ed54f52fb21fda4a1a8b457acdf7f941e35`，记录提交 `8d3dca6b5cac0237ab1ee8ab7290a8fac0071af8`；未合并其他功能。
+- 网站发布源码 `ca348d93c5751ef7c9ee49251904374479014fb0`（test）。[Deploy Test 42203918830](https://github.com/vibelingan/channel/actions/runs/42203918830) 第3次运行成功；交付 `site-42203918830-3` 于 12:20:29 UTC accepted，产物摘要 `c12e6a965ca4f7ff787554cc938fa836de78da2a9eb7c8bebf04adf819a6cfda`。云端状态 SUCCEEDED，48项检查、47次页面写入，使用528件当前商品；发布锁、脏状态均为空，本次临时函数已清理。
+- 文章程序源码 `cdd7225f968f0e54c99197e629076ba666b616a3`（feat/seo-foundation）。[完整 CI 42216398832](https://github.com/vibelingan/channel/actions/runs/42216398832)、[Blog HTTP 42216398819](https://github.com/vibelingan/channel/actions/runs/42216398819) 均成功后，[独立服务更新 42218313506](https://github.com/vibelingan/channel/actions/runs/42218313506) 成功。另行读回提供商：blog-pages-010 状态 normal、100%流量、发布已结束；正式 health.json 返回同一 cdd7225f 提交及允许收录状态。CPU 0.25、内存0.5、实例上下限1、端口3000与更新前一致。
+- 已获用户明确授权的14文件格式修正包含在 cdd7225f：13份 JSON 逐份解析比较相等，只读脚本为排版、导入顺序及等价字符串修改。没有改变应用行为、业务数据或检查门禁。
+- 独立浏览器于12:38:36 UTC检查首页、OEM、案例、隐私、耳机分类、文章列表和一个实际商品页，各390/1440像素，共14组全部通过：状态200、初始HTML含合作方与官网链接、标题保持原值、外链安全属性正确、无横向溢出，网站原有 Privacy 链接保留。文章页原本没有 Privacy 链接，此次保持原样。线上手机/桌面截图已检查。
+- 本机证据：`output/partner-footer-release/after.json`、`live-home-{390,1440}.png`、`live-blog-{390,1440}.png`；网站正式回执在 `website-evidence/site-delivery/result.json`，文章更新前配置与恢复镜像在 `blog-evidence/result.json`。后者的 submitted 仅是提交阶段回执，最终成功以提供商状态和正式健康检查为准。
+
+交付只新增 Contact Us 下方的制造合作方说明与官网链接，保留公司主体、原有页面与现站功能，不修改商品和文章业务数据。后续文档提交仅保存验收记录，不改变上述已验证的运行源码。
+
+## 经用户确认的发布续作
+
+用户现已明确授权“允许提交纯格式修正，继续完成文章页脚上线”。暂存前再次核对13份 JSON 解析值未变，全库1893文件 Lint 通过，只读脚本语法通过。将提交下述14文件格式修正并重新通过精确提交的完整 CI、Blog HTTP 构建后再发布。网站第3次发布已完成44/48项检查；此前辅助归档已由原流程完整读回、校验并登记，摘要为1eb1980ca3f9bf76741a0ffeeb331801cb21908f4df617d1a8934df5d2913f5f，83432639字节。
+
+前两次发布记录：网站 Deploy Test 42203918830 第1次运行通过完整检查与 CloudBase 步骤，但页面覆盖前的私有归档上传超时（83,432,639 bytes，SHA256 95f6ec429eb10dee59af088996c1d5480fade03736bbb9f965c86c4fd4dd0938）。上传及一次续传后仍未能读回，网页未变，siteReleaseTargets 的 currentRunId/dirtyRunId/lease 均为空。第2次运行保留已通过的 CI，随后归档读回连接重置，网页仍未变。
+
+main 标准 CI 42202535967（8d3dca6b）通过；main 浏览器回归 42202307222（16c86ed5）首次后台20商品批量分类提示超时，失败组重跑通过，未确认偶发原因，未修改或放宽测试。
+
+自动审批曾拒绝暂存下述14份非页脚文档/脚本，理由是超出用户只同步页脚的授权范围；等待期间未提交这些文件。用户现已明确授权，可继续提交。可审阅补丁在 output/partner-footer-release/blog-doc-formatting.patch，13份 JSON 的解析值摘要核对在 doc-format-proof.json。Blog 此时仍为 fad64a28。
+
+Blog 完整 CI 42204238850 的测试组全部通过，但 Lint 在 14 份既有 SEO 文档/只读复查脚本中报出 19 项格式和字符串拼接问题，正式服务未更新。只对日志点名的文件执行 Biome 格式、导入整理和模板字符串修正；13 份 JSON 在修改前后解析结果逐份 deepEqual 相等；只读脚本语法检查通过，逐字 diff 确认只涉及排版、内置模块导入顺序、等价的输出路径/换行字符串。未修改应用源码或门禁配置。全库 1893 文件 lint 已通过。需用新精确提交重新通过 CI 和 Blog HTTP 构建。
+
+网站主体补丁提交 ca348d93c5751ef7c9ee49251904374479014fb0，正常 Deploy Test 42203918830 已启动。依赖安装产生的 canonical-redirect 空 importer 已恢复，没有修改依赖。现站来源上的本地类型检查为 0 errors / 0 warnings / 13 hints；构建的 20 个 HTML 通过 SEO 门禁，首页同时保留 Privacy 与合作方链接。
+
+文章服务仅应用同一三文件补丁，本地服务器构建与 41 项相关测试通过。当前环境 CATALOG_SEO_RECORDING GitHub 变量不存在，本轮不修改它。站点写锁在发布前已确认清空。
+
+
 ## 经用户确认的发布续作
 
 用户已明确回答“允许仅同步页脚补丁，保留现站功能”。在最新 test=fa8c8cd1 上只应用与 main 16c86ed5 相同的三份源码更改，保留 Privacy 链接；34 项品牌、隐私、社交资料相关测试通过。main 不合并其他功能。正常 Deploy Test 的完整 CI 是首个云端写入的前置条件，未变化函数沿用现有等价性验证和跳过机制；不放宽门禁。

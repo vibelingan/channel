@@ -1,0 +1,46 @@
+{
+  "observedOn": "2026-11-12",
+  "url": "https://supplychainsai.com/portfolio/",
+  "readOnly": true,
+  "httpStatus": 200,
+  "initialHtmlBytes": 78688,
+  "initialHtmlSha256": "21fbf240523dfba4e69150797af0b4b0a94fde53907edca2547e801202fbfcc2",
+  "canonical": "https://supplychainsai.com/portfolio/",
+  "metaRobots": [],
+  "mainTextCharactersWithJavascript": 3383,
+  "caseTitles": ["Children's Sleep Training Clock", "Disc Repair System"],
+  "noJavascriptChecks": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "httpStatus": 200,
+      "caseCount": 2,
+      "hiddenCases": 0,
+      "detailSectionsPerCase": 4,
+      "horizontalOverflow": false,
+      "screenshot": "portfolio-nojs-1440.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "httpStatus": 200,
+      "caseCount": 2,
+      "hiddenCases": 0,
+      "detailSectionsPerCase": 4,
+      "horizontalOverflow": false,
+      "screenshot": "portfolio-nojs-390.png"
+    }
+  ],
+  "toolBoundary": "Stealth browser failed to launch; fallback Playwright MCP used real Chromium contexts. No Google Search Console or Google AI internal fetch result is claimed.",
+  "screenshotCaptureAfterImageDecode": true,
+  "firstCaseImage": {
+    "url": "https://supplychainsai.com/media/portfolio/cases/sleep-clock.webp",
+    "width": 800,
+    "height": 800,
+    "complete": true
+  }
+}

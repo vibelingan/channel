@@ -7,17 +7,17 @@ on:
       mode:
         description: Plan is read-only; execute requires the reviewed plan token and an enabled policy
         type: choice
-        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, site-reconcile, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare]
+        options: [catalog-runtime, catalog-prepare, catalog-bootstrap, catalog-clock-stage, catalog-clock-enable, catalog-clock-disable, renderer-archive, site-archive, catalog-probe, cloud-readiness, plan, execute, maintenance, function-observe, function-certify, function-report, function-plan, function-execute, dummy-recovery, dummy-readback, dummy-cleanup, blog-bootstrap, blog-server-stage, blog-server-update, blog-server-apis, blog-server-switch, blog-server-route, site-delivery, site-readback, site-reconcile, blog-enable, blog-create, blog-retry, blog-update, blog-withdraw, blog-check, blog-import-review, blog-import-publish, blog-import-withdraw, blog-import-setup, blog-formal-prepare, blog-images-prepare, blog-publication-prepare, image-delivery-prepare]
         default: plan
         required: true
       catalog_runtime_action:
-        description: Initial catalog runtime setup; code first, recording next, page readiness after tracked HTML acceptance
+        description: Initial setup or settings-only recovery; page readiness follows tracked HTML acceptance
         type: choice
-        options: [stage, record, readiness]
+        options: [stage, record, readiness, resume, resume-readiness]
         default: stage
         required: false
       catalog_runtime_sha:
-        description: Exact deployed and CI-approved function source for recording/readiness; empty uses this workflow commit
+        description: Function source for record/readiness; resume phases require this workflow commit (empty allowed)
         type: string
         required: false
       integration_profile:
@@ -84,7 +84,7 @@ jobs:
   catalog_runtime:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'catalog-runtime' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     environment: test
     env:
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
@@ -126,7 +126,10 @@ jobs:
           script: |
             const { spawn } = require('node:child_process');
             await new Promise((resolve, reject) => {
-              const child = spawn('./apps/site/node_modules/.bin/tsx', ['scripts/stage-catalog-runtime.ts'], {stdio:'inherit', env:process.env});
+              const entry = ['resume', 'resume-readiness'].includes(process.env.CATALOG_RUNTIME_ACTION)
+                ? 'scripts/resume-catalog-runtime.ts'
+                : 'scripts/stage-catalog-runtime.ts';
+              const child = spawn('./apps/site/node_modules/.bin/tsx', [entry], {stdio:'inherit', env:process.env});
               child.once('error', reject);
               child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Catalog runtime setup stopped (${code}); inspect its receipt before retrying`)));
             });
@@ -597,4 +600,19 @@ jobs:
     uses: ./.github/workflows/seo-blog-server-stage.yml
     with:
       operation: update
+    secrets: inherit
+
+  blog_publication_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'blog-publication-prepare' && inputs.action == 'initialize' }}
+    uses: ./.github/workflows/seo-blog-publication.yml
+    with:
+      expected_package: ${{ inputs.plan_token }}
+    secrets: inherit
+
+  image_delivery_prepare:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-delivery-prepare' && (inputs.action == 'initialize' || inputs.action == 'restore') }}
+    uses: ./.github/workflows/seo-image-delivery.yml
+    with:
+      operation: ${{ inputs.action == 'restore' && 'restore' || 'prepare' }}
+      expected_package: ${{ inputs.plan_token }}
     secrets: inherit

@@ -1,11 +1,206 @@
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { type Page, expect, test } from '@playwright/test';
+import { type Browser, type Page, expect, test } from '@playwright/test';
+import { z } from 'zod';
 import { expectPageAllowsIndexing } from './helpers/seo-indexability.ts';
 const liveNetwork = new WeakMap<
   Page,
   { method: string; path: string; status?: number; failure?: string }[]
 >();
+const categoryPageSchema = z.object({
+  family: z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']),
+  page: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  path: z.string(),
+  revision: z.string().regex(/^[a-f0-9]{64}$/),
+  productIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,200}$/)).max(12),
+});
+async function verifyCategoryPages(page: Page, browser: Browser) {
+  const site = process.env.E2E_SITE_URL ?? '';
+  const manifestPath = '/catalog-pages/manifest.json';
+  const reads = [manifestPath];
+  const response = await page.request.get(manifestPath, { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+  const manifest = z
+    .object({
+      schemaVersion: z.literal(1),
+      purpose: z.literal('public'),
+      siteOrigin: z.literal(site),
+      pages: z.array(categoryPageSchema).min(4).max(50_000),
+    })
+    .parse(await response.json());
+  for (const entry of manifest.pages)
+    expect(entry.path).toBe(`/${entry.family}/${entry.page === 1 ? '' : `page/${entry.page}/`}`);
+  const roots = ['headphones', 'ai-gadgets', 'toys', 'misc'].map((family) => {
+    const matching = manifest.pages.filter((entry) => entry.family === family && entry.page === 1);
+    expect(matching, `One initial HTML page for ${family}`).toHaveLength(1);
+    if (!matching[0]) throw Error(`Missing root category: ${family}`);
+    return matching[0];
+  });
+  const second =
+    manifest.pages.find((entry) => entry.family === 'headphones' && entry.page === 2) ??
+    manifest.pages.find((entry) => entry.page === 2);
+  const plain = await browser.newContext({ javaScriptEnabled: false });
+  // Only document bytes are needed here; do not fetch up to 60 card images just
+  // to prove those cards and links already exist before JavaScript runs.
+  await plain.route('**/*', (route) =>
+    route.request().resourceType() === 'document' ? route.continue() : route.abort(),
+  );
+  try {
+    const html = await plain.newPage();
+    for (const entry of [...roots, ...(second ? [second] : [])]) {
+      reads.push(entry.path);
+      const initial = await html.goto(`${site}${entry.path}`, { waitUntil: 'domcontentloaded' });
+      expect(initial?.status(), entry.path).toBe(200);
+      await expectPageAllowsIndexing(html, initial);
+      await expect(html.locator('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        `${site}${entry.path}`,
+      );
+      const cards = html.locator('main a[data-product-card]');
+      expect(
+        await cards.evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute('data-product-card')),
+        ),
+      ).toEqual(entry.productIds);
+      expect(
+        await cards.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href'))),
+      ).toEqual(entry.productIds.map((id) => `/products/p-${id}/`));
+      for (const card of await cards.all())
+        expect((await card.locator('h3').innerText()).trim().length).toBeGreaterThan(0);
+      const pagination = html.getByRole('navigation', { name: 'Pagination', exact: true });
+      for (const [label, number] of [
+        ['Previous page', entry.page - 1],
+        ['Next page', entry.page + 1],
+      ] as const) {
+        const neighbor = manifest.pages.find(
+          (row) => row.family === entry.family && row.page === number,
+        );
+        const link = pagination.getByRole('link', { name: label, exact: true });
+        if (neighbor) await expect(link).toHaveAttribute('href', neighbor.path);
+        else await expect(link).toHaveCount(0);
+      }
+    }
+  } finally {
+    await plain.close();
+  }
+  if (second) {
+    const first = roots.find((entry) => entry.family === second.family);
+    expect(second.productIds.filter((id) => first?.productIds.includes(id))).toEqual([]);
+  }
+  const family = second?.family ?? 'headphones';
+  const lastPage = Math.max(
+    ...manifest.pages.filter((entry) => entry.family === family).map((entry) => entry.page),
+  );
+  for (const path of [`/${family}/page/1/`, `/${family}/page/${lastPage + 1}/`]) {
+    reads.push(path);
+    const missing = await page.request.get(path, { maxRedirects: 0 });
+    expect(missing.status(), path).toBe(404);
+    expect(await missing.text()).toContain('data-not-found-page');
+  }
+  if (second) {
+    const waitForList = (number: number) =>
+      page.waitForResponse((r) => {
+        const url = new URL(r.url());
+        return (
+          [site, process.env.E2E_API_URL].includes(url.origin) &&
+          r.request().method() === 'GET' &&
+          url.pathname === '/api/products' &&
+          url.searchParams.get('productFamily') === family &&
+          url.searchParams.get('page') === String(number) &&
+          url.searchParams.get('pageSize') === '12' &&
+          r.status() === 200
+        );
+      });
+    const refreshed = waitForList(2);
+    reads.push(second.path);
+    await page.goto(second.path, { waitUntil: 'domcontentloaded' });
+    const latestResponse = await refreshed;
+    // CDP can lose a consumed no-store/streaming body. The browser response
+    // proves the real refresh; one independent GET supplies the current data.
+    reads.push(latestResponse.url());
+    const current = await page.request.get(latestResponse.url(), { maxRedirects: 0 });
+    expect(current.status()).toBe(200);
+    const latest = z
+      .object({
+        ok: z.literal(true),
+        data: z.object({
+          page: z.literal(2),
+          pageSize: z.literal(12),
+          items: z.array(z.object({ _id: z.string(), name: z.string().min(1) })).max(12),
+        }),
+      })
+      .parse(await current.json());
+    const ids = latest.data.items.map((item) => item._id);
+    const expectSecond = async () => {
+      await expect(page).toHaveURL(`${site}${second.path}`);
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        `${site}${second.path}`,
+      );
+      await expect(
+        page
+          .getByRole('navigation', { name: 'Pagination', exact: true })
+          .locator('[aria-current="page"]'),
+      ).toHaveAttribute('aria-label', 'Page 2');
+      await expect
+        .poll(() =>
+          page
+            .locator('main a[data-product-card]')
+            .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-product-card'))),
+        )
+        .toEqual(ids);
+      await expect(page.locator('main a[data-product-card] h3')).toHaveText(
+        latest.data.items.map((item) => item.name),
+      );
+      await expect(page.locator('[data-catalog-list-top] [role="alert"]')).toHaveCount(0);
+    };
+    await expectSecond();
+    await mkdir('output/site-delivery/public-browser', { recursive: true });
+    for (const [label, viewport] of [
+      ['desktop', { width: 1440, height: 1100 }],
+      ['mobile', { width: 390, height: 844 }],
+    ] as const) {
+      await page.setViewportSize(viewport);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.screenshot({
+        path: `output/site-delivery/public-browser/category-${label}.png`,
+        fullPage: true,
+      });
+    }
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    const previous = roots.find((entry) => entry.family === family);
+    if (!previous) throw Error('Missing first category page');
+    const moved = waitForList(1);
+    reads.push(previous.path);
+    await page
+      .getByRole('navigation', { name: 'Pagination', exact: true })
+      .getByRole('link', { name: 'Previous page', exact: true })
+      .click();
+    await moved;
+    await expect(page).toHaveURL(`${site}${previous.path}`);
+    const returned = waitForList(2);
+    reads.push(second.path);
+    await page.goBack();
+    await returned;
+    await expectSecond();
+  }
+  expect(reads.length).toBeLessThanOrEqual(12);
+  const result = {
+    roots: roots.map(({ path, productIds }) => ({ path, productIds })),
+    secondPage: second?.path ?? null,
+    explicitReads: reads,
+    maximumExplicitReads: 12,
+  };
+  await mkdir('output/site-delivery/public-browser', { recursive: true });
+  await writeFile(
+    'output/site-delivery/public-browser/category-result.json',
+    JSON.stringify(result, null, 2),
+  );
+  return result;
+}
 
 test.skip(process.env.E2E_SEO_PUBLIC_LIVE !== '1', 'Explicit real-site read-only acceptance only.');
 test.use({ viewport: { width: 1440, height: 1100 } });
@@ -18,6 +213,8 @@ test.beforeAll(() => {
     throw Error('Unapproved live public target');
   if (!['static', 'server'].includes(process.env.E2E_BLOG_DELIVERY_MODE ?? ''))
     throw Error('The accepted Blog delivery mode is required');
+  if (!['0', '1'].includes(process.env.E2E_REQUIRE_CATALOG_PAGES ?? '0'))
+    throw Error('Invalid category-page acceptance mode');
 });
 test.afterEach(async ({ page }, info) => {
   if (info.status === info.expectedStatus) return;
@@ -98,9 +295,17 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     );
     await expectPageAllowsIndexing(html, initial);
     const graphs = await html.locator('script[type="application/ld+json"]').allTextContents();
-    expect(
-      graphs.some((text) => JSON.stringify(JSON.parse(text)).includes('"@type":"Product"')),
-    ).toBe(true);
+    // An enquiry product stays an ordinary indexed page until a truthful offer
+    // or review can support Product rich results. Do not require invalid markup.
+    const nodes = graphs.flatMap((text) => {
+      const graph = JSON.parse(text);
+      return Array.isArray(graph['@graph']) ? graph['@graph'] : [graph];
+    });
+    expect(nodes.some((node) => node['@type'] === 'WebPage')).toBe(true);
+    expect(nodes.some((node) => node['@type'] === 'BreadcrumbList')).toBe(true);
+    for (const node of nodes.filter((node) => node['@type'] === 'Product')) {
+      expect(Boolean(node.offers || node.review || node.aggregateRating)).toBe(true);
+    }
   } finally {
     await plain.close();
   }
@@ -146,7 +351,14 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1100 });
-  await page.goto('/headphones/', { waitUntil: 'domcontentloaded' });
+  const categoryAcceptance =
+    process.env.E2E_REQUIRE_CATALOG_PAGES === '1' ? await verifyCategoryPages(page, browser) : null;
+  if (!categoryAcceptance?.secondPage)
+    await page.goto(
+      categoryAcceptance?.roots.find((entry) => entry.productIds.length > 0)?.path ??
+        '/headphones/',
+      { waitUntil: 'domcontentloaded' },
+    );
   const card = page.locator('a[href^="/products/p-"]').first();
   await expect(card).toBeVisible();
   await card.click();
@@ -265,6 +477,7 @@ test('real SSG HTML, latest browser API, gallery, category refresh, quote openin
         initialHtml: true,
         latestApi: true,
         categoryRefresh: true,
+        categoryAcceptance,
         quoteOpened: true,
         businessWrites: writes.length,
         articlePath: articlePath ?? null,

@@ -1,0 +1,50 @@
+{
+  "observedOn": "2026-11-12",
+  "readOnly": true,
+  "requests": [
+    {
+      "url": "https://supplychainsai.com/portfolio",
+      "status": 200,
+      "location": null,
+      "xRobotsTag": null,
+      "contentType": "text/html",
+      "bytes": 78688,
+      "sha256": "21fbf240523dfba4e69150797af0b4b0a94fde53907edca2547e801202fbfcc2",
+      "portfolioListed": true,
+      "body": null
+    },
+    {
+      "url": "https://supplychainsai.com/robots.txt",
+      "status": 200,
+      "location": null,
+      "xRobotsTag": null,
+      "contentType": "text/plain",
+      "bytes": 439,
+      "sha256": "447bdca2eb6e793f20d3ba1f23144afad39104656b2d9ab4f3f90e631f37a202",
+      "portfolioListed": false,
+      "body": "# Diversity Innovations Limited — supplychainsai.com\n# Auth, admin, and form-result pages are private: keep them out of the index.\nUser-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /login\nDisallow: /register\nDisallow: /account\nDisallow: /reset\nDisallow: /oem_submit_result\nDisallow: /api/\n# Public product images remain permission-checked by the image endpoint.\nAllow: /api/images/\n\nSitemap: https://supplychainsai.com/sitemap-index.xml\n"
+    },
+    {
+      "url": "https://supplychainsai.com/sitemap-index.xml",
+      "status": 200,
+      "location": null,
+      "xRobotsTag": null,
+      "contentType": "application/xml",
+      "bytes": 262,
+      "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+      "portfolioListed": false,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><sitemap><loc>https://supplychainsai.com/blog/sitemap.xml</loc></sitemap><sitemap><loc>https://supplychainsai.com/sitemap-0.xml</loc></sitemap></sitemapindex>"
+    },
+    {
+      "url": "https://supplychainsai.com/sitemap-0.xml",
+      "status": 200,
+      "location": null,
+      "xRobotsTag": null,
+      "contentType": "application/xml",
+      "bytes": 52046,
+      "sha256": "ea3b32ab3a845c5eacc204f929f4c170fd24f8e7baebebf895b8b0222add7e38",
+      "portfolioListed": true,
+      "body": null
+    }
+  ]
+}

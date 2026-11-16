@@ -21,7 +21,7 @@ const page = createPageDescriptor({
 
 旧公开商品没有新版本字段时，adapter 可用经校验的公开投影内容 hash 作为 revision。不能因为缺少新 catalog publication 记录就把商品从覆盖清单删除；新旧公开数据都要有可验证的来源。
 
-`canonicalPath()` 去掉交互/追踪参数、统一目录尾斜杠，拒绝跨域和歧义路径。商品卡片 href、canonical、Breadcrumb、Product/Article URL 与 sitemap 应指向同一个身份。变体参数通常归到商品标准地址，不归到分类页。站点 origin 来自构建 SITE_URL；本地省略时仍保留 localhost，部署必须沿用现有脚本对真实 SITE_URL 的校验。
+`canonicalPath()` 去掉交互/追踪参数、统一目录尾斜杠，拒绝跨域和歧义路径。商品卡片 href、canonical、Breadcrumb、存在时的 Product/Article URL 与 sitemap 应指向同一个身份。变体参数通常归到商品标准地址，不归到分类页。站点 origin 来自构建 SITE_URL；本地省略时仍保留 localhost，部署必须沿用现有脚本对真实 SITE_URL 的校验。
 
 ## 索引意图
 
@@ -37,7 +37,7 @@ const page = createPageDescriptor({
 
 - 每个 HTML 附带且仅附带一个由布局产生的公开 page descriptor。Google 验证文件按固定字节检查，旧 `/success-stories/` 仅作为验证目标正确的 Astro 跳转页处理。
 - title、description、canonical 与描述一致，索引策略与实际 robots 一致。可索引页必须有自己的标准地址、一个可见 H1 和主区域正文；脚本和 island props 的字符串不计为正文。
-- 社交元数据和 WebPage 使用相同地址；商品/文章再要求 Product/Article 与最后一级 Breadcrumb 指向本页。
+- 社交元数据和 WebPage 使用相同地址；商品必须有指向本页的最后一级 Breadcrumb。只有真实公开报价或真实评价足以支持增强展示时，才允许输出 Product，并由构建检查其完整条件；未适配的询价商品保留普通 WebPage、正文与索引。文章的 Article 与最后一级 Breadcrumb 仍指向本页。
 - 扫描到的可索引 canonical 集合与 sitemap 完全相等；重复、遗漏、错 origin、私有/预览泄漏或多余 URL 均失败。
 - Google/Bing 验证文件必须存在且字节正确。验证账号仍属于客户；文件进入版本库只保存公开验证值。
 

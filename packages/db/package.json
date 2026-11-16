@@ -50,6 +50,7 @@
     "./catalog-seo-control": "./src/catalog-seo-control.ts",
     "./catalog-seo-pages": "./src/catalog-seo-pages.ts",
     "./catalog-seo-delivery": "./src/catalog-seo-delivery.ts",
+    "./catalog-web-image": "./src/catalog-web-image.ts",
     "./sales-inquiry-source": "./src/sales-inquiry-source.ts",
     "./sales-inquiry-read": "./src/sales-inquiry-read.ts",
     "./sales-inquiry-submission": "./src/sales-inquiry-submission.ts",

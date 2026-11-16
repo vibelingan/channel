@@ -191,6 +191,20 @@ async function setup(
   };
 }
 
+test('adapter plans permit exact category metadata removal without opening other JSON paths', async (t) => {
+  const f = await setup(t);
+  const plan = (path) => {
+    const { planSha256, ...body } = f.plan;
+    body.deletes = [path];
+    body.stateSha256 = recoveryStateIdentity(body);
+    return { ...body, planSha256: identity(body) };
+  };
+  assert.doesNotThrow(() => hostingCoordinatorPlan(plan('catalog-pages/manifest.json'), f.conf));
+  assert.throws(
+    () => hostingCoordinatorPlan(plan('catalog-pages/customer-data.json'), f.conf),
+    /Unowned deletion type/,
+  );
+});
 test('batched restoration journals exact removals before SDK effects and verifies every real HTTP 404', async (t) => {
   const f = await setup(t, { batchedRemovals: 25 });
   const removed = [];

@@ -1,5 +1,6 @@
 import cloudbase from '@cloudbase/node-sdk';
 import { createArticleImageService } from '@vibelingan-channel/articles/import-media';
+import { createArticleImportPublicationService } from '@vibelingan-channel/articles/import-publication';
 import { createArticleImportService } from '@vibelingan-channel/articles/import-store';
 import { articleTransaction } from '@vibelingan-channel/db/article-repository';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -17,6 +18,7 @@ const service =
   process.env.ARTICLE_IMPORT_ENABLED === '1' && app && transaction
     ? {
         ...createArticleImportService(transaction),
+        publication: createArticleImportPublicationService(transaction),
         images: createArticleImageService(
           transaction,
           createArticleImageStorage(createCloudBaseMediaStorage(app)),

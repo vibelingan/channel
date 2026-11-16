@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./local-disk": "./src/local-disk.ts",
     "./cloudbase": "./src/cloudbase.ts",
-    "./pixels": "./src/pixels.ts"
+    "./pixels": "./src/pixels.ts",
+    "./web-image": "./src/web-image.ts"
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",

@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "评审后：SEO模块分工与条件任务",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "viewBox": [1260, 740]
+  },
+  "components": [
+    {
+      "id": "m01",
+      "type": "backend",
+      "label": "01 图片交付",
+      "sublabel": "先盘点，再修故障；原图保留",
+      "tag": "修复待实施",
+      "pos": [480, 70],
+      "size": [300, 100]
+    },
+    {
+      "id": "m02",
+      "type": "frontend",
+      "label": "02 公开请求",
+      "sublabel": "先测调用；证实问题才改请求",
+      "tag": "测量 / 重构暂缓",
+      "pos": [50, 70],
+      "size": [300, 100]
+    },
+    {
+      "id": "m03",
+      "type": "cloud",
+      "label": "03 抓取入口",
+      "sublabel": "分类初始链接、路径分页与入口",
+      "tag": "不依赖请求重构",
+      "pos": [910, 70],
+      "size": [300, 100]
+    },
+    {
+      "id": "m04",
+      "type": "backend",
+      "label": "04 商品搜索展示",
+      "sublabel": "先去无效标记，再适配真实报价",
+      "tag": "分两段验收",
+      "pos": [50, 315],
+      "size": [300, 100]
+    },
+    {
+      "id": "m05",
+      "type": "frontend",
+      "label": "05 视频与内容",
+      "sublabel": "独立视频页；先核对素材授权",
+      "tag": "条件任务",
+      "pos": [910, 315],
+      "size": [300, 100]
+    },
+    {
+      "id": "m06",
+      "type": "frontend",
+      "label": "06 页面性能",
+      "sublabel": "先留Before，再按trace优化",
+      "tag": "基准先行",
+      "pos": [480, 315],
+      "size": [300, 100]
+    },
+    {
+      "id": "m07",
+      "type": "cloud",
+      "label": "07 海外静态分发",
+      "sublabel": "仅保留静态分发调查",
+      "tag": "用户要求延后",
+      "pos": [480, 560],
+      "size": [300, 100]
+    },
+    {
+      "id": "m08",
+      "type": "external",
+      "label": "08 搜索与询盘",
+      "sublabel": "修复前留记录；交付后持续观察",
+      "tag": "贯穿前后",
+      "pos": [910, 560],
+      "size": [300, 100]
+    },
+    {
+      "id": "m09",
+      "type": "messagebus",
+      "label": "09 发布提速",
+      "sublabel": "原有交付接口保留；本轮不改",
+      "tag": "其他工作流负责",
+      "pos": [50, 560],
+      "size": [300, 100]
+    }
+  ],
+  "connections": [
+    {
+      "id": "image-performance",
+      "from": "m01",
+      "to": "m06",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "合适尺寸与稳定图片",
+      "variant": "emphasis",
+      "labelDy": 70
+    },
+    {
+      "id": "performance-region",
+      "from": "m06",
+      "to": "m07",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "分别比较代码与网络收益",
+      "variant": "dashed",
+      "labelDy": 70
+    },
+    {
+      "id": "price-runtime",
+      "from": "m04",
+      "to": "m06",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "保留报价和询盘交互",
+      "variant": "dashed"
+    },
+    {
+      "id": "entry-content",
+      "from": "m03",
+      "to": "m05",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "复用页面与网址规则",
+      "variant": "dashed",
+      "labelDy": 70
+    },
+    {
+      "id": "content-outcome",
+      "from": "m05",
+      "to": "m08",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "索引、点击与询盘",
+      "variant": "dashed",
+      "labelDy": 70
+    },
+    {
+      "id": "region-outcome",
+      "from": "m07",
+      "to": "m08",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "按地域核对效果",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "先留记录，再改网站",
+      "items": ["性能、搜索、请求时序共享一轮采样", "修复后同条件对照，索引结果单独观察"]
+    },
+    {
+      "dot": "amber",
+      "title": "只更新设计，未部署",
+      "items": ["缓存300秒与新大图临时行为待确认", "请求重构暂缓，分类不等公共层改造"]
+    },
+    {
+      "dot": "cyan",
+      "title": "原有业务照常保留",
+      "items": ["旧价格权限、图库变体和询盘继续沿用", "原图与人工内容保留，恢复不倒退业务数据"]
+    }
+  ]
+}

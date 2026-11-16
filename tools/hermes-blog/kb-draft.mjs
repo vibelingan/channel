@@ -62,3 +62,34 @@ export function kbImportOperation(binding, documentId, workspaceId) {
     .update(JSON.stringify([trusted.siteId, trusted.integrationId, `kb-draft:${digest}`]))
     .digest('hex')}`;
 }
+
+/** Mirrors the server's normalized original-source identity; checked against the real import converter. */
+export function kbSourceHash(input) {
+  const normalized = { ...input };
+  for (const name of [
+    'externalTaskId',
+    'title',
+    'slug',
+    'excerpt',
+    'authorName',
+    'seoTitle',
+    'seoDescription',
+  ]) {
+    normalized[name] = (normalized[name] ?? '').normalize('NFC').replace(/\r\n?/g, '\n').trim();
+  }
+  if (typeof normalized.body === 'string')
+    normalized.body = normalized.body.normalize('NFC').replace(/\r\n?/g, '\n');
+  function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object')
+      return Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([key, child]) => [key, stable(child)]),
+      );
+    return value;
+  }
+  return createHash('sha256')
+    .update(JSON.stringify(stable(normalized)))
+    .digest('hex');
+}

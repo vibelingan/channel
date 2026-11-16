@@ -12,8 +12,17 @@ import test from 'node:test';
 import { handlePublicApiEvent } from '../../apps/functions/public-api/src/http-adapter.ts';
 import { parseArticleContent } from '../../packages/articles/src/article.ts';
 import { createCloudBasePublicArticles } from '../../packages/db/src/article-public-reader.ts';
-import { createCloudBaseArticleRepository } from '../../packages/db/src/article-repository.ts';
+import {
+  articleTransaction,
+  createCloudBaseArticleRepository,
+} from '../../packages/db/src/article-repository.ts';
 import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
+import { registerArticleWebMedia } from '../../packages/db/src/article-web-media.ts';
+import {
+  type StoredMediaObject,
+  objectStoragePath,
+} from '../../packages/media-storage/src/index.ts';
+import { prepareArticleWebMedia } from '../images/article-web-media.ts';
 
 const content = parseArticleContent({
   title: 'Manufacturing guide',
@@ -51,10 +60,12 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     storageFileId: 'cloud://offline/articles/real-http-image',
     storagePath: 'articles/real-http-image',
   };
+  const imageObjects = new Map([[imageTarget.storageFileId, imageBytes]]);
   const articles = createCloudBasePublicArticles(f.db, {
     getObjectAsBase64: async (fileId) => {
-      assert.equal(fileId, imageTarget.storageFileId);
-      return { body: imageBytes.toString('base64') };
+      const bytes = imageObjects.get(fileId);
+      assert(bytes, 'The requested image object must actually exist');
+      return { body: bytes.toString('base64') };
     },
   });
   let offline = false;
@@ -125,6 +136,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       HOST: '127.0.0.1',
       PORT: String(address.port),
       BLOG_API_ORIGIN: `http://127.0.0.1:${apiAddress.port}`,
+      BLOG_WEB_IMAGES_ENABLED: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -189,7 +201,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       },
     }),
   });
-  f.put('articleMedia', imageId, {
+  const activeImage = {
     id: imageId,
     articleId: draft.id,
     purpose: 'article-image',
@@ -199,14 +211,15 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     expiresAt: new Date(Date.now() + 300000).toISOString(),
     pendingStorage: imageTarget,
     storage: imageTarget,
-    status: 'active',
+    status: 'active' as const,
     fileName: 'factory.webp',
-    mimeType: 'image/webp',
+    mimeType: 'image/webp' as const,
     byteSize: imageBytes.length,
     checksumSha256: imageHash,
     width: 1228,
     height: 718,
-  });
+  };
+  f.put('articleMedia', imageId, activeImage);
   let currentRevision = draft.revision;
   assert.equal((await get('/blog/manufacturing-guide/')).status, 404);
   assert(!(await (await get('/blog/')).text()).includes('A clear manufacturing brief'));
@@ -259,6 +272,56 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(html, /"@type":"Article"/);
   assert.match(html, /datePublished/);
   assert.match(html, /index,follow/);
+  const acceptedBeforePreparation = structuredClone(f.rows.get(`articleAccepted/${draft.id}`));
+  const checkpoints: StoredMediaObject[] = [];
+  const prepared = await prepareArticleWebMedia({
+    active: activeImage,
+    storage: {
+      async getObjectAsBase64(id) {
+        const bytes = imageObjects.get(id);
+        assert(bytes);
+        return { body: bytes.toString('base64') };
+      },
+      async putObject(input, options) {
+        assert(input.content instanceof Uint8Array);
+        assert(options?.beforeWrite);
+        const storagePath = objectStoragePath(input);
+        const target: StoredMediaObject = {
+          storageProvider: 'cloudbase-storage',
+          storageMode: 'classic-nosql-storage',
+          storagePath,
+          storageFileId: `cloud://offline/${storagePath}`,
+          byteSize: input.content.length,
+        };
+        await options.beforeWrite(target);
+        imageObjects.set(target.storageFileId, Buffer.from(input.content));
+        return target;
+      },
+    },
+    checkpoint: async (target) => {
+      checkpoints.push({ ...target });
+    },
+    register: (entry) => registerArticleWebMedia(articleTransaction(f.db), entry),
+  });
+  assert.equal(checkpoints.length, 1);
+  assert.deepEqual(f.rows.get(`articleAccepted/${draft.id}`), acceptedBeforePreparation);
+  const rendered = await get('/blog/manufacturing-guide/');
+  assert.equal(rendered.status, 200);
+  assert.equal(rendered.headers.get('x-article-presentation'), 'render-web-v1');
+  const renderedHtml = await rendered.text();
+  const webPath = `/blog/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`;
+  assert(renderedHtml.includes(webPath));
+  assert.match(renderedHtml, /alt="Factory HTTP image"/);
+  assert(!renderedHtml.includes('storageFileId'));
+  const webResponse = await get(webPath);
+  assert.equal(webResponse.status, 200);
+  assert.equal(webResponse.headers.get('content-type'), 'image/webp');
+  assert.equal(
+    createHash('sha256')
+      .update(Buffer.from(await webResponse.arrayBuffer()))
+      .digest('hex'),
+    prepared.entry.web.checksumSha256,
+  );
   if (process.env.BLOG_SSR_BROWSER === '1') {
     const { chromium } = await import('@playwright/test');
     const browser = await chromium.launch({
@@ -401,6 +464,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     requestId: 'update',
   });
   assert.match(await (await get('/blog/manufacturing-guide/')).text(), /Updated guidance/);
+  assert.equal(
+    (await get(webPath)).status,
+    404,
+    'Removing the published image must revoke its web copy',
+  );
   await repo.releases.request('admin', {
     operation: 'withdraw',
     articleId: draft.id,

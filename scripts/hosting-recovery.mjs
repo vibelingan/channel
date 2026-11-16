@@ -27,7 +27,10 @@ const hash = (algorithm, body) => createHash(algorithm).update(body).digest('hex
 const protectedPath =
   /^(?:__auth\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/;
 const isDiscovery = (path) =>
-  isSitemap(path) || /^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json)$/.test(path);
+  isSitemap(path) ||
+  /^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json|catalog-pages\/manifest\.json)$/.test(
+    path,
+  );
 
 /** Exclude request IDs, response timestamps and reachability probes from identity. */
 export function hostingConfigurationIdentity(config) {

@@ -1,0 +1,818 @@
+{
+  "captured": "2026-11-16",
+  "phase": "before",
+  "performance": {
+    "phase": "before",
+    "runId": "43741817103",
+    "lighthouse": "13.0.1",
+    "samples": 54,
+    "evidence": "US hosted runner, loc verified; desktop SEA, mobile ORD",
+    "rows": [
+      {
+        "profile": "mobile",
+        "index": 0,
+        "url": "https://supplychainsai.com/",
+        "metrics": {
+          "LCP": {
+            "median": 3202.9880000000003,
+            "min": 3169.8320000000003,
+            "max": 3919.5675,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3124.196,
+            "min": 2993.166,
+            "max": 3434.85,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.0495351575911676,
+            "min": 0.0495351575911676,
+            "max": 0.0495351575911676,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 395,
+            "min": 383,
+            "max": 448,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 1,
+        "url": "https://supplychainsai.com/headphones/?page=1",
+        "metrics": {
+          "LCP": {
+            "median": 3873.3779999999997,
+            "min": 3854.536,
+            "max": 3882.3579999999997,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3518.2219999999998,
+            "min": 3500.0480000000002,
+            "max": 3527.7,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 6.5,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.0351991826490022,
+            "min": 0.0351991826490022,
+            "max": 0.03690923702062329,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 396,
+            "min": 395,
+            "max": 415,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 2,
+        "url": "https://supplychainsai.com/oem/",
+        "metrics": {
+          "LCP": {
+            "median": 3925.4604999999997,
+            "min": 3883.6169999999997,
+            "max": 3987.339,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3265.8679999999995,
+            "min": 3177.0159999999996,
+            "max": 3409.902,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.03901844634249892,
+            "min": 0.03901844634249892,
+            "max": 0.03901844634249892,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 403,
+            "min": 379,
+            "max": 431,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 3,
+        "url": "https://supplychainsai.com/portfolio/",
+        "metrics": {
+          "LCP": {
+            "median": 3491.924,
+            "min": 3478.302,
+            "max": 4234.264,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3491.924,
+            "min": 3478.302,
+            "max": 3524.792,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.01474130532168711,
+            "min": 0.01474130532168711,
+            "max": 0.02030629140128902,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 381,
+            "min": 368,
+            "max": 388,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 4,
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "metrics": {
+          "LCP": {
+            "median": 5192.4985,
+            "min": 5180.665499999999,
+            "max": 6508.231,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3847.5100000000007,
+            "min": 3846.325,
+            "max": 3848.041,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 4,
+            "min": 3.5,
+            "max": 41.5,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.003545339855205384,
+            "min": 0.003545339855205384,
+            "max": 0.003545339855205384,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 396,
+            "min": 394,
+            "max": 468,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 5,
+        "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+        "metrics": {
+          "LCP": {
+            "median": 5973.299000000001,
+            "min": 5914.6255,
+            "max": 7749.950000000001,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 3846.936,
+            "min": 3839.7700000000004,
+            "max": 3848.2280000000005,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 3.5,
+            "min": 3.5,
+            "max": 6,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.006492055236898757,
+            "min": 0.006492055236898757,
+            "max": 0.006492055236898757,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 378,
+            "min": 322,
+            "max": 440,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 6,
+        "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+        "metrics": {
+          "LCP": {
+            "median": 7198.070500000002,
+            "min": 7011.799500000001,
+            "max": 9085.7555,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2878.965,
+            "min": 2779.6810000000005,
+            "max": 2928.321,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 5,
+            "min": 2,
+            "max": 6,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.003545339855205384,
+            "min": 0.0015906461655990352,
+            "max": 0.003545339855205384,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 398,
+            "min": 375,
+            "max": 445,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 7,
+        "url": "https://supplychainsai.com/blog/",
+        "metrics": {
+          "LCP": {
+            "median": 2608.8,
+            "min": 2592.206,
+            "max": 2706.3970000000004,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2608.8,
+            "min": 2592.206,
+            "max": 2706.3970000000004,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.04015310739340838,
+            "min": 0.03641655722885354,
+            "max": 0.04015310739340838,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 475,
+            "min": 449,
+            "max": 576,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "mobile",
+        "index": 8,
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "metrics": {
+          "LCP": {
+            "median": 17306.321000000004,
+            "min": 17073.4425,
+            "max": 17345.076999999997,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2649.089,
+            "min": 2583.5199999999995,
+            "max": 2782.0299999999997,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.03157057539561413,
+            "min": 0.03157057539561413,
+            "max": 0.03157057539561413,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 1032,
+            "min": 1024,
+            "max": 1284,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 0,
+        "url": "https://supplychainsai.com/",
+        "metrics": {
+          "LCP": {
+            "median": 1433.966,
+            "min": 1421.7179999999998,
+            "max": 1694.124,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 1390.126,
+            "min": 1376.442,
+            "max": 1537.9060000000002,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.00417785796531529,
+            "min": 0.0039655271560203095,
+            "max": 0.00417785796531529,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 421,
+            "min": 419,
+            "max": 449,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 1,
+        "url": "https://supplychainsai.com/headphones/?page=1",
+        "metrics": {
+          "LCP": {
+            "median": 2662.3910000000005,
+            "min": 2649.2110000000002,
+            "max": 2679.4390000000003,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2056.2560000000003,
+            "min": 2050.67,
+            "max": 2061.822,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 11,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.004211973380826561,
+            "min": 0.0023188356884458606,
+            "max": 0.004211973380826561,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 344,
+            "min": 327,
+            "max": 404,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 2,
+        "url": "https://supplychainsai.com/oem/",
+        "metrics": {
+          "LCP": {
+            "median": 1421.4005000000002,
+            "min": 1277.6585,
+            "max": 1629.314,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 1338.623,
+            "min": 1254.971,
+            "max": 1397.189,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.004232179332671359,
+            "min": 0.0033513105405835334,
+            "max": 0.004232179332671359,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 327,
+            "min": 326,
+            "max": 329,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 3,
+        "url": "https://supplychainsai.com/portfolio/",
+        "metrics": {
+          "LCP": {
+            "median": 2042.493,
+            "min": 2034.6109999999999,
+            "max": 2234.6009999999997,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2034.6109999999999,
+            "min": 2033.7019999999998,
+            "max": 2042.493,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.0019926075551627885,
+            "min": 0.0019926075551627885,
+            "max": 0.003695537463181781,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 337,
+            "min": 277,
+            "max": 350,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 4,
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "metrics": {
+          "LCP": {
+            "median": 2912.228,
+            "min": 2903.5095,
+            "max": 3027.9264999999996,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2238.2389999999996,
+            "min": 2237.274,
+            "max": 2241.368,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 10.5,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.06926117688884292,
+            "min": 0.06926117688884292,
+            "max": 0.06926117688884292,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 336,
+            "min": 322,
+            "max": 351,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 5,
+        "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+        "metrics": {
+          "LCP": {
+            "median": 3184.6075,
+            "min": 3136.253,
+            "max": 3187.446,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 2240.911,
+            "min": 2237.86,
+            "max": 2244.493,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.002975926502939936,
+            "min": 0.0011220038423163969,
+            "max": 0.002975926502939936,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 356,
+            "min": 338,
+            "max": 398,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 6,
+        "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+        "metrics": {
+          "LCP": {
+            "median": 3081.4615,
+            "min": 2956.214,
+            "max": 3203.687,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 1854.496,
+            "min": 1838.9279999999999,
+            "max": 2029.328,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.002406394275264932,
+            "min": 0.002406394275264932,
+            "max": 0.002406394275264932,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 341,
+            "min": 339,
+            "max": 352,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 7,
+        "url": "https://supplychainsai.com/blog/",
+        "metrics": {
+          "LCP": {
+            "median": 1628.228,
+            "min": 1454.647,
+            "max": 1632.1309999999999,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 1628.228,
+            "min": 1454.647,
+            "max": 1632.1309999999999,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.0002920184338068928,
+            "min": 0.0002920184338068928,
+            "max": 0.0002920184338068928,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 415,
+            "min": 410,
+            "max": 730,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      },
+      {
+        "profile": "desktop",
+        "index": 8,
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "metrics": {
+          "LCP": {
+            "median": 4440.407999999999,
+            "min": 4259.887999999999,
+            "max": 4480.851000000001,
+            "unit": "ms"
+          },
+          "FCP": {
+            "median": 1577.3310000000001,
+            "min": 1514.337,
+            "max": 1633.7579999999998,
+            "unit": "ms"
+          },
+          "TBT": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "unit": "ms"
+          },
+          "CLS": {
+            "median": 0.00034747773745643664,
+            "min": 0.00034747773745643664,
+            "max": 0.000429710590664371,
+            "unit": "ratio"
+          },
+          "TTFB": {
+            "median": 994,
+            "min": 863,
+            "max": 1004,
+            "unit": "ms"
+          }
+        },
+        "after": null,
+        "fieldINP": null,
+        "samples": 3
+      }
+    ]
+  },
+  "google": {
+    "captured": "2026-11-16",
+    "reportUpdated": "2026-11-09",
+    "exportedRows": 527,
+    "indexedByType": {
+      "product": 517,
+      "other-html": 8,
+      "blog": 2
+    },
+    "sitemapUrls": 541,
+    "sitemapByType": {
+      "product": 528,
+      "other-html": 9,
+      "blog": 4
+    },
+    "sitemapUrlsPresentInGoogleReport": 526,
+    "sitemapUrlsAbsentFromIndexedReport": [
+      "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+      "https://supplychainsai.com/privacy/",
+      "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+      "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "https://supplychainsai.com/toys/"
+    ],
+    "indexedUrlsAbsentFromCurrentMap": [
+      "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
+    ],
+    "comparisonCaveat": "Google report is 2026-11-09; sitemap fetched 2026-11-16; absence is not proof of a current technical failure."
+  },
+  "crawledNotIndexed": {
+    "reportedCount": 960,
+    "exportedRows": 960,
+    "groups": {
+      "public-image": 959,
+      "products": 1
+    },
+    "otherUrls": ["https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/"],
+    "reportUpdated": "2026-11-09",
+    "captured": "2026-11-16",
+    "scope": "https://supplychainsai.com/"
+  },
+  "other4xx": [
+    {
+      "id": "3fbe8b166ac87f63003984d22ff5a5d7",
+      "status": 400,
+      "body": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (50874ca4-e11f-11f1-bc20-5254000956fc). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"370f9cfd-e0f8-4e68-8d76-fc3ae9d57555\"}"
+    },
+    {
+      "id": "66baec6f6ac882aa00729f35667d3ea5",
+      "status": 400,
+      "body": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (5088584a-e11f-11f1-9a90-52540008de27). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"22d1c921-8616-40c1-89cd-2be4b0763cfa\"}"
+    },
+    {
+      "id": "4db8df016ac88396000781db489eb227",
+      "status": 400,
+      "body": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (5087a464-e11f-11f1-acda-525400e4cc6c). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"acddee54-cb45-488a-9370-18c6e5f8a999\"}"
+    },
+    {
+      "id": "ea7765a56ab1dbea01d9b6924386c973",
+      "status": 400,
+      "body": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (529061f3-e11f-11f1-acda-525400e4cc6c). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"33485a78-4ebb-4a08-aea1-1199e889a826\"}"
+    },
+    {
+      "id": "31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 400,
+      "body": "{\"code\":\"FUNCTIONS_INVOCATION_FAILED\",\"message\":\"The size of HTTP response body exceeds the upper limit (6MB). (530da799-e11f-11f1-bdaf-525400026b5c). For more information, please refer to https://docs.cloudbase.net/en/error-code/service/FUNCTIONS_INVOCATION_FAILED\",\"requestId\":\"32cd8544-7c97-4a74-af9a-27b216a80ec3\"}"
+    }
+  ],
+  "largeImageInventory": {
+    "screeningBytes": 4400000,
+    "activeRows": 19,
+    "pngRows": 19,
+    "estimatedOver6MiBWithBase64": 13,
+    "caveat": "Screening and calculated response budget are not substitutes for verifying each public reference and actual response."
+  },
+  "after": null
+}

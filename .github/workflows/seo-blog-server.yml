@@ -46,7 +46,7 @@ jobs:
           path: output/channel-blog-content-kit-2026-10-27.zip
           if-no-files-found: error
       - name: Check KB replay and key rotation through the actual SDK offline transport
-        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../tools/hermes-blog/kb-store.integration.mjs ../../tools/hermes-blog/image-store.integration.ts
+        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../tools/hermes-blog/kb-store.integration.mjs ../../tools/hermes-blog/image-store.integration.ts ../../tools/hermes-blog/publication.integration.ts
       - run: ./apps/functions/article-import/node_modules/.bin/tsup --config tools/hermes-blog/tsup.config.mjs
       - uses: actions/setup-node@v4
         with: {node-version: 20.19.0}

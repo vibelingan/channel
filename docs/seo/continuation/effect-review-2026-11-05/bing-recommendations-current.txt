@@ -1,0 +1,79 @@
+Skip to main content
+
+
+
+
+
+
+supplychainsai.com/
+
+
+Home
+
+Search Performance
+
+AI Performance
+BETA
+
+URL Inspection
+
+Site Explorer
+
+Sitemaps
+IndexNow
+
+URL Submission
+
+Backlinks
+
+Keyword Research
+
+Recommendations
+
+Site Scan
+CONFIGURATION
+
+TOOLS & ENHANCEMENTS
+
+SECURITY & PRIVACY
+
+
+User management
+
+Microsoft Clarity
+Recommendations
+Total Errors
+High severity
+1
+Moderate severity
+5
+Low severity
+-
+6
+Total errors
+Doughnut chart showing S E O Reports. High severity: 1, Moderate severity: 5, Low severity: -, Total errors 6
+Total pages with errors
+4
+Error details
+All
+High
+Moderate
+Low
+Download all
+SEO/GEO error type
+Severity
+
+Page count
+Learn how IndexNow boosts site visibility with easy setup.
+High
+-
+Your site lacks inbound links from high-quality domains.
+Moderate
+-
+Too many pages with identical titles.
+Moderate
+2
+Too many pages with identical meta descriptions.
+Moderate
+2
+4 rows

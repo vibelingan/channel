@@ -1,4 +1,7 @@
-export { catalogProtectedStoragePath } from '@vibelingan-channel/shared/catalog-media-protection';
+export {
+  catalogProtectedStoragePath,
+  catalogWebObjectPath,
+} from '@vibelingan-channel/shared/catalog-media-protection';
 
 /** Dedicated browser-upload broker only. Internal tracked server PUTs use their private minter. */
 export function assertBrowserWritableMediaPath(cloudPath: string): void {
@@ -8,6 +11,7 @@ export function assertBrowserWritableMediaPath(cloudPath: string): void {
     cloudPath.includes('%') ||
     cloudPath.includes('\\') ||
     parts.some((part) => part === '.' || part === '..') ||
+    parts[0] === 'catalog-web' ||
     (parts[0] === 'catalog' && parts[1] === 'sealed')
   )
     throw new Error('Reserved or invalid media upload path');

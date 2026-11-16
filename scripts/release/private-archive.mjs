@@ -12,7 +12,9 @@ export function createPrivateArchive({
   readLifecycle,
   put,
   read,
-  head = null,
+  head = /** @type {null | ((sdk:any,fileId:string)=>Promise<{bytes:number,etag:string}>)} */ (
+    null
+  ),
   onTransfer = (_event) => {},
   now = () => performance.now(),
   policyCacheMs = 0,

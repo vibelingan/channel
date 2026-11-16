@@ -67,7 +67,9 @@ export function retainSiteAssets(files, baseline) {
     if (
       entry.path.endsWith('.html') ||
       articleMediaFile.test(entry.path) ||
-      /\.xml$|^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json)$/.test(entry.path)
+      /\.xml$|^(?:robots\.txt|seo-manifest\.json|products\/manifest\.json|catalog-pages\/manifest\.json)$/.test(
+        entry.path,
+      )
     )
       continue;
     const bytes = readHostingObject(baseline.directory, entry);

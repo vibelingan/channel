@@ -20,8 +20,10 @@
     "./build": "./src/build.ts",
     "./release-build": "./src/release-build.ts",
     "./public-read": "./src/public-read.ts",
+    "./web-media": "./src/web-media.ts",
     "./import": "./src/import.ts",
     "./import-store": "./src/import-store.ts",
+    "./import-publication": "./src/import-publication.ts",
     "./import-media": "./src/import-media.ts"
   },
   "scripts": {

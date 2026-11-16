@@ -8,7 +8,8 @@ export function guardCatalogHostingAdapters(api, delivery, paths) {
         e.path.endsWith('.html') ||
         /(?:^|\/)sitemap.*\.xml$/.test(e.path) ||
         e.path === 'seo-manifest.json' ||
-        e.path === 'products/manifest.json',
+        e.path === 'products/manifest.json' ||
+        e.path === 'catalog-pages/manifest.json',
     );
     if (!relevant.length) return;
     const products = [

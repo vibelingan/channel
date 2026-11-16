@@ -9,7 +9,8 @@ import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts'
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import { SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
 import { isPlainProductClick, productPath } from './product-identity.ts';
-import { productPageDescriptor } from './product-page.ts';
+import { duplicateProductTitleIds, productPageDescriptor } from './product-page.ts';
+import type { ProductSnapshotEntry } from './product-snapshot.ts';
 
 const source = readFileSync(
   new URL('../../i18n/content/catalog/en-US.md', import.meta.url),
@@ -54,7 +55,13 @@ test('one stable identity drives metadata schema and breadcrumbs without inferri
   assert.equal(page.canonicalPath, '/products/p-canonical-product/');
   assert.match(page.description, /Public summary/);
   assert.doesNotMatch(JSON.stringify(page.schemaNodes), /localhost|products\/item|Offer/);
-  assert.equal(page.schemaNodes[0]?.url, 'https://example.com/products/p-canonical-product/');
+  assert.equal(page.robots, 'index,follow');
+  assert.equal(page.content.revision, detail.revision);
+  assert.ok(page.schemaNodes.every((node) => node['@type'] !== 'Product'));
+  const breadcrumb = page.schemaNodes.find((node) => node['@type'] === 'BreadcrumbList');
+  const items = breadcrumb?.itemListElement;
+  assert.ok(Array.isArray(items));
+  assert.equal(items.at(-1)?.item, 'https://example.com/products/p-canonical-product/');
 });
 test('plain clicks expand in place and modifier clicks retain native link navigation', () => {
   const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
@@ -111,4 +118,156 @@ test('first delivery uses the existing dynamic route and later acceptance restor
     'Brand',
   );
   assert.equal(updated.content.updatedAt, '2026-10-30T00:00:00.000Z');
+});
+
+function metadataEntry(id: string, name: string, description = ''): ProductSnapshotEntry {
+  return { product: { ...product, _id: id, name, description }, revision: 'metadata-r1' };
+}
+const metadata = (
+  entry: ProductSnapshotEntry,
+  brand = 'Diversity Innovations Limited',
+  duplicate = false,
+) => productPageDescriptor(entry, 'https://example.com', brand, duplicate);
+const characters = (text: string) => Array.from(text).length;
+
+test('short titles keep the brand only when the complete name and brand fit', () => {
+  assert.equal(
+    metadata(metadataEntry('short', 'Headset')).title,
+    'Headset | Diversity Innovations Limited',
+  );
+  const name = 'Wireless over-ear headphones for everyday listening';
+  assert.equal(metadata(metadataEntry('full-name', name)).title, name);
+  assert.equal(
+    metadata(metadataEntry('long-brand', 'Headset'), 'Brand'.repeat(30)).title,
+    'Headset',
+  );
+});
+
+test('the real long imported name and summary fit display budgets without changing public content', () => {
+  const name =
+    'High Quality Foldable Headband Headphones Wireless Headset Wireless Headphones With Noise Cancellations';
+  const summary =
+    'Experienced Headphones Manufacturer Channel Technology Ltd is engaged in the research, development, production, and sale of wired and wireless headsets. Established in 2004, we export headphones.';
+  const entry = metadataEntry('01121e8b-9503-4095-a889-0742a14c7f4c', name, summary);
+  const page = metadata(entry);
+  assert.ok(characters(page.title) <= 65);
+  assert.ok(characters(page.description) <= 160);
+  assert.equal(page.title, 'High Quality Foldable Headband Headphones Wireless Headset…');
+  assert.match(page.description, /…$/u);
+  assert.doesNotMatch(page.description, /we exp(?:…|$)/u);
+  assert.ok(summary.includes(page.description.slice(name.length + 2, -1)));
+  const html = renderToStaticMarkup(
+    createElement(ProductLanding, {
+      product: entry.product,
+      content,
+      copy: content.sharedDetail,
+      canonicalPath: productPath(entry.product._id),
+    }),
+  );
+  assert.deepEqual(
+    [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((match) => match[1]),
+    [name],
+  );
+  assert.equal(entry.product.name, name);
+  assert.equal(entry.product.description, summary);
+  const breadcrumbs = page.schemaNodes.find((node) => node['@type'] === 'BreadcrumbList');
+  assert.ok(Array.isArray(breadcrumbs?.itemListElement));
+  assert.equal(breadcrumbs.itemListElement.at(-1)?.name, name);
+});
+
+test('identical names retain each complete UUID within the title budget', () => {
+  const entries = [
+    metadataEntry('01121e8b-9503-4095-a889-0742a14c7f4c', 'Wireless headphones for everyday use'),
+    metadataEntry('804ee5b9-209c-41b7-ae91-9c854fc8d1b4', 'Wireless headphones for everyday use'),
+  ];
+  const duplicates = duplicateProductTitleIds(entries, 'Diversity Innovations Limited');
+  assert.deepEqual(duplicates, new Set(entries.map((entry) => entry.product._id)));
+  const titles = entries.map(
+    (entry) =>
+      metadata(entry, 'Diversity Innovations Limited', duplicates.has(entry.product._id)).title,
+  );
+  const descriptions = entries.map(
+    (entry) =>
+      metadata(entry, 'Diversity Innovations Limited', duplicates.has(entry.product._id))
+        .description,
+  );
+  assert.equal(new Set(titles).size, 2);
+  assert.equal(new Set(descriptions).size, 2);
+  for (const [index, title] of titles.entries()) {
+    assert.ok(title.includes(`(${entries[index].product._id})`));
+    assert.ok(characters(title) <= 65);
+    assert.ok(descriptions[index].endsWith(`(${entries[index].product._id})`));
+    assert.ok(characters(descriptions[index]) <= 160);
+  }
+});
+
+test('different long names with the same shortened prefix receive identities too', () => {
+  const prefix =
+    'Wireless over-ear headphones for comfortable listening at home and while travelling';
+  const entries = [
+    metadataEntry('prefix-one', `${prefix} with a blue finish`),
+    metadataEntry('prefix-two', `${prefix} with a purple finish`),
+  ];
+  assert.equal(metadata(entries[0]).title, metadata(entries[1]).title);
+  const duplicates = duplicateProductTitleIds(entries, 'Diversity Innovations Limited');
+  const titles = entries.map(
+    (entry) =>
+      metadata(entry, 'Diversity Innovations Limited', duplicates.has(entry.product._id)).title,
+  );
+  assert.equal(duplicates.size, 2);
+  assert.equal(new Set(titles).size, 2);
+  assert.ok(titles.every((title) => characters(title) <= 65));
+});
+
+test('adding an identity cannot collide with another existing product title', () => {
+  const entries = [
+    metadataEntry('one', 'Headset'),
+    metadataEntry('two', 'Headset'),
+    metadataEntry('three', 'Headset (one)'),
+  ];
+  const duplicates = duplicateProductTitleIds(entries, 'Brand');
+  assert.deepEqual(duplicates, new Set(['one', 'two', 'three']));
+  const titles = entries.map(
+    (entry) => metadata(entry, 'Brand', duplicates.has(entry.product._id)).title,
+  );
+  assert.equal(new Set(titles).size, 3);
+});
+
+test('Unicode and unspaced names stay readable without splitting surrogate pairs', () => {
+  for (const name of ['🎧'.repeat(80), '无线头戴式耳机'.repeat(20), 'Headphones'.repeat(20)]) {
+    const page = metadata(metadataEntry('unicode', name, name));
+    assert.equal(characters(page.title), 65);
+    assert.ok(characters(page.description) <= 160);
+    assert.ok(page.title.startsWith(Array.from(name)[0]));
+    assert.match(page.title, /…$/u);
+    assert.doesNotMatch(page.title, /[\uD800-\uDFFF]/u);
+  }
+});
+
+test('an exceptionally long historical identity takes priority over the soft title budget', () => {
+  const id = `historical-${'a'.repeat(150)}`;
+  const entry = metadataEntry(id, 'Headset');
+  const page = metadata(entry, 'Brand', true);
+  assert.equal(page.title, `Headset (${id})`);
+  assert.ok(characters(page.title) > 65);
+  assert.ok(page.description.endsWith(`(${id})`));
+  assert.equal(page.canonicalPath, productPath(id));
+});
+
+test('the complete description is shortened on a word boundary and normalizes whitespace', () => {
+  const page = metadata(
+    metadataEntry(
+      'description',
+      '  Headset\n for travel ',
+      `${'clear information '.repeat(20)}we export products`,
+    ),
+  );
+  assert.ok(characters(page.description) <= 160);
+  assert.match(page.description, /^Headset for travel\. clear information/);
+  assert.match(page.description, /(?:clear|information)…$/u);
+  assert.doesNotMatch(page.description, /\s{2}|\n/);
+  assert.equal(
+    metadata(metadataEntry('empty-summary', 'Headset')).description,
+    'Headset. View product specifications, photos and quotation options.',
+  );
 });

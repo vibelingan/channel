@@ -42,7 +42,10 @@ import { completeCatalogRegistration } from './release/catalog-registration.mjs'
 import { createRendererSource } from './release/catalog-renderer-source.mjs';
 import { unpackCatalogRenderer } from './release/catalog-renderer.mjs';
 import { assertInitialCatalogRuntime } from './release/catalog-runtime-activation.mjs';
-import { checkCatalogRuntimeFlags } from './release/catalog-runtime-flags.mjs';
+import {
+  assertCatalogTrackingContinuity,
+  checkCatalogRuntimeFlags,
+} from './release/catalog-runtime-flags.mjs';
 import { assertStoppedFunctionsAbsent } from './release/catalog-stopped-evidence.mjs';
 import { recoverStoppedCatalogDelivery } from './release/catalog-stopped-recovery.mjs';
 import {
@@ -156,6 +159,13 @@ const retention = createSiteRetention({
 });
 const github = createSiteGithubSource({ token: env.GITHUB_TOKEN, retention });
 const catalogConfig = readCatalogSeoRecordingConfig(env);
+if (!catalogConfig) {
+  const active = await db.collection('catalogSeoBuilders').doc('active').get();
+  assertCatalogTrackingContinuity(
+    Array.isArray(active.data) ? active.data[0] : active.data,
+    catalogConfig,
+  );
+}
 if (catalogConfig) {
   await checkCatalogRuntimeFlags(manager, catalogConfig, policy.envId);
   const activation = await db.collection('catalogSeoBuilders').doc('runtime-activation').get();
@@ -400,7 +410,10 @@ async function command(
   });
   check();
 }
-async function verifyPublicDelivery({ action }: { action: string }) {
+async function verifyPublicDelivery({
+  action,
+  requireCategoryPages = false,
+}: { action: string; requireCategoryPages?: boolean }) {
   if (['publish', 'initialize', 'reconcile'].includes(action)) {
     const publicEnv = {
       PATH: env.PATH,
@@ -410,6 +423,7 @@ async function verifyPublicDelivery({ action }: { action: string }) {
       E2E_SITE_URL: policy.siteOrigin,
       E2E_API_URL: `https://${policy.envId}.service.tcloudbase.com`,
       E2E_SEO_PUBLIC_LIVE: '1',
+      E2E_REQUIRE_CATALOG_PAGES: requireCategoryPages ? '1' : '0',
       E2E_BLOG_DELIVERY_MODE: blogServer ? 'server' : 'static',
       E2E_RECORD_ARTIFACTS: '0',
       ...(claim
@@ -1104,7 +1118,11 @@ try {
         loadAccepted,
         publicProductPaths,
         readPublicProductPaths,
-        postCheck: verifyPublicDelivery,
+        postCheck: (event: { action: string }) =>
+          verifyPublicDelivery({
+            ...event,
+            requireCategoryPages: files.has('catalog-pages/manifest.json'),
+          }),
         onStop: reportSiteStop,
       },
       { policy, scopeKey: 'site' },

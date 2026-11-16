@@ -1,0 +1,92 @@
+Skip to main content
+
+
+
+
+
+
+supplychainsai.com/
+
+
+Home
+
+Search Performance
+
+AI Performance
+BETA
+
+URL Inspection
+
+Site Explorer
+
+Sitemaps
+IndexNow
+
+URL Submission
+
+Backlinks
+
+Keyword Research
+
+Recommendations
+
+Site Scan
+CONFIGURATION
+
+TOOLS & ENHANCEMENTS
+
+SECURITY & PRIVACY
+
+
+User management
+
+Microsoft Clarity
+Recommendations
+
+Error details
+
+Too many pages with identical meta descriptions.
+Severity
+Moderate
+Pages with error
+2
+Total errors
+2
+Recommended action
+Meta descriptions provide a brief summary of a page's content and are often displayed in search engine results. If multiple pages have the same meta description, it can be difficult for search engines to differentiate between them and determine which page is the most relevant for a given search query. This can result in lower rankings and less visibility for your website. Ensuring that each page has a unique and descriptive meta description can improve your site's SEO/GEO performance and user engagement.
+
+To improve Meta Descriptions:
+
+1. Review the URLs listed below to identify pages with duplicate meta descriptions.
+
+2. For each page with a short meta description, analyze the content and create a new, more descriptive meta description. Aim for a length of 150-160 characters to ensure it provides enough information without being truncated in search results.
+
+3. Update the meta descriptions on your website. This can usually be done through your content management system (CMS) or by editing the HTML of each page.
+
+4. Use Bing Webmaster Tools to monitor the performance of your pages. Look for improvements in click-through rates and search rankings. You can also use A/B testing to compare different meta descriptions and see which ones perform better.
+
+5. Regularly review and update your meta descriptions to ensure they remain relevant and effective. Use Bing Webmaster Tools to keep track of any new issues and make adjustments as needed.
+
+Pages with this error
+This table lists up to 50 descriptions that were not in compliance with the selected SEO/GEO Best Practice when we last scanned it
+Download all
+
+select all items
+
+URL
+
+
+
+
+OEM/ODM product design, engineering, tooling, production, quality control, and global delivery managed by one accountable manufacturing team.
+
+https://www.supplychainsai.com/
+
+
+
+
+http://supplychainsai.com/
+
+
+
+2 rows

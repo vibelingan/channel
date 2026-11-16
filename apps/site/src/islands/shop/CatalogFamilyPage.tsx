@@ -4,6 +4,10 @@ import type {
   CatalogFamilyContent,
   SharedDetailContent,
 } from '../../i18n/catalog.ts';
+import {
+  type CategoryPageMetadata,
+  syncCategoryPageMetadata,
+} from '../../lib/seo/category-page-metadata.ts';
 import { CatalogFamilyGrid } from './CatalogFamilyGrid.tsx';
 import { HeadphonesProductDetail } from './HeadphonesProductDetail.tsx';
 import { LegacySkuDetailPage } from './SkuDetailPage.tsx';
@@ -13,12 +17,17 @@ import {
   fetchCatalogTaxonomy,
   parseTaxonomyCatalogQuery,
 } from './catalog-taxonomy.ts';
+import type { CatalogPage } from './catalog-types.ts';
 import {
   CATALOG_PAGE_SIZE,
   type NumberedCatalogQuery,
   type NumberedCatalogState,
   beginNumberedPage,
   cancelNumberedPage,
+  catalogDeliveredPageCount,
+  catalogDocumentTarget,
+  catalogFilteredPathRedirect,
+  catalogPathPage,
   catalogQueryEquals,
   catalogQueryWithFilters,
   catalogRequestIsPending,
@@ -33,29 +42,76 @@ interface Props {
   content: CatalogContent;
   family: CatalogFamilyContent;
   previewContent?: SharedDetailContent;
+  bootstrap?: CatalogPage;
+  pageMetadata?: CategoryPageMetadata;
 }
 
 const SharedCatalogPreview = lazy(() => import('./SharedCatalogPreview.tsx'));
+
+function StaticCatalogPage({ content, family, bootstrap }: Props & { bootstrap: CatalogPage }) {
+  const state = initialNumberedCatalogState(bootstrap);
+  return (
+    <CatalogFamilyGrid
+      content={content}
+      family={{ ...family, categories: [] }}
+      state={state}
+      selectedCategories={[]}
+      searchInput=""
+      filtersDisabled
+      onCategoriesChange={() => {}}
+      onSearchInputChange={() => {}}
+      onRetry={() => {}}
+      onPageChange={() => {}}
+      pageHref={(page) =>
+        catalogUrl(
+          new URL(family.href, 'https://catalog.invalid').href,
+          { ...state.requested, page },
+          true,
+        )
+      }
+      nativePagination
+    />
+  );
+}
 
 function detailIsOpen() {
   const params = new URLSearchParams(window.location.search);
   return ['id', 'variant', 'slug'].some((key) => params.has(key));
 }
 
-function writeCatalogHistory(query: NumberedCatalogQuery, mode: 'push' | 'replace') {
+function writeCatalogHistory(
+  query: NumberedCatalogQuery,
+  mode: 'push' | 'replace',
+  pageMetadata?: CategoryPageMetadata,
+  deliveredPageCount = Number.POSITIVE_INFINITY,
+) {
   if (detailIsOpen()) return;
   const currentUrl = new URL(window.location.href);
   currentUrl.searchParams.delete('subcategoryIds');
-  const next = catalogUrl(currentUrl.href, query);
-  if (next === `${window.location.pathname}${window.location.search}${window.location.hash}`)
-    return;
-  window.history[mode === 'push' ? 'pushState' : 'replaceState'](window.history.state, '', next);
+  const next = catalogUrl(currentUrl.href, query, true, deliveredPageCount);
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`)
+    window.history[mode === 'push' ? 'pushState' : 'replaceState'](window.history.state, '', next);
+  if (pageMetadata) syncCategoryPageMetadata(document, pageMetadata);
 }
 
-export function CatalogFamilyPage({ content, family, previewContent }: Props) {
+export function CatalogFamilyPage({
+  content,
+  family,
+  previewContent,
+  bootstrap,
+  pageMetadata,
+}: Props) {
   if (SharedCatalogPreview && previewContent)
     return (
-      <Suspense fallback={<output>{content.list.loadingLabel}</output>}>
+      <Suspense
+        fallback={
+          bootstrap ? (
+            <StaticCatalogPage content={content} family={family} bootstrap={bootstrap} />
+          ) : (
+            <output>{content.list.loadingLabel}</output>
+          )
+        }
+      >
         <SharedCatalogPreview
           copy={previewContent}
           renderLegacyDetail={(productId) => (
@@ -66,6 +122,8 @@ export function CatalogFamilyPage({ content, family, previewContent }: Props) {
               key={family.key}
               content={content}
               family={family}
+              bootstrap={bootstrap}
+              pageMetadata={pageMetadata}
               onOpenProduct={open}
               locationSearch={locationSearch}
             />
@@ -73,7 +131,15 @@ export function CatalogFamilyPage({ content, family, previewContent }: Props) {
         />
       </Suspense>
     );
-  return <CatalogFamilyList key={family.key} content={content} family={family} />;
+  return (
+    <CatalogFamilyList
+      key={family.key}
+      content={content}
+      family={family}
+      bootstrap={bootstrap}
+      pageMetadata={pageMetadata}
+    />
+  );
 }
 
 type ListProps = Props & { onOpenProduct?: (id: string) => void; locationSearch?: string };
@@ -154,6 +220,8 @@ function CatalogFamilyList(props: ListProps) {
 function CatalogFamilyController({
   content,
   family,
+  bootstrap,
+  pageMetadata,
   onOpenProduct,
   locationSearch,
   registry,
@@ -167,11 +235,16 @@ function CatalogFamilyController({
   onTaxonomyRetry: () => void;
 }) {
   const categoryKeys = family.categories.map((category) => category.key);
+  const deliveredPageCount = catalogDeliveredPageCount(bootstrap);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(categoryKeys);
   const [searchInput, setSearchInput] = useState('');
-  const [state, setState] = useState<NumberedCatalogState>(initialNumberedCatalogState);
+  const [state, setState] = useState<NumberedCatalogState>(() =>
+    initialNumberedCatalogState(bootstrap),
+  );
+  const bootstrapNeedsRefresh = useRef(Boolean(bootstrap));
   const stateRef = useRef(state);
   const abortRef = useRef<AbortController | null>(null);
+  const requestQueryRef = useRef<NumberedCatalogQuery | null>(null);
   const invalidSelectionRef = useRef(false);
   const listTopRef = useRef<HTMLDivElement>(null);
   const focusGenerationRef = useRef<number | null>(null);
@@ -199,13 +272,21 @@ function CatalogFamilyController({
   );
 
   const navigate = useCallback(
-    async (query: NumberedCatalogQuery, mode: 'push' | 'replace', focus = false) => {
+    async (
+      query: NumberedCatalogQuery,
+      mode: 'push' | 'replace',
+      focus = false,
+      keepCards = false,
+    ) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
+      requestQueryRef.current = query;
       const current = stateRef.current;
       const loading = beginNumberedPage(
-        mode === 'replace' ? { ...current, committed: null, products: [], total: null } : current,
+        mode === 'replace' && !keepCards
+          ? { ...current, committed: null, products: [], total: null }
+          : current,
         query,
       );
       commit(loading);
@@ -242,11 +323,24 @@ function CatalogFamilyController({
           if (next.error) {
             if (next.committed) {
               restoreInputs(next.committed);
-              writeCatalogHistory(next.committed, 'replace');
+              writeCatalogHistory(next.committed, 'replace', pageMetadata, deliveredPageCount);
             }
           } else if (next.committed) {
+            bootstrapNeedsRefresh.current = false;
             setActiveProductId(null);
-            writeCatalogHistory(next.committed, mode);
+            if (!next.committed.search && next.committed.categories === null && !detailIsOpen()) {
+              const target = catalogDocumentTarget(
+                window.location.href,
+                next.committed,
+                deliveredPageCount,
+                bootstrap?.page,
+              );
+              if (target) {
+                window.location.replace(target);
+                return;
+              }
+            }
+            writeCatalogHistory(next.committed, mode, pageMetadata, deliveredPageCount);
           }
           return;
         }
@@ -260,68 +354,130 @@ function CatalogFamilyController({
         commit(failed);
         if (failed.committed) {
           restoreInputs(failed.committed);
-          writeCatalogHistory(failed.committed, 'replace');
+          writeCatalogHistory(failed.committed, 'replace', pageMetadata, deliveredPageCount);
         }
       }
     },
-    [commit, content.list.errorLabel, family.key, restoreInputs],
+    [
+      commit,
+      content.list.errorLabel,
+      family.key,
+      restoreInputs,
+      pageMetadata,
+      deliveredPageCount,
+      bootstrap?.page,
+    ],
   );
 
-  const readLocation = useCallback(() => {
-    if (taxonomyPending && registry === null) return;
-    let query: NumberedCatalogQuery;
-    try {
-      query = parseTaxonomyCatalogQuery(window.location.search, registry);
-      invalidSelectionRef.current = false;
-    } catch (error) {
-      invalidSelectionRef.current = true;
-      abortRef.current?.abort();
-      const failed = cancelNumberedPage(stateRef.current);
-      commit({
-        ...failed,
-        committed: null,
-        requested: { ...parseCatalogQuery(window.location.search, []), categories: [] },
-        products: [],
-        total: null,
-        pending: taxonomyPending,
-        error: taxonomyPending
-          ? null
-          : error instanceof Error
-            ? error.message
-            : content.list.errorLabel,
-      });
-      setSelectedCategories([]);
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    if (
-      params.has('page') &&
-      (params.getAll('page').length !== 1 || params.get('page') !== String(query.page))
-    )
-      writeCatalogHistory(query, 'replace');
-    const current = stateRef.current;
-    if (
-      catalogRequestIsPending(current, query, abortRef.current?.signal.aborted ?? true) &&
-      (current.committed === null || catalogQueryEquals(current.committed, query))
-    )
-      return;
-    restoreInputs(query);
-    if (current.committed && catalogQueryEquals(current.committed, query)) {
-      abortRef.current?.abort();
-      if (current.pending || current.error) commit(cancelNumberedPage(current));
-      return;
-    }
-    void navigate(query, 'replace');
-  }, [commit, content.list.errorLabel, registry, taxonomyPending, navigate, restoreInputs]);
+  const readLocation = useCallback(
+    (event?: PopStateEvent) => {
+      const filteredTarget = catalogFilteredPathRedirect(window.location.href);
+      if (filteredTarget) {
+        window.location.replace(filteredTarget);
+        return;
+      }
+      const params = new URLSearchParams(window.location.search);
+      const hasFilters =
+        params.has('category') ||
+        params.has('subcategoryIds') ||
+        Boolean(params.get('search')?.trim());
+      if (taxonomyPending && registry === null && hasFilters) return;
+      let query: NumberedCatalogQuery;
+      try {
+        query = parseTaxonomyCatalogQuery(window.location.search, registry);
+        const pathPage = catalogPathPage(window.location.pathname);
+        if (pathPage !== null && !hasFilters) query = { ...query, page: pathPage };
+        invalidSelectionRef.current = false;
+      } catch (error) {
+        invalidSelectionRef.current = true;
+        abortRef.current?.abort();
+        const failed = cancelNumberedPage(stateRef.current);
+        commit({
+          ...failed,
+          committed: null,
+          requested: { ...parseCatalogQuery(window.location.search, []), categories: [] },
+          products: [],
+          total: null,
+          pending: taxonomyPending,
+          error: taxonomyPending
+            ? null
+            : error instanceof Error
+              ? error.message
+              : content.list.errorLabel,
+        });
+        setSelectedCategories([]);
+        return;
+      }
+      if (!hasFilters && !detailIsOpen()) {
+        const target = catalogDocumentTarget(
+          window.location.href,
+          query,
+          deliveredPageCount,
+          bootstrap?.page,
+        );
+        if (target) {
+          window.location.replace(target);
+          return;
+        }
+      }
+      if (
+        params.has('page') &&
+        (catalogPathPage(window.location.pathname) !== null ||
+          params.getAll('page').length !== 1 ||
+          params.get('page') !== String(query.page))
+      )
+        writeCatalogHistory(query, 'replace', pageMetadata, deliveredPageCount);
+      const current = stateRef.current;
+      // A page-shrink retry changes requested.page while the address still names
+      // the original page. Taxonomy/hydration updates must not restart that request.
+      // Real Back/Forward events must still supersede a pending page click.
+      if (
+        !event &&
+        current.pending &&
+        abortRef.current &&
+        !abortRef.current.signal.aborted &&
+        requestQueryRef.current &&
+        (catalogQueryEquals(requestQueryRef.current, query) ||
+          (current.committed && catalogQueryEquals(current.committed, query)))
+      )
+        return;
+      if (
+        catalogRequestIsPending(current, query, abortRef.current?.signal.aborted ?? true) &&
+        (current.committed === null || catalogQueryEquals(current.committed, query))
+      )
+        return;
+      restoreInputs(query);
+      const samePage = current.committed && catalogQueryEquals(current.committed, query);
+      if (samePage && !bootstrapNeedsRefresh.current) {
+        abortRef.current?.abort();
+        if (current.pending || current.error) commit(cancelNumberedPage(current));
+        return;
+      }
+      void navigate(query, 'replace', false, Boolean(samePage));
+    },
+    [
+      deliveredPageCount,
+      bootstrap?.page,
+      pageMetadata,
+      commit,
+      content.list.errorLabel,
+      registry,
+      taxonomyPending,
+      navigate,
+      restoreInputs,
+    ],
+  );
 
   useEffect(() => {
     readLocation();
     window.addEventListener('popstate', readLocation);
     return () => {
       window.removeEventListener('popstate', readLocation);
-      abortRef.current?.abort();
     };
   }, [readLocation]);
+
+  // Changing taxonomy replaces the URL listener; an unchanged in-flight list can finish.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
     if (locationSearch !== undefined) readLocation();
@@ -386,7 +542,8 @@ function CatalogFamilyController({
           : catalogQueryWithFilters(current.requested, search, categories, categoryKeys).categories
         : current.requested.categories,
     };
-    if (invalidSelectionRef.current) writeCatalogHistory(query, 'replace');
+    if (invalidSelectionRef.current)
+      writeCatalogHistory(query, 'replace', pageMetadata, deliveredPageCount);
     invalidSelectionRef.current = false;
     if (catalogQueryEquals(current.requested, query) && !current.error) return;
     void navigate(query, 'push');
@@ -397,7 +554,7 @@ function CatalogFamilyController({
     const query: NumberedCatalogQuery = { page: 1, search: '', categories: null };
     setSearchInput('');
     setSelectedCategories(categoryKeys);
-    writeCatalogHistory(query, 'replace');
+    writeCatalogHistory(query, 'replace', pageMetadata, deliveredPageCount);
     invalidSelectionRef.current = false;
     void navigate(query, 'push');
   };
@@ -487,6 +644,19 @@ function CatalogFamilyController({
           onSearchInputChange={(search) => handleFilters(search, selectedCategories)}
           onRetry={handleRetry}
           onPageChange={handlePageChange}
+          pageHref={(page) =>
+            catalogUrl(
+              new URL(family.href, 'https://catalog.invalid').href,
+              { ...(state.committed ?? state.requested), page },
+              true,
+              deliveredPageCount,
+            )
+          }
+          nativePagination={(page) =>
+            (state.committed ?? state.requested).categories === null &&
+            !(state.committed ?? state.requested).search &&
+            page <= deliveredPageCount
+          }
           onOpenProduct={handleOpenProduct}
         />
         {invalidSelectionRef.current && state.error && (

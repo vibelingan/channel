@@ -198,3 +198,110 @@ test('quota errors carry Retry-After while storage errors never reveal SDK detai
   assert(!failed.body.includes('PRIVATE_DATABASE_DETAIL'));
   assert.equal((await handleArticleImportEvent(request, undefined)).statusCode, 503);
 });
+
+test('owned publication route authenticates before any article action', async () => {
+  const response = await handleArticleImportEvent(
+    {
+      httpMethod: 'POST',
+      path: `${root}/article-import-${'a'.repeat(64)}/publication`,
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    },
+    {
+      create: async () => {
+        throw Error('Publication must not create a draft');
+      },
+      get: async () => {
+        throw Error('Publication must not read an unrelated draft');
+      },
+    },
+  );
+  assert.equal(response.statusCode, 401);
+});
+
+test('publication GET/POST keep the exact owner, bounded JSON, no-cache and method contract', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const service = {
+    ...f.service,
+    publication: {
+      sync: async () => {
+        throw Error('Publication must not sync its source implicitly');
+      },
+      state: async (...args: unknown[]) => {
+        calls.push(['state', ...args]);
+        return { state: 'ready' };
+      },
+      change: async (...args: unknown[]) => {
+        calls.push(['change', ...args]);
+        return { state: 'published' };
+      },
+    },
+  };
+  const path = `${root}/${receipt.operationId}/publication`;
+  const get = await handleArticleImportEvent(
+    { ...request, httpMethod: 'GET', path, body: '' },
+    service,
+  );
+  assert.equal(get.statusCode, 200);
+  assert.equal(get.headers['Cache-Control'], 'no-store');
+  assert.deepEqual(calls.at(-1), ['state', credentials, receipt.operationId]);
+  const post = await handleArticleImportEvent({ ...request, path, body: '{"test":true}' }, service);
+  assert.equal(post.statusCode, 200);
+  assert.deepEqual(calls.at(-1), ['change', credentials, receipt.operationId, { test: true }]);
+  for (const method of ['DELETE', 'PUT', 'OPTIONS']) {
+    const denied = await handleArticleImportEvent(
+      { ...request, path, httpMethod: method },
+      service,
+    );
+    assert.equal(denied.statusCode, 405);
+    assert.equal(denied.headers.Allow, 'GET, POST');
+  }
+  assert.equal(
+    (
+      await handleArticleImportEvent(
+        { ...request, path, body: 'x'.repeat(256 * 1024 + 1) },
+        service,
+      )
+    ).statusCode,
+    413,
+  );
+  assert.equal(
+    (await handleArticleImportEvent({ ...request, path, headers: {} }, service)).statusCode,
+    401,
+  );
+  assert.equal(
+    (await handleArticleImportEvent({ ...request, path: `${path}/other` }, service)).statusCode,
+    404,
+  );
+});
+
+test('source updates are authenticated POST only and cannot masquerade as browser admin actions', async () => {
+  const f = fixture();
+  const calls: unknown[] = [];
+  const service = {
+    ...f.service,
+    publication: {
+      state: async () => ({}),
+      change: async () => ({}),
+      sync: async (...args: unknown[]) => {
+        calls.push(args);
+        return { revision: 2 };
+      },
+    },
+  };
+  const event = {
+    ...request,
+    path: `${root}/${receipt.operationId}/source`,
+    body: JSON.stringify({ expectedRevision: 1 }),
+  };
+  assert.equal(
+    (await handleArticleImportEvent({ ...event, headers: {} }, service)).statusCode,
+    401,
+  );
+  const invalid = await handleArticleImportEvent({ ...event, httpMethod: 'GET' }, service);
+  assert.equal(invalid.statusCode, 405);
+  assert.equal(invalid.headers.Allow, 'POST');
+  assert.equal((await handleArticleImportEvent(event, service)).statusCode, 200);
+  assert.deepEqual(calls, [[credentials, receipt.operationId, { expectedRevision: 1 }]]);
+});

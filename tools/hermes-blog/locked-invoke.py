@@ -42,7 +42,7 @@ def run(args):
                 time.sleep(0.1)
         if args.get_import and not re.fullmatch(r"article-import-[a-f0-9]{64}", args.get_import):
             raise ValueError("Invalid import identity")
-        if sum(bool(x) for x in (args.maintain, args.get_import, args.image_job)) > 1:
+        if sum(bool(x) for x in (args.maintain, args.get_import, args.image_job, args.publication)) > 1:
             raise ValueError("One operation required")
         if args.image_job and not Path(args.image_job).is_absolute():
             raise ValueError("Absolute image job required")
@@ -50,7 +50,9 @@ def run(args):
         if len(payload) > 256000:
             raise ValueError("Source exceeds size limit")
         command = [args.node, args.bundle, "--credential", str(credential)]
-        if args.maintain:
+        if args.publication:
+            command.append('--publication')
+        elif args.maintain:
             command.append("--maintain")
         elif args.get_import:
             command.extend(["--get-import", args.get_import])
@@ -58,9 +60,11 @@ def run(args):
             command.extend(["--image-job", args.image_job])
         result = subprocess.run(command, input=payload, capture_output=True, timeout=240 if args.image_job else 150,
                                 env={k: v for k, v in os.environ.items() if k not in ("NODE_OPTIONS", "NODE_PATH")})
-        if result.returncode or len(result.stdout) > 32768:
+        if len(result.stdout) > 32768:
             raise ValueError("Connector result unconfirmed")
-        json.loads(result.stdout)
+        value = json.loads(result.stdout)
+        if result.returncode and not (isinstance(value, dict) and value.get('ok') is False and isinstance(value.get('message'), str)):
+            raise ValueError("Connector result unconfirmed")
         sys.stdout.buffer.write(result.stdout)
         return 0
     finally:
@@ -75,6 +79,7 @@ if __name__ == "__main__":
     parser.add_argument("--maintain", action="store_true")
     parser.add_argument("--get-import")
     parser.add_argument("--image-job")
+    parser.add_argument("--publication", action="store_true")
     try:
         sys.exit(run(parser.parse_args()))
     except (ValueError, OSError, TimeoutError, subprocess.TimeoutExpired):

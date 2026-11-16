@@ -2,127 +2,167 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "商品变更到静态页面更新：目标时序",
+    "title": "商品自动更新：11月16日已恢复并真实验收",
     "locale": "zh-CN",
     "quality_profile": "showcase",
     "column_fit": "spread",
-    "viewBox": [840, 540],
+    "viewBox": [1040, 520],
     "animation": "none",
-    "subtitle": "代码接通，云端隔离验收与正式开启分开记录"
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "security": {
+          "label": "已实际执行并验收"
+        }
+      }
+    }
   },
   "participants": [
     {
-      "id": "admin",
-      "type": "frontend",
-      "label": "后台",
-      "sublabel": "管理员操作"
+      "id": "deploy",
+      "type": "backend",
+      "label": "部署入口",
+      "sublabel": "GitHub Actions · test"
     },
     {
       "id": "api",
       "type": "backend",
-      "label": "商品事务",
-      "sublabel": "现有业务入口"
-    },
-    {
-      "id": "store",
-      "type": "database",
-      "label": "检查待办与版本",
-      "sublabel": "私有集合已准备，记录未开"
-    },
-    {
-      "id": "worker",
-      "type": "backend",
-      "label": "内容更新任务",
-      "sublabel": "消费与增量构建已接线"
+      "label": "业务函数",
+      "sublabel": "两条写入程序与公开 API"
     },
     {
       "id": "host",
       "type": "cloud",
-      "label": "网站与地图",
-      "sublabel": "既有受控交付"
+      "label": "商品网页与程序",
+      "sublabel": "初始 HTML · renderer"
+    },
+    {
+      "id": "config",
+      "type": "cloud",
+      "label": "test 环境配置",
+      "sublabel": "记录与页面就绪设置"
+    },
+    {
+      "id": "clock",
+      "type": "backend",
+      "label": "自动检查",
+      "sublabel": "每分钟检查 · 有变化才唤醒"
+    }
+  ],
+  "segments": [
+    {
+      "from": 146,
+      "to": 208,
+      "label": "已经发生 · 现场证据"
+    },
+    {
+      "from": 222,
+      "to": 466,
+      "label": "恢复操作 · 全部实际执行"
     }
   ],
   "messages": [
     {
-      "id": "m0",
-      "from": "admin",
+      "id": "history-config",
+      "from": "deploy",
       "to": "api",
       "y": 160,
-      "label": "保存公开变更",
-      "variant": "emphasis"
-    },
-    {
-      "id": "m1",
-      "from": "api",
-      "to": "store",
-      "y": 192,
-      "label": "同事务保存商品和检查待办",
-      "variant": "emphasis"
-    },
-    {
-      "id": "m3",
-      "from": "api",
-      "to": "worker",
-      "y": 224,
-      "label": "可靠唤醒仍待接通，人工入口可验收",
-      "variant": "dashed"
-    },
-    {
-      "id": "m4",
-      "from": "worker",
-      "to": "store",
-      "y": 256,
-      "label": "读取最新待办，合并连续修改",
-      "variant": "default"
-    },
-    {
-      "id": "m5",
-      "from": "worker",
-      "to": "api",
-      "y": 288,
-      "label": "读完整公开内容，比较实质变化",
-      "variant": "default"
-    },
-    {
-      "id": "m6",
-      "from": "worker",
-      "to": "store",
-      "y": 320,
-      "label": "记录内容版本并核对最新识别码",
+      "label": "11/12：配置关闭记录，未上传新代码",
       "variant": "security"
     },
     {
-      "id": "m7",
-      "from": "worker",
+      "id": "history-pause",
+      "from": "deploy",
+      "to": "clock",
+      "y": 188,
+      "label": "11/16：先暂停，隔离恢复步骤",
+      "variant": "security"
+    },
+    {
+      "id": "restore-recording",
+      "from": "deploy",
+      "to": "api",
+      "y": 236,
+      "label": "① 两条写入程序：恢复并实测记录",
+      "variant": "security"
+    },
+    {
+      "id": "drain-old-requests",
+      "from": "deploy",
+      "to": "api",
+      "y": 264,
+      "label": "② 本次等待 1020 秒，再核对版本",
+      "variant": "security"
+    },
+    {
+      "id": "deliver-current",
+      "from": "deploy",
       "to": "host",
-      "y": 352,
-      "label": "每批短暂占用，旧数据变化即停止",
-      "variant": "emphasis"
+      "y": 292,
+      "label": "③ 当前商品 SSG 交付并登记 renderer",
+      "variant": "security"
     },
     {
-      "id": "m8",
+      "id": "verify-accepted",
       "from": "host",
-      "to": "worker",
-      "y": 384,
-      "label": "HTTP、正文、地图和404实测结果",
-      "variant": "return"
+      "to": "deploy",
+      "y": 320,
+      "label": "④ 验证新接受的网站：正文、版本、地图",
+      "variant": "security"
     },
     {
-      "id": "m9",
-      "from": "worker",
-      "to": "store",
-      "y": 416,
-      "label": "验证当前版本，记录页面就绪状态",
-      "variant": "emphasis"
+      "id": "verify-readiness",
+      "from": "deploy",
+      "to": "api",
+      "y": 348,
+      "label": "⑤ 实测公开 API 的页面就绪判断",
+      "variant": "security"
+    },
+    {
+      "id": "persist-test-config",
+      "from": "deploy",
+      "to": "config",
+      "y": 376,
+      "label": "⑥ test 环境持久保存配置",
+      "variant": "security"
+    },
+    {
+      "id": "enable-clock",
+      "from": "deploy",
+      "to": "clock",
+      "y": 404,
+      "label": "⑦ 528项补查登记后，开启定时检查",
+      "variant": "security"
+    },
+    {
+      "id": "accept-automatic",
+      "from": "clock",
+      "to": "deploy",
+      "y": 432,
+      "label": "⑧ 真实自动唤醒完成 · 43769627109",
+      "variant": "security"
     }
   ],
   "cards": [
     {
       "dot": "orange",
-      "title": "失败与恢复",
+      "title": "这次恢复才等待 17 分钟",
       "items": [
-        "上传器与事务保护已测试，真实验收继续执行",
-        "未知结果保留占用；失败后用当前内容重新交付"
+        "900 秒旧请求上限 + 120 秒缓冲，只等待一次",
+        "普通发布缺少记录配置会在写入前停止，不等待 17 分钟"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "日常更新已经恢复",
+      "items": ["528项来源复核完成，自动任务真实接受", "本次内容未变；不是正文替换或撤回演练"]
+    },
+    {
+      "dot": "emerald",
+      "title": "文章内容保持当前状态",
+      "items": [
+        "Blog 服务器继续返回当前已发布文章",
+        "恢复商品渲染程序，不回退文章正文、图片或发布状态"
       ]
     }
   ]

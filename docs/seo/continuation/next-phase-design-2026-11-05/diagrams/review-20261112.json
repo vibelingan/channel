@@ -1,0 +1,59 @@
+{
+  "reviewedOn": "2026-11-12",
+  "artifacts": [
+    {
+      "name": "runtime-20261112",
+      "specification": {
+        "sha256": "c7e500913ac61d3dee58205e07d591ea21af655bdf550839940c158ecc05cda3",
+        "bytes": 3020
+      },
+      "artifact": {
+        "sha256": "2cf17d28bd12ac4e8dbc5c14e506ec0b6fce61fea4e7ba1494e79fd3b84794bc",
+        "bytes": 804406
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "passed",
+      "visualReview": "passed",
+      "manualScope": ["1440x900 light", "2048x1320 dark"],
+      "observations": [
+        "All labels and arrows visible in inspected screenshots",
+        "Current architecture and target behavior separated",
+        "Blog reads public API, not COS directly"
+      ]
+    },
+    {
+      "name": "image-target-20261112",
+      "specification": {
+        "sha256": "e4805a134c272bdb7f342fd3833d5213421fd65aaeab97e8ccf43cb725a5ea2d",
+        "bytes": 4360
+      },
+      "artifact": {
+        "sha256": "f98e4ba25d4522660b62814bf8b3ee6b0b2cdefbadfededa43d1c7897728d89a",
+        "bytes": 809862
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browserEvidence": "passed",
+      "visualReview": "passed",
+      "manualScope": ["1440x900 light", "2048x1320 dark"],
+      "observations": [
+        "All labels and arrows visible in inspected screenshots",
+        "Current architecture and target behavior separated",
+        "Blog reads public API, not COS directly"
+      ]
+    }
+  ]
+}

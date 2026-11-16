@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "待实施：精简修图、五分钟缓存与撤回窗口",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [1400, 790]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "受控操作入口"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "图片准备程序"
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "私有对象存储"
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "原图与公开引用"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "现有图片接口"
+    },
+    {
+      "id": "cache",
+      "type": "frontend",
+      "label": "浏览器图片缓存"
+    },
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "访客浏览器"
+    }
+  ],
+  "segments": [
+    {
+      "from": 330,
+      "to": 399,
+      "label": "回访：缓存新鲜时不请求服务器（建议五分钟，待确认）"
+    },
+    {
+      "from": 410,
+      "to": 560,
+      "label": "到期：先核对当前公开引用，再决定304、200或404"
+    },
+    {
+      "from": 576,
+      "to": 735,
+      "label": "撤回：已有缓存仍有窗口，到期后联网核验"
+    }
+  ],
+  "messages": [
+    {
+      "id": "image-step-1",
+      "from": "operator",
+      "to": "worker",
+      "y": 160,
+      "label": "按盘点清单指定本批原图",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-2",
+      "from": "worker",
+      "to": "registry",
+      "y": 192,
+      "label": "读取来源与已有就绪版本",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-3",
+      "from": "worker",
+      "to": "storage",
+      "y": 224,
+      "label": "读取原件；先生成一个网页尺寸",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-4",
+      "from": "worker",
+      "to": "storage",
+      "y": 256,
+      "label": "写入后完整读回校验",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-5",
+      "from": "worker",
+      "to": "registry",
+      "y": 288,
+      "label": "来源未变才条件登记就绪",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-6",
+      "from": "browser",
+      "to": "cache",
+      "y": 346,
+      "label": "回访现有图片地址",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-7",
+      "from": "cache",
+      "to": "browser",
+      "y": 378,
+      "label": "新鲜副本直接显示，不调用函数",
+      "variant": "return"
+    },
+    {
+      "id": "image-step-8",
+      "from": "cache",
+      "to": "api",
+      "y": 430,
+      "label": "过期后携带ETag联网核对",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-9",
+      "from": "api",
+      "to": "registry",
+      "y": 458,
+      "label": "核对当前公开引用与产物摘要",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-10",
+      "from": "api",
+      "to": "storage",
+      "y": 486,
+      "label": "仅内容变化且获准时读取小图",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-11",
+      "from": "api",
+      "to": "cache",
+      "y": 514,
+      "label": "304确认未变，或200返回新图",
+      "variant": "return"
+    },
+    {
+      "id": "image-step-12",
+      "from": "cache",
+      "to": "browser",
+      "y": 542,
+      "label": "显示图片；重新缓存最多300秒",
+      "variant": "return"
+    },
+    {
+      "id": "image-step-13",
+      "from": "operator",
+      "to": "registry",
+      "y": 594,
+      "label": "撤回最后一份有效公开引用",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-14",
+      "from": "browser",
+      "to": "cache",
+      "y": 622,
+      "label": "缓存到期后再次访问",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-15",
+      "from": "cache",
+      "to": "api",
+      "y": 650,
+      "label": "联网请求原图片地址",
+      "variant": "default"
+    },
+    {
+      "id": "image-step-16",
+      "from": "api",
+      "to": "registry",
+      "y": 678,
+      "label": "确认已无有效公开引用",
+      "variant": "security"
+    },
+    {
+      "id": "image-step-17",
+      "from": "api",
+      "to": "browser",
+      "y": 706,
+      "label": "404；拒绝响应不缓存",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "保留已有权限边界",
+      "items": [
+        "Channel后端用环境凭据；浏览器不拿管理密钥",
+        "私有预览仍登录读取字节，不公开存储地址"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "五分钟是待确认建议",
+      "items": [
+        "旧一小时缓存不会立即消失；下载副本无法收回",
+        "共享引用尚存在仍可读；304前也必须核对权限"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "首轮简化，后续再接生产",
+      "items": [
+        "先单尺寸生成、读回、来源校验；不先造调度器",
+        "上传/同步在IMG-3接入；多尺寸在IMG-4补齐"
+      ]
+    }
+  ]
+}

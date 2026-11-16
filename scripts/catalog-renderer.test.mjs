@@ -46,6 +46,13 @@ test('renderer archive is deterministic, pinned and excludes local changes', () 
     const archive = readFileSync(join(directory, 'a/renderer.tar.gz'));
     assert.deepEqual(a, b);
     assert.deepEqual(archive, readFileSync(join(directory, 'b/renderer.tar.gz')));
+    const cleanOutput = join(directory, 'clean-checkout/output/catalog-renderer');
+    assert.deepEqual(packCatalogRenderer({ codeSha, directory: cleanOutput, git }), a);
+    assert.deepEqual(archive, readFileSync(join(cleanOutput, 'renderer.tar.gz')));
+    assert.throws(() => packCatalogRenderer({ codeSha, directory: cleanOutput, git }), {
+      code: 'EEXIST',
+    });
+    assert.deepEqual(archive, readFileSync(join(cleanOutput, 'renderer.tar.gz')));
     const approved = {
       codeSha,
       manifestSha256: sha256(JSON.stringify(a)),

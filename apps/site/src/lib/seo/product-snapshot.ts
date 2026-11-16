@@ -411,7 +411,8 @@ export async function collectProductRefresh(
       cardChanged ||
       (head &&
         (head.sequence !== previous.publicVersion?.sequence ||
-          head.semanticHash !== previous.publicVersion?.semanticHash));
+          head.semanticHash !== previous.publicVersion?.semanticHash ||
+          head.detailRevision !== (previous.detail?.revision ?? null)));
     if (!refresh && previous) return previous;
     const entry = await captureEntry(row, api);
     if (head && (entry.detail?.revision ?? null) !== head.detailRevision)
