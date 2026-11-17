@@ -67,16 +67,22 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   let failure: unknown;
   let cleanupFailure: unknown;
   const uploadTransport: Array<Record<string, unknown>> = [];
+  const uploadStarts = new Map<string, number>();
   page.on('response', (response) => {
     const req = response.request();
     if (req.method() === 'PUT')
-      uploadTransport.push({ host: new URL(req.url()).hostname, status: response.status() });
+      uploadTransport.push({
+        host: new URL(req.url()).hostname,
+        status: response.status(),
+        elapsedMs: Date.now() - (uploadStarts.get(req.url()) ?? Date.now()),
+      });
   });
   page.on('requestfailed', (req) => {
     if (req.method() === 'PUT')
       uploadTransport.push({
         host: new URL(req.url()).hostname,
         error: req.failure()?.errorText,
+        elapsedMs: Date.now() - (uploadStarts.get(req.url()) ?? Date.now()),
       });
   });
   const unexpectedUiActions = new Set<string>();
@@ -92,6 +98,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     'getImagePreview',
   ]);
   page.on('request', (req) => {
+    if (req.method() === 'PUT') uploadStarts.set(req.url(), Date.now());
     if (req.method() === 'PUT' && new URL(req.url()).hostname.endsWith('.myqcloud.com')) putCount++;
     if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/admin') {
       try {
@@ -126,7 +133,8 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       mimeType: 'image/png',
       buffer: bytes,
     });
-    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 60_000 });
+    // Allow the application itself to report its 60s transfer deadline before test cleanup.
+    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 90_000 });
     await expect(gallery.getByText('Failed — retry')).toHaveCount(0);
     await expect(gallery.locator('img')).toBeVisible();
     const imageId = await gallery.locator('[data-image-id]').getAttribute('data-image-id');
