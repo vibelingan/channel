@@ -24,7 +24,7 @@ const policy = {
   workflowPath: '.github/workflows/deploy-test.yml',
   trustedRef: 'refs/heads/test',
 };
-async function setup(t) {
+async function setup(t, { video = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'site-delivery-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const config = configuration();
@@ -37,6 +37,9 @@ async function setup(t) {
   let unknownRemove = false;
   let writeHook = async (_path) => {};
   let seq = 0;
+  const multipart = new Set();
+  const etag = (path, bytes) =>
+    `"${createHash('md5').update(bytes).digest('hex')}${multipart.has(path) ? '-2' : ''}"`;
   const stamp = () => new Date(Date.UTC(2026, 9, 24, 0, 0, ++clock)).toISOString();
   const http = await httpFixture(t, (req, res) => {
     let p = new URL(req.url, 'http://localhost').pathname.slice(1);
@@ -45,7 +48,7 @@ async function setup(t) {
     objectResponse(req, res, {
       body,
       status: files.has(p) ? 200 : 404,
-      etag: `"${createHash('md5').update(body).digest('hex')}"`,
+      etag: etag(p, body),
       cache: 'no-store',
       mime: p.endsWith('.xml')
         ? 'application/xml'
@@ -63,7 +66,7 @@ async function setup(t) {
       [...files].map(([path, b]) => ({
         path,
         bytes: b.length,
-        etag: `"${createHash('md5').update(b).digest('hex')}"`,
+        etag: etag(path, b),
         lastModified: times.get(path),
       })),
     upload: async (path, bytes) => {
@@ -102,6 +105,7 @@ async function setup(t) {
         'index.html': `<main>${label}</main>`,
       }).map(([p, b]) => [p, Buffer.from(b)]),
     );
+    if (video) data.set('video.mp4', Buffer.from('stable video'));
     if (article) data.set('blog/one/index.html', Buffer.from(`<main>${label} article</main>`));
     if (image)
       data.set(
@@ -192,6 +196,10 @@ async function setup(t) {
     writes,
     batchUploads,
     files,
+    markMultipart: (path) => {
+      multipart.add(path);
+      times.set(path, stamp());
+    },
     request: http.request,
     coordinator,
     onWrite: (hook) => {
@@ -471,6 +479,56 @@ test('current-data recovery replaces a failed candidate without resurrecting the
   assert.equal(result.status, 'accepted', JSON.stringify(result));
   for (const [path, bytes] of c.data) assert.deepEqual(f.files.get(path), bytes);
   assert.equal((await f.coordinator.status({ scopeKey: 'site' })).target.dirtyRunId, null);
+});
+
+test('actual delivery recovery verifies and retains an unchanged multipart video before current-data publication', async (t) => {
+  const f = await setup(t, { video: true });
+  const b = f.source('B');
+  const stopped = await f.deliver(b.input, 'publish', {
+    allowRecovery: async () => false,
+    postCheck: async () => {
+      throw Error('confirmed failure');
+    },
+  });
+  assert.equal(stopped.status, 'retry-current-data');
+  const state = await f.coordinator.status();
+  const dirty = await f.coordinator.runStatus(state.target.dirtyRunId);
+  f.markMultipart('video.mp4');
+  const before = f.writes.filter((x) => x[1] === 'video.mp4').length;
+  const c = f.source('C');
+  const result = await f.deliver(c.input, 'reconcile', {
+    failedCandidates: [{ run: dirty, input: b.input }],
+  });
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  assert.equal(f.writes.filter((x) => x[1] === 'video.mp4').length, before);
+  assert.equal(f.files.get('index.html').toString(), '<main>C</main>');
+});
+
+test('multipart readback never permits unrelated changed video bytes or new website writes', async (t) => {
+  const f = await setup(t, { video: true });
+  const b = f.source('B');
+  await f.deliver(b.input, 'publish', {
+    allowRecovery: async () => false,
+    postCheck: async () => {
+      throw Error('confirmed failure');
+    },
+  });
+  const state = await f.coordinator.status();
+  const dirty = await f.coordinator.runStatus(state.target.dirtyRunId);
+  f.files.set('video.mp4', Buffer.from('unapproved!!'));
+  f.markMultipart('video.mp4');
+  const before = f.writes.length;
+  const c = f.source('C');
+  await assert.rejects(
+    () =>
+      f.deliver(c.input, 'reconcile', {
+        failedCandidates: [{ run: dirty, input: b.input }],
+      }),
+    { code: 'UNRESOLVED_OPERATION' },
+  );
+  assert.equal((await f.coordinator.status()).target.dirtyRunId, dirty.runId);
+  assert.equal(f.writes.length, before);
+  assert.equal(f.files.get('video.mp4').toString(), 'unapproved!!');
 });
 
 test('an unknown cloud write cannot use the known-failure release shortcut', async (t) => {

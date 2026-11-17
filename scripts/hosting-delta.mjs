@@ -91,7 +91,7 @@ export function assertAcceptedHostingFiles({ source, inventory, contentProofs = 
   }
 }
 
-function matchesObjectProof(entry, current, proofs) {
+export function matchesObjectProof(entry, current, proofs) {
   const proof = entry.objectVersion;
   return (
     (proof?.etag === current.etag && proof.lastModified === current.lastModified) ||

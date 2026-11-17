@@ -62,6 +62,37 @@ test('a new candidate page may still be absent, but an existing candidate page m
     }),
   );
 });
+
+test('dirty inventory accepts an unchanged multipart object only with exact current content readback', (t) => {
+  const a = source(t, 'known video', 'video.mp4');
+  const b = source(t, 'known video', 'video.mp4');
+  const live = inventory('known video', 'video.mp4');
+  live[0].etag += '-2';
+  const proof = {
+    ...a.staticManifest.entries[0],
+    etag: live[0].etag,
+    lastModified: live[0].lastModified,
+  };
+  assert.throws(() => assertDirtySiteInventory({ baseline: a, failed: b, inventory: live }));
+  assert.doesNotThrow(() =>
+    assertDirtySiteInventory({ baseline: a, failed: b, inventory: live, contentProofs: [proof] }),
+  );
+  for (const change of [
+    { sha256: '0'.repeat(64) },
+    { bytes: 1 },
+    { etag: 'other' },
+    { lastModified: 'old' },
+    { path: 'foreign.mp4' },
+  ])
+    assert.throws(() =>
+      assertDirtySiteInventory({
+        baseline: a,
+        failed: b,
+        inventory: live,
+        contentProofs: [{ ...proof, ...change }],
+      }),
+    );
+});
 test('failed artifact identity cannot authorize another run, target, accepted version or package', () => {
   const artifact = { artifactId: '1' };
   const input = {
