@@ -63,5 +63,10 @@ export async function loadCatalogPreparationEvidence({
   });
   assert.equal(result.digestMismatch, false, 'Preparation artifact hash was not confirmed');
   assert.equal(resolve(result.downloadPath ?? ''), destination);
-  return JSON.parse(readObject(destination, regionalPath, 512 * 1024).toString('utf8'));
+  // Deploy Test also retains output/seo-release, so upload-artifact roots its ZIP at output/.
+  const receiptPath =
+    run.path === '.github/workflows/deploy-test.yml'
+      ? `site-delivery/${regionalPath}`
+      : regionalPath;
+  return JSON.parse(readObject(destination, receiptPath, 512 * 1024).toString('utf8'));
 }

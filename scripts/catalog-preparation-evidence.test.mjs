@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { loadCatalogPreparationEvidence } from './release/catalog-preparation-evidence.mjs';
 
-async function fixture(t) {
+async function fixture(t, { normal = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'catalog-prep-evidence-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const run = {
@@ -13,6 +13,7 @@ async function fixture(t) {
     run_attempt: 1,
     head_sha: 'a'.repeat(40),
     repository: { full_name: 'vibelingan/channel' },
+    path: normal ? '.github/workflows/deploy-test.yml' : '.github/workflows/seo-static-canary.yml',
   };
   const artifactName = `site-delivery-evidence-${run.id}-1`;
   const metadata = {
@@ -37,11 +38,12 @@ async function fixture(t) {
         repositoryOwner: 'vibelingan',
         repositoryName: 'channel',
       });
-      await mkdir(join(options.path, 'regional'));
-      await writeFile(join(options.path, 'regional/result.json'), JSON.stringify(receipt));
-      await mkdir(join(options.path, 'release-regional'));
+      const root = normal ? join(options.path, 'site-delivery') : options.path;
+      await mkdir(join(root, 'regional'), { recursive: true });
+      await writeFile(join(root, 'regional/result.json'), JSON.stringify(receipt));
+      await mkdir(join(root, 'release-regional'), { recursive: true });
       await writeFile(
-        join(options.path, 'release-regional/result.json'),
+        join(root, 'release-regional/result.json'),
         JSON.stringify({ ...receipt, purpose: 'release-regional-v1' }),
       );
       return { downloadPath: options.path, digestMismatch: false, ...f.downloadResult };
@@ -73,6 +75,18 @@ test('the stopped preparation may also read its fixed release ledger receipt', a
     purpose: 'release-regional-v1',
   });
   assert.equal(f.downloads, 1);
+});
+
+test('normal Deploy Test receipts are below site-delivery in its common output-root archive', async (t) => {
+  for (const regionalPath of ['regional/result.json', 'release-regional/result.json']) {
+    const f = await fixture(t, { normal: true });
+    f.options.regionalPath = regionalPath;
+    const result = await loadCatalogPreparationEvidence(f.options);
+    assert.equal(
+      result.purpose,
+      regionalPath.startsWith('release-') ? 'release-regional-v1' : f.receipt.purpose,
+    );
+  }
 });
 
 for (const [name, change] of [
