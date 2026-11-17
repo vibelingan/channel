@@ -611,8 +611,8 @@ test('scope change inside the real activation transaction rolls back active and 
   await client.close();
 });
 
-async function stoppedRecoveryFixture(t) {
-  const ids = Array.from({ length: 8 }, (_, i) => `p${i + 1}`);
+async function stoppedRecoveryFixture(t, { mixed = false } = {}) {
+  const ids = Array.from({ length: mixed ? 9 : 8 }, (_, i) => `p${i + 1}`);
   const f = await fixture(t, { productIds: ids });
   const coordinator = createReleaseCoordinator({
     store: createCloudbaseReleaseStore({ db: f.db, envId: policy.envId }),
@@ -700,11 +700,12 @@ async function stoppedRecoveryFixture(t) {
   let endRequest;
   let failedTicket;
   for (const [index, products] of [ids.slice(0, 7), ids.slice(7)].entries()) {
-    const members = products.map((productId) => ({
+    const members = products.map((productId, memberIndex) => ({
       path: `products/p-${productId}/index.html`,
-      bytes: 8,
+      bytes: Buffer.byteLength(`HTML ${productId}`),
       sha256: hash(`HTML ${productId}`),
-      beforeHash: '0'.repeat(64),
+      beforeHash:
+        mixed && index === 1 && memberIndex === 0 ? hash(`OLD HTML ${productId}`) : '0'.repeat(64),
     }));
     const afterHash = hostingBatchHash(members);
     const step = await coordinator.beginStep({
@@ -756,6 +757,12 @@ async function stoppedRecoveryFixture(t) {
   }
   f.advance(180001);
   const status = await coordinator.status({ scopeKey: 'site' });
+  const observedMembers = failedStep.members.map(({ path, bytes, sha256, beforeHash }, index) => ({
+    path,
+    bytes: mixed && index === 0 ? 11 : bytes,
+    sha256: mixed && index === 0 ? beforeHash : sha256,
+  }));
+  const observedHash = hostingBatchHash(observedMembers);
   const proof = {
     runnerRef: stoppedRunner,
     checkedAt: f.clock(),
@@ -767,8 +774,8 @@ async function stoppedRecoveryFixture(t) {
       status: 'quiescent',
       kind: 'stopped-site-html-batch',
       operationId: failedStep.operationId,
-      observedHash: failedStep.afterHash,
-      evidenceRef: `candidate:${activationArtifact.artifactId}:batch:${failedStep.afterHash}:three-cache-modes:absent:seo-catalog-region-41000000000-1`,
+      observedHash,
+      evidenceRef: `candidate:${activationArtifact.artifactId}:batch:${observedHash}:three-cache-modes:absent:seo-catalog-region-41000000000-1`,
     },
   };
   await coordinator.reconcile({
@@ -785,6 +792,7 @@ async function stoppedRecoveryFixture(t) {
     originalWrites: 7,
     state: 'leased',
     cursor: null,
+    ...(mixed ? { observedMembers } : {}),
   };
   return { ...f, coordinator, ids, input, failedStep, failedTicket, beginRequest, endRequest };
 }
@@ -839,6 +847,49 @@ test('real old failed delivery releases all prior batch leases before clearing c
   assert.deepEqual(f.rows.get(`catalogSeoTasks/${foreignId}`), foreign);
   f.assertBusinessUnchanged();
   await client.close();
+});
+
+test('actual regional handler accepts only the exact journaled mixed old/new HTML witness', async (t) => {
+  const f = await stoppedRecoveryFixture(t, { mixed: true });
+  const client = await f.start();
+  const result = await finishRecovery(f, client);
+  assert.equal(result.controlReleased, true);
+  assert.equal(result.totalReleased, 9);
+  f.assertBusinessUnchanged();
+  await client.close();
+});
+
+test('actual regional handler rejects missing altered reordered or foreign mixed HTML witnesses', async (t) => {
+  for (const mutate of [
+    (input) => {
+      input.observedMembers = undefined;
+    },
+    (input) => {
+      input.observedMembers[0].sha256 = 'f'.repeat(64);
+    },
+    (input) => {
+      input.observedMembers[0].path = 'products/p-foreign/index.html';
+    },
+    (input) => {
+      input.observedMembers[1].bytes++;
+    },
+    (input) => {
+      input.observedMembers.reverse();
+    },
+    (input) => {
+      input.observedMembers.pop();
+    },
+  ]) {
+    const f = await stoppedRecoveryFixture(t, { mixed: true });
+    const client = await f.start();
+    const input = structuredClone(f.input);
+    mutate(input);
+    const before = structuredClone(f.rows.get(`catalogSeoControl/${f.controlId}`));
+    await assert.rejects(client.recoverStoppedDeliveryStep(input));
+    assert.deepEqual(f.rows.get(`catalogSeoControl/${f.controlId}`), before);
+    f.assertBusinessUnchanged();
+    await client.close();
+  }
 });
 test('recovery refuses a caller skipping straight to control', async (t) => {
   const f = await stoppedRecoveryFixture(t);
