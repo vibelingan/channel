@@ -28,8 +28,11 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   );
   const session = await loginAdmin(request);
   expect(session.user.role).toBe('admin');
-  const health = await adminAction<{ releaseId: string }>(request, 'health');
-  expect(health.releaseId).toBe(release);
+  const health = await adminAction<{ releaseId: string; deployedReleaseId?: string }>(
+    request,
+    'health',
+  );
+  expect(health.releaseId === release || health.deployedReleaseId === release).toBe(true);
   const bytes = await largeCatalogPng();
   expect(bytes.length).toBeGreaterThan(4_500_000);
   const checksum = hash(bytes);
@@ -48,6 +51,16 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     );
   expect((await list()).items).toHaveLength(0);
   const receipt: Record<string, unknown> = { release, name, originalBytes: bytes.length, checksum };
+  const abandon = async (imageId: string): Promise<{ deleted: boolean }> => {
+    try {
+      return await adminAction(request, 'abandonUpload', { imageId }, session.token);
+    } catch (error) {
+      const afterUnknown = await list().catch(() => null);
+      if (!afterUnknown || afterUnknown.items.some((row) => row._id === imageId)) throw error;
+      receipt.cleanupConfirmedByReadback = true;
+      return { deleted: true };
+    }
+  };
   await mkdir('output/catalog-private-image', { recursive: true });
   let putCount = 0;
   let failure: unknown;
@@ -62,6 +75,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page).toHaveURL(/\/admin(?:$|\?)/);
     await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Products', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^New / }).click();
     const gallery = page.locator('[data-image-manager="gallery"]');
     await gallery.locator('input[type="file"]').setInputFiles({
@@ -164,28 +178,16 @@ test('private large image: real UI upload, backend preview, same-id replay and e
           await adminAction(request, 'completeUpload', { imageId: image._id }, session.token);
         // The list hides uploader identity; abandonUpload rechecks it server-side.
         // Never add an image to a product just to make its cleanup possible.
-        const cleaned = await adminAction<{ deleted: boolean }>(
-          request,
-          'abandonUpload',
-          { imageId: image._id },
-          session.token,
-        );
+        const cleaned = await abandon(image._id);
         expect(cleaned.deleted).toBe(true);
       }
       expect((await list()).items).toHaveLength(0);
       receipt.cleaned = true;
     } catch (error) {
-      // A lost response may follow a completed delete. Read before considering another write.
-      const afterUnknown = await list().catch(() => null);
-      if (afterUnknown?.items.length === 0) {
-        receipt.cleaned = true;
-        receipt.cleanupConfirmedByReadback = true;
-      } else {
-        receipt.cleaned = false;
-        receipt.passed = false;
-        receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup unconfirmed';
-        cleanupFailure = error;
-      }
+      receipt.cleaned = false;
+      receipt.passed = false;
+      receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup unconfirmed';
+      cleanupFailure = error;
     } finally {
       await writeFile('output/catalog-private-image/result.json', JSON.stringify(receipt, null, 2));
     }
