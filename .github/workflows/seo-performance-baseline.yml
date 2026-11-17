@@ -9,11 +9,11 @@ on:
         default: before
         options: [before, after]
       scope:
-        description: All public page types or four affected image pages
+        description: All page types, four image pages, or the one affected article
         type: choice
         required: true
         default: all
-        options: [all, image-pages]
+        options: [all, image-pages, article]
 permissions:
   contents: read
 jobs:

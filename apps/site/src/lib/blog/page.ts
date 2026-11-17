@@ -13,7 +13,13 @@ export const blogCopy = {
   title: 'Insights',
   description: 'Guides and practical notes on product development, sourcing and manufacturing.',
 };
-export const publicBlogLocation = { root: '/blog/', mediaPrefix: '', dummy: false };
+export interface BlogLocation {
+  root: string;
+  mediaPrefix: string;
+  dummy: boolean;
+  mediaDelivery?: 'proxy' | 'api';
+}
+export const publicBlogLocation: BlogLocation = { root: '/blog/', mediaPrefix: '', dummy: false };
 export const dummyBlogLocation = {
   root: '/__blog-dummy/',
   mediaPrefix: '/__blog-dummy',
@@ -23,8 +29,20 @@ export const articlePath = (
   article: ArticlePageData | ArticleSummary,
   location = publicBlogLocation,
 ) => `${location.root}${article.content.slug}/`;
+export function blogServerLocation(value: string | undefined): BlogLocation {
+  const mediaDelivery = value ?? 'proxy';
+  if (mediaDelivery !== 'proxy' && mediaDelivery !== 'api')
+    throw Error('BLOG_MEDIA_DELIVERY must be proxy or api');
+  return { ...publicBlogLocation, mediaPrefix: '/blog', mediaDelivery };
+}
+function mediaUrl(path: string, location: BlogLocation) {
+  if (!path.startsWith('/media/articles/')) throw Error('Unexpected article media path');
+  return !location.dummy && location.mediaDelivery === 'api'
+    ? `/api/articles/media/${path.slice('/media/articles/'.length)}`
+    : `${location.mediaPrefix}${path}`;
+}
 export const blogMediaPath = (id: string, media: unknown, location = publicBlogLocation) =>
-  `${location.mediaPrefix}${articleMediaPath(id, media)}`;
+  mediaUrl(articleMediaPath(id, media), location);
 export const articleSummary = (article: ArticlePageData | ArticleSummary) =>
   article.content.excerpt ||
   ('body' in article.content
@@ -51,7 +69,7 @@ function displayMedia(
         id,
         {
           kind: 'public' as const,
-          url: web ? `${location.mediaPrefix}${web.url}` : blogMediaPath(id, original, location),
+          url: web ? mediaUrl(web.url, location) : blogMediaPath(id, original, location),
           mimeType: web?.mimeType ?? original.mimeType,
           width: web?.width ?? original.width,
           height: web?.height ?? original.height,

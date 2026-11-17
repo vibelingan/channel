@@ -23,10 +23,19 @@ const check = (extra = {}) =>
     robots,
     ...extra,
   });
-test('the repository permits public product images while private API routes stay disallowed', async () => {
+test('public product and article images are crawlable while API data stays disallowed', async () => {
   const actual = await readFile(new URL('../../../public/robots.txt', import.meta.url), 'utf8');
   assert.equal(projectRobotsAllows(actual, '/api/images/public-image'), true);
-  for (const path of ['/api/admin', '/api/products', '/admin/', '/login/'])
+  assert.equal(projectRobotsAllows(actual, '/api/articles/media/image/hash.webp'), true);
+  for (const path of [
+    '/api/admin',
+    '/api/products',
+    '/api/articles',
+    '/api/articles/slug/example',
+    '/api/articles/media-other/image',
+    '/admin/',
+    '/login/',
+  ])
     assert.equal(projectRobotsAllows(actual, path), false, path);
 });
 test('actual initial HTML, self canonical and public crawl policy pass together', async () => {

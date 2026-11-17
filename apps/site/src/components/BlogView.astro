@@ -15,6 +15,7 @@ import {
   articleSummary,
   blogCopy,
   blogPage,
+  blogServerLocation,
   dummyBlogLocation,
   publicBlogLocation,
 } from '../lib/blog/page.ts';
@@ -41,7 +42,7 @@ const {
 const location = dummy
   ? dummyBlogLocation
   : server
-    ? { ...publicBlogLocation, mediaPrefix: '/blog' }
+    ? blogServerLocation(process.env.BLOG_MEDIA_DELIVERY)
     : publicBlogLocation;
 const site = getSiteContent(DEFAULT_LOCALE);
 const origin = (Astro.site ?? Astro.url.origin).toString();

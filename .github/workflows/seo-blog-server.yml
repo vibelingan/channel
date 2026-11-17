@@ -90,6 +90,11 @@ jobs:
           if-no-files-found: error
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts
+      - name: Verify direct article media and retained proxy URLs with the same built program
+        env:
+          BLOG_MEDIA_DELIVERY: api
+          BLOG_SSR_BROWSER: '0'
+        run: pnpm --filter @vibelingan-channel/db exec tsx --test ../../scripts/blog/server-http.integration.ts
       - name: Keep the preview service blocked with the same built program
         env:
           BLOG_PREVIEW_ONLY: '1'

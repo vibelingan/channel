@@ -70,11 +70,13 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   });
   let offline = false;
   let serverOrigin = '';
+  let mediaProxyRequests = 0;
   const api = createServer(async (req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://gateway.test').pathname;
     // Mirror the production gateway: Blog goes to Node; existing root assets
     // remain on static hosting. Never duplicate the full media tree in the service.
     if (pathname === '/blog' || pathname.startsWith('/blog/')) {
+      if (pathname.startsWith('/blog/media/articles/')) mediaProxyRequests++;
       // Node's fetch ignores a custom Host. Use an actual HTTP proxy request so
       // the integration checks the wire authority rather than a forged JS URL.
       const upstream = httpRequest(
@@ -246,6 +248,8 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   await formalRedirect.arrayBuffer();
   assert.equal(response.status, 200, output);
   assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.match(response.headers.get('server-timing') ?? '', /article-read;dur=\d+(?:\.\d+)?/);
+  assert.match(response.headers.get('server-timing') ?? '', /blog-handler;dur=\d+(?:\.\d+)?/);
   const previewOnly = process.env.BLOG_PREVIEW_ONLY !== '0';
   assert.equal(response.headers.get('x-robots-tag'), previewOnly ? 'noindex,nofollow' : null);
   const health = await (await get('/blog/health.json')).json();
@@ -253,6 +257,8 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert(health !== null && typeof health === 'object');
   assert.equal(Reflect.get(health, 'siteOrigin'), siteOrigin);
   assert.equal(Reflect.get(health, 'previewOnly'), previewOnly);
+  const mediaDelivery = process.env.BLOG_MEDIA_DELIVERY ?? 'proxy';
+  assert.equal(Reflect.get(health, 'mediaDelivery'), mediaDelivery);
   assert.deepEqual(Reflect.get(health, 'indexing'), {
     enabled: !previewOnly,
     canonicalHost: true,
@@ -262,6 +268,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.equal(response.headers.get('x-channel-blog-version'), Reflect.get(health, 'releaseId'));
   const html = await response.text();
   const originalImagePath = renderedArticleImagePath(html);
+  const originalProxyBefore = mediaProxyRequests;
   const imageResponse = await get(originalImagePath);
   assert.equal(
     imageResponse.status,
@@ -270,6 +277,12 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   );
   assert.equal(imageResponse.headers.get('content-type'), 'image/webp');
   assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), imageBytes);
+  assert.equal(mediaProxyRequests - originalProxyBefore, mediaDelivery === 'api' ? 0 : 1);
+  assert.equal(
+    (await get(`/blog/media/articles/${imageId}/${imageHash}.webp`)).status,
+    200,
+    'Previously emitted original proxy URLs stay readable in both modes',
+  );
   assertArticleSchemaImage(html, originalImagePath);
   t.diagnostic(JSON.stringify({ mode: 'original', renderedSrc: originalImagePath, status: 200 }));
   assert.equal(
@@ -325,6 +338,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   const webPath = renderedArticleImagePath(renderedHtml);
   assert.match(renderedHtml, /alt="Factory HTTP image"/);
   assert(!renderedHtml.includes('storageFileId'));
+  const webProxyBefore = mediaProxyRequests;
   const webResponse = await get(webPath);
   assert.equal(webResponse.status, 200, `The web image URL emitted by HTML must work: ${webPath}`);
   assert.equal(webResponse.headers.get('content-type'), 'image/webp');
@@ -333,6 +347,13 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       .update(Buffer.from(await webResponse.arrayBuffer()))
       .digest('hex'),
     prepared.entry.web.checksumSha256,
+  );
+  assert.equal(mediaProxyRequests - webProxyBefore, mediaDelivery === 'api' ? 0 : 1);
+  const compatibleProxy = `/blog/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`;
+  assert.equal(
+    (await get(compatibleProxy)).status,
+    200,
+    'Old web image proxy URLs stay compatible',
   );
   assertArticleSchemaImage(renderedHtml, webPath);
   t.diagnostic(JSON.stringify({ mode: 'web-v1', renderedSrc: webPath, status: 200 }));
@@ -489,6 +510,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     404,
     'Removing the published image must revoke its web copy',
   );
+  assert.equal(
+    (await get(compatibleProxy)).status,
+    404,
+    'Old URLs retain the same withdrawal gate',
+  );
   await repo.releases.request('admin', {
     operation: 'withdraw',
     articleId: draft.id,
@@ -508,11 +534,19 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
 });
 
 function renderedArticleImagePath(html: string): string {
-  const source = /<img\b[^>]*\ssrc="([^"]*\/media\/articles\/[^"]+)"/.exec(html)?.[1];
+  const article = /<article\b[^>]*data-blog-article[\s\S]*?<\/article>/.exec(html)?.[0];
+  assert(article, 'The article body must exist before checking its real image URL');
+  const source = /<img\b[^>]*\ssrc="([^"]+)"/.exec(article)?.[1];
   assert(source, 'An actual article image src must be present in the rendered HTML');
   const origin = process.env.SITE_URL || 'http://localhost:4321';
   const url = new URL(source, origin);
   assert.equal(url.origin, new URL(origin).origin);
+  assert(
+    url.pathname.startsWith(
+      process.env.BLOG_MEDIA_DELIVERY === 'api' ? '/api/articles/media/' : '/blog/media/articles/',
+    ),
+    'HTML must use the explicitly selected public media route',
+  );
   return `${url.pathname}${url.search}`;
 }
 

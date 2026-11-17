@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { articleContentHash } from '@vibelingan-channel/articles/drafts';
 import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
-import { articleBody, articlePage, articleSummary, blogPage, publicBlogLocation } from './page.ts';
+import {
+  articleBody,
+  articlePage,
+  articleSummary,
+  blogPage,
+  blogServerLocation,
+  publicBlogLocation,
+} from './page.ts';
 import { publishedArticleFixture } from './testing.ts';
 
 function imageFixture() {
@@ -65,6 +72,35 @@ test('absent or partial presentation uses the unchanged original image address',
   const html = articleBody(article, publicBlogLocation, { media: {} });
   assert(html.includes(`/media/articles/article-image/${'a'.repeat(64)}.png`));
   assert.match(html, /width="1536" height="1024"/);
+});
+
+test('direct public media changes both HTML and schema URLs without changing article content', () => {
+  const { article, presentation } = imageFixture();
+  const before = structuredClone(article);
+  const direct = blogServerLocation('api');
+  const expected = `/api/articles/media/article-image/web-v1-${'b'.repeat(64)}.webp`;
+  assert(articleBody(article, direct, presentation).includes(`src="${expected}"`));
+  assert.deepEqual(
+    articlePage(article, 'https://example.com', 'Brand', direct, presentation).schemaNodes.find(
+      (node) => node['@type'] === 'Article',
+    )?.image,
+    [`https://example.com${expected}`],
+  );
+  assert(
+    articleBody(article, direct, { media: {} }).includes(
+      `src="/api/articles/media/article-image/${'a'.repeat(64)}.png"`,
+    ),
+    'Articles without a prepared web image must keep working through the public media gate',
+  );
+  assert.deepEqual(article, before);
+  assert(
+    articleBody(article, blogServerLocation(undefined), presentation).includes(
+      `src="/blog/media/articles/article-image/web-v1-${'b'.repeat(64)}.webp"`,
+    ),
+    'The old proxy route remains the default and the recovery choice',
+  );
+  assert.throws(() => blogServerLocation('https://untrusted.example/'));
+  assert.throws(() => blogServerLocation(''));
 });
 
 test('a valid media identity matching an inherited object key still uses its original', () => {

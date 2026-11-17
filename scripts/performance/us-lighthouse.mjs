@@ -20,7 +20,8 @@ export function measurementPlan(args) {
   const [profile, phase = 'before', scope = 'all', ...extra] = args;
   if (!['mobile', 'desktop'].includes(profile)) throw Error('Explicit profile required');
   if (!['before', 'after'].includes(phase)) throw Error('Phase must be before or after');
-  if (!['all', 'image-pages'].includes(scope)) throw Error('Scope must be all or image-pages');
+  if (!['all', 'image-pages', 'article'].includes(scope))
+    throw Error('Scope must be all, image-pages or article');
   if (extra.length) throw Error('Unexpected measurement parameters');
   return {
     profile,
@@ -29,7 +30,9 @@ export function measurementPlan(args) {
     repeats: 3,
     pages: paths
       .map((path, index) => ({ index, url: `https://supplychainsai.com${path}` }))
-      .filter(({ index }) => scope === 'all' || [4, 5, 6, 8].includes(index)),
+      .filter(({ index }) =>
+        scope === 'all' ? true : scope === 'article' ? index === 8 : [4, 5, 6, 8].includes(index),
+      ),
   };
 }
 

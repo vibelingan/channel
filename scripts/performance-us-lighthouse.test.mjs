@@ -54,6 +54,23 @@ test('phase and scope are independent explicit choices', () => {
   assert.equal(measurementPlan(['desktop', 'before', 'image-pages']).pages.length, 4);
 });
 
+test('an article-only comparison keeps the original URL and uses six total samples', () => {
+  const plans = ['mobile', 'desktop'].map((profile) =>
+    measurementPlan([profile, 'before', 'article']),
+  );
+  for (const plan of plans)
+    assert.deepEqual(plan.pages, [
+      {
+        index: 8,
+        url: 'https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/',
+      },
+    ]);
+  assert.equal(
+    plans.reduce((sum, plan) => sum + plan.pages.length * plan.repeats, 0),
+    6,
+  );
+});
+
 test('invalid or extra parameters fail before any measurement', () => {
   for (const args of [
     [],
@@ -133,7 +150,11 @@ test('the read-only workflow is manual and forwards phase/scope without a push t
   assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
   assert.deepEqual(workflow.on.workflow_dispatch.inputs.phase.options, ['before', 'after']);
   assert.equal(workflow.on.workflow_dispatch.inputs.phase.default, 'before');
-  assert.deepEqual(workflow.on.workflow_dispatch.inputs.scope.options, ['all', 'image-pages']);
+  assert.deepEqual(workflow.on.workflow_dispatch.inputs.scope.options, [
+    'all',
+    'image-pages',
+    'article',
+  ]);
   assert.equal(workflow.on.workflow_dispatch.inputs.scope.default, 'all');
   const steps = workflow.jobs.baseline.steps;
   assert(
