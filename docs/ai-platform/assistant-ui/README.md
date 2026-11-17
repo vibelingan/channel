@@ -18,6 +18,10 @@
 
 恢复执行补记：`358726dc` 的完整手工CI [44081016246](https://github.com/vibelingan/channel/actions/runs/44081016246) 成功；[44082158063](https://github.com/vibelingan/channel/actions/runs/44082158063) 在读取原区域函数回执前安全停止，未结束旧任务。原因是正常 Deploy Test 的证据包同时保存两个 output 子目录，原回执实际位于 `site-delivery/regional/result.json`，旧手工发布包才是 `regional/result.json`。已从原任务真实下载包核对回执的run、SHA、清理状态及零业务写入，再按已核验的发布来源选择这两个固定目录，不扫描任意文件。对应回归先复现ENOENT，再通过；相关证据、恢复和来源回归76项通过。新的执行提交仍须完整CI通过后再试恢复。
 
+后续真实进展：`fbb1d847` 完整CI [44083495267](https://github.com/vibelingan/channel/actions/runs/44083495267) 成功，[44084739926](https://github.com/vibelingan/channel/actions/runs/44084739926) 完成12页原/新版核对与原任务状态登记，网站和业务写入为零。官网已写入新版的真实商品页加载 `AssistantWidget.DTFzLaKg.js`，使用合成无效访客身份测试得到真实401→201→202→events200，事件编号从0开始；同一句 `what product do you have? Top wirless headphones` 返回无线耳机介绍，消息只受理一次，输入框可继续使用。这项功能验收已完成，不与原通用商品页面尚未更新混说。截图和不含凭据的HTTP记录在本机 `output/assistant-ui/live-401-recovery-20261117.*`。
+
+发布收尾仍在进行：[44085351545](https://github.com/vibelingan/channel/actions/runs/44085351545) 误选只处理商品变动的refresh模式，没有待处理商品变化而正常退出，不能算已发布程序；改用完整fresh模式的 [44086221594](https://github.com/vibelingan/channel/actions/runs/44086221594) 在新网站写入前停止。后者暴露了另一处测试遗漏：调用端支持部分HTML写入，但实际区域函数仍把核对结果固定为整批新版。补丁把逐页已核对的path/bytes/sha256送到运行端，由运行端验证每页只属于原版或新版、顺序和数量不变，并与原已存整体摘要及任务证明一致；不修改旧证明、不放行任意摘要。增加通过实际安装SDK、真实区域handler与数据库事务层的离线联测：混合版本可恢复，缺少、改写、调序或其他页面的证据全部拒绝，业务记录不变。这种跨调用端/运行端的行为不能只用成功替身验证。运行端类型检查与33项单元测试、32项调用联测通过；完整发布脚本1964项通过。新的执行版本仍先过完整远端CI再恢复现场。
+
 措辞修正：“简单产品问题被拒答”改为“消息提交被401拒绝，前端没有恢复失效会话”，区分知识回答、调用身份和网络状态。范围只含现有v1官网组件，不启用后置v2/流式功能，不改变Sales、Apollo或公开知识范围。
 
 > 2026-11-10 当前评审入口：[官网助手／Sales／Apollo统一设计与调查](../review-20261110/README.zh-CN.md)。下文带日期的结果保留为历史，不代表本轮已上线。

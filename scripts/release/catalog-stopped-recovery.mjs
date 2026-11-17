@@ -234,6 +234,11 @@ export async function recoverStoppedCatalogDelivery({
       beginRequestId: pair.beginRequestId,
       endRequestId: pair.endRequestId,
       originalWrites,
+      observedMembers: step.members.map((member, index) => ({
+        path: member.path,
+        bytes: observed[index].bytes,
+        sha256: observed[index].sha256,
+      })),
     };
     for (let round = 0; round < 50000; round++) {
       stage = 'clear';

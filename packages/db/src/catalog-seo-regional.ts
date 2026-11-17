@@ -83,6 +83,19 @@ const recoveryInputSchema = z
     beginRequestId: id,
     endRequestId: id,
     originalWrites: counter,
+    observedMembers: z
+      .array(
+        z
+          .object({
+            path: z.string().regex(/^products\/p-([A-Za-z0-9_-]{1,200})\/index\.html$/),
+            bytes: counter.max(128 * 1024 * 1024),
+            sha256: hash,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(12)
+      .optional(),
     state: z.enum(cleanupStates),
     cursor: hash.nullable(),
   })
@@ -1020,6 +1033,23 @@ async function assertFailedRecoverySource(
     !isDeepStrictEqual(step.resolution, run.reconciliation)
   )
     reject();
+  let observedHash = step.afterHash;
+  if (input.observedMembers) {
+    if (
+      input.observedMembers.length !== step.members.length ||
+      input.observedMembers.some((member, index) => {
+        const expected = step.members[index];
+        return (
+          !expected ||
+          member.path !== expected.path ||
+          ![expected.beforeHash, expected.sha256].includes(member.sha256) ||
+          (member.sha256 === expected.sha256 && member.bytes !== expected.bytes)
+        );
+      })
+    )
+      return reject();
+    observedHash = ledgerIdentity(input.observedMembers);
+  }
   const proof = z
     .object({
       runnerRef: z.literal(`github:vibelingan/channel:${match[1]}:attempt-${match[2]}`),
@@ -1032,7 +1062,7 @@ async function assertFailedRecoverySource(
           status: z.literal('quiescent'),
           kind: z.literal('stopped-site-html-batch'),
           operationId: z.literal(step.operationId),
-          observedHash: z.literal(step.afterHash),
+          observedHash: z.literal(observedHash),
           evidenceRef: z.string().min(1),
         })
         .passthrough(),
@@ -1046,7 +1076,7 @@ async function assertFailedRecoverySource(
       `^github:${match[1]}:attempt-${match[2]}:job-[1-9][0-9]*:(success|failure|cancelled|timed_out):source-${run.composition.static.codeSha}$`,
     ).test(proof.data.job.evidenceRef) ||
     proof.data.cloud.evidenceRef !==
-      `candidate:${run.composition.static.artifact.artifactId}:batch:${step.afterHash}:three-cache-modes:absent:seo-catalog-region-${match[1]}-${match[2]}`
+      `candidate:${run.composition.static.artifact.artifactId}:batch:${observedHash}:three-cache-modes:absent:seo-catalog-region-${match[1]}-${match[2]}`
   )
     return reject();
   const beginRow = await store.get(
