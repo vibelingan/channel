@@ -1134,7 +1134,7 @@ interface UploadIntentResponse {
  *   1. ask the server for a single-object pre-signed credential (createUploadIntent);
  *   2. `PUT` the raw bytes straight to COS — bypassing the function byte cap;
  *   3. have the server verify + activate (completeUpload).
- * Returns the new image id. The browser never holds a storage identity — only the
+ * Returns the image id. The browser never holds a storage identity — only the
  * custom JWT (carried by `call`); the COS signature is server-minted.
  *
  * PUT with credential HEADERS, never a multipart POST: the signature is minted
@@ -1145,10 +1145,11 @@ interface UploadIntentResponse {
 type ImageUploadProgress = {
   actorId: string | null;
   imageId: string | undefined;
+  intent: UploadIntentResponse | undefined;
   pending: Promise<string> | undefined;
 };
-// Keep only a confirmed upload's id, never its signed storage credentials.
-// ImageManager retains the same File for Retry; garbage collection retires it.
+// An uncertain PUT retries the same temporary credential and immutable file.
+// Keep it only in memory until PUT succeeds; never persist or log the credential.
 const imageUploads = new WeakMap<File, ImageUploadProgress>();
 
 export async function uploadImage(file: File): Promise<string> {
@@ -1168,25 +1169,23 @@ export async function uploadImage(file: File): Promise<string> {
       : {
           actorId,
           imageId: undefined,
+          intent: undefined,
           pending: undefined,
         };
   if (state.pending) return state.pending;
   if (actorId !== null) imageUploads.set(file, state);
   const run = async () => {
     if (!state.imageId) {
-      const intent = await call<UploadIntentResponse>(
+      state.intent ??= await call<UploadIntentResponse>(
         'createUploadIntent',
-        {
-          fileName: file.name,
-          mimeType: file.type,
-          byteSize: file.size,
-        },
+        { fileName: file.name, mimeType: file.type, byteSize: file.size },
         undefined,
         guard,
       );
       guard();
-      await putImageUpload(file, intent);
-      state.imageId = intent.imageId;
+      await putImageUpload(file, state.intent);
+      state.imageId = state.intent.imageId;
+      state.intent = undefined;
       guard();
     }
     await call('completeUpload', { imageId: state.imageId }, undefined, guard);
@@ -1198,7 +1197,7 @@ export async function uploadImage(file: File): Promise<string> {
     return await pending;
   } catch (error) {
     if (
-      !state.imageId ||
+      (!state.imageId && !state.intent) ||
       (error instanceof AdminApiError && ['VALIDATION_ERROR', 'CONFLICT'].includes(error.code))
     ) {
       if (imageUploads.get(file) === state) imageUploads.delete(file);
@@ -1326,8 +1325,8 @@ export async function putImageUpload(
     credentials: 'omit',
     redirect: 'error',
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
-      : AbortSignal.timeout(60000),
+      ? AbortSignal.any([signal, AbortSignal.timeout(300000)])
+      : AbortSignal.timeout(300000),
   });
   if (!put.ok) throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
 }

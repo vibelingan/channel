@@ -67,7 +67,7 @@ Google要求Product名称之外至少具备offers、review、aggregateRating中�
 
 依据：[Google Product snippets](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)、[Schema.org eligibleQuantity](https://schema.org/eligibleQuantity)、[referenceQuantity](https://schema.org/referenceQuantity)。这些支持的字段不等于Google一定会展示所有条件，也不等于本站具备直接下单的Merchant listing能力。
 
-## 11月17日实际验收：代码和Google代码检测通过，线上HTML待交付
+## 11月17日代码检测与11月18日真实官网验收
 
 `public-offer.ts`已接入真正生成商品页面的`productPageDescriptor`，不是单独放着未使用的工具。它只挑批准详情中的官网报价和公开图片路径，核对商品身份及修订版本；生成时不查云端，买家访问也不增加请求。当前公开接口分别读回4个候选商品，官网价和批准版本均与保存的快照一致。4张代表主图完整GET均200、JPEG，实际读取约7.3–8.9秒；此前并行读取有一次30秒超时，后续成功不能证明已修复网络或服务等待问题。本次没有为让检查通过而延长超时或改动线上图片。
 
@@ -77,6 +77,14 @@ Google Rich Results Test的[实际结果](https://search.google.com/test/rich-re
 
 商品摘要有3项非关键提示：缺少真实评价、汇总评分和库存状态。没有这些业务事实就保持缺省，不为消除黄色提示填假值。工具同时认出了Merchant listings标记，但本站以询盘为主，这不证明具备该类展示要求的购买流程；本期只按商品摘要验收，不宣称获得商家展示资格。
 
-本地原始记录和截图保留在忽略目录`output/seo-product-offers-20261117/`，可安全共享的数量、平台结果和边界见[数值回执](PRODUCT-OFFER-2026-11-17.json)。下一步在共享发布结束后，沿用现有交付入口，用当前商品数据生成新HTML；保留最新业务程序、商品和Blog内容。只读回4个候选页面及一个普通商品，再做真实URL检测。若版本、网站或数据与批准范围不符则停止；恢复仅退回普通网页标记和程序，不恢复旧价格或旧文章。
+本地原始记录和截图保留在忽略目录`output/seo-product-offers-20261117/`，可安全共享的数量、平台结果和边界见[数值回执](PRODUCT-OFFER-2026-11-17.json)。11月17日当时的后续计划是等待共享发布结束，再用当前商品数据生成新HTML、读取4个候选页面及一个普通商品并做真实URL检测；11月18日已按下述结果完成。若版本、网站或数据与批准范围不符则停止；恢复仅退回普通网页标记和程序，不恢复旧价格或旧文章。
 
 本次实际复核了`public-offer.ts`、`product-page.ts`、`ProductLanding.tsx`、`CatalogCompactPrice`、`CatalogQuoteConditions.tsx`、共享报价及批准详情类型、公开接口、构建后的商品HTML和Google实际检测结果。具体措辞修正：“Google商品增强展示已通过”改为“代表商品的代码检测有效，线上HTML和最终搜索展示分别待验”，避免把代码检测说成线上效果。没有修改pricing算法、权限、CloudBase SDK、Sales、Hermes或CI提速。
+
+11月18日补充：正常[Deploy Test44111073926](https://github.com/vibelingan/channel/actions/runs/44111073926)全部成功，固定源码为`f628fad6f3c771d1f2e882d521dd8283a1160a0e`，网站接受为`site-44111073926-1`，52步全部验证。独立13次GET读回4件商品的当前接口、初始HTML和主图，以及1件普通商品：4件的官网单价、币种、批准修订与可见文字一致，4张图片完整读取200；普通商品仍是可收录的WebPage和面包屑，没有被错误标成有售价商品。这里没有改报价或业务内容。
+
+Google随后实际抓取[线上代表商品](https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/)，[检测结果](https://search.google.com/test/rich-results/result?id=CdTMF33R9GXUjdBe05q4vA)显示抓取成功、商品摘要有效，读到真实`USD 3.00`。结果中的“4 valid items”指这一个网页的商品、商家、面包屑和组织四类标记，不是四件商品均经过Google测试。商品摘要仍有评价、汇总评分、库存三个可选提示；没有编造业务事实来清除它们。商家标记被识别不代表本站已经满足购物流程资格，组织标记的可选提示本次没有逐项验收。
+
+独立数据库读回与11月17日08:40 UTC保存的发布前记录比较，528件商品公开版本及3篇文章的内容摘要、修订、发布时间、修改时间全部相同。两只本次临时函数的清理回执均为完成、无未确认项、业务写入0；发布目标的currentRunId、dirtyRunId、unresolvedOperation均为空。首页、分类、两类缺失网址、地图和清单共18次普通/重新校验读取通过，缺失网址返回真正404。上述证明本次正常交付与内容保留，没有新增一次旧程序恢复演练，也不保证Google最终收录或展示价格。
+
+本次补充核对正常发布回执、13次官网GET、Google真实URL结果与截图，以及只包含业务版本字段的数据库读取。措辞进一步修正：“Google已认可四件商品”改为“我们独立核对四件商品；Google实际抓取其中一件并确认其商品摘要有效”。

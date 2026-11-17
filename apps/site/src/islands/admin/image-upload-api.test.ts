@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { uploadImage } from './api.ts';
+import { putImageUpload, uploadImage } from './api.ts';
 
 function fixture(t: TestContext) {
   let actor = 'u1';
@@ -24,10 +24,15 @@ function fixture(t: TestContext) {
   const counts = { intents: 0, puts: 0, complete: 0 };
   const completed: { imageId: string; token: string }[] = [];
   let loseCompleteReply = false;
+  let losePutReply = false;
   let afterPut: (() => void) | undefined;
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     if (init.method === 'PUT') {
       counts.puts++;
+      if (losePutReply) {
+        losePutReply = false;
+        throw new TypeError('The upload reply was lost');
+      }
       afterPut?.();
       return new Response(null, { status: 204 });
     }
@@ -64,6 +69,9 @@ function fixture(t: TestContext) {
     loseReply() {
       loseCompleteReply = true;
     },
+    loseUploadReply() {
+      losePutReply = true;
+    },
     afterPut(fn: () => void) {
       afterPut = fn;
     },
@@ -93,6 +101,39 @@ test('retry after an unknown completion outcome reuses the received image id and
     f.completed.map((c) => c.imageId),
     ['fixture-image-1', 'fixture-image-1'],
   );
+});
+
+test('an unknown storage result retries the same file and object without minting another image', async (t) => {
+  const f = fixture(t);
+  const file = new File(['fixture'], 'photo.png', { type: 'image/png' });
+  f.loseUploadReply();
+  await assert.rejects(uploadImage(file), /upload reply was lost/);
+  assert.equal(await uploadImage(file), 'fixture-image-1');
+  assert.deepEqual(f.counts, { intents: 1, puts: 2, complete: 1 });
+});
+
+test('direct image transfer has a five-minute bound and still honors explicit cancellation', async (t) => {
+  const controller = new AbortController();
+  controller.abort(new Error('The upload was cancelled'));
+  const deadlines: number[] = [];
+  t.mock.method(AbortSignal, 'timeout', (milliseconds: number) => {
+    deadlines.push(milliseconds);
+    return new AbortController().signal;
+  });
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    assert.equal(init.method, 'PUT');
+    assert.equal(init.credentials, 'omit');
+    assert.equal(init.redirect, 'error');
+    assert.equal(init.signal?.aborted, true);
+    assert.equal(init.signal?.reason, controller.signal.reason);
+    return new Response(null, { status: 204 });
+  });
+  await putImageUpload(
+    new File(['fixture'], 'photo.png', { type: 'image/png' }),
+    { upload: { method: 'PUT', url: 'https://storage.example.invalid/upload', headers: {} } },
+    controller.signal,
+  );
+  assert.deepEqual(deadlines, [300_000]);
 });
 
 test('switching accounts while the original uploads stops activation and preserves the confirmed upload for its owner', async (t) => {

@@ -16,7 +16,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   request,
 }) => {
   test.skip(!e2e.catalogPrivateImageSmoke, 'Set E2E_CATALOG_PRIVATE_IMAGE_SMOKE=1.');
-  test.setTimeout(180_000);
+  test.setTimeout(480_000);
   requireAdminCredentialsWhenEnabled(true, 'Private image acceptance');
   const release = process.env.CHANNEL_EXPECTED_RELEASE ?? '';
   expect(release, 'An exact accepted program is required before writing the fixture.').toMatch(
@@ -133,8 +133,8 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       mimeType: 'image/png',
       buffer: bytes,
     });
-    // Allow the application itself to report its 60s transfer deadline before test cleanup.
-    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 90_000 });
+    // Includes the bounded transfer plus server-side verification and image preparation.
+    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 360_000 });
     await expect(gallery.getByText('Failed — retry')).toHaveCount(0);
     await expect(gallery.locator('img')).toBeVisible();
     const imageId = await gallery.locator('[data-image-id]').getAttribute('data-image-id');

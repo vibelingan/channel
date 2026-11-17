@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-11-17T14:54:16.408Z",
+  "recordedAt": "2026-11-17T16:48:23.268Z",
   "scope": "OFFER-2 truthful website unit prices",
   "totalProducts": 528,
   "eligibleProducts": [
@@ -210,6 +210,108 @@
     }
   },
   "cloudWrites": 0,
-  "newHtmlDeployed": false,
-  "searchAppearanceVerified": false
+  "newHtmlDeployed": true,
+  "searchAppearanceVerified": false,
+  "normalDeployment": {
+    "run": 44111073926,
+    "url": "https://github.com/vibelingan/channel/actions/runs/44111073926",
+    "sourceSha": "f628fad6f3c771d1f2e882d521dd8283a1160a0e",
+    "conclusion": "success",
+    "siteDeliveryId": "site-44111073926-1",
+    "verifiedSteps": 52,
+    "stepCount": 52,
+    "programRestore": false,
+    "temporaryFunctionsCleaned": true,
+    "unknownMutations": false,
+    "releaseTargetClear": true,
+    "hostingContractChecks": 18
+  },
+  "liveAnonymousAcceptance": {
+    "at": "2026-11-17T16:31:26.374Z",
+    "success": true,
+    "gets": 13,
+    "cloudWrites": 0,
+    "facts": [
+      {
+        "id": "0e0afdc26a68204700523563353480a1",
+        "url": "https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/",
+        "revision": "ba974940-e119-4cb9-9804-47b9632b70c0",
+        "htmlSha256": "d9365fc7a41609178c7a7be8306dea925c7e767349270546514fcb7768779238",
+        "price": "3.00",
+        "currency": "USD",
+        "visiblePriceMatches": true,
+        "imageStatus": 200,
+        "imageBytes": 209220,
+        "imageSha256": "e5d489b9ee0b8b665991f5dacf67ecda0f42d1f5b0d294b63911f7281a692210"
+      },
+      {
+        "id": "50633c37-434c-4374-a540-f071a00fc799",
+        "url": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+        "revision": "43308cf1-5ac9-4e3c-b4ae-d4a20c84228c",
+        "htmlSha256": "5957483c286250258da2bb4499f4345a4d5435d134fb57d6c1820c795d407554",
+        "price": "49.10",
+        "currency": "USD",
+        "visiblePriceMatches": true,
+        "imageStatus": 200,
+        "imageBytes": 685342,
+        "imageSha256": "71c8df1fb015e2437302ec54184ffbf7575ce0eec5f02028da88ce0f3c26cdc1"
+      },
+      {
+        "id": "66521c2e-0a13-4623-95f6-ef3d684bd870",
+        "url": "https://supplychainsai.com/products/p-66521c2e-0a13-4623-95f6-ef3d684bd870/",
+        "revision": "1835e8eb-b9d1-4a70-bc13-278233d6dbe3",
+        "htmlSha256": "eb22e929372e8d5ca80f9bc5c3507957ee24e6424392c833c5f9f9b6d3c72f59",
+        "price": "134.00",
+        "currency": "USD",
+        "visiblePriceMatches": true,
+        "imageStatus": 200,
+        "imageBytes": 645596,
+        "imageSha256": "0893ca084f01ca69558b85ae62331552136e572a9430b666c18655e420174692"
+      },
+      {
+        "id": "9079232d-c537-44f3-9a99-0bee45ecad65",
+        "url": "https://supplychainsai.com/products/p-9079232d-c537-44f3-9a99-0bee45ecad65/",
+        "revision": "b36d091e-85b7-41e1-9a11-7b49ca246b97",
+        "htmlSha256": "14984c6a6e2ba6b102b846c7e52374628d6eb18f76f04bd60bbdf6db06b6fdde",
+        "price": "52.00",
+        "currency": "USD",
+        "visiblePriceMatches": true,
+        "imageStatus": 200,
+        "imageBytes": 350502,
+        "imageSha256": "ef813d7858fdde15ec012a04831e03880cbb745355f7e944be0479737f606e38"
+      }
+    ],
+    "ordinary": {
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "status": 200,
+      "pricedProduct": false
+    }
+  },
+  "contentPreservation": {
+    "observedAt": "2026-11-17T16:48:23.268Z",
+    "baselineAt": "2026-11-17T08:40:15.555Z",
+    "products": 528,
+    "articles": 3,
+    "productVersionsUnchanged": true,
+    "articleContentRevisionTimesUnchanged": true,
+    "cloudWrites": 0
+  },
+  "googleLiveUrlTest": {
+    "resultUrl": "https://search.google.com/test/rich-results/result?id=CdTMF33R9GXUjdBe05q4vA",
+    "url": "https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/",
+    "crawledAt": "2026-11-17T16:32:43Z",
+    "crawlSucceeded": true,
+    "pagesTested": 1,
+    "validTypes": ["Product snippets", "Merchant listings", "Breadcrumbs", "Organization"],
+    "productSnippet": {
+      "valid": 1,
+      "criticalErrors": 0,
+      "price": "3.00",
+      "priceCurrency": "USD",
+      "optionalMissing": ["review", "aggregateRating", "availability"]
+    },
+    "merchantBusinessEligibilityAccepted": false,
+    "organizationOptionalWarningsInspected": false,
+    "searchAppearanceGuaranteed": false
+  }
 }
