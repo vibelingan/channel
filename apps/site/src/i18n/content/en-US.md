@@ -231,7 +231,7 @@ footer:
     - heading: Contact Us
       links:
         - { label: 'Email: sales@supplychainsai.com', href: 'mailto:sales@supplychainsai.com' }
-        - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
+        - { label: 'Phone: +852 9545 3560', href: 'tel:+85295453560' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
       manufacturingPartner:
         name: Channel Technology Limited
