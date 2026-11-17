@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { matchesObjectProof } from '../hosting-delta.mjs';
 import { identity, readHostingObject, sha256 } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
 import { ownedSitePaths } from './site-files.mjs';
@@ -35,7 +36,7 @@ export function assertSiteRecoveryChain({ chain, policy, dirtyRunId }) {
   if (expected) throw Error('Incomplete failed release chain');
 }
 
-export function assertDirtySiteInventory({ baseline, failed, inventory }) {
+export function assertDirtySiteInventory({ baseline, failed, inventory, contentProofs = [] }) {
   const originals = new Map(baseline.staticManifest.entries.map((e) => [e.path, e]));
   const candidates = (Array.isArray(failed) ? failed : [failed]).map((source) => ({
     source,
@@ -50,8 +51,7 @@ export function assertDirtySiteInventory({ baseline, failed, inventory }) {
       current.bytes === entry.bytes &&
       (current.etag.replaceAll('"', '').toLowerCase() ===
         createHash('md5').update(bytes).digest('hex') ||
-        (entry.objectVersion?.etag === current.etag &&
-          entry.objectVersion.lastModified === current.lastModified))
+        matchesObjectProof(entry, current, contentProofs))
     );
   };
   const paths = new Set(candidates.flatMap(({ source }) => ownedSitePaths(source, baseline)));
@@ -72,8 +72,12 @@ export function assertDirtySiteInventory({ baseline, failed, inventory }) {
         bs.some((c) => matches(c.source, c.entries.get(path), current))
       )
     )
-      throw Object.assign(Error('Affected site file differs from both archived versions'), {
-        code: 'STOP_EXTERNAL_CHANGE',
-      });
+      throw Object.assign(
+        Error(`Affected site file differs from both archived versions: ${path}`),
+        {
+          code: 'STOP_EXTERNAL_CHANGE',
+          path,
+        },
+      );
   }
 }

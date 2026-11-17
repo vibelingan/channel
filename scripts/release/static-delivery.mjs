@@ -227,35 +227,42 @@ export async function deliverStaticContent(
         for (const entry of expected) await verifyHostingObject({ target, entry, request });
       else {
         const inventory = await provider.readInventory();
-        if (!status.target.dirtyRunId)
-          for (const entry of expected) {
-            const current = inventory.find((e) => e.path === entry.path);
-            if (
-              current &&
-              !/^"?[a-f0-9]{32}"?$/i.test(current.etag) &&
-              !(
-                entry.objectVersion?.etag === current.etag &&
-                entry.objectVersion?.lastModified === current.lastModified
-              )
-            ) {
-              const observed = await verifyHostingObject({ target, entry, request });
-              if (observed.etag !== current.etag)
-                throw Object.assign(Error('Accepted object changed during readback'), {
-                  code: 'STOP_EXTERNAL_CHANGE',
-                });
-              baselineProofs.push({
-                ...entry,
-                etag: current.etag,
-                lastModified: current.lastModified,
+        for (const entry of expected) {
+          const current = inventory.find((e) => e.path === entry.path);
+          if (
+            current &&
+            !/^"?[a-f0-9]{32}"?$/i.test(current.etag) &&
+            !(
+              entry.objectVersion?.etag === current.etag &&
+              entry.objectVersion?.lastModified === current.lastModified
+            ) &&
+            (!status.target.dirtyRunId ||
+              (failedCandidates ?? []).every((candidate) => {
+                const failed = candidate.input.staticManifest.entries.find(
+                  (e) => e.path === entry.path,
+                );
+                return !failed || (failed.bytes === entry.bytes && failed.sha256 === entry.sha256);
+              }))
+          ) {
+            const observed = await verifyHostingObject({ target, entry, request });
+            if (observed.etag !== current.etag)
+              throw Object.assign(Error('Accepted object changed during readback'), {
+                code: 'STOP_EXTERNAL_CHANGE',
               });
-            }
+            baselineProofs.push({
+              ...entry,
+              etag: current.etag,
+              lastModified: current.lastModified,
+            });
           }
+        }
         if (status.target.dirtyRunId) {
           const inventory = await provider.readInventory();
           assertDirtySiteInventory({
             baseline,
             failed: failedCandidates.map((c) => c.input),
             inventory,
+            contentProofs: baselineProofs,
           });
           const paths = new Set(failedCandidates.flatMap((c) => ownedSitePaths(c.input, baseline)));
           owned = inventory.filter((entry) => paths.has(entry.path)).map((entry) => entry.path);
