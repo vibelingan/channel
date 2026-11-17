@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-17T14:54:16.408Z",
+  "scope": "OFFER-2 truthful website unit prices",
+  "totalProducts": 528,
+  "eligibleProducts": [
+    {
+      "id": "0e0afdc26a68204700523563353480a1",
+      "name": "Adjustable Wired Over Ear Headphones With Mic Stereo Sound Blue Color For Mobile Phone Use Button Control Volume Adjustment",
+      "revision": "ba974940-e119-4cb9-9804-47b9632b70c0",
+      "url": "https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/",
+      "price": "3.00",
+      "priceCurrency": "USD",
+      "image": "https://supplychainsai.com/api/images/179185b66a68202e006866280ee54ae2"
+    },
+    {
+      "id": "50633c37-434c-4374-a540-f071a00fc799",
+      "name": "Mengyouyou Series AI Interactive Plush Toy Smart Voice Talking Stuffed Animal Doll Educational Toy For Boys Girls",
+      "revision": "43308cf1-5ac9-4e3c-b4ae-d4a20c84228c",
+      "url": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+      "price": "49.10",
+      "priceCurrency": "USD",
+      "image": "https://supplychainsai.com/api/images/4c2f81c76a87aa810006464f66008e31"
+    },
+    {
+      "id": "66521c2e-0a13-4623-95f6-ef3d684bd870",
+      "name": "AI Robot Toy Smart Interactive Companion Robot for Kids Home Educational Gift",
+      "revision": "1835e8eb-b9d1-4a70-bc13-278233d6dbe3",
+      "url": "https://supplychainsai.com/products/p-66521c2e-0a13-4623-95f6-ef3d684bd870/",
+      "price": "134.00",
+      "priceCurrency": "USD",
+      "image": "https://supplychainsai.com/api/images/a9defcfd6a87a9ae00051d3b307c5cee"
+    },
+    {
+      "id": "9079232d-c537-44f3-9a99-0bee45ecad65",
+      "name": "Ledoudou Series AI Plush Toy Smart Interactive Stuffed Doll LED Dynamic Eyes Multilingual Emotional Companion AI Toy For Kids Birthday Gift",
+      "revision": "b36d091e-85b7-41e1-9a11-7b49ca246b97",
+      "url": "https://supplychainsai.com/products/p-9079232d-c537-44f3-9a99-0bee45ecad65/",
+      "price": "52.00",
+      "priceCurrency": "USD",
+      "image": "https://supplychainsai.com/api/images/4c2f81c76a87aadd0006499c5a5caa20"
+    }
+  ],
+  "ordinaryReasons": {
+    "no-website-price": 519,
+    "minimum-order-not-one": 5
+  },
+  "currentAnonymousApi": {
+    "observedAt": "2026-11-17T14:28:36.412Z",
+    "apiGets": 4,
+    "cloudWrites": 0,
+    "receipts": [
+      {
+        "id": "0e0afdc26a68204700523563353480a1",
+        "status": 200,
+        "ok": true,
+        "name": "Adjustable Wired Over Ear Headphones With Mic Stereo Sound Blue Color For Mobile Phone Use Button Control Volume Adjustment",
+        "revision": "ba974940-e119-4cb9-9804-47b9632b70c0",
+        "websitePricing": {
+          "basis": "website-manual",
+          "pricing": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amountMinor": 300,
+            "minimumOrderQuantity": 1
+          }
+        },
+        "changedSinceSavedSnapshot": false
+      },
+      {
+        "id": "50633c37-434c-4374-a540-f071a00fc799",
+        "status": 200,
+        "ok": true,
+        "name": "Mengyouyou Series AI Interactive Plush Toy Smart Voice Talking Stuffed Animal Doll Educational Toy For Boys Girls",
+        "revision": "43308cf1-5ac9-4e3c-b4ae-d4a20c84228c",
+        "websitePricing": {
+          "basis": "website-manual",
+          "pricing": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amountMinor": 4910,
+            "minimumOrderQuantity": 1
+          }
+        },
+        "changedSinceSavedSnapshot": false
+      },
+      {
+        "id": "66521c2e-0a13-4623-95f6-ef3d684bd870",
+        "status": 200,
+        "ok": true,
+        "name": "AI Robot Toy Smart Interactive Companion Robot for Kids Home Educational Gift",
+        "revision": "1835e8eb-b9d1-4a70-bc13-278233d6dbe3",
+        "websitePricing": {
+          "basis": "website-manual",
+          "pricing": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amountMinor": 13400,
+            "minimumOrderQuantity": 1
+          }
+        },
+        "changedSinceSavedSnapshot": false
+      },
+      {
+        "id": "9079232d-c537-44f3-9a99-0bee45ecad65",
+        "status": 200,
+        "ok": true,
+        "name": "Ledoudou Series AI Plush Toy Smart Interactive Stuffed Doll LED Dynamic Eyes Multilingual Emotional Companion AI Toy For Kids Birthday Gift",
+        "revision": "b36d091e-85b7-41e1-9a11-7b49ca246b97",
+        "websitePricing": {
+          "basis": "website-manual",
+          "pricing": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amountMinor": 5200,
+            "minimumOrderQuantity": 1
+          }
+        },
+        "changedSinceSavedSnapshot": false
+      }
+    ]
+  },
+  "mainImages": {
+    "at": "2026-11-17T14:51:04.815Z",
+    "mode": "one-at-a-time-follow-up",
+    "priorConcurrentBatch": "one request timed out after 30000ms; batch did not save per-image results",
+    "gets": 4,
+    "cloudWrites": 0,
+    "facts": [
+      {
+        "productId": "0e0afdc26a68204700523563353480a1",
+        "status": 200,
+        "type": "image/jpeg",
+        "byteSize": 209220,
+        "sha256": "e5d489b9ee0b8b665991f5dacf67ecda0f42d1f5b0d294b63911f7281a692210",
+        "elapsedMs": 7343
+      },
+      {
+        "productId": "50633c37-434c-4374-a540-f071a00fc799",
+        "status": 200,
+        "type": "image/jpeg",
+        "byteSize": 685342,
+        "sha256": "71c8df1fb015e2437302ec54184ffbf7575ce0eec5f02028da88ce0f3c26cdc1",
+        "elapsedMs": 8711
+      },
+      {
+        "productId": "66521c2e-0a13-4623-95f6-ef3d684bd870",
+        "status": 200,
+        "type": "image/jpeg",
+        "byteSize": 645596,
+        "sha256": "0893ca084f01ca69558b85ae62331552136e572a9430b666c18655e420174692",
+        "elapsedMs": 7374
+      },
+      {
+        "productId": "9079232d-c537-44f3-9a99-0bee45ecad65",
+        "status": 200,
+        "type": "image/jpeg",
+        "byteSize": 350502,
+        "sha256": "ef813d7858fdde15ec012a04831e03880cbb745355f7e944be0479737f606e38",
+        "elapsedMs": 8852
+      }
+    ]
+  },
+  "googleCodeTest": {
+    "observedAt": "2026-11-17T14:53:00.430Z",
+    "mode": "Google Rich Results Test code input",
+    "scope": "Product and BreadcrumbList copied from actual built HTML; minimal wrapper and price text, not the full page or a live URL crawl",
+    "resultUrl": "https://search.google.com/test/rich-results/result?id=xnU-KxIQULTiaHvza6dTDA",
+    "productSnippets": {
+      "valid": 1,
+      "criticalErrors": 0,
+      "optionalMissing": ["review", "aggregateRating", "availability"]
+    },
+    "breadcrumbs": {
+      "valid": 1
+    },
+    "merchantListings": {
+      "toolReportedValid": 1,
+      "businessEligibilityAccepted": false,
+      "reason": "Code validation does not establish an online checkout or merchant-listing eligibility"
+    },
+    "inputSha256": "32b41685aef1ccf2ec79cfa0efca72992e6865ed116992fde7856780fb8d253a",
+    "actualBuiltHtmlSha256": "ea0f8aba31545cf4e208e411ee890587427e3d6c7bfd274eb98a1c2884915cef",
+    "matchingGeneratedNodes": 2,
+    "liveDeploymentVerified": false,
+    "searchAppearanceGuaranteed": false
+  },
+  "localChecks": {
+    "focusedTests": 31,
+    "passed": 31,
+    "mutation": {
+      "removedGuard": "minimumOrderQuantity must equal one",
+      "intendedAssertionFailed": true,
+      "sourceRestored": true,
+      "restoredSha256": "df5a7490846be88c63ba5c643761c5672690381e4b2f31a36110b12a11d2f5f2"
+    },
+    "testTypecheck": true,
+    "astro": {
+      "files": 325,
+      "errors": 0,
+      "warnings": 0,
+      "hints": 11
+    },
+    "completeBuild": {
+      "htmlPages": 589,
+      "indexableCanonicalUrls": 580,
+      "seconds": 58.7,
+      "pricedProducts": 4,
+      "ordinaryProducts": 524
+    }
+  },
+  "cloudWrites": 0,
+  "newHtmlDeployed": false,
+  "searchAppearanceVerified": false
+}

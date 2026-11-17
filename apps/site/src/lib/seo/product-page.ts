@@ -3,6 +3,7 @@ import { catalogBreadcrumbSchema, familyBreadcrumbs, hubBreadcrumbs } from '../c
 import { createPageDescriptor } from './page.ts';
 import { productPath } from './product-identity.ts';
 import type { ProductSnapshotEntry } from './product-snapshot.ts';
+import { publicProductRichResult } from './public-offer.ts';
 
 const TITLE_BUDGET = 65;
 const DESCRIPTION_BUDGET = 160;
@@ -63,8 +64,7 @@ export function productPageDescriptor(
     identity,
     DESCRIPTION_BUDGET,
   );
-  // Product rich results need a supported offer or a real review/rating. Keep
-  // ordinary page markup until the approved price and its conditions can match it.
+  const richResult = publicProductRichResult(entry, origin, description);
   return createPageDescriptor({
     path,
     kind: 'product',
@@ -75,7 +75,10 @@ export function productPageDescriptor(
       revision: entry.revision,
       ...(entry.publicVersion?.changedAt ? { updatedAt: entry.publicVersion.changedAt } : {}),
     },
-    schemaNodes: [catalogBreadcrumbSchema(productBreadcrumbs({ ...product, name }), origin)],
+    schemaNodes: [
+      catalogBreadcrumbSchema(productBreadcrumbs({ ...product, name }), origin),
+      ...(richResult.status === 'eligible' ? [richResult.schema] : []),
+    ],
   });
 }
 
