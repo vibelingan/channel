@@ -15,6 +15,7 @@ import {
   includeInSitemap as includePage,
   isSitemapPathIncluded as includePath,
 } from './src/lib/seo/route-policy.ts';
+import { withVideoSitemapMetadata } from './src/lib/seo/video-record.ts';
 
 const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 
@@ -77,7 +78,7 @@ export default defineConfig({
     sitemap({
       serialize: (item) => {
         const date = productDates.get(item.url);
-        return date ? { ...item, lastmod: date } : item;
+        return withVideoSitemapMetadata(date ? { ...item, lastmod: date } : item, site);
       },
       filter: (page) =>
         blogServer && new URL(page).pathname.startsWith('/blog') ? false : includeInSitemap(page),

@@ -1,0 +1,100 @@
+{
+  "source": "existing client-supplied public OEM video",
+  "sourcePath": "/media/oem-factory.mp4",
+  "sourceSha256": "3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d",
+  "byteSize": 7201197,
+  "durationSeconds": 130.733333,
+  "width": 960,
+  "height": 720,
+  "codec": "h264",
+  "audioStreams": 0,
+  "posterPath": "/media/factory-overview-c215171947e5.webp",
+  "posterSha256": "c215171947e5ae04aa2c6a24281be781b90f49526a6b62f6cb2249a6f4d42e39",
+  "posterBytes": 47880,
+  "posterFrameSeconds": 2,
+  "firstPublicationDate": "unverified",
+  "metadataMethod": "ffprobe -show_format -show_streams; full file SHA-256; actual contact sheets inspected",
+  "acceptance": {
+    "build": {
+      "html": 589,
+      "indexableCanonicalUrls": 580,
+      "seconds": 57.18
+    },
+    "focusedTests": 5,
+    "localBrowser": {
+      "desktopWidth": 1440,
+      "mobileWidth": 390,
+      "horizontalOverflow": false,
+      "playPauseSeek80": true,
+      "noJavaScript": {
+        "durationSeconds": 130.733333,
+        "currentTime": 0.99,
+        "mp4BeforePlay": 0,
+        "mp4AfterPlay": 1,
+        "error": null
+      }
+    },
+    "liveRange": {
+      "at": "2026-11-17T13:43:01.450Z",
+      "domainType": "",
+      "facts": [
+        {
+          "label": "website-gateway",
+          "range": "bytes=0-1023",
+          "status": 200,
+          "type": "video/mp4",
+          "length": "7201197",
+          "contentRange": null,
+          "server": "tcbgw",
+          "upstreamStatus": "200"
+        },
+        {
+          "label": "authenticated-cos-origin",
+          "range": "bytes=0-1023",
+          "status": 206,
+          "type": "video/mp4",
+          "length": "1024",
+          "contentRange": "bytes 0-1023/7201197",
+          "server": "tencent-cos",
+          "upstreamStatus": null,
+          "bytesMatch": true
+        },
+        {
+          "label": "website-gateway",
+          "range": "bytes=1048576-1049599",
+          "status": 200,
+          "type": "video/mp4",
+          "length": "7201197",
+          "contentRange": null,
+          "server": "tcbgw",
+          "upstreamStatus": "200"
+        },
+        {
+          "label": "authenticated-cos-origin",
+          "range": "bytes=1048576-1049599",
+          "status": 206,
+          "type": "video/mp4",
+          "length": "1024",
+          "contentRange": "bytes 1048576-1049599/7201197",
+          "server": "tencent-cos",
+          "upstreamStatus": null,
+          "bytesMatch": true
+        }
+      ],
+      "cloudWrites": 0,
+      "signedUrlsRecorded": false
+    },
+    "unsignedOrigin": {
+      "at": "2026-11-17T13:49:48.718Z",
+      "status": 403,
+      "contentRange": null,
+      "server": "tencent-cos",
+      "cloudWrites": 0,
+      "publicObjectOnly": true
+    },
+    "liveSeek80Within20Seconds": false,
+    "newPageDeployed": false,
+    "firstPublicationDateConfirmed": false,
+    "cloudWrites": 0
+  }
+}

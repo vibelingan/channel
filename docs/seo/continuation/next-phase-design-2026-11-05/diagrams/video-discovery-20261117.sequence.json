@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "视频观看页：交付、播放和搜索发现",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [1400, 600]
+  },
+  "participants": [
+    {
+      "id": "build",
+      "type": "backend",
+      "label": "网站构建程序"
+    },
+    {
+      "id": "hosting",
+      "type": "cloud",
+      "label": "网站静态托管"
+    },
+    {
+      "id": "reader",
+      "type": "frontend",
+      "label": "访客浏览器"
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "Google 抓取程序"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 190,
+      "label": "交付：本地通过后仍需发布验收"
+    },
+    {
+      "from": 200,
+      "to": 390,
+      "label": "访客：先看海报，自行决定播放"
+    },
+    {
+      "from": 400,
+      "to": 500,
+      "label": "搜索：提供资料，不承诺收录"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step1",
+      "from": "build",
+      "to": "hosting",
+      "y": 160,
+      "label": "通过原有发布流程交付 HTML、海报和地图",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step2",
+      "from": "reader",
+      "to": "hosting",
+      "y": 210,
+      "label": "打开视频观看页",
+      "variant": "default"
+    },
+    {
+      "id": "step3",
+      "from": "hosting",
+      "to": "reader",
+      "y": 260,
+      "label": "返回播放器、正文和海报；不预载整段视频",
+      "variant": "return"
+    },
+    {
+      "id": "step4",
+      "from": "reader",
+      "to": "hosting",
+      "y": 310,
+      "label": "访客按下播放后，请求视频字节",
+      "variant": "default"
+    },
+    {
+      "id": "step5",
+      "from": "hosting",
+      "to": "reader",
+      "y": 360,
+      "label": "返回视频；分段读取需线上验收",
+      "variant": "return"
+    },
+    {
+      "id": "step6",
+      "from": "google",
+      "to": "hosting",
+      "y": 410,
+      "label": "读取地图中的观看页和视频资料",
+      "variant": "default"
+    },
+    {
+      "id": "step7",
+      "from": "hosting",
+      "to": "google",
+      "y": 460,
+      "label": "返回相同的公开页面、海报及稳定视频地址",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "沿用现有素材",
+      "items": ["7.2 MB 原视频保持不变", "海报为原视频真实帧，约 48 KB"]
+    },
+    {
+      "dot": "orange",
+      "title": "日期保持真实",
+      "items": ["首次公开日期未确认", "地图省略日期，暂不输出 VideoObject"]
+    },
+    {
+      "dot": "rose",
+      "title": "验收边界",
+      "items": ["当前已通过本地构建", "共享发布结束后再验收线上播放与分段读取"]
+    }
+  ]
+}

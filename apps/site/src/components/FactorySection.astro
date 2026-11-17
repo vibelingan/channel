@@ -5,6 +5,7 @@
  */
 import type { SiteContent } from '../i18n/site.ts';
 import type { StatItem } from '../i18n/site.ts';
+import { publicWatchVideo, watchVideoPath } from '../lib/seo/video-record.ts';
 
 interface Props {
   factory: SiteContent['factory'];
@@ -34,6 +35,7 @@ const { factory, media, showStats = true } = Astro.props;
 
 const videoSrc = media?.src ?? '/media/oem/factory-video-display-015f0629.mp4';
 const videoPoster = media?.poster ?? '/media/oem/factory-video-poster.jpg';
+const factoryTour = publicWatchVideo('factory-overview');
 
 // Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
 const factoryPhotos = [
@@ -103,6 +105,9 @@ const factoryPhotos = [
         <p class="mt-6 text-lg leading-relaxed text-ink-soft">
           {factory.body}
         </p>
+        {factoryTour && <p class="mt-4">
+          <a href={watchVideoPath(factoryTour)} class="font-medium text-brand-600 underline underline-offset-4">Watch the factory tour</a>
+        </p>}
 
         {showStats && (
           <dl class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
