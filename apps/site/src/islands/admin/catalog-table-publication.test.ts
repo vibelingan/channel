@@ -268,18 +268,20 @@ for (const fault of [
             });
           result = await retry;
           if (fault === 'mutated-retry') selected.pop();
-          // Restored access can meet another product's shared-photo preparation.
-          // Exercise the UI's Continue action against the same owned tasks.
-          if (fault === 'revoked' && result.failures.length > 0) {
-            assert.ok(
-              result.failures.every((item) => item.outcome === 'unconfirmed' && item.retryable),
-            );
-            result = await retryBatchUpdate(result, selected, { published: true }, revisions);
-          }
           assert.equal(
             starts.every((command) => originalIds.get(command.productId) === command.operationId),
             true,
           );
+        }
+        // Any batch can meet another product's shared-photo preparation.
+        // Continue only unknown, retryable original tasks; all final assertions still apply.
+        if (result.failures.length > 0) {
+          assert.ok(
+            result.failures.every((item) => item.outcome === 'unconfirmed' && item.retryable),
+          );
+          const owned = new Map(starts.map((item) => [item.productId, item.operationId]));
+          result = await retryBatchUpdate(result, selected, { published: true }, revisions);
+          assert.ok(starts.every((item) => owned.get(item.productId) === item.operationId));
         }
         assert.equal(result.updated, 20, JSON.stringify(result.failures));
         assert.deepEqual(result.failures, []);
