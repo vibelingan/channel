@@ -86,6 +86,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       });
   });
   const unexpectedUiActions = new Set<string>();
+  const uiAdminRequestCounts = new Map<string, number>();
   const readAndUploadActions = new Set([
     'login',
     'me',
@@ -93,6 +94,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     'list',
     'inquiryCapabilities',
     'catalogDetailCapabilities',
+    'productReviewSummary',
     'createUploadIntent',
     'completeUpload',
     'getImagePreview',
@@ -108,6 +110,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
           return;
         }
         const action = String(body.action);
+        uiAdminRequestCounts.set(action, (uiAdminRequestCounts.get(action) ?? 0) + 1);
         const data = 'data' in body && body.data && typeof body.data === 'object' ? body.data : {};
         if (action === 'inquiry' && 'action' in data && data.action === 'list') return;
         if (action === 'catalogCategories' && 'operation' in data && data.operation === 'read')
@@ -253,6 +256,8 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       cleanupFailure = error;
     } finally {
       receipt.uploadTransport = uploadTransport;
+      receipt.uiAdminRequestCounts = Object.fromEntries(uiAdminRequestCounts);
+      receipt.unexpectedUiActions = [...unexpectedUiActions];
       await writeFile('output/catalog-private-image/result.json', JSON.stringify(receipt, null, 2));
     }
   }
