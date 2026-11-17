@@ -15,7 +15,9 @@
         "colo": "IAD",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -213,7 +215,9 @@
         "colo": "SEA",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -413,7 +417,9 @@
         "colo": "IAD",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -611,7 +617,9 @@
         "colo": "ORD",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -814,7 +822,9 @@
         "colo": "SEA",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -1012,7 +1022,9 @@
         "colo": "ORD",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": ["157.0.0.0"],
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
         "repeats": 3,
         "fieldInp": null
       },
@@ -1217,7 +1229,13 @@
     "sourceSha": "ca4fadf6df349365f0644360dfe3dcdf0be7258f",
     "programUpdateRunId": 44040932080,
     "previousProgramArtifactId": 14309875321,
-    "modeSequence": ["proxy", "api", "proxy", "api", "proxy"],
+    "modeSequence": [
+      "proxy",
+      "api",
+      "proxy",
+      "api",
+      "proxy"
+    ],
     "finalCloudVersion": "blog-pages-019",
     "sameProgramAndOtherSettingsPreserved": true,
     "contentSnapshotAt": "2026-11-17T08:40:15.555Z",
@@ -1286,5 +1304,267 @@
     "path": "/blog/_astro/404.CqKyFG8Y.css",
     "decodedBytes": 103629,
     "sameInAllBeforeAndCandidateSamples": true
+  },
+  "apiImagePhaseProbe": {
+    "status": "passed",
+    "expectedVersion": "10f04fc348f0cef80ec2aa7b6d0373e89c74df98",
+    "startedAt": "2026-11-17T10:40:34.218Z",
+    "samples": [
+      {
+        "repeat": 1,
+        "id": "article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8",
+        "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "clientReadMs": 3580,
+        "timings": {
+          "am-ref1": 519.9,
+          "am-storage": 395.3,
+          "am-url": 96.6,
+          "am-download": 297.8,
+          "am-check": 0.4,
+          "am-ref2": 556.5,
+          "am-total": 1472.2
+        },
+        "observedAt": "2026-11-17T10:40:42.910Z"
+      },
+      {
+        "repeat": 1,
+        "id": "article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb",
+        "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+        "status": 200,
+        "bytes": 67836,
+        "sha256": "492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835",
+        "clientReadMs": 3115,
+        "timings": {
+          "am-ref1": 465.2,
+          "am-storage": 180.5,
+          "am-url": 106.7,
+          "am-download": 73.6,
+          "am-check": 0.3,
+          "am-ref2": 734.7,
+          "am-total": 1380.8
+        },
+        "observedAt": "2026-11-17T10:40:46.025Z"
+      },
+      {
+        "repeat": 2,
+        "id": "article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8",
+        "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "clientReadMs": 2584,
+        "timings": {
+          "am-ref1": 348.1,
+          "am-storage": 172.2,
+          "am-url": 104.2,
+          "am-download": 67.8,
+          "am-check": 0.4,
+          "am-ref2": 400.8,
+          "am-total": 921.5
+        },
+        "observedAt": "2026-11-17T10:40:48.610Z"
+      },
+      {
+        "repeat": 2,
+        "id": "article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb",
+        "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+        "status": 200,
+        "bytes": 67836,
+        "sha256": "492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835",
+        "clientReadMs": 2874,
+        "timings": {
+          "am-ref1": 344.3,
+          "am-storage": 164.2,
+          "am-url": 110.1,
+          "am-download": 54,
+          "am-check": 0.3,
+          "am-ref2": 482.1,
+          "am-total": 991
+        },
+        "observedAt": "2026-11-17T10:40:51.484Z"
+      },
+      {
+        "repeat": 3,
+        "id": "article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8",
+        "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "clientReadMs": 2469,
+        "timings": {
+          "am-ref1": 475.7,
+          "am-storage": 156.4,
+          "am-url": 98.2,
+          "am-download": 58.1,
+          "am-check": 0.4,
+          "am-ref2": 348.5,
+          "am-total": 980.9
+        },
+        "observedAt": "2026-11-17T10:40:53.954Z"
+      },
+      {
+        "repeat": 3,
+        "id": "article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb",
+        "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+        "status": 200,
+        "bytes": 67836,
+        "sha256": "492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835",
+        "clientReadMs": 2411,
+        "timings": {
+          "am-ref1": 332.4,
+          "am-storage": 151.9,
+          "am-url": 91.6,
+          "am-download": 60.2,
+          "am-check": 0.3,
+          "am-ref2": 399.2,
+          "am-total": 883.8
+        },
+        "observedAt": "2026-11-17T10:40:56.365Z"
+      }
+    ],
+    "requests": 10,
+    "writes": 0,
+    "maximumRequests": 10,
+    "sampling": "Three successive reads of each existing public image; cold-start state is not established",
+    "healthBefore": {
+      "releaseId": "10f04fc348f0cef80ec2aa7b6d0373e89c74df98",
+      "observedAt": "2026-11-17T10:40:36.489Z"
+    },
+    "article": {
+      "id": "article-96a06754c53e0eae9613a1ebf36cfb79492dc3bfde08891dc4471ff14841fff3",
+      "revision": 4,
+      "hash": "afb23d88773c5be5182747e32233832d2352f62edc1070a384e3c01aedf2aabe",
+      "publishedAt": "2026-10-28T01:16:02.607Z",
+      "modifiedAt": "2026-11-14T05:54:32.530Z"
+    },
+    "missingImage": {
+      "status": 404,
+      "noPhaseDisclosure": true
+    },
+    "healthAfter": {
+      "releaseId": "10f04fc348f0cef80ec2aa7b6d0373e89c74df98",
+      "observedAt": "2026-11-17T10:40:57.686Z"
+    },
+    "finishedAt": "2026-11-17T10:40:57.686Z",
+    "captureStage": "Exact new API health confirmed; static delivery still in progress. Full delivery acceptance is tracked separately.",
+    "metricsSummary": {
+      "am-ref1": {
+        "medianMs": 406.6,
+        "minMs": 332.4,
+        "maxMs": 519.9
+      },
+      "am-storage": {
+        "medianMs": 168.2,
+        "minMs": 151.9,
+        "maxMs": 395.3
+      },
+      "am-url": {
+        "medianMs": 101.2,
+        "minMs": 91.6,
+        "maxMs": 110.1
+      },
+      "am-download": {
+        "medianMs": 64.0,
+        "minMs": 54,
+        "maxMs": 297.8
+      },
+      "am-check": {
+        "medianMs": 0.3,
+        "minMs": 0.3,
+        "maxMs": 0.4
+      },
+      "am-ref2": {
+        "medianMs": 441.5,
+        "minMs": 348.5,
+        "maxMs": 734.7
+      },
+      "am-total": {
+        "medianMs": 986.0,
+        "minMs": 883.8,
+        "maxMs": 1472.2
+      }
+    },
+    "authorizationSharePercentMedian": 83.1,
+    "clientReadMedianMs": 2729.0,
+    "conditions": {
+      "client": "Operator Mac, current network; not a US performance run",
+      "coldStart": "not established",
+      "overlappingMetrics": [
+        "am-url and am-download are contained in am-storage",
+        "am-ref1, am-storage, am-check and am-ref2 are contained in am-total"
+      ],
+      "unclassifiedTime": "Client total includes gateway, scheduling, startup, response serialization and transport; the residual is not measured as pure network time."
+    },
+    "deliveryAcceptance": {
+      "normalRunId": "44062775662",
+      "sourceSha": "10f04fc348f0cef80ec2aa7b6d0373e89c74df98",
+      "conclusion": "success",
+      "deliveryId": "site-44062775662-1",
+      "artifactHash": "ea54bf7841b044485e6e7381a9b7b6f3f1495818ee7e160b3fb754b5ddd8d829",
+      "acceptedAt": "2026-11-17T10:46:14.425Z",
+      "programRestoreTriggered": false,
+      "products": 528,
+      "productSource": "fresh",
+      "postDeliveryReadbackAt": "2026-11-17T10:54:57.482Z",
+      "productPublicVersionsUnchanged": true,
+      "publishedArticles": 3,
+      "articleContentRevisionAndDatesUnchanged": true,
+      "independentBlogProgramAndConfigUnchanged": true,
+      "blogReleaseId": "20bfbe4016b158ec375596df1d34558564aefc11",
+      "blogMediaDelivery": "proxy",
+      "publicApiReleaseId": "10f04fc348f0cef80ec2aa7b6d0373e89c74df98",
+      "runtimeFlagsUnchanged": true,
+      "catalogClockEnabled": true,
+      "catalogTracked": true,
+      "helpers": [
+        {
+          "name": "seo-catalog-region-44062775662-1",
+          "cleaned": true,
+          "independentlyAbsent": true,
+          "businessWrites": 0
+        },
+        {
+          "name": "seo-release-region-44062775662-1",
+          "cleaned": true,
+          "independentlyAbsent": true,
+          "businessWrites": 0
+        }
+      ],
+      "hostingContractPassed": true,
+      "buyerBrowser": {
+        "productPath": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "initialHtml": true,
+        "latestApi": true,
+        "categoryRefresh": true,
+        "quoteOpened": true,
+        "articlePath": "/blog/oem-project-brief-acceptance-40249243887/"
+      },
+      "dedicatedSourceChecks": {
+        "seo": "44062721494",
+        "blogHttp": "44062721405",
+        "blogOffline": "44062721441",
+        "conclusion": "success"
+      },
+      "backups": [
+        {
+          "purpose": "current website",
+          "artifactId": 14319127743
+        },
+        {
+          "purpose": "current function packages and configuration fingerprints",
+          "artifactId": 14319199530
+        },
+        {
+          "purpose": "same-run site recovery inputs",
+          "artifactId": 14320576698
+        }
+      ],
+      "ciSpeedChanged": false,
+      "totalWorkflowDurationSeconds": 2374,
+      "limits": "This was normal delivery plus independent readback, not another A-B-A restore drill. Existing current content was preserved. Google validation and field CWV are not established by a deployment."
+    }
   }
 }
