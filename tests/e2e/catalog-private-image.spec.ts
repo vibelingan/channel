@@ -183,7 +183,11 @@ test('private large image: real UI upload, backend preview, same-id replay and e
         session.token,
       );
       expect(result.imageId).toBe(imageId);
-      expect(result.image.uploadedByUserId).toBe(session.user.id);
+      expect(result.image._id).toBe(imageId);
+      expect(result.image.status).toBe('active');
+      expect(result.image.catalogWebImage).toEqual(web);
+      expect(result.image.uploadedByUserId).toBeUndefined();
+      expect(result.image.imageMutationOwner).toBeUndefined();
     }
     const replayed = await list();
     expect(replayed.items).toHaveLength(1);
