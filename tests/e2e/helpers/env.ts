@@ -24,6 +24,7 @@ export const e2e = {
   catalogLocalSeed: isEnabled(process.env.E2E_CATALOG_LOCAL_SEED),
   catalogLocalDb: process.env.E2E_CATALOG_LOCAL_DB?.trim() ?? '',
   mediaUploadSmoke: isEnabled(process.env.E2E_MEDIA_UPLOAD_SMOKE),
+  catalogPrivateImageSmoke: isEnabled(process.env.E2E_CATALOG_PRIVATE_IMAGE_SMOKE),
   oemUploadSmoke: isEnabled(process.env.E2E_OEM_UPLOAD_SMOKE),
   runId: process.env.E2E_RUN_ID?.trim() || uniqueRunId(),
 } as const;

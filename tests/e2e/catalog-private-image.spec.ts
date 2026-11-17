@@ -1,0 +1,197 @@
+import { createHash } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { expect, test } from '@playwright/test';
+import { largeCatalogPng } from '../../packages/media-storage/src/catalog-image-fixtures.test-helper.ts';
+import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { e2e, requireAdminCredentialsWhenEnabled } from './helpers/env';
+
+const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+function record(value: unknown): Record<string, unknown> {
+  expect(value !== null && typeof value === 'object' && !Array.isArray(value)).toBe(true);
+  return value as Record<string, unknown>;
+}
+
+test('private large image: real UI upload, backend preview, same-id replay and exact cleanup', async ({
+  page,
+  request,
+}) => {
+  test.skip(!e2e.catalogPrivateImageSmoke, 'Set E2E_CATALOG_PRIVATE_IMAGE_SMOKE=1.');
+  test.setTimeout(180_000);
+  requireAdminCredentialsWhenEnabled(true, 'Private image acceptance');
+  const release = process.env.CHANNEL_EXPECTED_RELEASE ?? '';
+  expect(release, 'An exact accepted program is required before writing the fixture.').toMatch(
+    /^[a-f0-9]{40}$/,
+  );
+  expect(new URL(e2e.siteUrl).origin).toBe('https://supplychainsai.com');
+  expect(new URL(e2e.apiUrl).hostname).toMatch(
+    /^(supplychainsai\.com|diversity-123-d9grnqfux221323bb\.service\.tcloudbase\.com)$/,
+  );
+  const session = await loginAdmin(request);
+  expect(session.user.role).toBe('admin');
+  const health = await adminAction<{ releaseId: string }>(request, 'health');
+  expect(health.releaseId).toBe(release);
+  const bytes = await largeCatalogPng();
+  expect(bytes.length).toBeGreaterThan(4_500_000);
+  const checksum = hash(bytes);
+  const name = `${e2e.runId}-large-private.png`;
+  const list = () =>
+    adminAction<ListResult<CollectionDoc>>(
+      request,
+      'list',
+      {
+        collection: 'images',
+        page: 1,
+        pageSize: 10,
+        filter: { combinator: 'and', clauses: [{ field: 'name', op: 'eq', value: name }] },
+      },
+      session.token,
+    );
+  expect((await list()).items).toHaveLength(0);
+  const receipt: Record<string, unknown> = { release, name, originalBytes: bytes.length, checksum };
+  await mkdir('output/catalog-private-image', { recursive: true });
+  let putCount = 0;
+  let failure: unknown;
+  let cleanupFailure: unknown;
+  page.on('request', (req) => {
+    if (req.method() === 'PUT' && new URL(req.url()).hostname.endsWith('.myqcloud.com')) putCount++;
+  });
+  try {
+    await page.goto('/login?returnTo=/admin', { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+    await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin(?:$|\?)/);
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByRole('button', { name: /^New / }).click();
+    const gallery = page.locator('[data-image-manager="gallery"]');
+    await gallery.locator('input[type="file"]').setInputFiles({
+      name,
+      mimeType: 'image/png',
+      buffer: bytes,
+    });
+    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 60_000 });
+    await expect(gallery.getByText('Failed — retry')).toHaveCount(0);
+    await expect(gallery.locator('img')).toBeVisible();
+    const imageId = await gallery.locator('[data-image-id]').getAttribute('data-image-id');
+    expect(imageId).toBeTruthy();
+    const uploaded = await list();
+    expect(uploaded.items).toHaveLength(1);
+    const image = uploaded.items[0];
+    expect(image?._id).toBe(imageId);
+    expect(image?.status).toBe('active');
+    expect(image?.byteSize).toBe(bytes.length);
+    expect(image?.checksumSha256).toBe(checksum);
+    expect(image?.publishedRefCount).toBe(0);
+    const web = record(image?.catalogWebImage);
+    expect(web.schemaVersion).toBe(1);
+    expect(web.mimeType).toBe('image/webp');
+    expect(web.width).toBe(1280);
+    expect(web.height).toBe(800);
+    expect(web.byteSize).toEqual(expect.any(Number));
+    expect(Number(web.byteSize)).toBeLessThan(3_000_000);
+    const preview = await adminAction<{ mimeType: string; dataBase64: string }>(
+      request,
+      'getImagePreview',
+      { id: imageId },
+      session.token,
+    );
+    expect(preview.mimeType).toBe('image/webp');
+    const previewBytes = Buffer.from(preview.dataBase64, 'base64');
+    expect(previewBytes.length).toBe(web.byteSize);
+    expect(hash(previewBytes)).toBe(web.checksumSha256);
+    const decoded = await page.evaluate(
+      async ({ base64, mimeType }) => {
+        const buffer = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        const bitmap = await createImageBitmap(new Blob([buffer], { type: mimeType }));
+        const size = { width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+        return size;
+      },
+      { base64: preview.dataBase64, mimeType: preview.mimeType },
+    );
+    expect(decoded).toEqual({ width: 1280, height: 800 });
+    for (let replay = 0; replay < 2; replay++) {
+      const result = await adminAction<{ imageId: string; image: CollectionDoc }>(
+        request,
+        'completeUpload',
+        { imageId },
+        session.token,
+      );
+      expect(result.imageId).toBe(imageId);
+      expect(result.image.uploadedByUserId).toBe(session.user.id);
+    }
+    const replayed = await list();
+    expect(replayed.items).toHaveLength(1);
+    expect(replayed.items[0]?.catalogWebImage).toEqual(web);
+    expect(putCount).toBe(1);
+    const anonymous = await request.get(`${e2e.apiUrl}/api/images/${imageId}`);
+    expect(anonymous.status()).toBe(404);
+    const privateDenied = await request.post(`${e2e.apiUrl}/api/admin`, {
+      data: { action: 'getImagePreview', data: { id: imageId }, token: '' },
+    });
+    expect(privateDenied.status()).toBe(401);
+    await page.screenshot({ path: 'output/catalog-private-image/private-upload.png' });
+    Object.assign(receipt, {
+      imageId,
+      sourceHashMatches: true,
+      previewHashMatches: true,
+      previewBytes: previewBytes.length,
+      previewDimensions: decoded,
+      completeReplays: 2,
+      imageRecords: 1,
+      cosPuts: putCount,
+      anonymousStatus: 404,
+      unauthenticatedPreviewStatus: 401,
+      productsCreated: 0,
+      productsPublished: 0,
+      backendPreviewDecoded: true,
+      uiPersistedReopenTested: false,
+      passed: true,
+    });
+  } catch (error) {
+    failure = error;
+    receipt.passed = false;
+    receipt.error = error instanceof Error ? error.message : 'Acceptance failed';
+  } finally {
+    try {
+      const remaining = await list();
+      expect(remaining.items.length).toBeLessThanOrEqual(2);
+      receipt.cleanupImageIds = remaining.items.map((image) => image._id);
+      for (const image of remaining.items) {
+        expect(image.name).toBe(name);
+        expect(image.byteSize).toBe(bytes.length);
+        if (image.status === 'pending')
+          await adminAction(request, 'completeUpload', { imageId: image._id }, session.token);
+        // The list hides uploader identity; abandonUpload rechecks it server-side.
+        // Never add an image to a product just to make its cleanup possible.
+        const cleaned = await adminAction<{ deleted: boolean }>(
+          request,
+          'abandonUpload',
+          { imageId: image._id },
+          session.token,
+        );
+        expect(cleaned.deleted).toBe(true);
+      }
+      expect((await list()).items).toHaveLength(0);
+      receipt.cleaned = true;
+    } catch (error) {
+      // A lost response may follow a completed delete. Read before considering another write.
+      const afterUnknown = await list().catch(() => null);
+      if (afterUnknown?.items.length === 0) {
+        receipt.cleaned = true;
+        receipt.cleanupConfirmedByReadback = true;
+      } else {
+        receipt.cleaned = false;
+        receipt.passed = false;
+        receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup unconfirmed';
+        cleanupFailure = error;
+      }
+    } finally {
+      await writeFile('output/catalog-private-image/result.json', JSON.stringify(receipt, null, 2));
+    }
+  }
+  if (failure && cleanupFailure)
+    throw new AggregateError([failure, cleanupFailure], 'Acceptance and exact cleanup failed');
+  if (failure) throw failure;
+  if (cleanupFailure) throw cleanupFailure;
+});
