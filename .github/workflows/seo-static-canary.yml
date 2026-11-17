@@ -578,7 +578,7 @@ jobs:
     secrets: inherit
 
   site_reconcile:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'site-reconcile' }}
+    if: ${{ (github.ref == 'refs/heads/feat/seo-foundation' || github.ref == 'refs/heads/test') && inputs.mode == 'site-reconcile' }}
     uses: ./.github/workflows/seo-site-reconcile.yml
     with:
       source_run_id: ${{ inputs.restore_run_id }}

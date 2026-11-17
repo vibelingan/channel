@@ -9,9 +9,10 @@ import {
   hostingBatchHash,
   mapHostingBounded,
 } from './hosting-batches.mjs';
-import { verifyHostingObject } from './hosting-readback.mjs';
+import { verifyStoppedHostingObject } from './hosting-readback.mjs';
 import { identity, isHash, readJson, readObject } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
+import { siteProducerPolicy } from './site-producers.mjs';
 import { assertJournaledSiteCandidate } from './site-recovery.mjs';
 import { stoppedJobs, trustedWorkflow } from './site-stopped-reconcile.mjs';
 
@@ -75,7 +76,9 @@ export async function recoverStoppedCatalogDelivery({
     if (
       !match ||
       policy.repository !== 'vibelingan/channel' ||
-      policy.workflowPath !== '.github/workflows/seo-static-canary.yml' ||
+      !['.github/workflows/seo-static-canary.yml', '.github/workflows/deploy-test.yml'].includes(
+        policy.workflowPath,
+      ) ||
       !['refs/heads/feat/seo-foundation', 'refs/heads/test'].includes(policy.trustedRef) ||
       coordinator.targetId !== targetId
     )
@@ -127,6 +130,7 @@ export async function recoverStoppedCatalogDelivery({
       fail();
     stage = 'github';
     const githubRun = await github.api(`/actions/runs/${match[1]}/attempts/${match[2]}`);
+    const producer = siteProducerPolicy(policy, githubRun);
     if (
       String(githubRun.id) !== match[1] ||
       String(githubRun.run_attempt) !== match[2] ||
@@ -135,9 +139,9 @@ export async function recoverStoppedCatalogDelivery({
       githubRun.repository.id !== githubRun.head_repository?.id ||
       githubRun.repository.full_name !== policy.repository ||
       githubRun.head_repository.full_name !== policy.repository ||
-      githubRun.path !== policy.workflowPath ||
-      githubRun.head_branch !== policy.trustedRef.slice(11) ||
-      githubRun.event !== 'workflow_dispatch' ||
+      githubRun.path !== producer.workflowPath ||
+      githubRun.head_branch !== producer.trustedRef.slice(11) ||
+      !producer.events.includes(githubRun.event) ||
       githubRun.status !== 'completed' ||
       !['success', 'failure', 'cancelled', 'timed_out'].includes(githubRun.conclusion) ||
       githubRun.head_sha !== run.composition.static.codeSha ||
@@ -145,7 +149,7 @@ export async function recoverStoppedCatalogDelivery({
     )
       fail();
     const { job, stoppedAt } = await stoppedJobs(github, match[1], match[2], githubRun, now());
-    await trustedWorkflow(github, githubRun.head_sha, policy);
+    await trustedWorkflow(github, githubRun.head_sha, producer);
     stage = 'step';
     const step = selectStep(await readSteps(stoppedRunId), run, targetId);
     stage = 'candidate';
@@ -155,8 +159,8 @@ export async function recoverStoppedCatalogDelivery({
     if (
       verified.mode !== 'candidate' ||
       input.policy.repository !== policy.repository ||
-      input.policy.ref !== policy.trustedRef ||
-      input.policy.workflowPath !== policy.workflowPath ||
+      input.policy.ref !== producer.trustedRef ||
+      input.policy.workflowPath !== producer.workflowPath ||
       verified.envelope.releaseId !== stoppedRunId ||
       verified.envelope.target.envId !== policy.envId ||
       verified.envelope.target.siteOrigin !== policy.siteOrigin ||
@@ -200,13 +204,23 @@ export async function recoverStoppedCatalogDelivery({
     stage = 'quiescence';
     await quiet(verifyQuiescence, context, now);
     stage = 'http';
-    await mapHostingBounded(step.members, 4, (entry) =>
-      verifyHostingObject({
+    const observed = await mapHostingBounded(step.members, 4, (entry) =>
+      verifyStoppedHostingObject({
         target: { envId: policy.envId, site: policy.siteOrigin },
         entry,
         request,
       }),
     );
+    if (
+      hostingBatchHash(
+        step.members.map((member, index) => ({
+          path: member.path,
+          bytes: observed[index].bytes,
+          sha256: observed[index].sha256,
+        })),
+      ) !== proof.cloud.observedHash
+    )
+      fail(changed);
     await quiet(verifyQuiescence, context, now);
     await check();
     if (identity(selectStep(await readSteps(stoppedRunId), run, targetId)) !== identity(step))
@@ -358,7 +372,7 @@ function selectStep(rows, run, targetId) {
     step.beforeHash !== hostingBatchBeforeHash(step.members) ||
     step.subject !== `upload-batch:${hash}` ||
     step.verifySubject !== `read-batch:${hash}` ||
-    run.reconciliation.cloud.observedHash !== hash ||
+    !isHash(run.reconciliation.cloud.observedHash) ||
     identity(step.resolution) !== identity(run.reconciliation)
   )
     fail();

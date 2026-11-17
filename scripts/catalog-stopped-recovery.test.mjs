@@ -11,6 +11,7 @@ import { identity, sha256 } from './release/input.mjs';
 import { normalizePolicy } from './release/ledger.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
 import { SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
+const basePolicy = policy;
 const { require: tsxRequire } = createRequire(
   new URL('../apps/site/package.json', import.meta.url),
 )('tsx/cjs/api');
@@ -31,7 +32,14 @@ const oldRunId = `site-${oldNumber}-1`;
 const codeSha = 'c450903bb538915ace1fc01f7a1178376a308c40';
 const targetId = normalizePolicy(policy).targetId;
 
-function fixture(t) {
+function fixture(t, { normal = false, mixed = false } = {}) {
+  const policy = normal
+    ? {
+        ...basePolicy,
+        workflowPath: '.github/workflows/deploy-test.yml',
+        trustedRef: 'refs/heads/test',
+      }
+    : basePolicy;
   const directory = mkdtempSync(join(tmpdir(), 'catalog-stopped-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const now = Date.parse('2026-11-02T00:00:00Z');
@@ -72,7 +80,7 @@ function fixture(t) {
     run: {
       repository: policy.repository,
       workflowPath: policy.workflowPath,
-      event: 'workflow_dispatch',
+      event: normal ? 'push' : 'workflow_dispatch',
       ref: policy.trustedRef,
       headSha: codeSha,
       runId: oldNumber,
@@ -84,9 +92,11 @@ function fixture(t) {
       },
     },
   });
+  const old = Buffer.from('<h1>Known original alpha HTML</h1>');
   const members = input.staticManifest.entries
     .filter((e) => e.path.startsWith('products/'))
-    .map((e) => ({ ...e, beforeHash: 'a'.repeat(64) }));
+    .map((e, index) => ({ ...e, beforeHash: mixed && index === 0 ? sha256(old) : 'a'.repeat(64) }));
+  if (mixed) files.set(members[0].path, old);
   const afterHash = hostingBatchHash(members);
   const proof = {
     runnerRef: `github:${policy.repository}:${oldNumber}:attempt-1`,
@@ -96,7 +106,11 @@ function fixture(t) {
       kind: 'stopped-site-html-batch',
       status: 'quiescent',
       operationId: 'pending-operation',
-      observedHash: afterHash,
+      observedHash: mixed
+        ? hostingBatchHash(
+            members.map((e, i) => (i === 0 ? { ...e, sha256: sha256(old), bytes: old.length } : e)),
+          )
+        : afterHash,
       evidenceRef: 'exact-original-batch',
     },
   };
@@ -163,9 +177,9 @@ function fixture(t) {
     repository: { id: 1, full_name: policy.repository },
     head_repository: { id: 1, full_name: policy.repository },
     head_sha: codeSha,
-    head_branch: 'feat/seo-foundation',
+    head_branch: policy.trustedRef.slice(11),
     path: policy.workflowPath,
-    event: 'workflow_dispatch',
+    event: normal ? 'push' : 'workflow_dispatch',
     status: 'completed',
     conclusion: 'failure',
     updated_at: new Date(now - 180000).toISOString(),
@@ -173,7 +187,7 @@ function fixture(t) {
   const job = {
     id: 12345,
     run_id: Number(oldNumber),
-    name: 'site_delivery / site',
+    name: normal ? 'Build, deploy, and smoke test' : 'site_delivery / site',
     head_sha: codeSha,
     status: 'completed',
     conclusion: 'failure',
@@ -379,6 +393,15 @@ async function refusesBeforeClear(f) {
   await assert.rejects(recoverStoppedCatalogDelivery(f.options));
   assert.equal(f.calls.length, 0);
 }
+
+test('normal deployment with mixed journaled HTML releases only its exact stopped catalog guard', async (t) => {
+  const f = fixture(t, { normal: true, mixed: true });
+  const result = await recoverStoppedCatalogDelivery(f.options);
+  assert.equal(result.controlReleased, true);
+  assert.equal(result.websiteWrites, 0);
+  assert.equal(result.businessWrites, 0);
+  assert.equal(f.requests.length, 6);
+});
 
 test('no dirty run is a read-only no-op without candidate or receipt dependencies', async () => {
   const result = await recoverStoppedCatalogDelivery({

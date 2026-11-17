@@ -7,9 +7,10 @@ import {
   hostingBatchHash,
   mapHostingBounded,
 } from './hosting-batches.mjs';
-import { verifyHostingObject } from './hosting-readback.mjs';
+import { verifyStoppedHostingObject } from './hosting-readback.mjs';
 import { identity, isHash } from './input.mjs';
 import { normalizePolicy } from './ledger.mjs';
+import { siteProducerPolicy } from './site-producers.mjs';
 
 const unproven = 'SITE_STOPPED_RECONCILE_UNPROVEN';
 const changed = 'SITE_STOPPED_RECONCILE_CHANGED';
@@ -17,6 +18,7 @@ const needsReadback = 'SITE_STOPPED_RECONCILE_NEEDS_READBACK';
 const terminal = new Set(['success', 'failure', 'cancelled', 'timed_out']);
 const workflowPath = '.github/workflows/seo-static-canary.yml';
 const deliveryPath = '.github/workflows/seo-site-delivery.yml';
+const normalPath = '.github/workflows/deploy-test.yml';
 const fail = (code = unproven) => {
   throw Object.assign(Error(code), { code });
 };
@@ -53,6 +55,7 @@ export async function recoverStoppedSiteDelivery({
     if (lease.runnerRef !== `github:${policy.repository}:${match[1]}:attempt-${match[2]}`) fail();
     stage = 'github-run';
     const githubRun = await github.api(`/actions/runs/${match[1]}/attempts/${match[2]}`);
+    const producer = siteProducerPolicy(policy, githubRun);
     if (
       String(githubRun.id) !== match[1] ||
       String(githubRun.run_attempt) !== match[2] ||
@@ -61,9 +64,9 @@ export async function recoverStoppedSiteDelivery({
       githubRun.repository.id !== githubRun.head_repository?.id ||
       githubRun.repository.full_name !== policy.repository ||
       githubRun.head_repository.full_name !== policy.repository ||
-      githubRun.path !== policy.workflowPath ||
-      githubRun.head_branch !== policy.trustedRef.slice(11) ||
-      githubRun.event !== 'workflow_dispatch' ||
+      githubRun.path !== producer.workflowPath ||
+      githubRun.head_branch !== producer.trustedRef.slice(11) ||
+      !producer.events.includes(githubRun.event) ||
       githubRun.status !== 'completed' ||
       !terminal.has(githubRun.conclusion) ||
       !/^[a-f0-9]{40}$/.test(githubRun.head_sha ?? '') ||
@@ -74,7 +77,7 @@ export async function recoverStoppedSiteDelivery({
     stage = 'github-jobs';
     const { job, stoppedAt } = await stoppedJobs(github, match[1], match[2], githubRun, now());
     stage = 'github-workflow';
-    await trustedWorkflow(github, githubRun.head_sha, policy);
+    await trustedWorkflow(github, githubRun.head_sha, producer);
     stage = 'candidate';
     const input = await loadCandidate({ run, artifact: run.composition.static.artifact });
     const candidate = verifyReleaseArtifact({ ...input, now: now() });
@@ -90,8 +93,8 @@ export async function recoverStoppedSiteDelivery({
       candidate.envelope.scope.kind !== 'site' ||
       candidate.envelope.functions.length ||
       input.policy.repository !== policy.repository ||
-      input.policy.workflowPath !== policy.workflowPath ||
-      input.policy.ref !== policy.trustedRef ||
+      input.policy.workflowPath !== producer.workflowPath ||
+      input.policy.ref !== producer.trustedRef ||
       input.run.runId !== match[1] ||
       input.run.headSha !== githubRun.head_sha
     )
@@ -117,7 +120,7 @@ export async function recoverStoppedSiteDelivery({
     await quiet(verifyQuiescence, context, now);
     stage = 'http-batch';
     const observed = await mapHostingBounded(step.members, 4, (entry) =>
-      verifyHostingObject({
+      verifyStoppedHostingObject({
         target: { envId: policy.envId, site: policy.siteOrigin },
         entry,
         request,
@@ -130,7 +133,6 @@ export async function recoverStoppedSiteDelivery({
         sha256: observed[index].sha256,
       })),
     );
-    if (observedHash !== step.afterHash) fail();
     stage = 'quiescence-after';
     await quiet(verifyQuiescence, context, now);
     stage = 'recheck';
@@ -304,7 +306,9 @@ export async function stoppedJobs(github, runId, attempt, run, now) {
     if (jobs.length > total || response.jobs.length !== 100) fail();
   }
   if (jobs.length !== total || new Set(jobs.map((job) => job.id)).size !== jobs.length) fail();
-  const selected = jobs.filter((job) => job.name === 'site_delivery / site');
+  const expectedJob =
+    run.path === normalPath ? 'Build, deploy, and smoke test' : 'site_delivery / site';
+  const selected = jobs.filter((job) => job.name === expectedJob);
   const job = selected[0];
   if (
     selected.length !== 1 ||
@@ -354,6 +358,35 @@ async function readWorkflow(github, path, sha) {
 
 export async function trustedWorkflow(github, sha, policy) {
   const workflow = await readWorkflow(github, policy.workflowPath, sha);
+  if (policy.workflowPath === normalPath) {
+    const job = workflow.jobs?.deploy;
+    if (
+      policy.trustedRef !== 'refs/heads/test' ||
+      !workflow.on?.push?.branches?.includes('test') ||
+      workflow.concurrency?.group !== 'cloudbase-deploy-test' ||
+      workflow.concurrency?.['cancel-in-progress'] !== false ||
+      job?.name !== 'Build, deploy, and smoke test' ||
+      job.environment !== 'test' ||
+      job.env?.CHANNEL_COORDINATED_SITE_DELIVERY !== '1' ||
+      job.if !==
+        "${{ !cancelled() && github.ref == 'refs/heads/test' && needs.ci.result == 'success' && needs.prepare.result == 'success' && (needs['renderer-archive'].result == 'success' || needs['renderer-archive'].result == 'skipped') && github.event.inputs.catalog_acceptance_only != 'true' }}" ||
+      !job.steps?.some(
+        (s) => s.uses === 'actions/checkout@v4' && s.with?.ref === '${{ github.sha }}',
+      ) ||
+      !job.steps?.some(
+        (s) =>
+          s.uses === 'actions/github-script@v7' &&
+          s.env?.SITE_DELIVERY_CONFIRM === 'FORMAL_SITE_ONLY' &&
+          s.env?.SITE_DELIVERY_MODE === 'publish' &&
+          s.env?.SITE_DELIVERY_BUILT_INPUT === '1' &&
+          s.with?.script?.includes(
+            "spawn('./apps/site/node_modules/.bin/tsx', ['scripts/run-site-delivery.ts']",
+          ),
+      )
+    )
+      fail();
+    return;
+  }
   const delivery = await readWorkflow(github, deliveryPath, sha);
   const wrapper = workflow.jobs?.site_delivery;
   const job = delivery.jobs?.site;
