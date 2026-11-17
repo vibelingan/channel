@@ -23,9 +23,10 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     /^[a-f0-9]{40}$/,
   );
   expect(new URL(e2e.siteUrl).origin).toBe('https://supplychainsai.com');
-  expect(new URL(e2e.apiUrl).hostname).toMatch(
-    /^(supplychainsai\.com|diversity-123-d9grnqfux221323bb\.service\.tcloudbase\.com)$/,
-  );
+  expect([
+    'https://supplychainsai.com',
+    'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com',
+  ]).toContain(new URL(e2e.apiUrl).origin);
   const session = await loginAdmin(request);
   expect(session.user.role).toBe('admin');
   const health = await adminAction<{ releaseId: string; deployedReleaseId?: string }>(
@@ -65,8 +66,37 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   let putCount = 0;
   let failure: unknown;
   let cleanupFailure: unknown;
+  const unexpectedUiActions = new Set<string>();
+  const readAndUploadActions = new Set([
+    'login',
+    'me',
+    'get',
+    'list',
+    'inquiryCapabilities',
+    'catalogDetailCapabilities',
+    'createUploadIntent',
+    'completeUpload',
+    'getImagePreview',
+  ]);
   page.on('request', (req) => {
     if (req.method() === 'PUT' && new URL(req.url()).hostname.endsWith('.myqcloud.com')) putCount++;
+    if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/admin') {
+      try {
+        const body: unknown = req.postDataJSON();
+        if (!body || typeof body !== 'object' || !('action' in body)) {
+          unexpectedUiActions.add('unreadable-admin-request');
+          return;
+        }
+        const action = String(body.action);
+        const data = 'data' in body && body.data && typeof body.data === 'object' ? body.data : {};
+        if (action === 'inquiry' && 'action' in data && data.action === 'list') return;
+        if (action === 'catalogCategories' && 'operation' in data && data.operation === 'read')
+          return;
+        if (!readAndUploadActions.has(action)) unexpectedUiActions.add(action);
+      } catch {
+        unexpectedUiActions.add('unreadable-admin-request');
+      }
+    }
   });
   try {
     await page.goto('/login?returnTo=/admin', { waitUntil: 'domcontentloaded' });
@@ -144,6 +174,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       data: { action: 'getImagePreview', data: { id: imageId }, token: '' },
     });
     expect(privateDenied.status()).toBe(401);
+    expect([...unexpectedUiActions], 'The UI must not request product writes.').toEqual([]);
     await page.screenshot({ path: 'output/catalog-private-image/private-upload.png' });
     Object.assign(receipt, {
       imageId,
