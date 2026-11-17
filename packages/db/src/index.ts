@@ -21,6 +21,7 @@ import { type ImageUploadCommand, ImageUploadCommandSchema } from './image-uploa
 export {
   runImageUpload,
   imageUploadInputDigest,
+  readImageUploadWebPreparation,
   hasImageUploadCompletion,
   canReverifyLegacyImageUpload,
   ImageUploadCommandSchema,

@@ -14,6 +14,7 @@ import {
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
+import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
@@ -27,6 +28,7 @@ import {
   catalogImageReferenceCancelProof,
   catalogImageReferenceEntry,
 } from '../../../../packages/db/src/catalog-image-references.ts';
+import { largeCatalogPng } from '../../../../packages/media-storage/src/catalog-image-fixtures.test-helper.ts';
 import {
   ALIBABA_IMAGE_IMPORT_OWNER,
   type MediaImportFailure,
@@ -187,21 +189,26 @@ class MemoryAdapter implements DbAdapter {
 class MemoryMediaStorage implements MediaStorageAdapter {
   readonly puts: PutMediaObjectInput[] = [];
   readonly deletes: string[] = [];
+  readonly objects = new Map<string, Buffer>();
   async putObject(input: PutMediaObjectInput, options: PutMediaObjectOptions = {}) {
     const storagePath = objectStoragePath(input);
     const target = {
       storageProvider: 'local-disk' as const,
       storageMode: 'local-disk' as const,
-      storageFileId: `mem://${storagePath}`,
+      storageFileId: `local-disk:${storagePath}`,
       storagePath,
     };
     await options.beforeWrite?.(target);
+    assert.ok(input.content instanceof Uint8Array);
     this.puts.push(input);
+    this.objects.set(target.storageFileId, Buffer.from(input.content));
     return target;
   }
 
-  async getObjectAsBase64(): Promise<{ body: string }> {
-    throw new Error('not used');
+  async getObjectAsBase64(id: string): Promise<{ body: string }> {
+    const bytes = this.objects.get(id);
+    assert.ok(bytes, 'Read only an object this fixture actually wrote');
+    return { body: bytes.toString('base64') };
   }
   async getTempUrl(): Promise<{ url: string }> {
     throw new Error('not used');
@@ -457,6 +464,75 @@ test('a verified import lands as an ACTIVE, unreferenced, sentinel-owned candida
   assert.equal(image.purpose, 'catalog-image');
   assert.equal(image.checksumSha256, createHash('sha256').update(PNG_BYTES).digest('hex'));
   assert.equal(storage.puts[0]?.namespace, 'catalog');
+});
+
+test('a real large Alibaba image is checkpointed with its verified web copy before activation and duplicate imports reuse it', async () => {
+  setup();
+  const bytes = await largeCatalogPng();
+  assert(bytes.length > 4_000_000);
+  const { fetchImpl } = fakeImageFetch(bytes);
+  const url = 'https://sc04.alicdn.com/large-real-pixels.png';
+  const result = await importCandidateImage(url, { fetchImpl, resolveDns: PUBLIC_DNS });
+  assert.ok(result.ok);
+  const image = store.images?.find((row) => row._id === result.imageId);
+  assert.ok(image);
+  assert.equal(image.status, 'active');
+  assert.equal(image.publishedRefCount, 0);
+  assert.equal(image.checksumSha256, createHash('sha256').update(bytes).digest('hex'));
+  const web = readCatalogWebImage(image);
+  assert.ok(web);
+  assert.equal(web.width, 1280);
+  assert.equal(web.height, 800);
+  assert.deepEqual(
+    storage.puts.map((p) => p.namespace),
+    ['catalog-web', 'catalog'],
+  );
+  assert.equal(storage.objects.get(web.storageFileId)?.length, web.byteSize);
+  const again = await importCandidateImage(url, { fetchImpl, resolveDns: PUBLIC_DNS });
+  assert.ok(again.ok);
+  assert.equal(again.imageId, result.imageId);
+  assert.equal(
+    storage.puts.length,
+    2,
+    'A repeated completed source must not upload either copy again',
+  );
+});
+
+test('a refused large-image checkpoint stops both writes and a failed web verification never activates the original', async () => {
+  const bytes = await largeCatalogPng();
+  setup();
+  const fetchImpl = fakeImageFetch(bytes).fetchImpl;
+  const persist = (command: SourceMediaImportCommand) => {
+    if (command.action === 'checkpoint') return Promise.resolve({ status: 'conflict' } as const);
+    return adapter.manageSourceMediaImport(command);
+  };
+  const adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
+  const rejected = await importCandidateImage('https://sc04.alicdn.com/no-checkpoint.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+    persistImport: persist,
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(storage.puts.length, 0);
+  setup();
+  storage.getObjectAsBase64 = async () => ({
+    body: Buffer.from('not the web image').toString('base64'),
+  });
+  const failed = await importCandidateImage('https://sc04.alicdn.com/corrupt-copy.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(failed.ok, false);
+  assert.deepEqual(
+    storage.puts.map((p) => p.namespace),
+    ['catalog-web'],
+  );
+  const retained = store.images?.[0];
+  assert.ok(retained);
+  assert.equal(retained.status, 'failed');
+  assert.ok(retained.catalogWebImage);
+  assert.notEqual(retained.publishedRefCount, 1);
 });
 
 test('an animated GIF from Alibaba is copied as a GIF (owner 2026-10-09)', async () => {

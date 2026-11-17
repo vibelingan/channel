@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "图片重试、私有预览与公开访问",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [
+      1360,
+      510
+    ]
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "网站后台"
+    },
+    {
+      "id": "admin",
+      "type": "backend",
+      "label": "图片处理程序"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "图片记录"
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "私有图片存储"
+    },
+    {
+      "id": "visitor",
+      "type": "external",
+      "label": "访客与搜索引擎"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 215,
+      "label": "同文件同账号：不重新传原图"
+    },
+    {
+      "from": 220,
+      "to": 280,
+      "label": "后台预览：先登录与检查权限"
+    },
+    {
+      "from": 285,
+      "to": 375,
+      "label": "公开访问：必须仍被公开商品引用"
+    }
+  ],
+  "messages": [
+    {
+      "id": "resume",
+      "from": "editor",
+      "to": "admin",
+      "y": 160,
+      "label": "结果未知时，同账号重试原图片编号",
+      "variant": "emphasis"
+    },
+    {
+      "id": "resume-check",
+      "from": "admin",
+      "to": "database",
+      "y": 192,
+      "label": "核对当前权限，接着确认原图片",
+      "variant": "security"
+    },
+    {
+      "id": "preview",
+      "from": "editor",
+      "to": "admin",
+      "y": 224,
+      "label": "登录后台读取已验证网页版本",
+      "variant": "security"
+    },
+    {
+      "id": "preview-bytes",
+      "from": "admin",
+      "to": "storage",
+      "y": 256,
+      "label": "读取已验证网页版本，不暴露私有地址",
+      "variant": "security"
+    },
+    {
+      "id": "get",
+      "from": "visitor",
+      "to": "admin",
+      "y": 288,
+      "label": "访问原有网站图片网址",
+      "variant": "default"
+    },
+    {
+      "id": "public",
+      "from": "admin",
+      "to": "database",
+      "y": 320,
+      "label": "检查有效公开引用后，才可返回图片",
+      "variant": "security"
+    },
+    {
+      "id": "serve",
+      "from": "admin",
+      "to": "visitor",
+      "y": 352,
+      "label": "已公开返回网页版本；私有返回404",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "失败如何处理",
+      "items": [
+        "前次写入结果未知，先读回核对；损坏对象不覆盖",
+        "账号切换立即停止后续操作，原账号可重连继续"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "使用与验收范围",
+      "items": [
+        "浏览器保留同一文件时可续办；刷新页面后的恢复另行处理",
+        "本地已验收；真实云端验收仍未进行"
+      ]
+    }
+  ]
+}

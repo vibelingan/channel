@@ -44,7 +44,7 @@ import {
 import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
-import { getToken } from '../../lib/session.ts';
+import { getToken, getUser } from '../../lib/session.ts';
 import {
   AdminSessionPausedError,
   bindAdminErrorSession,
@@ -85,9 +85,9 @@ export class DraftSavedError extends AdminApiError {
 }
 
 /**
- * BUSY means a database transaction collided with another and rolled back:
- * nothing was saved, so the same request is sent again after a short random
- * pause (DEC-21). Any other answer is returned as it is.
+ * BUSY asks the caller to retry the same operation after a short random pause.
+ * Multi-step actions may already have saved progress and must resume it safely.
+ * Any other answer is returned as it is.
  */
 export const BUSY_RETRIES = 3;
 const busyPause = (attempt: number, signal?: AbortSignal) =>
@@ -1142,17 +1142,71 @@ interface UploadIntentResponse {
  * `put`. A multipart POST against that signature is rejected by COS with 403
  * SignatureDoesNotMatch.
  */
+type ImageUploadProgress = {
+  actorId: string | null;
+  imageId: string | undefined;
+  pending: Promise<string> | undefined;
+};
+// Keep only a confirmed upload's id, never its signed storage credentials.
+// ImageManager retains the same File for Retry; garbage collection retires it.
+const imageUploads = new WeakMap<File, ImageUploadProgress>();
+
 export async function uploadImage(file: File): Promise<string> {
-  const intent = await call<UploadIntentResponse>('createUploadIntent', {
-    fileName: file.name,
-    mimeType: file.type,
-    byteSize: file.size,
-  });
-
-  await putImageUpload(file, intent);
-
-  await call('completeUpload', { imageId: intent.imageId });
-  return intent.imageId;
+  const actor = getUser()?.id;
+  const actorId = typeof actor === 'string' && actor.length > 0 ? actor : null;
+  const ticket = captureAdminRequestSession('createUploadIntent');
+  const guard = () => {
+    confirmAdminRequestSession(ticket);
+    if (getToken() !== ticket.token || (actorId !== null && getUser()?.id !== actorId))
+      throw new AdminSessionPausedError();
+  };
+  guard();
+  const known = actorId === null ? undefined : imageUploads.get(file);
+  const state: ImageUploadProgress =
+    known?.actorId === actorId
+      ? known
+      : {
+          actorId,
+          imageId: undefined,
+          pending: undefined,
+        };
+  if (state.pending) return state.pending;
+  if (actorId !== null) imageUploads.set(file, state);
+  const run = async () => {
+    if (!state.imageId) {
+      const intent = await call<UploadIntentResponse>(
+        'createUploadIntent',
+        {
+          fileName: file.name,
+          mimeType: file.type,
+          byteSize: file.size,
+        },
+        undefined,
+        guard,
+      );
+      guard();
+      await putImageUpload(file, intent);
+      state.imageId = intent.imageId;
+      guard();
+    }
+    await call('completeUpload', { imageId: state.imageId }, undefined, guard);
+    return state.imageId;
+  };
+  const pending = run();
+  state.pending = pending;
+  try {
+    return await pending;
+  } catch (error) {
+    if (
+      !state.imageId ||
+      (error instanceof AdminApiError && ['VALIDATION_ERROR', 'CONFLICT'].includes(error.code))
+    ) {
+      if (imageUploads.get(file) === state) imageUploads.delete(file);
+    }
+    throw error;
+  } finally {
+    state.pending = undefined;
+  }
 }
 
 /**

@@ -66,16 +66,19 @@ import {
   planPriceSummaryBackfill,
   planProductPriceSummary,
 } from '@vibelingan-channel/db/catalog-price-summary-backfill';
+import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
 import { sendOemConfirmationEmail, sendPasswordResetEmail } from '@vibelingan-channel/email';
 import {
   type StoredMediaObject,
   catalogStoragePath,
+  isMediaReadError,
   mediaStorage,
   objectStoragePath,
 } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
   CATALOG_IMAGE_MAX_BYTES,
+  CATALOG_IMAGE_SAFE_RESPONSE_BYTES,
   COLLECTIONS,
   type CollectionDoc,
   type ErrorCode,
@@ -3388,10 +3391,39 @@ async function getImagePreviewAction(
   const isStorageProvider = provider === 'cloudbase-storage' || provider === 'local-disk';
   if (isStorageProvider && doc.status === 'active' && typeof doc.storageFileId === 'string') {
     try {
-      const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
-      return ok({ id: parsed.data.id, mimeType, dataBase64: object.body });
+      const web = readCatalogWebImage(doc);
+      if (
+        !web &&
+        typeof doc.byteSize === 'number' &&
+        doc.byteSize > CATALOG_IMAGE_SAFE_RESPONSE_BYTES
+      )
+        return err('NOT_FOUND', 'A verified web image is required for this preview');
+      const object = await mediaStorage().getObjectAsBase64(
+        web?.storageFileId ?? doc.storageFileId,
+        {
+          maxBytes: web?.byteSize ?? CATALOG_IMAGE_SAFE_RESPONSE_BYTES,
+          timeoutMs: 15_000,
+        },
+      );
+      if (web) {
+        const bytes = Buffer.from(object.body, 'base64');
+        if (
+          bytes.toString('base64') !== object.body ||
+          bytes.length !== web.byteSize ||
+          createHash('sha256').update(bytes).digest('hex') !== web.checksumSha256
+        )
+          throw Error('Preview bytes differ from the verified web object');
+      }
+      return ok({
+        id: parsed.data.id,
+        mimeType: web?.mimeType ?? mimeType,
+        dataBase64: object.body,
+      });
     } catch (e) {
-      console.error('[fn-admin] getImagePreview: storage fetch failed', e);
+      console.error(
+        '[fn-admin] getImagePreview: stored bytes unavailable',
+        isMediaReadError(e) ? e.reason : 'unavailable',
+      );
       return err('NOT_FOUND', 'Image bytes are unavailable');
     }
   }

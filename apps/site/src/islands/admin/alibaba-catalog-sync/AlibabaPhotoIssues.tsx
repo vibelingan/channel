@@ -9,7 +9,8 @@ import {
 export function photoFailureText(reason: string): string {
   if (reason === 'not-found')
     return 'The source server denied access or no longer provides this image (403/404/410).';
-  if (reason === 'too-large') return 'The source image exceeds the upload size limit.';
+  if (reason === 'too-large')
+    return 'This file is too large for the website. Choose a smaller version that preserves any animation.';
   if (reason === 'bad-content') return 'The source did not return a supported image.';
   if (reason === 'fetch-failed') return 'The image download failed or timed out.';
   if (reason === 'write-failed')

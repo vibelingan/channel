@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import {
   CATALOG_IMAGE_MAX_BYTES,
+  CATALOG_IMAGE_SAFE_RESPONSE_BYTES,
   type CollectionDoc,
   alibabaPhotoSource,
 } from '@vibelingan-channel/shared';
@@ -13,6 +14,7 @@ import {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   canFinalizePendingImageReferences,
 } from './catalog-image-reference-store.ts';
+import { CatalogWebImageSchema, hasSafeCatalogImageDelivery } from './catalog-web-image.ts';
 import {
   ImageDeletionIntentSchema,
   type ImageDeletionStore,
@@ -57,6 +59,7 @@ export const SourceMediaTargetSchema = z
     checksumSha256: z.string().regex(/^[0-9a-f]{64}$/),
     mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
     name: z.string().min(1).max(200),
+    catalogWebImage: CatalogWebImageSchema.optional(),
   })
   .strict()
   .refine(
@@ -132,6 +135,11 @@ function activeImage(image: CollectionDoc | null, id: string): image is Collecti
     image.status === 'active' &&
     typeof image.storageFileId === 'string' &&
     image.storageFileId.length > 0 &&
+    !(
+      typeof image.byteSize === 'number' &&
+      image.byteSize > CATALOG_IMAGE_SAFE_RESPONSE_BYTES &&
+      !hasSafeCatalogImageDelivery(image)
+    ) &&
     (image.storageProvider === 'cloudbase-storage' || image.storageProvider === 'local-disk')
   );
 }
@@ -419,7 +427,9 @@ export async function runSourceMediaImport(
   }
   if (command.action === 'activate') {
     if (!targetMatches(image, command.target)) return { status: 'conflict' };
-    await store.set('images', { ...image, status: 'active', updatedAt: command.now });
+    const active = { ...image, status: 'active', updatedAt: command.now };
+    if (!hasSafeCatalogImageDelivery(active)) return { status: 'conflict' };
+    await store.set('images', active);
     await store.set(
       'catalogSourceLinks',
       readyLink(link, command.imageId, command.operationId, command.now),

@@ -34,7 +34,10 @@ import {
   releaseImageMutation,
   unfinishedApprovalUsingImage,
 } from '@vibelingan-channel/db';
+import { bindCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
+import { prepareCatalogWebObject } from '@vibelingan-channel/media-storage/catalog-web-prepare';
+import { AnimatedCatalogWebImageError } from '@vibelingan-channel/media-storage/web-image';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
@@ -375,26 +378,57 @@ export async function importCandidateImage(
       {
         beforeWrite: async (target) => {
           const startedAt = now();
-          const intended = SourceMediaTargetSchema.parse({
+          const original = SourceMediaTargetSchema.parse({
             ...target,
             name,
             mimeType,
             checksumSha256,
             byteSize: bytes.byteLength,
           });
-          const saved = await persist({
-            ...base,
-            action: 'checkpoint',
-            target: intended,
-            now: startedAt,
+          const activeSource = {
+            _id: imageId,
+            status: 'active',
+            ...original,
+            publishedRefCount: 0,
+          };
+          const saveTarget = async (intended: SourceMediaTarget) => {
+            const saved = await persist({
+              ...base,
+              action: 'checkpoint',
+              target: intended,
+              now: now(),
+            });
+            if (saved.status !== 'checkpointed')
+              throw new Error('Source image checkpoint was not confirmed');
+            checkpoint = intended;
+          };
+          const web = await prepareCatalogWebObject({
+            imageId,
+            bytes,
+            mimeType,
+            checksumSha256,
+            storage: mediaStorage(),
+            checkpoint: async (object) => {
+              await saveTarget(
+                SourceMediaTargetSchema.parse({
+                  ...original,
+                  catalogWebImage: bindCatalogWebImage(activeSource, object),
+                }),
+              );
+            },
           });
-          if (saved.status !== 'checkpointed')
-            throw new Error('Source image checkpoint was not confirmed');
+          if (web) {
+            const expected = SourceMediaTargetSchema.parse({
+              ...original,
+              catalogWebImage: bindCatalogWebImage(activeSource, web),
+            });
+            if (!checkpoint || !isDeepStrictEqual(checkpoint, expected))
+              throw new Error('Source web image was not checkpointed before its bytes');
+          } else await saveTarget(original);
           // Leave at least one complete raw-PUT deadline inside the claim lease.
           // A delayed DB response must not start bytes after cleanup may take over.
           if (Date.parse(now()) - Date.parse(startedAt) >= SOURCE_MEDIA_IMPORT_LEASE_MS - 60_000)
             throw new Error('Source image checkpoint expired before upload');
-          checkpoint = intended;
         },
       },
     );
@@ -404,6 +438,7 @@ export async function importCandidateImage(
       mimeType,
       checksumSha256,
       byteSize: bytes.byteLength,
+      ...(checkpoint?.catalogWebImage ? { catalogWebImage: checkpoint.catalogWebImage } : {}),
     });
     if (!checkpoint || !isDeepStrictEqual(checkpoint, returned)) return fail('write-failed');
     const committed = await persist({
@@ -415,10 +450,10 @@ export async function importCandidateImage(
     if (committed.status === 'ready')
       return { ok: true, imageId: committed.imageId, deduplicated: committed.deduplicated };
     return fail('write-failed');
-  } catch {
+  } catch (error) {
     // A failed/unknown upload or DB ACK retains the exact pending target.
     // Never destroy bytes that an activation may already have committed.
-    return fail('write-failed');
+    return fail(error instanceof AnimatedCatalogWebImageError ? 'too-large' : 'write-failed');
   }
 }
 

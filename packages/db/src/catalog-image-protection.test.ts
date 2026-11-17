@@ -12,6 +12,7 @@ import {
 } from './catalog-image-references.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
+import { catalogWebImagePath, readCatalogWebImage } from './catalog-web-image.ts';
 import { runSourceMediaImport } from './source-media-import.ts';
 function fixture() {
   let now = 1792080000000;
@@ -147,6 +148,55 @@ test('checkpoint then exact health atomically switches only the current image ta
   assert.equal(h.f.rows['images/image']?.imageMutationOwner, '');
   assert.deepEqual(h.f.rows['products/p'], before);
   assert.deepEqual(await h.f.run(cmd), result);
+});
+
+test('a verified physical move keeps the already verified web image readable without changing its bytes or human fields', async () => {
+  const h = await reserved();
+  const image = h.f.rows['images/image'];
+  assert.ok(image);
+  const path = catalogWebImagePath(image._id, String(image.checksumSha256), 'b'.repeat(64));
+  image.catalogWebImage = {
+    schemaVersion: 1,
+    sourceDigest: storedCatalogImageInputDigest(image),
+    storageProvider: 'local-disk',
+    storageFileId: `local-disk:${path}`,
+    storagePath: path,
+    mimeType: 'image/webp',
+    byteSize: 100,
+    width: 24,
+    height: 16,
+    checksumSha256: 'b'.repeat(64),
+  };
+  image.customAlt = 'Human caption';
+  const originalWeb = readCatalogWebImage(image);
+  assert.ok(originalWeb);
+  assert.ok((await h.checkpoint()).ok);
+  const moved = { ...image, ...h.target };
+  const result = await h.f.run({
+    action: 'commit-image-protection',
+    ...h.scope,
+    imageId: 'image',
+    intentId: h.intent._id,
+    health: {
+      status: 'verified',
+      kind: 'stored-image-health-v1',
+      imageId: 'image',
+      inputDigest: storedCatalogImageInputDigest(moved),
+      checksumSha256: 'a'.repeat(64),
+      byteSize: 123,
+      width: 24,
+      height: 16,
+      pages: 1,
+    },
+  });
+  assert.ok(result.ok);
+  const current = h.f.rows['images/image'];
+  assert.ok(current);
+  const currentWeb = readCatalogWebImage(current);
+  assert.ok(currentWeb, 'A source move must not silently fall back to the large original');
+  assert.equal(currentWeb.storageFileId, originalWeb.storageFileId);
+  assert.equal(currentWeb.checksumSha256, originalWeb.checksumSha256);
+  assert.equal(current.customAlt, 'Human caption');
 });
 for (const fault of ['fake', 'cancel', 'input', 'target'] as const)
   test(`protection rejects ${fault} without a target switch`, async () => {

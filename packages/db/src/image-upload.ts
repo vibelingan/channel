@@ -10,6 +10,11 @@ import {
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { canFinalizePendingImageReferences } from './catalog-image-reference-store.ts';
+import {
+  CatalogWebImageSchema,
+  hasSafeCatalogImageDelivery,
+  readCatalogWebImage,
+} from './catalog-web-image.ts';
 import type { ImageDeletionStore } from './image-deletion.ts';
 const token = z
   .string()
@@ -35,6 +40,15 @@ export const ImageUploadCommandSchema = z.discriminatedUnion('action', [
       action: z.literal('activate'),
       byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
       checksumSha256: digest,
+      catalogWebImage: CatalogWebImageSchema.optional(),
+    })
+    .strict(),
+  base
+    .extend({
+      action: z.literal('checkpoint-web'),
+      byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
+      checksumSha256: digest,
+      catalogWebImage: CatalogWebImageSchema,
     })
     .strict(),
   base
@@ -43,8 +57,25 @@ export const ImageUploadCommandSchema = z.discriminatedUnion('action', [
 ]);
 export type ImageUploadCommand = z.infer<typeof ImageUploadCommandSchema>;
 export type ImageUploadResult = {
-  status: 'active' | 'rejected' | 'missing' | 'forbidden' | 'conflict' | 'corrupt';
+  status: 'active' | 'checkpointed' | 'rejected' | 'missing' | 'forbidden' | 'conflict' | 'corrupt';
 };
+const webPreparation = z
+  .object({
+    schemaVersion: z.literal('catalog-upload-web-v1'),
+    inputDigest: digest,
+    byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
+    checksumSha256: digest,
+    catalogWebImage: CatalogWebImageSchema,
+  })
+  .strict();
+
+/** A pending storage target is private and is not evidence that its bytes were verified. */
+export function readImageUploadWebPreparation(image: CollectionDoc) {
+  const parsed = webPreparation.safeParse(image.imageWebPreparation);
+  return parsed.success && parsed.data.inputDigest === imageUploadInputDigest(image)
+    ? parsed.data
+    : null;
+}
 const completion = z
   .object({
     schemaVersion: z.literal('image-upload-completion-v1'),
@@ -152,7 +183,10 @@ export async function runImageUpload(
       status:
         saved.inputDigest === command.inputDigest &&
         image.byteSize === command.byteSize &&
-        image.checksumSha256 === command.checksumSha256
+        image.checksumSha256 === command.checksumSha256 &&
+        hasSafeCatalogImageDelivery(image) &&
+        (command.catalogWebImage === undefined ||
+          isDeepStrictEqual(image.catalogWebImage, command.catalogWebImage))
           ? 'active'
           : 'conflict',
     };
@@ -170,7 +204,7 @@ export async function runImageUpload(
   const legacy = canReverifyLegacyImageUpload(image);
   if (
     legacy &&
-    (command.action !== 'activate' ||
+    ((command.action !== 'activate' && command.action !== 'checkpoint-web') ||
       image.byteSize !== command.byteSize ||
       image.checksumSha256 !== command.checksumSha256)
   )
@@ -207,13 +241,56 @@ export async function runImageUpload(
     });
     return { status: 'rejected' };
   }
-  const active = {
+  const activeSource = {
     ...image,
     status: 'active',
     byteSize: command.byteSize,
     checksumSha256: command.checksumSha256,
+  };
+  if (command.action === 'checkpoint-web') {
+    if (!readCatalogWebImage({ ...activeSource, catalogWebImage: command.catalogWebImage }))
+      return { status: 'conflict' };
+    if (
+      Object.hasOwn(image, 'catalogWebImage') &&
+      !isDeepStrictEqual(readCatalogWebImage(activeSource), command.catalogWebImage)
+    )
+      return { status: 'conflict' };
+    const planned = webPreparation.parse({
+      schemaVersion: 'catalog-upload-web-v1',
+      inputDigest: command.inputDigest,
+      byteSize: command.byteSize,
+      checksumSha256: command.checksumSha256,
+      catalogWebImage: command.catalogWebImage,
+    });
+    if (Object.hasOwn(image, 'imageWebPreparation')) {
+      return {
+        status: isDeepStrictEqual(image.imageWebPreparation, planned) ? 'checkpointed' : 'conflict',
+      };
+    }
+    await store.set('images', { ...image, imageWebPreparation: planned, updatedAt: command.now });
+    return { status: 'checkpointed' };
+  }
+  if (command.catalogWebImage !== undefined || Object.hasOwn(image, 'imageWebPreparation')) {
+    const planned = readImageUploadWebPreparation(image);
+    if (
+      !planned ||
+      planned.byteSize !== command.byteSize ||
+      planned.checksumSha256 !== command.checksumSha256 ||
+      !isDeepStrictEqual(planned.catalogWebImage, command.catalogWebImage)
+    )
+      return { status: 'conflict' };
+    if (
+      Object.hasOwn(image, 'catalogWebImage') &&
+      !isDeepStrictEqual(readCatalogWebImage(activeSource), command.catalogWebImage)
+    )
+      return { status: 'conflict' };
+  }
+  const active = {
+    ...activeSource,
+    ...(command.catalogWebImage ? { catalogWebImage: command.catalogWebImage } : {}),
     updatedAt: command.now,
   };
+  if (!hasSafeCatalogImageDelivery(active)) return { status: 'conflict' };
   await store.set('images', {
     ...active,
     imageUploadCompletion: {

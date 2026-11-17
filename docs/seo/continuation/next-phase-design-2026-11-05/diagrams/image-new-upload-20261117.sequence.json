@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "新商品图片：上传、验证与启用",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [
+      1360,
+      560
+    ]
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "网站后台"
+    },
+    {
+      "id": "admin",
+      "type": "backend",
+      "label": "图片处理程序"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "图片记录"
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "私有图片存储"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 252,
+      "label": "保存原图：上传者申请受限地址"
+    },
+    {
+      "from": 260,
+      "to": 465,
+      "label": "准备网页版本：在原有图片锁内完成"
+    }
+  ],
+  "messages": [
+    {
+      "id": "mint",
+      "from": "editor",
+      "to": "admin",
+      "y": 160,
+      "label": "申请这张图片的受限上传地址",
+      "variant": "security"
+    },
+    {
+      "id": "intent",
+      "from": "admin",
+      "to": "database",
+      "y": 188,
+      "label": "检查当前账号并创建待完成图片记录",
+      "variant": "security"
+    },
+    {
+      "id": "original",
+      "from": "editor",
+      "to": "storage",
+      "y": 216,
+      "label": "按受限地址上传原图字节",
+      "variant": "default"
+    },
+    {
+      "id": "complete",
+      "from": "editor",
+      "to": "admin",
+      "y": 244,
+      "label": "请求验证这张已上传图片",
+      "variant": "default"
+    },
+    {
+      "id": "owner",
+      "from": "admin",
+      "to": "database",
+      "y": 272,
+      "label": "检查拥有者并取得现有图片锁",
+      "variant": "security"
+    },
+    {
+      "id": "read",
+      "from": "admin",
+      "to": "storage",
+      "y": 300,
+      "label": "读取原图，核对格式、大小与摘要",
+      "variant": "default"
+    },
+    {
+      "id": "plan",
+      "from": "admin",
+      "to": "database",
+      "y": 328,
+      "label": "生成网页版本，先保存唯一目标",
+      "variant": "emphasis"
+    },
+    {
+      "id": "write",
+      "from": "admin",
+      "to": "storage",
+      "y": 356,
+      "label": "上传网页版本，保留原件",
+      "variant": "default"
+    },
+    {
+      "id": "verify",
+      "from": "admin",
+      "to": "storage",
+      "y": 384,
+      "label": "完整读回，核对摘要、像素与尺寸",
+      "variant": "default"
+    },
+    {
+      "id": "activate",
+      "from": "admin",
+      "to": "database",
+      "y": 412,
+      "label": "再次检查权限和锁，登记可用版本",
+      "variant": "security"
+    },
+    {
+      "id": "reply",
+      "from": "admin",
+      "to": "editor",
+      "y": 440,
+      "label": "返回原图片编号与完成结果",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "当前实现",
+      "items": [
+        "新上传与来源同步复用处理器；保留原图、人工说明和动画",
+        "同步先检查来源地址，沿用原有租约与精确目标登记"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "验收状态",
+      "items": [
+        "本地完整路径与故障用例通过；尚未上线",
+        "真实 CloudBase 上传待共享部署恢复后验收"
+      ]
+    }
+  ]
+}

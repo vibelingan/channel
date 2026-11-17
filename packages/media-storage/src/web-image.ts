@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto';
-import sharp from 'sharp';
 import { decodeCatalogImagePixels } from './pixels.ts';
+
+export class AnimatedCatalogWebImageError extends Error {
+  constructor() {
+    super('Animated images must retain all of their frames');
+  }
+}
 
 /** Run during preparation, never in the public request path. Originals are retained. */
 export async function createCatalogWebImage(bytes: Uint8Array, mimeType: string) {
   const source = await decodeCatalogImagePixels(bytes, mimeType);
-  if (source.status !== 'decoded' || source.pages !== 1)
-    throw Error('A complete still image is required; animations are not flattened');
+  if (source.status !== 'decoded') throw Error('A complete still image is required');
+  if (source.pages !== 1) throw new AnimatedCatalogWebImageError();
+  // Reuse the existing packaged native decoder; ordinary API cold starts do not load Sharp.
+  const sharp = (await import('#catalog-image-decoder')).default;
   const output = await sharp(Buffer.from(bytes), { failOn: 'warning', limitInputPixels: 268402689 })
     .rotate()
     .resize({ width: 1280, withoutEnlargement: true })

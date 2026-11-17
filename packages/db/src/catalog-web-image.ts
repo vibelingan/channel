@@ -8,7 +8,7 @@ export function catalogWebImagePath(imageId: string, sourceSha: string, outputSh
   );
 }
 import { isDeepStrictEqual } from 'node:util';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { CATALOG_IMAGE_SAFE_RESPONSE_BYTES, type CollectionDoc } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 import {
@@ -17,7 +17,7 @@ import {
 } from './catalog-image-input.ts';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
-const schema = z
+export const CatalogWebImageSchema = z
   .object({
     schemaVersion: z.literal(1),
     sourceDigest: hash,
@@ -31,11 +31,26 @@ const schema = z
     checksumSha256: hash,
   })
   .strict();
-export type CatalogWebImage = z.infer<typeof schema>;
+export type CatalogWebImage = z.infer<typeof CatalogWebImageSchema>;
+
+/** Bind a verified object to exactly the original that will become active. */
+export function bindCatalogWebImage(
+  source: CollectionDoc,
+  object: Omit<CatalogWebImage, 'schemaVersion' | 'sourceDigest'>,
+): CatalogWebImage {
+  const candidate = CatalogWebImageSchema.parse({
+    ...object,
+    schemaVersion: 1,
+    sourceDigest: storedCatalogImageInputDigest(source),
+  });
+  if (!readCatalogWebImage({ ...source, catalogWebImage: candidate }))
+    throw Error('Catalog web object does not bind the active original');
+  return candidate;
+}
 
 export function readCatalogWebImage(image: CollectionDoc): CatalogWebImage | null {
   if (!isStoredCatalogImageRecord(image, image._id)) return null;
-  const parsed = schema.safeParse(image.catalogWebImage);
+  const parsed = CatalogWebImageSchema.safeParse(image.catalogWebImage);
   if (!parsed.success) return null;
   const web = parsed.data;
   const expectedPath = catalogWebImagePath(image._id, image.checksumSha256, web.checksumSha256);
@@ -51,6 +66,35 @@ export function readCatalogWebImage(image: CollectionDoc): CatalogWebImage | nul
     web.storageFileId === expectedFile
     ? web
     : null;
+}
+
+/** The original is kept; only its ability to cross the existing HTTP boundary is constrained. */
+export function hasSafeCatalogImageDelivery(image: CollectionDoc): boolean {
+  return (
+    isStoredCatalogImageRecord(image, image._id) &&
+    (image.byteSize <= CATALOG_IMAGE_SAFE_RESPONSE_BYTES || readCatalogWebImage(image) !== null)
+  );
+}
+
+/** A verified physical move may rebind the same bytes, never retarget a different image. */
+export function retargetCatalogWebImage(
+  previous: CollectionDoc,
+  next: CollectionDoc,
+): CollectionDoc {
+  if (!Object.hasOwn(previous, 'catalogWebImage')) return next;
+  const web = readCatalogWebImage(previous);
+  if (
+    !web ||
+    ['_id', 'mimeType', 'byteSize', 'checksumSha256'].some(
+      (key) => !isDeepStrictEqual(previous[key], next[key]),
+    )
+  )
+    throw Error('A moved image must preserve its verified web delivery');
+  const candidate = { ...web, sourceDigest: storedCatalogImageInputDigest(next) };
+  const rebound = { ...next, catalogWebImage: candidate };
+  if (!readCatalogWebImage(rebound))
+    throw Error('The moved source cannot use the existing web object');
+  return rebound;
 }
 /** Caller owns the database transaction; no storage or decoder calls run inside it. */
 export async function registerCatalogWebImage(
@@ -68,6 +112,6 @@ export async function registerCatalogWebImage(
     Reflect.get(Object(current.catalogWebImage), 'schemaVersion') !== 1
   )
     throw Error('Unknown catalog web image version; preserve it');
-  await tx.set('images', { ...current, catalogWebImage: schema.parse(input) });
+  await tx.set('images', { ...current, catalogWebImage: CatalogWebImageSchema.parse(input) });
   return 'registered';
 }

@@ -1,5 +1,6 @@
 /** Private byte verification; all state changes recheck the same image mutex in storage. */
 import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import {
   type ImageUploadCommand,
   acquireImageMutation,
@@ -9,9 +10,18 @@ import {
   imageUploadInputDigest,
   manageImageUpload,
   readImageMutationState,
+  readImageUploadWebPreparation,
   releaseImageMutation,
 } from '@vibelingan-channel/db';
+import {
+  type CatalogWebImage,
+  bindCatalogWebImage,
+  hasSafeCatalogImageDelivery,
+  readCatalogWebImage,
+} from '@vibelingan-channel/db/catalog-web-image';
 import { isMediaReadError, mediaStorage } from '@vibelingan-channel/media-storage';
+import { prepareCatalogWebObject } from '@vibelingan-channel/media-storage/catalog-web-prepare';
+import { AnimatedCatalogWebImageError } from '@vibelingan-channel/media-storage/web-image';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
@@ -21,6 +31,8 @@ import {
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
 function completed(image: CollectionDoc) {
+  if (!hasSafeCatalogImageDelivery(image))
+    return err('CONFLICT', 'This image needs a verified web version before publication.');
   return ok({ imageId: image._id, status: 'active' as const, byteSize: image.byteSize, image });
 }
 export async function finalizeCatalogImageUpload(imageId: string, actorId: string) {
@@ -117,7 +129,65 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
       )
     )
       return await reject('content', 'Uploaded bytes are not a valid image of the declared type.');
-    const result = await persist({ ...base, action: 'activate', byteSize, checksumSha256 });
+    let webImage: CatalogWebImage | undefined;
+    if (!readCatalogWebImage(image)) {
+      const planned = readImageUploadWebPreparation(image);
+      if (
+        Object.hasOwn(image, 'imageWebPreparation') &&
+        (!planned || planned.byteSize !== byteSize || planned.checksumSha256 !== checksumSha256)
+      )
+        return err('CONFLICT', 'This image preparation changed. Reload before retrying.');
+      const activeSource = { ...image, status: 'active', byteSize, checksumSha256 };
+      let checkpointFailure: 'forbidden' | 'conflict' | undefined;
+      try {
+        const object = await prepareCatalogWebObject({
+          imageId,
+          bytes,
+          mimeType: String(image.mimeType),
+          checksumSha256,
+          storage: mediaStorage(),
+          ...(planned ? { existing: planned.catalogWebImage } : {}),
+          checkpoint: async (value) => {
+            const candidate = bindCatalogWebImage(activeSource, value);
+            const saved = await persist({
+              ...base,
+              action: 'checkpoint-web',
+              byteSize,
+              checksumSha256,
+              catalogWebImage: candidate,
+              now: new Date().toISOString(),
+            });
+            if (saved.status !== 'checkpointed') {
+              checkpointFailure = saved.status === 'forbidden' ? 'forbidden' : 'conflict';
+              throw Error('Catalog web checkpoint was not authorized');
+            }
+          },
+        });
+        if (object) webImage = bindCatalogWebImage(activeSource, object);
+      } catch (error) {
+        if (checkpointFailure === 'forbidden')
+          return err('FORBIDDEN', 'You no longer have permission to complete this upload.');
+        if (checkpointFailure)
+          return err('CONFLICT', 'Upload ownership changed. Reload before retrying.');
+        if (error instanceof AnimatedCatalogWebImageError)
+          return err(
+            'VALIDATION_ERROR',
+            'This animated image is too large for web delivery. Keep all frames and upload a smaller file.',
+          );
+        return err(
+          'BUSY',
+          'The web image could not be verified yet. The original is retained; retry or upload a replacement.',
+        );
+      }
+    }
+    const result = await persist({
+      ...base,
+      action: 'activate',
+      byteSize,
+      checksumSha256,
+      ...(webImage ? { catalogWebImage: webImage } : {}),
+      now: new Date().toISOString(),
+    });
     if (result.status === 'forbidden')
       return err('FORBIDDEN', 'You no longer have permission to complete this upload.');
     if (result.status !== 'active')
@@ -132,6 +202,8 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
       activated.checksumSha256 !== checksumSha256
     )
       return err('BUSY', 'Upload completion needs to be checked. Try again shortly.');
+    if (webImage && !isDeepStrictEqual(readCatalogWebImage(activated), webImage))
+      return err('BUSY', 'Web image activation needs to be checked. Try again shortly.');
     return completed(activated);
   } finally {
     if (locked)

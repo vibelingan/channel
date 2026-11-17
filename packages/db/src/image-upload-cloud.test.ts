@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { storedCatalogImageInputDigest } from './catalog-image-input.ts';
 import {
   buildCatalogImageReferencePlan,
   catalogImageReferenceEntry,
 } from './catalog-image-references.ts';
+import { catalogWebImagePath, readCatalogWebImage } from './catalog-web-image.ts';
 import { type NodeSdkDatabase, manageImageUploadInCloudBase } from './cloudbase-adapter.ts';
 import {
   type ImageUploadCommand,
@@ -155,6 +157,87 @@ function seeded(array: boolean) {
   f.put('images', image);
   return f;
 }
+
+test('a new upload cannot become active with an original that exceeds safe HTTP delivery and no verified web image', async () => {
+  for (const array of [false, true]) {
+    const f = seeded(array);
+    const before = f.snapshot();
+    const result = await f.run({ ...activate, byteSize: 4_500_001 });
+    assert.equal(result.status, 'conflict');
+    assert.deepEqual(
+      f.snapshot(),
+      before,
+      'Keep the original pending instead of exposing an unreadable image',
+    );
+  }
+});
+
+function readyWeb(byteSize: number) {
+  const active = { ...image, status: 'active', byteSize, checksumSha256: activate.checksumSha256 };
+  const path = catalogWebImagePath(image._id, activate.checksumSha256, 'b'.repeat(64));
+  return {
+    schemaVersion: 1 as const,
+    sourceDigest: storedCatalogImageInputDigest(active),
+    storageProvider: 'local-disk' as const,
+    storageFileId: `local-disk:${path}`,
+    storagePath: path,
+    mimeType: 'image/webp' as const,
+    byteSize: 1000,
+    width: 1280,
+    height: 800,
+    checksumSha256: 'b'.repeat(64),
+  };
+}
+
+test('a fenced upload checkpoints its exact web target before activation and preserves the original and later human edits', async () => {
+  const f = seeded(true);
+  const byteSize = 4_500_001;
+  const web = readyWeb(byteSize);
+  const planned = {
+    ...activate,
+    action: 'checkpoint-web' as const,
+    byteSize,
+    catalogWebImage: web,
+  };
+  assert.deepEqual(await f.run(planned), { status: 'checkpointed' });
+  const pending = f.get('images', image._id);
+  assert.ok(pending);
+  assert.equal(pending.status, 'pending');
+  assert.equal(pending.catalogWebImage, undefined);
+  assert.ok(pending.imageWebPreparation);
+  f.put('images', { ...pending, customAlt: 'Later human caption' });
+  const command = { ...activate, byteSize, catalogWebImage: web };
+  assert.deepEqual(await f.run(command), { status: 'active' });
+  const active = f.get('images', image._id);
+  assert.ok(active);
+  assert.deepEqual(readCatalogWebImage(active), web);
+  assert.equal(active.storageFileId, image.storageFileId);
+  assert.equal(active.customAlt, 'Later human caption');
+  assert.deepEqual(await f.run(command), { status: 'active' });
+  const before = f.snapshot();
+  assert.deepEqual(await f.run({ ...command, catalogWebImage: { ...web, byteSize: 1001 } }), {
+    status: 'conflict',
+  });
+  assert.deepEqual(f.snapshot(), before);
+});
+
+test('unknown checkpoint data or a changed upload owner cannot authorize a web target', async () => {
+  const f = seeded(false);
+  const web = readyWeb(4_500_001);
+  const command = {
+    ...activate,
+    action: 'checkpoint-web' as const,
+    byteSize: 4_500_001,
+    catalogWebImage: web,
+  };
+  const before = f.snapshot();
+  assert.deepEqual(await f.run({ ...command, owner: 'another-worker' }), { status: 'conflict' });
+  assert.deepEqual(f.snapshot(), before);
+  f.put('images', { ...image, imageWebPreparation: { schemaVersion: 'future' } });
+  const unknown = f.snapshot();
+  assert.deepEqual(await f.run(command), { status: 'conflict' });
+  assert.deepEqual(f.snapshot(), unknown);
+});
 for (const array of [false, true]) {
   test(`cloud upload activate and reject replay one committed receipt, object/array=${array}`, async () => {
     for (const command of [activate, reject]) {

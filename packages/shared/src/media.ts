@@ -49,6 +49,9 @@ export type VariantRole = (typeof VARIANT_ROLES)[number];
  * once a transport is selected in MIU-00.
  */
 export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+/** Original bytes that fit the Event Function response after Base64 and envelope overhead.
+ * Larger originals remain valid uploads, but need a verified web delivery before activation. */
+export const CATALOG_IMAGE_SAFE_RESPONSE_BYTES = 4_000_000;
 /** Product-specific V1.1 image ceiling; wired into products in the next contract MIU. */
 export const PRODUCT_IMAGE_MAX_COUNT = 9;
 /** Long-form description panels have their own budget, independent of the gallery. */

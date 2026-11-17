@@ -84,6 +84,19 @@ async function staged() {
   assert.equal((await f.run(checkpoint)).status, 'checkpointed');
   return f;
 }
+
+test('a fetched source image cannot activate an oversized original without a source-bound web delivery', async () => {
+  const f = await claimed();
+  const large = { ...target, byteSize: 4_500_001 };
+  assert.equal((await f.run({ ...checkpoint, target: large })).status, 'checkpointed');
+  const before = f.snapshot();
+  assert.equal((await f.run({ ...activate, target: large })).status, 'conflict');
+  assert.deepEqual(
+    f.snapshot(),
+    before,
+    'An unreadable source remains pending and never reports ready',
+  );
+});
 async function active() {
   const f = await staged();
   assert.deepEqual(await f.run(activate), {

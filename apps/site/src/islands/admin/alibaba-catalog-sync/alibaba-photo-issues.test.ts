@@ -6,6 +6,8 @@ test('photo failures explain the verified cause and do not invent an exact HTTP 
   assert.match(photoFailureText('not-found'), /denied access or no longer provides/);
   assert.match(photoFailureText('not-found'), /403\/404\/410/);
   assert.match(photoFailureText('fetch-failed'), /download failed or timed out/);
+  assert.match(photoFailureText('too-large'), /too large for the website/);
+  assert.match(photoFailureText('too-large'), /preserves any animation/);
   assert.match(photoFailureText('write-failed'), /could not be saved/);
   assert.match(photoFailureText('unknown'), /Retry or replace/);
 });

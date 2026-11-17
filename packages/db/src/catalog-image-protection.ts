@@ -22,6 +22,7 @@ import type {
   CatalogPreparationJobRecord,
   CatalogPreparationJobResult,
 } from './catalog-preparation-jobs.ts';
+import { retargetCatalogWebImage } from './catalog-web-image.ts';
 import { retargetImageUploadCompletion } from './image-upload.ts';
 type Command = Extract<
   CatalogPreparationJobCommand,
@@ -335,7 +336,15 @@ export async function runCatalogImageProtection(
     if (intent.state === 'committed') return { ok: true, protection: intent };
     if (!intent.target || command.health.status !== 'verified')
       return { ok: false, code: 'CONFLICT' };
-    const next = retargetImageUploadCompletion(image, { ...image, ...intent.target });
+    let next: CollectionDoc;
+    try {
+      next = retargetImageUploadCompletion(
+        image,
+        retargetCatalogWebImage(image, { ...image, ...intent.target }),
+      );
+    } catch {
+      return { ok: false, code: 'CONFLICT' };
+    }
     const targetDigest = storedCatalogImageInputDigest(next);
     if (
       command.health.imageId !== command.imageId ||

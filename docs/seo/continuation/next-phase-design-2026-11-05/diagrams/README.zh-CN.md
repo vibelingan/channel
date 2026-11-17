@@ -17,3 +17,5 @@ Archify 2.17 生成，`showcase` 检查各 9/9、0 错误、0 警告。最终 HT
 实际查看了最终 1440×900 明/暗截图和 2048×1320 明色截图，检查节点、连线、标签及底部说明。初版溢出已通过调整纵向间隔及去掉重复说明修正；没有裁切、隐藏溢出或缩小字体伪造通过。自动回执的 `visualReview: pending` 不改写；另记人工可视核对在 [review-receipt.json](review-receipt.json)。
 
 源文件分别为 [architecture JSON](next-phase.architecture.json)、[sequence JSON](public-content.sequence.json)，可继续编辑后重新交付和验证。截图联系表为 [模块图](next-phase.visual-check.html)、[时序图](public-content.visual-check.html)。
+
+2026-11-17新增商品图片入口（代码及本地验证，尚未上线）：[上传、验证与启用](image-new-upload-20261117.html)，[重试、后台预览与公开访问](image-retry-access-20261117.html)。两图的JSON为可编辑源；自动浏览器检查和看图均完成，真实CloudBase验收见模块01。
