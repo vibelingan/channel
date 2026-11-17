@@ -1,0 +1,239 @@
+{
+  "observedOn": "2026-11-17",
+  "source": "Authenticated Google Search Console UI and actual CSV export",
+  "indexing": {
+    "reportUpdatedOn": "2026-11-13",
+    "indexed": 528,
+    "notIndexed": 988,
+    "reasons": {
+      "alternateCanonical": 6,
+      "redirect": 3,
+      "robots": 1,
+      "crawledCurrentlyNotIndexed": 959,
+      "discoveredCurrentlyNotIndexed": 12,
+      "other4xx": 5,
+      "noindex": 1,
+      "notFound": 1
+    },
+    "other4xxValidation": {
+      "startedOn": "2026-11-16",
+      "pending": 5,
+      "failed": 0,
+      "status": "started",
+      "passed": false
+    }
+  },
+  "sitemap": {
+    "lastReadOn": "2026-11-15",
+    "status": "Success",
+    "discoveredUrls": 541,
+    "discoveredVideos": 0,
+    "note": "Platform count is not the independently read current sitemap count."
+  },
+  "coreWebVitals": {
+    "reportUpdatedOn": "2026-11-09",
+    "mobile": "insufficient usage data in last 90 days",
+    "desktop": "insufficient usage data in last 90 days",
+    "passed": null
+  },
+  "searchPerformance": {
+    "selectedRange": "3 months",
+    "from": "2026-10-14",
+    "through": "2026-11-15",
+    "clicks": 3,
+    "impressions": 80,
+    "ctrPercentShown": 3.8,
+    "averagePositionShown": 26.5,
+    "daily": [
+      {
+        "date": "2026-10-14",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-15",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-16",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-10-17",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-18",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-19",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-20",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-21",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-22",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-10-23",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-24",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "date": "2026-10-25",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-26",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-27",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-28",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-10-29",
+        "clicks": 2,
+        "impressions": 8
+      },
+      {
+        "date": "2026-10-30",
+        "clicks": 0,
+        "impressions": 0
+      },
+      {
+        "date": "2026-10-31",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-11-01",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-11-02",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-11-03",
+        "clicks": 0,
+        "impressions": 4
+      },
+      {
+        "date": "2026-11-04",
+        "clicks": 0,
+        "impressions": 9
+      },
+      {
+        "date": "2026-11-05",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "date": "2026-11-06",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "date": "2026-11-07",
+        "clicks": 0,
+        "impressions": 7
+      },
+      {
+        "date": "2026-11-08",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "date": "2026-11-09",
+        "clicks": 1,
+        "impressions": 9
+      },
+      {
+        "date": "2026-11-10",
+        "clicks": 0,
+        "impressions": 6
+      },
+      {
+        "date": "2026-11-11",
+        "clicks": 0,
+        "impressions": 8
+      },
+      {
+        "date": "2026-11-12",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "date": "2026-11-13",
+        "clicks": 0,
+        "impressions": 5
+      },
+      {
+        "date": "2026-11-14",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "date": "2026-11-15",
+        "clicks": 0,
+        "impressions": 4
+      }
+    ],
+    "adjacent14DayPeriods": [
+      {
+        "label": "earlier14",
+        "from": "2026-10-19",
+        "to": "2026-11-01",
+        "days": 14,
+        "clicks": 2,
+        "impressions": 15
+      },
+      {
+        "label": "latest14",
+        "from": "2026-11-02",
+        "to": "2026-11-15",
+        "days": 14,
+        "clicks": 1,
+        "impressions": 64
+      }
+    ]
+  },
+  "limits": [
+    "Search data ends before the November 16 and 17 repairs; it cannot prove their effect.",
+    "More impressions and one newly indexed URL do not prove sustained click or enquiry growth.",
+    "Five pending 4xx validation examples are not five current website failures or a passed Google validation.",
+    "Raw exports, account details, queries and private configuration remain outside version control."
+  ]
+}
