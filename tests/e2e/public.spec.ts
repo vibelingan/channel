@@ -1192,6 +1192,8 @@ test.describe('public browser smoke', () => {
       role: 'admin',
     } satisfies SessionUser;
     const intentCounts = new Map<string, number>();
+    const putCounts = new Map<string, number>();
+    const putTargets = new Map<string, Set<string>>();
     const previewCounts = new Map<string, number>();
     let imageSequence = 0;
     // A legacy product stored above the V1.1 product cap of nine. Removing two brings
@@ -1328,7 +1330,11 @@ test.describe('public browser smoke', () => {
       );
       const url = new URL(route.request().url());
       const fileName = url.searchParams.get('fileName') ?? '';
-      const attempt = Number(url.searchParams.get('attempt') ?? '1');
+      const attempt = (putCounts.get(fileName) ?? 0) + 1;
+      putCounts.set(fileName, attempt);
+      const targets = putTargets.get(fileName) ?? new Set<string>();
+      targets.add(url.href);
+      putTargets.set(fileName, targets);
       const failsFirstAttempt = /miu8-cap-(?:0|1)\.png$/.test(fileName) && attempt === 1;
       return route.fulfill({ status: failsFirstAttempt ? 500 : 204, body: '' });
     });
@@ -1450,9 +1456,11 @@ test.describe('public browser smoke', () => {
       button.click();
       button.click();
     });
-    await expect.poll(() => intentCounts.get('miu8-cap-0.png') ?? 0).toBe(2);
+    await expect.poll(() => putCounts.get('miu8-cap-0.png') ?? 0).toBe(2);
     await page.waitForTimeout(100);
-    expect(intentCounts.get('miu8-cap-0.png')).toBe(2);
+    expect(putCounts.get('miu8-cap-0.png')).toBe(2);
+    expect(intentCounts.get('miu8-cap-0.png')).toBe(1);
+    expect(putTargets.get('miu8-cap-0.png')?.size).toBe(1);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(1);
     await expect(imageManager.locator('img[alt=""]')).toHaveCount(8);
 
