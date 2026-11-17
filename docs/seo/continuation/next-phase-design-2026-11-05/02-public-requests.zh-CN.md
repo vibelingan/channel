@@ -6,6 +6,8 @@
 
 先前“Blog分类请求400”不是已证实的页面故障。接口读商品导航分类，合法family即使无子类也能200、空列表；54份美国报告的222次请求全部200。旧采集脚本删除了查询串，不能据此判断网页漏参。[复核](evidence/taxonomy-trace-review.json)。目前还没有证据说明哪些重复请求实际浪费。
 
+11月17日补查文章页的6份美国Before样本：每次分别请求headphones、ai-gadgets、toys、misc各一次，共24次分类请求，全部200。源码 `SiteHeader.astro` 先用Set汇总family，再用一次结果更新桌面与手机两组菜单。这批首轮加载没有同一family重复调用的证据，因此没有为此重写请求层；它仍不能代替换页、重新联网等动作的完整测量。
+
 现有 `lib/api-url.ts`、`lib/api-envelope.ts`、`islands/shop/api.ts` 和 `catalog-taxonomy.ts` 已承担地址、响应及公开业务解码；React Query主要用于后台。不能因为库已安装，就把商品图库、变体、报价和询盘的请求整套迁移。
 
 ## 先交付的测量

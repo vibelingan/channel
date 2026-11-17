@@ -1,0 +1,1290 @@
+{
+  "beforeRun": 44039303154,
+  "afterRun": 44048865030,
+  "scope": "single published article; three mobile and three desktop samples per phase",
+  "fieldStatus": "unavailable; laboratory TBT is not field INP",
+  "before": {
+    "mobile": {
+      "conditions": {
+        "checkedAt": "2026-11-17T07:32:59.887Z",
+        "profile": "mobile",
+        "phase": "before",
+        "scope": "article",
+        "sourceSha": "130b7467dd70d10dbefdfabc68b32c699f1c4f1c",
+        "egressCountry": "US",
+        "colo": "IAD",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 5054.967,
+          "fcpMs": 3040.577,
+          "tbtMs": 0,
+          "cls": 0.029946018456963885,
+          "speedIndexMs": 6678.12969000006,
+          "repeat": 1,
+          "ttfbMs": 1959.7889999999404,
+          "observedFirstPaintMs": 2700,
+          "score": 0.7,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92585,
+              "resourceBytes": 91902,
+              "durationMs": 2564.652999999991
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68513,
+              "resourceBytes": 67836,
+              "durationMs": 2216.55899999995
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 4882.302000000001,
+          "fcpMs": 2996.2470000000003,
+          "tbtMs": 0,
+          "cls": 0.03157057539561413,
+          "speedIndexMs": 6111.785612000029,
+          "repeat": 2,
+          "ttfbMs": 1697.7600000000596,
+          "observedFirstPaintMs": 2327,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92570,
+              "resourceBytes": 91902,
+              "durationMs": 2345.7210000000196
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68504,
+              "resourceBytes": 67836,
+              "durationMs": 2153.045000000042
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 4749.156000000001,
+          "fcpMs": 2756.2140000000004,
+          "tbtMs": 0,
+          "cls": 0.03157057539561413,
+          "speedIndexMs": 5538.695111999986,
+          "repeat": 3,
+          "ttfbMs": 1498.803,
+          "observedFirstPaintMs": 2132,
+          "score": 0.74,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92609,
+              "resourceBytes": 91902,
+              "durationMs": 2219.6080000000075
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68519,
+              "resourceBytes": 67836,
+              "durationMs": 1906.262999999919
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 4882.302000000001,
+          "min": 4749.156000000001,
+          "max": 5054.967
+        },
+        "fcpMs": {
+          "median": 2996.2470000000003,
+          "min": 2756.2140000000004,
+          "max": 3040.577
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "cls": {
+          "median": 0.03157057539561413,
+          "min": 0.029946018456963885,
+          "max": 0.03157057539561413
+        },
+        "speedIndexMs": {
+          "median": 6111.785612000029,
+          "min": 5538.695111999986,
+          "max": 6678.12969000006
+        },
+        "ttfbMs": {
+          "median": 1697.7600000000596,
+          "min": 1498.803,
+          "max": 1959.7889999999404
+        },
+        "observedFirstPaintMs": {
+          "median": 2327,
+          "min": 2132,
+          "max": 2700
+        },
+        "score": {
+          "median": 0.72,
+          "min": 0.7,
+          "max": 0.74
+        }
+      }
+    },
+    "desktop": {
+      "conditions": {
+        "checkedAt": "2026-11-17T07:32:53.509Z",
+        "profile": "desktop",
+        "phase": "before",
+        "scope": "article",
+        "sourceSha": "130b7467dd70d10dbefdfabc68b32c699f1c4f1c",
+        "egressCountry": "US",
+        "colo": "SEA",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 2843.8379999999997,
+          "fcpMs": 1871.0470000000003,
+          "tbtMs": 0,
+          "cls": 0.000429710590664371,
+          "speedIndexMs": 4910.891516416665,
+          "repeat": 1,
+          "ttfbMs": 2745.645,
+          "observedFirstPaintMs": 3261,
+          "score": 0.68,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92601,
+              "resourceBytes": 91902,
+              "durationMs": 5288.461999999992
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68517,
+              "resourceBytes": 67836,
+              "durationMs": 2370.6800000000003
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2405.862,
+          "fcpMs": 1598.1970000000001,
+          "tbtMs": 0,
+          "cls": 0.000429710590664371,
+          "speedIndexMs": 2548.4529347902185,
+          "repeat": 2,
+          "ttfbMs": 1283.483,
+          "observedFirstPaintMs": 1828,
+          "score": 0.76,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92587,
+              "resourceBytes": 91902,
+              "durationMs": 2045.0910000000003
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68519,
+              "resourceBytes": 67836,
+              "durationMs": 1935.4660000000003
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2339.0199999999995,
+          "fcpMs": 1568.118,
+          "tbtMs": 0,
+          "cls": 0.000429710590664371,
+          "speedIndexMs": 2519.9198829999987,
+          "repeat": 3,
+          "ttfbMs": 1463.273999999985,
+          "observedFirstPaintMs": 1997,
+          "score": 0.77,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92579,
+              "resourceBytes": 91902,
+              "durationMs": 1799.7050000000017
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68519,
+              "resourceBytes": 67836,
+              "durationMs": 1554.7250000000058
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 2405.862,
+          "min": 2339.0199999999995,
+          "max": 2843.8379999999997
+        },
+        "fcpMs": {
+          "median": 1598.1970000000001,
+          "min": 1568.118,
+          "max": 1871.0470000000003
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "cls": {
+          "median": 0.000429710590664371,
+          "min": 0.000429710590664371,
+          "max": 0.000429710590664371
+        },
+        "speedIndexMs": {
+          "median": 2548.4529347902185,
+          "min": 2519.9198829999987,
+          "max": 4910.891516416665
+        },
+        "ttfbMs": {
+          "median": 1463.273999999985,
+          "min": 1283.483,
+          "max": 2745.645
+        },
+        "observedFirstPaintMs": {
+          "median": 1997,
+          "min": 1828,
+          "max": 3261
+        },
+        "score": {
+          "median": 0.76,
+          "min": 0.68,
+          "max": 0.77
+        }
+      }
+    }
+  },
+  "after": {
+    "mobile": {
+      "conditions": {
+        "checkedAt": "2026-11-17T08:41:35.422Z",
+        "profile": "mobile",
+        "phase": "after",
+        "scope": "article",
+        "sourceSha": "ca4fadf6df349365f0644360dfe3dcdf0be7258f",
+        "egressCountry": "US",
+        "colo": "IAD",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 4763.333,
+          "fcpMs": 2893.363,
+          "tbtMs": 0,
+          "cls": 0.029946018456963885,
+          "speedIndexMs": 6915.820005999996,
+          "repeat": 1,
+          "ttfbMs": 2069.376,
+          "observedFirstPaintMs": 2760,
+          "score": 0.71,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92717,
+              "resourceBytes": 91902,
+              "durationMs": 2877.6300000000047
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68627,
+              "resourceBytes": 67836,
+              "durationMs": 2941.3310000000056
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 5035.454000000001,
+          "fcpMs": 2978.498,
+          "tbtMs": 0,
+          "cls": 0.03157057539561413,
+          "speedIndexMs": 6274.119653999994,
+          "repeat": 2,
+          "ttfbMs": 1685.7770000000148,
+          "observedFirstPaintMs": 2339,
+          "score": 0.71,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92702,
+              "resourceBytes": 91902,
+              "durationMs": 2483.9360000000015
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68629,
+              "resourceBytes": 67836,
+              "durationMs": 2611.2729999999865
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 4907.611500000001,
+          "fcpMs": 2765.699,
+          "tbtMs": 0,
+          "cls": 0.029946018456963885,
+          "speedIndexMs": 6201.712208000005,
+          "repeat": 3,
+          "ttfbMs": 1457.878,
+          "observedFirstPaintMs": 2076,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92709,
+              "resourceBytes": 91902,
+              "durationMs": 3147.4509999999864
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68621,
+              "resourceBytes": 67836,
+              "durationMs": 1936.2019999999902
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 4907.611500000001,
+          "min": 4763.333,
+          "max": 5035.454000000001
+        },
+        "fcpMs": {
+          "median": 2893.363,
+          "min": 2765.699,
+          "max": 2978.498
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "cls": {
+          "median": 0.029946018456963885,
+          "min": 0.029946018456963885,
+          "max": 0.03157057539561413
+        },
+        "speedIndexMs": {
+          "median": 6274.119653999994,
+          "min": 6201.712208000005,
+          "max": 6915.820005999996
+        },
+        "ttfbMs": {
+          "median": 1685.7770000000148,
+          "min": 1457.878,
+          "max": 2069.376
+        },
+        "observedFirstPaintMs": {
+          "median": 2339,
+          "min": 2076,
+          "max": 2760
+        },
+        "score": {
+          "median": 0.71,
+          "min": 0.71,
+          "max": 0.72
+        }
+      }
+    },
+    "desktop": {
+      "conditions": {
+        "checkedAt": "2026-11-17T08:41:50.580Z",
+        "profile": "desktop",
+        "phase": "after",
+        "scope": "article",
+        "sourceSha": "ca4fadf6df349365f0644360dfe3dcdf0be7258f",
+        "egressCountry": "US",
+        "colo": "ORD",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 2787.4175000000005,
+          "fcpMs": 1915.9450000000002,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 3343.250043416665,
+          "repeat": 1,
+          "ttfbMs": 1931.808,
+          "observedFirstPaintMs": 2673,
+          "score": 0.7,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92699,
+              "resourceBytes": 91902,
+              "durationMs": 2539.508999999991
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68620,
+              "resourceBytes": 67836,
+              "durationMs": 1938.010999999984
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2727.54,
+          "fcpMs": 1874.792,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 2755.0104285833336,
+          "repeat": 2,
+          "ttfbMs": 1357.964,
+          "observedFirstPaintMs": 1876,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92694,
+              "resourceBytes": 91902,
+              "durationMs": 2077.4739999999874
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68605,
+              "resourceBytes": 67836,
+              "durationMs": 2115.671000000002
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2645.2217500000006,
+          "fcpMs": 1790.433,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 3193.401268499996,
+          "repeat": 3,
+          "ttfbMs": 2084.771,
+          "observedFirstPaintMs": 2681,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/api/articles/media/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92723,
+              "resourceBytes": 91902,
+              "durationMs": 2329.576000000001
+            },
+            {
+              "path": "/api/articles/media/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68612,
+              "resourceBytes": 67836,
+              "durationMs": 2061.873000000007
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 2727.54,
+          "min": 2645.2217500000006,
+          "max": 2787.4175000000005
+        },
+        "fcpMs": {
+          "median": 1874.792,
+          "min": 1790.433,
+          "max": 1915.9450000000002
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "cls": {
+          "median": 0.00034747773745643664,
+          "min": 0.00034747773745643664,
+          "max": 0.00034747773745643664
+        },
+        "speedIndexMs": {
+          "median": 3193.401268499996,
+          "min": 2755.0104285833336,
+          "max": 3343.250043416665
+        },
+        "ttfbMs": {
+          "median": 1931.808,
+          "min": 1357.964,
+          "max": 2084.771
+        },
+        "observedFirstPaintMs": {
+          "median": 2673,
+          "min": 1876,
+          "max": 2681
+        },
+        "score": {
+          "median": 0.72,
+          "min": 0.7,
+          "max": 0.72
+        }
+      }
+    }
+  },
+  "mobileLcpChangePercent": 0.5183927581702275,
+  "desktopLcpChangePercent": 13.370592328238274,
+  "proxyControlRun": 44050275546,
+  "proxyControl": {
+    "mobile": {
+      "conditions": {
+        "checkedAt": "2026-11-17T08:52:12.159Z",
+        "profile": "mobile",
+        "phase": "after",
+        "scope": "article",
+        "sourceSha": "20bfbe4016b158ec375596df1d34558564aefc11",
+        "egressCountry": "US",
+        "colo": "SEA",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 4447.245999999999,
+          "fcpMs": 2766.344,
+          "tbtMs": 464,
+          "cls": 0.029946018456963885,
+          "speedIndexMs": 5401.590614000004,
+          "repeat": 1,
+          "ttfbMs": 1423.2819999999926,
+          "observedFirstPaintMs": 2118,
+          "score": 0.64,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92617,
+              "resourceBytes": 91902,
+              "durationMs": 2103.55799999999
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68553,
+              "resourceBytes": 67836,
+              "durationMs": 1644.1989999999932
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 4303.915000000001,
+          "fcpMs": 2445.5130000000004,
+          "tbtMs": 0,
+          "cls": 0.029946018456963885,
+          "speedIndexMs": 5629.757685999991,
+          "repeat": 2,
+          "ttfbMs": 1840.004,
+          "observedFirstPaintMs": 2346,
+          "score": 0.78,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92626,
+              "resourceBytes": 91902,
+              "durationMs": 1984.8870000000024
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68551,
+              "resourceBytes": 67836,
+              "durationMs": 1840.2839999999997
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 4124.265,
+          "fcpMs": 2551.545,
+          "tbtMs": 0,
+          "cls": 0.03157057539561413,
+          "speedIndexMs": 5188.470065999994,
+          "repeat": 3,
+          "ttfbMs": 1588.743000000015,
+          "observedFirstPaintMs": 2104,
+          "score": 0.79,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92617,
+              "resourceBytes": 91902,
+              "durationMs": 1672.395000000004
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68537,
+              "resourceBytes": 67836,
+              "durationMs": 1626.7379999999976
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 4303.915000000001,
+          "min": 4124.265,
+          "max": 4447.245999999999
+        },
+        "fcpMs": {
+          "median": 2551.545,
+          "min": 2445.5130000000004,
+          "max": 2766.344
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 464
+        },
+        "cls": {
+          "median": 0.029946018456963885,
+          "min": 0.029946018456963885,
+          "max": 0.03157057539561413
+        },
+        "speedIndexMs": {
+          "median": 5401.590614000004,
+          "min": 5188.470065999994,
+          "max": 5629.757685999991
+        },
+        "ttfbMs": {
+          "median": 1588.743000000015,
+          "min": 1423.2819999999926,
+          "max": 1840.004
+        },
+        "observedFirstPaintMs": {
+          "median": 2118,
+          "min": 2104,
+          "max": 2346
+        },
+        "score": {
+          "median": 0.78,
+          "min": 0.64,
+          "max": 0.79
+        }
+      }
+    },
+    "desktop": {
+      "conditions": {
+        "checkedAt": "2026-11-17T08:51:29.783Z",
+        "profile": "desktop",
+        "phase": "after",
+        "scope": "article",
+        "sourceSha": "20bfbe4016b158ec375596df1d34558564aefc11",
+        "egressCountry": "US",
+        "colo": "ORD",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": ["157.0.0.0"],
+        "repeats": 3,
+        "fieldInp": null
+      },
+      "samples": [
+        {
+          "lcpMs": 2583.7960000000003,
+          "fcpMs": 1704.352,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 3417.2210634166677,
+          "repeat": 1,
+          "ttfbMs": 2613.444,
+          "observedFirstPaintMs": 3188,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92633,
+              "resourceBytes": 91902,
+              "durationMs": 2252.9720000000016
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68558,
+              "resourceBytes": 67836,
+              "durationMs": 1942.464
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2716.0599999999995,
+          "fcpMs": 1870.37,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 2896.1388940833335,
+          "repeat": 2,
+          "ttfbMs": 1690.731,
+          "observedFirstPaintMs": 2257,
+          "score": 0.71,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92626,
+              "resourceBytes": 91902,
+              "durationMs": 1884.3740000000034
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68551,
+              "resourceBytes": 67836,
+              "durationMs": 1999.3180000000066
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "lcpMs": 2724.834,
+          "fcpMs": 1873.7890000000002,
+          "tbtMs": 0,
+          "cls": 0.00034747773745643664,
+          "speedIndexMs": 2752.187421416666,
+          "repeat": 3,
+          "ttfbMs": 1419.047,
+          "observedFirstPaintMs": 1998,
+          "score": 0.72,
+          "errors": [],
+          "articleImages": [
+            {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "status": 200,
+              "transferBytes": 92631,
+              "resourceBytes": 91902,
+              "durationMs": 1903.2300000000032
+            },
+            {
+              "path": "/blog/media/articles/article-media-dd387772d17885f9fd7d016524c6ffcaeb00044a171d8dea12a60cd3c92cddcb/web-v1-492887b39d7ecf0292dcde28d053ff4cb55e9ad3f979a54bd6f2fb887ef98835.webp",
+              "status": 200,
+              "transferBytes": 68559,
+              "resourceBytes": 67836,
+              "durationMs": 2379.8459999999977
+            }
+          ],
+          "navigation": [
+            {
+              "family": "headphones",
+              "status": 200
+            },
+            {
+              "family": "ai-gadgets",
+              "status": 200
+            },
+            {
+              "family": "toys",
+              "status": 200
+            },
+            {
+              "family": "misc",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "lcpMs": {
+          "median": 2716.0599999999995,
+          "min": 2583.7960000000003,
+          "max": 2724.834
+        },
+        "fcpMs": {
+          "median": 1870.37,
+          "min": 1704.352,
+          "max": 1873.7890000000002
+        },
+        "tbtMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "cls": {
+          "median": 0.00034747773745643664,
+          "min": 0.00034747773745643664,
+          "max": 0.00034747773745643664
+        },
+        "speedIndexMs": {
+          "median": 2896.1388940833335,
+          "min": 2752.187421416666,
+          "max": 3417.2210634166677
+        },
+        "ttfbMs": {
+          "median": 1690.731,
+          "min": 1419.047,
+          "max": 2613.444
+        },
+        "observedFirstPaintMs": {
+          "median": 2257,
+          "min": 1998,
+          "max": 3188
+        },
+        "score": {
+          "median": 0.72,
+          "min": 0.71,
+          "max": 0.72
+        }
+      }
+    }
+  },
+  "phaseMeaning": {
+    "before": "old Blog program 5428fb22, proxy",
+    "after": "candidate ca4fadf6, api",
+    "proxyControl": "same ca4fadf6 program restored to proxy; final retained mode"
+  },
+  "decision": {
+    "finalMediaDelivery": "proxy",
+    "reason": "No demonstrated LCP improvement from direct delivery; retain verified previous delivery. US egress nodes and response times vary, so these are not strict causal estimates.",
+    "fieldCwvPassed": false,
+    "fieldCwvStatus": "insufficient real user data; not inferred from laboratory TBT"
+  },
+  "liveAcceptance": {
+    "normalDeployRunId": 44041810162,
+    "acceptedSite": "site-44041810162-1",
+    "sourceSha": "ca4fadf6df349365f0644360dfe3dcdf0be7258f",
+    "programUpdateRunId": 44040932080,
+    "previousProgramArtifactId": 14309875321,
+    "modeSequence": ["proxy", "api", "proxy", "api", "proxy"],
+    "finalCloudVersion": "blog-pages-019",
+    "sameProgramAndOtherSettingsPreserved": true,
+    "contentSnapshotAt": "2026-11-17T08:40:15.555Z",
+    "productsUnchanged": 528,
+    "publicArticlesUnchanged": 3,
+    "businessWrites": 0,
+    "catalogClockEnabled": true,
+    "ownedHelperFunctionsRemaining": [],
+    "laterSharedBranchCommitPreserved": "20bfbe4016b158ec375596df1d34558564aefc11",
+    "laterContactDeploymentOwnedByAnotherSession": 44049939166
+  },
+  "publicChecks": [
+    {
+      "phase": "program-proxy",
+      "mode": "proxy",
+      "observedAt": "2026-11-17T07:51:15.364Z",
+      "articleContentAndDatesUnchanged": true,
+      "robotsAllowsDirect": false,
+      "requests": 8,
+      "writes": 0
+    },
+    {
+      "phase": "api-first",
+      "mode": "api",
+      "observedAt": "2026-11-17T08:28:40.362Z",
+      "articleContentAndDatesUnchanged": true,
+      "robotsAllowsDirect": true,
+      "requests": 8,
+      "writes": 0
+    },
+    {
+      "phase": "proxy-recovery",
+      "mode": "proxy",
+      "observedAt": "2026-11-17T08:35:28.763Z",
+      "articleContentAndDatesUnchanged": true,
+      "robotsAllowsDirect": true,
+      "requests": 8,
+      "writes": 0
+    },
+    {
+      "phase": "api-final",
+      "mode": "api",
+      "observedAt": "2026-11-17T08:39:19.968Z",
+      "articleContentAndDatesUnchanged": true,
+      "robotsAllowsDirect": true,
+      "requests": 8,
+      "writes": 0
+    },
+    {
+      "phase": "proxy-control",
+      "mode": "proxy",
+      "observedAt": "2026-11-17T08:51:07.543Z",
+      "articleContentAndDatesUnchanged": true,
+      "robotsAllowsDirect": true,
+      "requests": 8,
+      "writes": 0
+    }
+  ],
+  "readinessGap": {
+    "configurationConfirmedAt": "2026-11-17T08:31:16.451Z",
+    "publicStillApiAt": "2026-11-17T08:32:50Z",
+    "publicProxyObservedAt": "2026-11-17T08:34:34Z",
+    "note": "Cloud configuration alone did not prove public cutover; no duplicate write was made while verifying. Internal platform cause not established."
+  },
+  "stylesheetControl": {
+    "path": "/blog/_astro/404.CqKyFG8Y.css",
+    "decodedBytes": 103629,
+    "sameInAllBeforeAndCandidateSamples": true
+  }
+}
