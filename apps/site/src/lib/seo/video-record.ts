@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { canonicalUrl, siteOrigin } from './page.ts';
+import { canonicalUrl, createPageDescriptor, siteOrigin } from './page.ts';
 
 const mediaPath = (extension: string) =>
   z.string().regex(new RegExp(`^/media/[A-Za-z0-9/_-]+\\.${extension}$`));
@@ -100,6 +100,32 @@ export function publicWatchVideo(id: string): WatchVideo | undefined {
 }
 export function watchVideoPath(video: WatchVideo): string {
   return `/videos/${video.id}/`;
+}
+
+export function watchPageDescriptor(video: WatchVideo, originInput: string | URL, brand: string) {
+  const record = WatchVideoSchema.parse(video);
+  if (record.status !== 'public') throw Error('Withdrawn videos have no public watch page');
+  const origin = siteOrigin(originInput);
+  const path = watchVideoPath(record);
+  const url = canonicalUrl(path, origin);
+  const schema = videoObject(record, origin);
+  return createPageDescriptor({
+    path,
+    kind: 'marketing',
+    title: `${record.title} | ${brand}`,
+    description: record.description,
+    content: { source: 'curated-public-video', revision: record.sourceSha256 },
+    schemaNodes: [
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: new URL('/', origin).href },
+          { '@type': 'ListItem', position: 2, name: record.title, item: url },
+        ],
+      },
+      ...(schema ? [schema] : []),
+    ],
+  });
 }
 
 /** Unknown historical dates stay absent; a new build is not a new video publication. */

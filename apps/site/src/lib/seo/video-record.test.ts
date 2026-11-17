@@ -7,6 +7,7 @@ import {
   publicWatchVideo,
   publicWatchVideos,
   videoObject,
+  watchPageDescriptor,
   watchVideoPath,
   watchVideos,
   withVideoSitemapMetadata,
@@ -32,6 +33,7 @@ test('withdrawn and unknown videos do not have public discovery or structured da
   const withdrawn = { ...video, status: 'withdrawn' as const };
   assert.deepEqual(publicWatchVideos([withdrawn]), []);
   assert.equal(videoObject(withdrawn, origin), null);
+  assert.throws(() => watchPageDescriptor(withdrawn, origin, 'Example'), /Withdrawn/);
   const item = { url: `${origin}${watchVideoPath(video)}` };
   assert.equal(withVideoSitemapMetadata(item, origin, [withdrawn]), item);
 });

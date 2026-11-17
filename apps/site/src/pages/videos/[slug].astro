@@ -3,12 +3,10 @@ import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { createPageDescriptor } from '../../lib/seo/page.ts';
 import {
   type WatchVideo,
   publicWatchVideos,
-  videoObject,
-  watchVideoPath,
+  watchPageDescriptor,
 } from '../../lib/seo/video-record.ts';
 
 export function getStaticPaths() {
@@ -20,27 +18,8 @@ interface Props {
 const { video } = Astro.props;
 const { brand, nav, footer } = getSiteContent(DEFAULT_LOCALE);
 const origin = Astro.site ?? Astro.url.origin;
-const path = watchVideoPath(video);
-const url = new URL(path, origin).href;
-const schema = videoObject(video, origin);
 const seconds = Math.round(video.durationSeconds);
-const page = createPageDescriptor({
-  path,
-  kind: 'marketing',
-  title: `${video.title} | ${brand.name}`,
-  description: video.description,
-  content: { source: 'curated-public-video', revision: video.sourceSha256 },
-  schemaNodes: [
-    {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: new URL('/', origin).href },
-        { '@type': 'ListItem', position: 2, name: video.title, item: url },
-      ],
-    },
-    ...(schema ? [schema] : []),
-  ],
-});
+const page = watchPageDescriptor(video, origin, brand.name);
 ---
 
 <BaseLayout page={page} lang="en" socialImage={{ path: video.poster.src,

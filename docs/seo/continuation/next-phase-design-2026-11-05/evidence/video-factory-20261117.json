@@ -95,6 +95,59 @@
     "liveSeek80Within20Seconds": false,
     "newPageDeployed": false,
     "firstPublicationDateConfirmed": false,
-    "cloudWrites": 0
+    "cloudWrites": 0,
+    "defaultDomain": {
+      "at": "2026-11-17T13:53:05.624Z",
+      "scope": "existing development domain; not proposed for production",
+      "status": 200,
+      "type": "video/mp4",
+      "contentRange": null,
+      "length": "7201197",
+      "server": "tcbgw",
+      "cloudWrites": 0
+    },
+    "headerVariants": [
+      {
+        "request": {
+          "range": "bytes=1048576-1049599"
+        },
+        "status": 200,
+        "contentRange": null,
+        "length": "7201197"
+      },
+      {
+        "request": {
+          "Range": "bytes=1048576-1049599",
+          "Accept-Encoding": "identity"
+        },
+        "status": 200,
+        "contentRange": null,
+        "length": "7201197"
+      },
+      {
+        "request": {
+          "Range": "bytes=1048576-",
+          "User-Agent": "Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36"
+        },
+        "status": 200,
+        "contentRange": null,
+        "length": "7201197"
+      }
+    ],
+    "publicMetadataAndVideoAndOutputTests": 20,
+    "initialRemoteCi": {
+      "source": "bd87d4e67db7a3c2254b7f49c1b8c7baa479463f",
+      "completeRun": 44097247489,
+      "result": "failure",
+      "cause": "New watch route omitted from existing public metadata audit inventory",
+      "blogHttp": {
+        "run": 44097247851,
+        "result": "success"
+      },
+      "blogOffline": {
+        "run": 44097247533,
+        "result": "success"
+      }
+    }
   }
 }

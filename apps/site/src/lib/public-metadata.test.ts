@@ -9,6 +9,7 @@ import { parseDocument } from 'yaml';
 import { includeInSitemap, isSitemapPathIncluded } from '../../astro.config.ts';
 import type { CatalogFamilyContent } from '../i18n/catalog.ts';
 import { categoryPageIdentity } from './seo/category-page-metadata.ts';
+import { publicWatchVideos, watchPageDescriptor, watchVideoPath } from './seo/video-record.ts';
 
 const read = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
@@ -220,6 +221,7 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       'products/[publicKey].astro',
       'blog/[...slug].astro',
       '[family]/page/[page].astro',
+      'videos/[slug].astro',
     ].sort(),
     routablePublicPages,
     'every discovered public route has audited metadata',
@@ -322,6 +324,39 @@ test('category pagination binds its audited descriptor and keeps unique concise 
       titles.add(page.title);
       descriptions.add(page.description);
     }
+  }
+});
+
+test('watch pages bind their audited descriptor and keep unique concise metadata', async () => {
+  const source = read('../pages/videos/[slug].astro');
+  const { ast, diagnostics } = await parse(source);
+  assert.deepEqual(diagnostics, []);
+  const layouts: ComponentNode[] = [];
+  const visit = (node: AstroNode) => {
+    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if ('children' in node) for (const child of node.children) visit(child);
+  };
+  visit(ast);
+  assert.equal(layouts.length, 1);
+  const binding = layouts[0]?.attributes.find(({ name }) => name === 'page');
+  assert.ok(binding);
+  assert.equal(binding.kind, 'expression');
+  assert.equal(binding.value, 'page');
+  assert.ok(layouts[0]?.attributes.every(({ kind }) => kind !== 'spread'));
+  assert.match(source, /const page = watchPageDescriptor\(video, origin, brand\.name\);/);
+  const site = parseFrontmatter('../i18n/content/en-US.md');
+  assert.ok(site.brand);
+  const titles = new Set<string>();
+  for (const video of publicWatchVideos()) {
+    const page = watchPageDescriptor(video, 'https://example.test', site.brand.name);
+    assert.equal(page.canonicalPath, watchVideoPath(video));
+    assert.ok(
+      page.title.length <= 60,
+      `${page.canonicalPath} title is ${page.title.length} characters`,
+    );
+    assert.ok(page.description.length <= 160);
+    assert.equal(titles.has(page.title), false);
+    titles.add(page.title);
   }
 });
 
