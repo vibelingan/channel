@@ -1,6 +1,6 @@
 # SEO / Blog：当前进度与执行入口
 
-2026-11-17联系方式更新：diversity-public公开库6中4篇文档已补电话 +852 9545 3560、邮箱 sales@supplychainsai.com，真实公开只读入口读回5篇通过。官网在新分支 feat/update-public-contact-20261117 修改页脚文字、拨号链接及结构化电话，本地测试/类型检查/构建和手机电脑预览通过；官网尚未合并发布。详见[本轮记录](public-contact-20261117/WORKLOG.zh-CN.md)。
+2026-11-17联系方式更新：diversity-public公开库6中4篇文档已补电话 +852 9545 3560、邮箱 sales@supplychainsai.com，真实公开只读入口读回5篇通过。官网在新分支 feat/update-public-contact-20261117 修改页脚文字、拨号链接及结构化电话，本地测试/类型检查/构建和手机电脑预览通过；官网PR #92尚未合并发布；远端检查发现并修复既有CI机器/浏览器缓存兼容问题，等待新提交复查。详见[本轮记录](public-contact-20261117/WORKLOG.zh-CN.md)。
 
 > 2026-11-16：客户要求的受限直接发布接口已部署，内容/发布两机新工具已加载；真实图文保存、公开、重试、撤回通过，测试文档301已撤回，客户现有公开文章未变。[发布实测](../blog/agent-design/formal-use/PUBLICATION-EXECUTION.zh-CN.md)区分原私有稿297和已公开修正版300，以及尚待核对的反向改稿协作。Google列出的5个图片400已修复：最终运行 `43752358379` 使用包含现站Sales接线的 `ec0c3adf`，18张公开图真实200、1张无公开引用保持404；首次候选遗漏Sales后已精确恢复并重新整合发布，过程和改进见[修复记录](../seo/continuation/next-phase-design-2026-11-05/FIX-4XX-20261116.zh-CN.md)。Google截至11月9日的报告记录已收录527个地址，完整导出与美国线路Before见[11月16日实测](../seo/continuation/next-phase-design-2026-11-05/BEFORE-20261116.zh-CN.md)；这些数字不代表全站SEO已验收完成。
 
