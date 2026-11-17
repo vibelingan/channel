@@ -3,6 +3,47 @@ import { readHttpWithRetry } from '../read-http-retry.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { assertHostingPath, assertOrigin, isHash, limits, sha256 } from './input.mjs';
 
+/** Observe only a journaled member's exact before/after bytes; never repair it here. */
+export async function verifyStoppedHostingObject({ target, entry, request = fetchFully }) {
+  assertOrigin(target.site);
+  assertHostingPath(entry.path);
+  if (!entry.path.endsWith('.html') || (!isHash(entry.beforeHash) && entry.beforeHash !== 'absent'))
+    throw Error('Exact old and new HTML hashes required');
+  const publicPath =
+    entry.path === 'index.html' ? '/' : `/${entry.path.replace(/\/index\.html$/, '/')}`;
+  const url = new URL(publicPath, target.site).href;
+  const first = await readHttpWithRetry(
+    'GET',
+    url,
+    {
+      timeoutMs: 15_000,
+      maxBytes: limits.fileBytes,
+      redirect: 'error',
+      headers: { 'accept-encoding': 'identity' },
+    },
+    request,
+  );
+  const hash = sha256(first.body);
+  if (
+    first.status !== 200 ||
+    ![entry.beforeHash, entry.sha256].includes(hash) ||
+    (hash === entry.sha256 && first.body.length !== entry.bytes)
+  )
+    throw Error('Stopped HTML differs from both journaled versions');
+  let initial = true;
+  return verifyHostingObject({
+    target,
+    entry: { ...entry, sha256: hash, bytes: first.body.length },
+    request: async (...args) => {
+      if (initial) {
+        initial = false;
+        return first;
+      }
+      return request(...args);
+    },
+  });
+}
+
 /** Verify normal URLs first. A cache-busted response cannot substitute for what visitors receive. */
 export async function verifyHostingObject({
   target,

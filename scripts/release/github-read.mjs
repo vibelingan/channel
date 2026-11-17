@@ -31,8 +31,10 @@ export function createGithubReadClient({ policy, token, request = fetchFully }) 
   return Object.freeze({
     get,
     api,
-    async requireCI(codeSha) {
+    async requireCI(codeSha, { ref = policy.trustedRef, allowManual = false } = {}) {
       if (!/^[a-f0-9]{40}$/.test(codeSha)) throw new Error('Invalid executor SHA');
+      if (ref !== policy.trustedRef && ref !== 'refs/heads/test')
+        throw Error('Unapproved executor ref');
       const result = await api(
         `/actions/workflows/seo-module-1.yml/runs?head_sha=${codeSha}&status=completed&per_page=100`,
       );
@@ -41,8 +43,8 @@ export function createGithubReadClient({ policy, token, request = fetchFully }) 
           (run) =>
             run.head_sha === codeSha &&
             run.path === '.github/workflows/seo-module-1.yml' &&
-            run.event === 'push' &&
-            run.head_branch === policy.trustedRef.slice(11) &&
+            (run.event === 'push' || (allowManual && run.event === 'workflow_dispatch')) &&
+            run.head_branch === ref.slice(11) &&
             run.status === 'completed' &&
             run.conclusion === 'success' &&
             run.repository?.full_name === policy.repository &&

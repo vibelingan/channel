@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateBlogArtifactSource } from './blog/github-source.mjs';
+import { createGithubReadClient } from './release/github-read.mjs';
 import { NORMAL_READY_JOB, requireSiteChecks } from './release/site-checks.mjs';
 import { assertCleanAcceptedSite, SITE_DELIVERY_POLICY as policy } from './release/site-policy.mjs';
 import { siteProducerPolicy } from './release/site-producers.mjs';
@@ -132,7 +133,7 @@ test('same-run checks allow normal deployment only after its real complete manda
   ])
     await assert.rejects(verify({ jobs }));
 });
-test('automatic test content executor requires a completed successful same-SHA normal deployment', async () => {
+test('automatic test content executor requires a successful same-SHA deployment or explicit full offline CI', async () => {
   const ctx = {
     ...context,
     event: 'workflow_dispatch',
@@ -150,4 +151,57 @@ test('automatic test content executor requires a completed successful same-SHA n
     if (conclusion === 'success') await promise;
     else await assert.rejects(promise);
   }
+});
+
+test('a stopped test deployment can use exact manual offline CI, never a PR or another source', async () => {
+  let selected;
+  const ctx = {
+    ...context,
+    event: 'workflow_dispatch',
+    workflowRef: `${policy.repository}/${policy.workflowPath}@refs/heads/test`,
+  };
+  await requireSiteChecks({
+    policy,
+    codeSha: sha,
+    context: ctx,
+    github: {
+      api: async () => ({ workflow_runs: [] }),
+      requireCI: async (value, options) => {
+        selected = [value, options];
+      },
+    },
+  });
+  assert.deepEqual(selected, [sha, { ref: 'refs/heads/test', allowManual: true }]);
+  let runs = [];
+  const client = createGithubReadClient({
+    policy,
+    token: 'synthetic',
+    request: async () => ({
+      status: 200,
+      body: Buffer.from(JSON.stringify({ workflow_runs: runs })),
+    }),
+  });
+  const accepted = {
+    ...normal,
+    path: '.github/workflows/seo-module-1.yml',
+    event: 'workflow_dispatch',
+    status: 'completed',
+    conclusion: 'success',
+  };
+  const options = { ref: 'refs/heads/test', allowManual: true };
+  runs = [accepted];
+  await client.requireCI(sha, options);
+  await assert.rejects(client.requireCI(sha, { ref: 'refs/heads/test' }));
+  for (const delta of [
+    { event: 'pull_request' },
+    { head_sha: 'b'.repeat(40) },
+    { head_branch: 'main' },
+    { conclusion: 'failure' },
+    { path: '.github/workflows/other.yml' },
+    { head_repository: { full_name: 'other/channel' } },
+  ]) {
+    runs = [{ ...accepted, ...delta }];
+    await assert.rejects(client.requireCI(sha, options));
+  }
+  await assert.rejects(client.requireCI(sha, { ref: 'refs/heads/main', allowManual: true }));
 });

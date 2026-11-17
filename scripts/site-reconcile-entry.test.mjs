@@ -71,6 +71,24 @@ test('only the pinned manual operation can enter stopped-site reconciliation', (
     assert.throws(() => assertSiteReconcileInvocation({ ...env, [key]: value }), key);
 });
 
+test('test uses the same pinned manual recovery workflow, not a normal deployment or PR', () => {
+  const onTest = {
+    ...env,
+    GITHUB_REF: 'refs/heads/test',
+    GITHUB_WORKFLOW_REF: `${policy.repository}/${policy.workflowPath}@refs/heads/test`,
+  };
+  assert.equal(assertSiteReconcileInvocation(onTest).trustedRef, 'refs/heads/test');
+  for (const delta of [
+    { GITHUB_EVENT_NAME: 'pull_request' },
+    { GITHUB_EVENT_NAME: 'push' },
+    {
+      GITHUB_WORKFLOW_REF: `${policy.repository}/.github/workflows/deploy-test.yml@refs/heads/test`,
+    },
+    { GITHUB_REF: 'refs/heads/main' },
+  ])
+    assert.throws(() => assertSiteReconcileInvocation({ ...onTest, ...delta }));
+});
+
 test('a closed, exact old worker receipt is required, not just a successful invocation', () => {
   assert.doesNotThrow(() => assertStoppedCatalogReceipt(receipt, context));
   for (const patch of [

@@ -14,7 +14,10 @@ import {
   stepInput,
 } from './release-state-fixtures.mjs';
 import { hostingBatchBeforeHash, hostingBatchHash } from './release/hosting-batches.mjs';
+import { verifyStoppedHostingObject } from './release/hosting-readback.mjs';
+import { sha256 } from './release/input.mjs';
 import { createSitePayload, siteArtifact } from './release/site-payload.mjs';
+import { SITE_DELIVERY_POLICY } from './release/site-policy.mjs';
 import { recoverStoppedSiteDelivery } from './release/site-stopped-reconcile.mjs';
 import { createReleaseCoordinator } from './release/state.mjs';
 
@@ -23,13 +26,58 @@ const policy = {
   repository: 'vibelingan/channel',
   trustedRef: 'refs/heads/feat/seo-foundation',
   workflowPath: '.github/workflows/seo-static-canary.yml',
+  sources: SITE_DELIVERY_POLICY.sources,
 };
 const runNumber = '41313740695';
 const runId = `site-${runNumber}-1`;
 const codeSha = 'c450903bb538915ace1fc01f7a1178376a308c40';
 const runnerRef = `github:${policy.repository}:${runNumber}:attempt-1`;
 
-async function fixture(t, { secondPath = 'products/second/index.html', memberCount = 2 } = {}) {
+test('stopped HTML uses the visitor home URL and preserves successfully uploaded new-file recovery', async () => {
+  const body = Buffer.from('<h1>Published page</h1>');
+  for (const path of ['index.html', 'new/index.html']) {
+    const urls = [];
+    const result = await verifyStoppedHostingObject({
+      target: { site: policy.siteOrigin },
+      entry: { path, bytes: body.length, sha256: sha256(body), beforeHash: 'absent' },
+      request: async (_method, url, options) => {
+        urls.push(url);
+        const conditional = options.headers['if-none-match'];
+        return {
+          status: conditional ? 304 : 200,
+          body: conditional ? Buffer.alloc(0) : body,
+          headers: new Headers({
+            etag: '"fixed"',
+            'cache-control': 'no-store',
+            'content-type': 'text/html',
+          }),
+        };
+      },
+    });
+    assert.equal(result.sha256, sha256(body));
+    assert.deepEqual(
+      urls,
+      Array(3).fill(`${policy.siteOrigin}${path === 'index.html' ? '/' : '/new/'}`),
+    );
+  }
+});
+
+async function fixture(
+  t,
+  {
+    secondPath = 'products/second/index.html',
+    memberCount = 2,
+    normal = false,
+    mixed = false,
+  } = {},
+) {
+  const producer = normal
+    ? {
+        ...policy,
+        trustedRef: 'refs/heads/test',
+        workflowPath: '.github/workflows/deploy-test.yml',
+      }
+    : policy;
   const directory = mkdtempSync(join(tmpdir(), 'stopped-site-reconcile-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const time = clock();
@@ -57,9 +105,9 @@ async function fixture(t, { secondPath = 'products/second/index.html', memberCou
     now: time.now(),
     run: {
       repository: policy.repository,
-      workflowPath: policy.workflowPath,
-      event: 'workflow_dispatch',
-      ref: policy.trustedRef,
+      workflowPath: producer.workflowPath,
+      event: normal ? 'push' : 'workflow_dispatch',
+      ref: producer.trustedRef,
       runId: runNumber,
       headSha: codeSha,
       artifact: {
@@ -119,9 +167,13 @@ async function fixture(t, { secondPath = 'products/second/index.html', memberCou
   });
   const first = await coordinator.beginStep({ guard, runId, ...stepInput() });
   await coordinator.confirmStep({ guard, runId, stepId: first.stepId, receipt: receipt(first) });
+  const old = Buffer.from('<h1>Original HTML before upload</h1>');
   const members = input.staticManifest.entries
     .filter((entry) => entry.path !== 'index.html')
-    .map((entry) => ({ ...entry, beforeHash: 'a'.repeat(64) }));
+    .map((entry, index) => ({
+      ...entry,
+      beforeHash: mixed && index === 0 ? sha256(old) : 'a'.repeat(64),
+    }));
   const hash = hostingBatchHash(members);
   const step = await coordinator.beginStep({
     guard,
@@ -144,7 +196,7 @@ async function fixture(t, { secondPath = 'products/second/index.html', memberCou
   const job = {
     id: 123456789,
     run_id: Number(runNumber),
-    name: 'site_delivery / site',
+    name: normal ? 'Build, deploy, and smoke test' : 'site_delivery / site',
     head_sha: codeSha,
     status: 'completed',
     conclusion: 'failure',
@@ -156,9 +208,9 @@ async function fixture(t, { secondPath = 'products/second/index.html', memberCou
     run_attempt: 1,
     repository: { id: 1, full_name: policy.repository },
     head_repository: { id: 1, full_name: policy.repository },
-    path: policy.workflowPath,
-    head_branch: 'feat/seo-foundation',
-    event: 'workflow_dispatch',
+    path: producer.workflowPath,
+    head_branch: producer.trustedRef.slice(11),
+    event: normal ? 'push' : 'workflow_dispatch',
     status: 'completed',
     conclusion: 'failure',
     head_sha: codeSha,
@@ -180,9 +232,10 @@ async function fixture(t, { secondPath = 'products/second/index.html', memberCou
     sourceFiles: new Map(),
     jobs: [job],
   };
-  for (const path of [policy.workflowPath, '.github/workflows/seo-site-delivery.yml']) {
+  for (const path of [producer.workflowPath, '.github/workflows/seo-site-delivery.yml']) {
     f.sourceFiles.set(path, readFileSync(new URL(`../${path}`, import.meta.url)));
   }
+  if (mixed) files.set(members[0].path, old);
   f.options = {
     coordinator,
     policy,
@@ -292,6 +345,38 @@ test('an ended writer with exact HTML and three cache modes releases only ledger
       ],
     );
   }
+});
+
+test('normal Deploy Test with the exact original producer is recoverable after its writer has ended', async (t) => {
+  const f = await fixture(t, { normal: true });
+  const result = await recoverStoppedSiteDelivery(f.options);
+  assert.equal(result.status, 'reconciled');
+  assert.equal(result.websiteWrites, 0);
+  assert.equal((await f.coordinator.status()).target.dirtyRunId, runId);
+});
+
+test('normal deployment still requires its pinned source, serialization and controlled upload entry', async (t) => {
+  for (const [before, after] of [
+    ['environment: test', 'environment: other'],
+    ['cancel-in-progress: false', 'cancel-in-progress: true'],
+    ['ref: ${{ github.sha }}', 'ref: main'],
+    ['scripts/run-site-delivery.ts', 'scripts/untrusted.ts'],
+  ]) {
+    const f = await fixture(t, { normal: true });
+    const path = '.github/workflows/deploy-test.yml';
+    const original = f.sourceFiles.get(path).toString();
+    assert.ok(original.includes(before));
+    f.sourceFiles.set(path, Buffer.from(original.replaceAll(before, after)));
+    await refusesWithoutWrites(f);
+  }
+});
+
+test('a timed-out batch may contain proved old and new HTML, but arbitrary bytes never release it', async (t) => {
+  const f = await fixture(t, { mixed: true });
+  const result = await recoverStoppedSiteDelivery(f.options);
+  assert.equal(result.status, 'reconciled');
+  assert.notEqual(result.observedHash, f.step.afterHash);
+  assert.equal(f.requests.length, 6);
 });
 
 test('unknown pending write uses the same exact readback rather than replaying upload', async (t) => {

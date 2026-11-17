@@ -21,10 +21,9 @@ export function assertSiteReconcileInvocation(env) {
   if (
     env.GITHUB_ACTIONS !== 'true' ||
     env.GITHUB_REPOSITORY !== policy.repository ||
-    env.GITHUB_REF !== policy.trustedRef ||
+    ![policy.trustedRef, 'refs/heads/test'].includes(env.GITHUB_REF) ||
     env.GITHUB_EVENT_NAME !== 'workflow_dispatch' ||
-    env.GITHUB_WORKFLOW_REF !==
-      `${policy.repository}/${policy.workflowPath}@${policy.trustedRef}` ||
+    env.GITHUB_WORKFLOW_REF !== `${policy.repository}/${policy.workflowPath}@${env.GITHUB_REF}` ||
     env.TCB_ENV_ID !== policy.envId ||
     env.SITE_URL !== policy.siteOrigin ||
     env.CLOUDBASE_REGION !== policy.region ||
@@ -39,16 +38,16 @@ export function assertSiteReconcileInvocation(env) {
     !env.GITHUB_TOKEN
   )
     throw Error('Pinned manual stopped-HTML reconciliation required');
-  return policy;
+  return env.GITHUB_REF === policy.trustedRef ? policy : { ...policy, trustedRef: env.GITHUB_REF };
 }
 
 export async function runSiteReconcile(env = process.env) {
-  assertSiteReconcileInvocation(env);
+  const policy = assertSiteReconcileInvocation(env);
   const output = resolve('output/site-reconcile');
   await mkdir(output, { recursive: true });
   const github = createSiteGithubSource({ token: env.GITHUB_TOKEN });
   const api = createGithubReadClient({ policy, token: env.GITHUB_TOKEN });
-  await github.requireCI(env.GITHUB_SHA);
+  await api.requireCI(env.GITHUB_SHA, { allowManual: true });
   const manager = new CloudBase({
     envId: policy.envId,
     region: policy.region,

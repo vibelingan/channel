@@ -69,5 +69,5 @@ export async function requireSiteChecks({ github, policy, codeSha, context }) {
         sameRepository(run, policy.repository),
     )
   )
-    throw Error('The test executor has no completed successful deployment');
+    await github.requireCI(codeSha, { ref: 'refs/heads/test', allowManual: true });
 }
