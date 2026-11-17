@@ -167,16 +167,17 @@ jobs:
       # navigates. The test is unaffected, but the runner pipes every crash to
       # systemd-coredump, which writes gigabytes for about 20 seconds; the disk stalls and
       # whichever test is waiting on file writes times out (docs/agents/ci-test-flakes.md).
-      # The runner's core limit is already 0, but its piped core_pattern ignores that limit.
-      # A plain file pattern makes the kernel honour it, so no dump is written; the crash is
-      # still in the kernel log.
+      # The runner's piped core_pattern ignores the core limit. A plain file pattern makes the
+      # kernel honour it, and the unit group sets the limit to 0 itself (the runner image
+      # stopped starting jobs with 0 on 2026-11-16), so no dump is written; the crash is still
+      # in the kernel log.
       - name: Keep crashed browser helpers from writing core dumps
         if: ${{ matrix.suite == 'site' }}
-        run: |
-          sudo sysctl -w kernel.core_pattern=core
-          test "$(ulimit -c)" = 0 || { echo "core limit is $(ulimit -c), expected 0" >&2; exit 1; }
+        run: sudo sysctl -w kernel.core_pattern=core
       - name: Run unit group
-        run: ${{ matrix.command }}
+        run: |
+          ulimit -c 0
+          ${{ matrix.command }}
 
       - name: Report crashes and disk pressure after a failed unit group
         if: ${{ failure() }}

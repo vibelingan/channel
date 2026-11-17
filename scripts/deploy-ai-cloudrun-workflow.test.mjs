@@ -171,6 +171,7 @@ function settingsTheDeployReads() {
         AI_ENGINE_ID: engine,
         AI_ENGINE_PROVENANCE_KIND: kind,
         AI_INQUIRY_ENABLED: '1',
+        AI_INQUIRY_AUTH_MODE: 'scf-cam',
       };
       const recording = new Proxy(
         {},

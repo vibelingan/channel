@@ -1,3 +1,4 @@
+import type { CloudBase } from '@cloudbase/node-sdk';
 import { cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import {
   resolveSalesCredential,
@@ -14,6 +15,7 @@ function required(env: Record<string, string | undefined>, key: string): string 
 }
 export function configuredWebsiteDelivery(
   env: Record<string, string | undefined> = process.env,
+  requestApp?: CloudBase,
 ): WebsiteDelivery | null {
   if (env.SALES_SOURCE_DELIVERY_ENABLED !== '1') return null;
   const scope = salesCaptureFromEnv({ ...env, SALES_SOURCE_CAPTURE_ENABLED: '1' });
@@ -34,7 +36,7 @@ export function configuredWebsiteDelivery(
     sourceToken,
     scope.environment,
   );
-  initCloudBase(scope.cloud_env_id);
+  if (!requestApp) initCloudBase(scope.cloud_env_id);
   return new WebsiteDelivery({
     enabled: true,
     scope: {
@@ -44,7 +46,7 @@ export function configuredWebsiteDelivery(
     },
     connection_id: required(env, 'SALES_CHANNEL_CONNECTION_ID'),
     source_token: sourceToken,
-    store: createDeliveryStore(cloudStorageSdk().database()),
+    store: createDeliveryStore((requestApp ?? cloudStorageSdk()).database()),
     sender,
     loadCredential: async (ref) => resolveSalesCredential(ref, env),
     now: () => Math.floor(Date.now() / 1000),
