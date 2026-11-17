@@ -66,6 +66,19 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   let putCount = 0;
   let failure: unknown;
   let cleanupFailure: unknown;
+  const uploadTransport: Array<Record<string, unknown>> = [];
+  page.on('response', (response) => {
+    const req = response.request();
+    if (req.method() === 'PUT')
+      uploadTransport.push({ host: new URL(req.url()).hostname, status: response.status() });
+  });
+  page.on('requestfailed', (req) => {
+    if (req.method() === 'PUT')
+      uploadTransport.push({
+        host: new URL(req.url()).hostname,
+        error: req.failure()?.errorText,
+      });
+  });
   const unexpectedUiActions = new Set<string>();
   const readAndUploadActions = new Set([
     'login',
@@ -197,6 +210,13 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     failure = error;
     receipt.passed = false;
     receipt.error = error instanceof Error ? error.message : 'Acceptance failed';
+    const gallery = page.locator('[data-image-manager="gallery"]');
+    if (await gallery.isVisible().catch(() => false)) {
+      receipt.uploadMessage = (await gallery.innerText()).slice(0, 1200);
+      await page
+        .screenshot({ path: 'output/catalog-private-image/private-upload-failed.png' })
+        .catch(() => {});
+    }
   } finally {
     try {
       const remaining = await list();
@@ -220,6 +240,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup unconfirmed';
       cleanupFailure = error;
     } finally {
+      receipt.uploadTransport = uploadTransport;
       await writeFile('output/catalog-private-image/result.json', JSON.stringify(receipt, null, 2));
     }
   }
