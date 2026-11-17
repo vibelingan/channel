@@ -1,12 +1,12 @@
 # 04 商品搜索展示：先去掉无效标记，再适配真实报价
 
-> 2026-11-16：OFFER-1代码与针对性测试已通过，普通商品页不再强制输出缺少报价/评价的Product；正文、索引、WebPage和Breadcrumb保留。构建检查仍拒绝无效Product。尚未部署，Google旧抓取和本次实时测试仍看到原提示；OFFER-2真实报价适配尚未实施。
+> 2026-11-16：OFFER-1已真实部署，普通商品页不再强制输出缺少报价/评价的Product；正文、索引、WebPage和Breadcrumb保留，构建检查仍拒绝无效Product。上线后代表商品01121的Google实时测试允许收录、面包屑有效，未再列无效Product；旧索引视图仍保留11月13日抓取提示。OFFER-2真实报价适配尚未实施，不能写成全站价格增强展示已验收。见[平台实查](08-search-and-outcomes.zh-CN.md)。
 
-> 2026-11-12评审后修订。普通页面收录与带价格的商品搜索展示分别验收。本模块仍未实施。
+> 2026-11-12历史设计记录：普通页面收录与带价格的商品搜索展示分别验收；后续OFFER-1交付与OFFER-2待办按上方更新区分。
 
 ## 当前缺口与事实
 
-`apps/site/src/lib/seo/product-page.ts` 为商品生成不含offers的Product节点；没有真实review/aggregateRating时，不符合Google商品摘要的必要字段要求。商品正文仍可作为普通网页收录。先修无效标记，不必等完整报价适配。
+修复前，`apps/site/src/lib/seo/product-page.ts` 为商品生成不含offers的Product节点；没有真实review/aggregateRating时，不符合Google商品摘要的必要字段要求。商品正文仍可作为普通网页收录。本轮已先清理无效标记，完整报价适配另做。
 
 新的批准来源报价有五种模式：`fixed`、`range`、`tiered`、`negotiable`、`unavailable`，来自 `packages/shared/src/catalog/offer-pricing.ts`。Alibaba来源报价向访客公开一致。这是本模块事实来源，不改pricing算法、货币计算或同步数据。
 
@@ -36,7 +36,7 @@ Google要求Product名称之外至少具备offers、review、aggregateRating中�
 
 ## 图片、权限和恢复
 
-结构化数据的image与正文使用可读的公开图片入口；三张坏图仍影响对应商品，真实富结果验收依赖IMG-2修复。公开报价适配不能泄露旧VIP字段，但不因此新增会员价逻辑或重写定价。
+结构化数据的image与正文使用可读的公开图片入口；IMG-2所列大图响应超限已修复并读回，当前报价增强验收仍须核对所用图片实际可读。公开报价适配不能泄露旧VIP字段，但不因此新增会员价逻辑或重写定价。
 
 报价真实变化仍推进既有revision与商品HTML更新，不建第二条价格队列。程序恢复继续读当前报价和内容；格式不兼容则拒绝恢复。失败可退回WebPage/Breadcrumb及完整正文，不倒退业务价格。
 

@@ -1,0 +1,1009 @@
+{
+  "beforeRun": 43741817103,
+  "afterRun": 43779782125,
+  "afterSamples": 24,
+  "metrics": "每页每设备三次的中位数；实验室结果不是用户现场p75，TBT不等于INP。",
+  "conditions": [
+    {
+      "profile": "mobile",
+      "before": {
+        "phase": "before",
+        "checkedAt": "2026-11-15T17:34:13.120Z",
+        "profile": "mobile",
+        "egressCountry": "US",
+        "colo": "ORD",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "repeats": 3,
+        "fieldInp": null,
+        "chromeVersions": [
+          "157.0.0.0"
+        ]
+      },
+      "after": {
+        "phase": "after",
+        "scope": "image-pages",
+        "checkedAt": "2026-11-16T00:20:48.348Z",
+        "profile": "mobile",
+        "sourceSha": "ec9623894507b4cbdf296b5ffe0a4714e2f7bbf1",
+        "urls": [
+          {
+            "index": 4,
+            "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+          },
+          {
+            "index": 5,
+            "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+          },
+          {
+            "index": 6,
+            "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+          },
+          {
+            "index": 8,
+            "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+          }
+        ],
+        "egressCountry": "US",
+        "colo": "MSP",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
+        "repeats": 3,
+        "fieldInp": null
+      }
+    },
+    {
+      "profile": "desktop",
+      "before": {
+        "phase": "before",
+        "checkedAt": "2026-11-15T17:34:16.145Z",
+        "profile": "desktop",
+        "egressCountry": "US",
+        "colo": "SEA",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "repeats": 3,
+        "fieldInp": null,
+        "chromeVersions": [
+          "157.0.0.0"
+        ]
+      },
+      "after": {
+        "phase": "after",
+        "scope": "image-pages",
+        "checkedAt": "2026-11-16T00:20:53.736Z",
+        "profile": "desktop",
+        "sourceSha": "ec9623894507b4cbdf296b5ffe0a4714e2f7bbf1",
+        "urls": [
+          {
+            "index": 4,
+            "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+          },
+          {
+            "index": 5,
+            "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+          },
+          {
+            "index": 6,
+            "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+          },
+          {
+            "index": 8,
+            "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+          }
+        ],
+        "egressCountry": "US",
+        "colo": "PDX",
+        "node": "v22.23.4",
+        "lighthouse": "13.0.1",
+        "chromeVersions": [
+          "157.0.0.0"
+        ],
+        "repeats": 3,
+        "fieldInp": null
+      }
+    }
+  ],
+  "rows": [
+    {
+      "profile": "mobile",
+      "index": 4,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "before": {
+        "fcp": 3847.5100000000007,
+        "lcp": 5192.4985,
+        "cls": 0.003545339855205384,
+        "tbt": 4,
+        "speedIndex": 6436.39069623836,
+        "score": 67.0,
+        "serverResponseWaitingMs": 396,
+        "observedTtfbMs": 815.686,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:38:01.082Z",
+            "observedTtfbMs": 917.237,
+            "observedFirstPaintMs": 2164,
+            "fcpMs": 3848.041,
+            "lcpMs": 6508.231,
+            "cls": 0.003545339855205384,
+            "tbtMs": 41.5,
+            "speedIndexMs": 6741.226153013253,
+            "score": 63.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:38:18.956Z",
+            "observedTtfbMs": 815.686,
+            "observedFirstPaintMs": 2060,
+            "fcpMs": 3846.325,
+            "lcpMs": 5180.665499999999,
+            "cls": 0.003545339855205384,
+            "tbtMs": 3.5,
+            "speedIndexMs": 4764.415712000009,
+            "score": 70.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:38:37.121Z",
+            "observedTtfbMs": 808.037,
+            "observedFirstPaintMs": 2060,
+            "fcpMs": 3847.5100000000007,
+            "lcpMs": 5192.4985,
+            "cls": 0.003545339855205384,
+            "tbtMs": 4,
+            "speedIndexMs": 6436.39069623836,
+            "score": 67.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2060
+      },
+      "after": {
+        "fcp": 3791.052,
+        "lcp": 4794.865750000001,
+        "cls": 0.0015906461655990352,
+        "tbt": 11,
+        "speedIndex": 6080.475242406619,
+        "score": 70.0,
+        "serverResponseWaitingMs": 384,
+        "observedTtfbMs": 785.907,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:20:51.669Z",
+            "observedTtfbMs": 1101.486,
+            "observedFirstPaintMs": 2365,
+            "fcpMs": 3852.6089999999995,
+            "lcpMs": 5067.403,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 196.5,
+            "speedIndexMs": 6080.475242406619,
+            "score": 65.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:21:10.092Z",
+            "observedTtfbMs": 785.907,
+            "observedFirstPaintMs": 1809,
+            "fcpMs": 2954.5699999999997,
+            "lcpMs": 3991.3489999999993,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 8.5,
+            "speedIndexMs": 5255.64388332646,
+            "score": 79.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:21:27.847Z",
+            "observedTtfbMs": 769.34,
+            "observedFirstPaintMs": 2177,
+            "fcpMs": 3791.052,
+            "lcpMs": 4794.865750000001,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 11,
+            "speedIndexMs": 6152.979502084992,
+            "score": 70.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2177
+      },
+      "lcpChangePercent": -7.66
+    },
+    {
+      "profile": "mobile",
+      "index": 5,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "before": {
+        "fcp": 3846.936,
+        "lcp": 5973.299000000001,
+        "cls": 0.006492055236898757,
+        "tbt": 3.5,
+        "speedIndex": 5054.078894000002,
+        "score": 67.0,
+        "serverResponseWaitingMs": 378,
+        "observedTtfbMs": 858.24,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:38:55.329Z",
+            "observedTtfbMs": 858.24,
+            "observedFirstPaintMs": 2095,
+            "fcpMs": 3848.2280000000005,
+            "lcpMs": 7749.950000000001,
+            "cls": 0.006492055236898757,
+            "tbtMs": 3.5,
+            "speedIndexMs": 6756.111094594124,
+            "score": 62.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:39:13.505Z",
+            "observedTtfbMs": 942.4689999999404,
+            "observedFirstPaintMs": 2218,
+            "fcpMs": 3839.7700000000004,
+            "lcpMs": 5914.6255,
+            "cls": 0.006492055236898757,
+            "tbtMs": 3.5,
+            "speedIndexMs": 5054.078894000002,
+            "score": 67.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:39:32.391Z",
+            "observedTtfbMs": 792.377,
+            "observedFirstPaintMs": 2047,
+            "fcpMs": 3846.936,
+            "lcpMs": 5973.299000000001,
+            "cls": 0.006492055236898757,
+            "tbtMs": 6,
+            "speedIndexMs": 4867.982869999975,
+            "score": 67.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2095
+      },
+      "after": {
+        "fcp": 3794.438,
+        "lcp": 4661.875000000001,
+        "cls": 0.006345760296293463,
+        "tbt": 9.5,
+        "speedIndex": 5786.6796488797645,
+        "score": 71.0,
+        "serverResponseWaitingMs": 371,
+        "observedTtfbMs": 782.379,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:21:46.668Z",
+            "observedTtfbMs": 782.379,
+            "observedFirstPaintMs": 1977,
+            "fcpMs": 3794.438,
+            "lcpMs": 4671.81475,
+            "cls": 0.006345760296293463,
+            "tbtMs": 10.5,
+            "speedIndexMs": 5645.664870349041,
+            "score": 71.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:22:05.168Z",
+            "observedTtfbMs": 991.42,
+            "observedFirstPaintMs": 2216,
+            "fcpMs": 3795.4250000000006,
+            "lcpMs": 4661.875000000001,
+            "cls": 0.006345760296293463,
+            "tbtMs": 9.5,
+            "speedIndexMs": 5990.655242303169,
+            "score": 71.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:22:23.564Z",
+            "observedTtfbMs": 769.6779999999851,
+            "observedFirstPaintMs": 1980,
+            "fcpMs": 3789.9489999999996,
+            "lcpMs": 4655.3465,
+            "cls": 0.006345760296293463,
+            "tbtMs": 8.5,
+            "speedIndexMs": 5786.6796488797645,
+            "score": 71.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1980
+      },
+      "lcpChangePercent": -21.95
+    },
+    {
+      "profile": "mobile",
+      "index": 6,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "before": {
+        "fcp": 2878.965,
+        "lcp": 7198.070500000002,
+        "cls": 0.003545339855205384,
+        "tbt": 5,
+        "speedIndex": 4683.597829999972,
+        "score": 69.0,
+        "serverResponseWaitingMs": 398,
+        "observedTtfbMs": 842.706,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:39:50.929Z",
+            "observedTtfbMs": 862.132,
+            "observedFirstPaintMs": 2096,
+            "fcpMs": 2928.321,
+            "lcpMs": 9085.7555,
+            "cls": 0.003545339855205384,
+            "tbtMs": 2,
+            "speedIndexMs": 4927.9256779999405,
+            "score": 67.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:40:10.888Z",
+            "observedTtfbMs": 818.314,
+            "observedFirstPaintMs": 2051,
+            "fcpMs": 2878.965,
+            "lcpMs": 7011.799500000001,
+            "cls": 0.003545339855205384,
+            "tbtMs": 5,
+            "speedIndexMs": 4652.281674000034,
+            "score": 69.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:40:30.625Z",
+            "observedTtfbMs": 842.706,
+            "observedFirstPaintMs": 2075,
+            "fcpMs": 2779.6810000000005,
+            "lcpMs": 7198.070500000002,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 6,
+            "speedIndexMs": 4683.597829999972,
+            "score": 69.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2075
+      },
+      "after": {
+        "fcp": 3424.61,
+        "lcp": 4290.6175,
+        "cls": 0.0015906461655990352,
+        "tbt": 12.5,
+        "speedIndex": 6408.758829893226,
+        "score": 73.0,
+        "serverResponseWaitingMs": 387,
+        "observedTtfbMs": 800.652,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:22:42.225Z",
+            "observedTtfbMs": 788.1529999999702,
+            "observedFirstPaintMs": 1842,
+            "fcpMs": 3441.246,
+            "lcpMs": 4654.0975,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 12.5,
+            "speedIndexMs": 7183.979579102808,
+            "score": 70.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:23:01.660Z",
+            "observedTtfbMs": 800.652,
+            "observedFirstPaintMs": 1980,
+            "fcpMs": 2998.602,
+            "lcpMs": 3630.0315,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 11,
+            "speedIndexMs": 6285.447377434518,
+            "score": 79.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:23:21.990Z",
+            "observedTtfbMs": 850.707,
+            "observedFirstPaintMs": 2054,
+            "fcpMs": 3424.61,
+            "lcpMs": 4290.6175,
+            "cls": 0.0015906461655990352,
+            "tbtMs": 14,
+            "speedIndexMs": 6408.758829893226,
+            "score": 73.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1980
+      },
+      "lcpChangePercent": -40.39
+    },
+    {
+      "profile": "mobile",
+      "index": 8,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "before": {
+        "fcp": 2649.089,
+        "lcp": 17306.321000000004,
+        "cls": 0.03157057539561413,
+        "tbt": 0,
+        "speedIndex": 7199.770300000011,
+        "score": 64.0,
+        "serverResponseWaitingMs": 1032,
+        "observedTtfbMs": 1452.1720000000596,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:41:30.614Z",
+            "observedTtfbMs": 1441.51,
+            "observedFirstPaintMs": 2022,
+            "fcpMs": 2649.089,
+            "lcpMs": 17345.076999999997,
+            "cls": 0.03157057539561413,
+            "tbtMs": 0,
+            "speedIndexMs": 7199.770300000011,
+            "score": 64.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:41:47.877Z",
+            "observedTtfbMs": 1750.245,
+            "observedFirstPaintMs": 2374,
+            "fcpMs": 2782.0299999999997,
+            "lcpMs": 17306.321000000004,
+            "cls": 0.03157057539561413,
+            "tbtMs": 0,
+            "speedIndexMs": 7982.53560199998,
+            "score": 63.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:42:05.611Z",
+            "observedTtfbMs": 1452.1720000000596,
+            "observedFirstPaintMs": 2022,
+            "fcpMs": 2583.5199999999995,
+            "lcpMs": 17073.4425,
+            "cls": 0.03157057539561413,
+            "tbtMs": 0,
+            "speedIndexMs": 6841.94942400002,
+            "score": 65.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2022
+      },
+      "after": {
+        "fcp": 2625.0829999999996,
+        "lcp": 4539.035,
+        "cls": 0.029946018456963885,
+        "tbt": 0,
+        "speedIndex": 5535.297749999996,
+        "score": 76.0,
+        "serverResponseWaitingMs": 1249,
+        "observedTtfbMs": 1649.243,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:23:41.294Z",
+            "observedTtfbMs": 1690.908,
+            "observedFirstPaintMs": 2276,
+            "fcpMs": 2625.0829999999996,
+            "lcpMs": 4539.035,
+            "cls": 0.029946018456963885,
+            "tbtMs": 0,
+            "speedIndexMs": 5604.597731999983,
+            "score": 76.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:23:56.735Z",
+            "observedTtfbMs": 1649.243,
+            "observedFirstPaintMs": 2151,
+            "fcpMs": 2290.809,
+            "lcpMs": 4486.793000000001,
+            "cls": 0.029946018456963885,
+            "tbtMs": 0,
+            "speedIndexMs": 5535.297749999996,
+            "score": 77.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:24:12.475Z",
+            "observedTtfbMs": 1396.81,
+            "observedFirstPaintMs": 1991,
+            "fcpMs": 2700.9309999999996,
+            "lcpMs": 4871.189999999999,
+            "cls": 0.029946018456963885,
+            "tbtMs": 0,
+            "speedIndexMs": 5289.483011999987,
+            "score": 74.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 2151
+      },
+      "lcpChangePercent": -73.77
+    },
+    {
+      "profile": "desktop",
+      "index": 4,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "before": {
+        "fcp": 2238.2389999999996,
+        "lcp": 2912.228,
+        "cls": 0.06926117688884292,
+        "tbt": 0,
+        "speedIndex": 2565.327264500007,
+        "score": 69.0,
+        "serverResponseWaitingMs": 336,
+        "observedTtfbMs": 683.286,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:38:27.927Z",
+            "observedTtfbMs": 668.136,
+            "observedFirstPaintMs": 1684,
+            "fcpMs": 2238.2389999999996,
+            "lcpMs": 3027.9264999999996,
+            "cls": 0.06926117688884292,
+            "tbtMs": 10.5,
+            "speedIndexMs": 2557.7227009510752,
+            "score": 68.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:38:49.087Z",
+            "observedTtfbMs": 722.604,
+            "observedFirstPaintMs": 1747,
+            "fcpMs": 2241.368,
+            "lcpMs": 2903.5095,
+            "cls": 0.06926117688884292,
+            "tbtMs": 0,
+            "speedIndexMs": 2610.207640485466,
+            "score": 69.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:39:10.059Z",
+            "observedTtfbMs": 683.286,
+            "observedFirstPaintMs": 1704,
+            "fcpMs": 2237.274,
+            "lcpMs": 2912.228,
+            "cls": 0.06926117688884292,
+            "tbtMs": 0,
+            "speedIndexMs": 2565.327264500007,
+            "score": 69.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1704
+      },
+      "after": {
+        "fcp": 2537.0209999999997,
+        "lcp": 2967.8640000000005,
+        "cls": 0.06926117688884292,
+        "tbt": 0,
+        "speedIndex": 2537.0209999999997,
+        "score": 68.0,
+        "serverResponseWaitingMs": 382,
+        "observedTtfbMs": 770.309,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:21:12.877Z",
+            "observedTtfbMs": 1304.848,
+            "observedFirstPaintMs": 2668,
+            "fcpMs": 2698.3450000000003,
+            "lcpMs": 3108.6000000000004,
+            "cls": 0.06926117688884292,
+            "tbtMs": 32,
+            "speedIndexMs": 3048.8724429166678,
+            "score": 65.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:21:32.671Z",
+            "observedTtfbMs": 770.309,
+            "observedFirstPaintMs": 1882,
+            "fcpMs": 2537.0209999999997,
+            "lcpMs": 2967.8640000000005,
+            "cls": 0.06926117688884292,
+            "tbtMs": 0,
+            "speedIndexMs": 2537.0209999999997,
+            "score": 68.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:21:52.028Z",
+            "observedTtfbMs": 768.472,
+            "observedFirstPaintMs": 1760,
+            "fcpMs": 1425.2620000000002,
+            "lcpMs": 2247.2465,
+            "cls": 0.04607181276362949,
+            "tbtMs": 0,
+            "speedIndexMs": 1845.9007476666716,
+            "score": 81.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1882
+      },
+      "lcpChangePercent": 1.91
+    },
+    {
+      "profile": "desktop",
+      "index": 5,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "before": {
+        "fcp": 2240.911,
+        "lcp": 3184.6075,
+        "cls": 0.002975926502939936,
+        "tbt": 0,
+        "speedIndex": 2244.493,
+        "score": 70.0,
+        "serverResponseWaitingMs": 356,
+        "observedTtfbMs": 726.786,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:39:30.664Z",
+            "observedTtfbMs": 669.61,
+            "observedFirstPaintMs": 1695,
+            "fcpMs": 2237.86,
+            "lcpMs": 3184.6075,
+            "cls": 0.002975926502939936,
+            "tbtMs": 0,
+            "speedIndexMs": 2237.86,
+            "score": 70.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:39:51.500Z",
+            "observedTtfbMs": 910.314,
+            "observedFirstPaintMs": 1951,
+            "fcpMs": 2240.911,
+            "lcpMs": 3187.446,
+            "cls": 0.0011220038423163969,
+            "tbtMs": 0,
+            "speedIndexMs": 2797.92020762726,
+            "score": 68.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:40:12.534Z",
+            "observedTtfbMs": 726.786,
+            "observedFirstPaintMs": 1690,
+            "fcpMs": 2244.493,
+            "lcpMs": 3136.253,
+            "cls": 0.002975926502939936,
+            "tbtMs": 0,
+            "speedIndexMs": 2244.493,
+            "score": 70.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1695
+      },
+      "after": {
+        "fcp": 1404.159,
+        "lcp": 1965.5335,
+        "cls": 0.0011220038423163969,
+        "tbt": 0,
+        "speedIndex": 1801.4043529999988,
+        "score": 84.0,
+        "serverResponseWaitingMs": 383,
+        "observedTtfbMs": 775.6519999999701,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:22:11.436Z",
+            "observedTtfbMs": 775.6519999999701,
+            "observedFirstPaintMs": 1750,
+            "fcpMs": 1311.83,
+            "lcpMs": 1965.5335,
+            "cls": 0.002975926502939936,
+            "tbtMs": 0,
+            "speedIndexMs": 1768.5946600833372,
+            "score": 85.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:22:33.374Z",
+            "observedTtfbMs": 849.547,
+            "observedFirstPaintMs": 2007,
+            "fcpMs": 2516.89,
+            "lcpMs": 2772.1555,
+            "cls": 0.0011220038423163969,
+            "tbtMs": 0,
+            "speedIndexMs": 2516.89,
+            "score": 70.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:22:53.417Z",
+            "observedTtfbMs": 769.829,
+            "observedFirstPaintMs": 1788,
+            "fcpMs": 1404.159,
+            "lcpMs": 1949.3764999999999,
+            "cls": 0.0011220038423163969,
+            "tbtMs": 0,
+            "speedIndexMs": 1801.4043529999988,
+            "score": 84.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1788
+      },
+      "lcpChangePercent": -38.28
+    },
+    {
+      "profile": "desktop",
+      "index": 6,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "before": {
+        "fcp": 1854.496,
+        "lcp": 3081.4615,
+        "cls": 0.002406394275264932,
+        "tbt": 0,
+        "speedIndex": 2148.7091118663216,
+        "score": 71.0,
+        "serverResponseWaitingMs": 341,
+        "observedTtfbMs": 683.4989999999405,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:40:33.367Z",
+            "observedTtfbMs": 670.543,
+            "observedFirstPaintMs": 1707,
+            "fcpMs": 1838.9279999999999,
+            "lcpMs": 2956.214,
+            "cls": 0.002406394275264932,
+            "tbtMs": 0,
+            "speedIndexMs": 2035.103695999996,
+            "score": 73.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:40:53.178Z",
+            "observedTtfbMs": 691.124,
+            "observedFirstPaintMs": 1722,
+            "fcpMs": 1854.496,
+            "lcpMs": 3081.4615,
+            "cls": 0.002406394275264932,
+            "tbtMs": 0,
+            "speedIndexMs": 2408.487519104903,
+            "score": 71.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:41:12.605Z",
+            "observedTtfbMs": 683.4989999999405,
+            "observedFirstPaintMs": 1721,
+            "fcpMs": 2029.328,
+            "lcpMs": 3203.687,
+            "cls": 0.002406394275264932,
+            "tbtMs": 0,
+            "speedIndexMs": 2148.7091118663216,
+            "score": 71.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1721
+      },
+      "after": {
+        "fcp": 2292.0379999999996,
+        "lcp": 2506.8664999999996,
+        "cls": 0.000991269877510869,
+        "tbt": 0,
+        "speedIndex": 2308.3010390833197,
+        "score": 73.0,
+        "serverResponseWaitingMs": 376,
+        "observedTtfbMs": 761.061,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:23:13.186Z",
+            "observedTtfbMs": 761.061,
+            "observedFirstPaintMs": 1914,
+            "fcpMs": 1229.3690000000001,
+            "lcpMs": 1782.8655,
+            "cls": 0.000991269877510869,
+            "tbtMs": 0,
+            "speedIndexMs": 1795.1582913333311,
+            "score": 87.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:23:32.154Z",
+            "observedTtfbMs": 758.273,
+            "observedFirstPaintMs": 1904,
+            "fcpMs": 2292.0379999999996,
+            "lcpMs": 2506.8664999999996,
+            "cls": 0.000991269877510869,
+            "tbtMs": 0,
+            "speedIndexMs": 2308.3010390833197,
+            "score": 73.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:23:50.836Z",
+            "observedTtfbMs": 786.495,
+            "observedFirstPaintMs": 1804,
+            "fcpMs": 2312.455,
+            "lcpMs": 2546.238,
+            "cls": 0.002406394275264932,
+            "tbtMs": 0,
+            "speedIndexMs": 2312.455,
+            "score": 73.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1904
+      },
+      "lcpChangePercent": -18.65
+    },
+    {
+      "profile": "desktop",
+      "index": 8,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "before": {
+        "fcp": 1577.3310000000001,
+        "lcp": 4440.407999999999,
+        "cls": 0.00034747773745643664,
+        "tbt": 0,
+        "speedIndex": 4112.516954000013,
+        "score": 65.0,
+        "serverResponseWaitingMs": 994,
+        "observedTtfbMs": 1324.516,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-15T17:42:13.977Z",
+            "observedTtfbMs": 1331.4750000000597,
+            "observedFirstPaintMs": 1853,
+            "fcpMs": 1633.7579999999998,
+            "lcpMs": 4440.407999999999,
+            "cls": 0.00034747773745643664,
+            "tbtMs": 0,
+            "speedIndexMs": 4112.516954000013,
+            "score": 64.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-15T17:42:32.881Z",
+            "observedTtfbMs": 1324.516,
+            "observedFirstPaintMs": 1845,
+            "fcpMs": 1577.3310000000001,
+            "lcpMs": 4480.851000000001,
+            "cls": 0.000429710590664371,
+            "tbtMs": 0,
+            "speedIndexMs": 3125.2346061187236,
+            "score": 66.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-15T17:42:49.233Z",
+            "observedTtfbMs": 1194.41,
+            "observedFirstPaintMs": 1713,
+            "fcpMs": 1514.337,
+            "lcpMs": 4259.887999999999,
+            "cls": 0.00034747773745643664,
+            "tbtMs": 0,
+            "speedIndexMs": 4445.82266224998,
+            "score": 65.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1845
+      },
+      "after": {
+        "fcp": 1846.397,
+        "lcp": 2692.5460000000003,
+        "cls": 0.00034747773745643664,
+        "tbt": 0,
+        "speedIndex": 2646.9013650833485,
+        "score": 73.0,
+        "serverResponseWaitingMs": 924,
+        "observedTtfbMs": 1356.3449999999702,
+        "samples": [
+          {
+            "repeat": 1,
+            "fetchedAt": "2026-11-16T00:24:09.527Z",
+            "observedTtfbMs": 1356.3449999999702,
+            "observedFirstPaintMs": 1927,
+            "fcpMs": 1846.397,
+            "lcpMs": 2692.5460000000003,
+            "cls": 0.00034747773745643664,
+            "tbtMs": 0,
+            "speedIndexMs": 2646.9013650833485,
+            "score": 73.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 2,
+            "fetchedAt": "2026-11-16T00:24:23.980Z",
+            "observedTtfbMs": 1724.2459999999403,
+            "observedFirstPaintMs": 2298,
+            "fcpMs": 1850.364,
+            "lcpMs": 2695.688,
+            "cls": 0.00034747773745643664,
+            "tbtMs": 0,
+            "speedIndexMs": 2923.7980510624716,
+            "score": 72.0,
+            "httpErrors": []
+          },
+          {
+            "repeat": 3,
+            "fetchedAt": "2026-11-16T00:24:39.064Z",
+            "observedTtfbMs": 1312.109,
+            "observedFirstPaintMs": 1917,
+            "fcpMs": 1773.979,
+            "lcpMs": 2594.6939999999995,
+            "cls": 0.00034747773745643664,
+            "tbtMs": 0,
+            "speedIndexMs": 2615.214726416665,
+            "score": 74.0,
+            "httpErrors": []
+          }
+        ],
+        "observedFirstPaintMs": 1927
+      },
+      "lcpChangePercent": -39.36
+    }
+  ],
+  "afterResourceErrors": [],
+  "limitations": [
+    "LCP和FCP使用Lighthouse模拟节流；TTFB、FP及LCP分段来自浏览器原始观测，不能跨口径相加。",
+    "两轮均确认美国出口、Lighthouse13.0.1及Chrome主机标识157.0.0.0；手机节点ORD→MSP，桌面SEA→PDX，不能声称同一城市或排除网络波动。",
+    "003a主图未做减重，作为对照；桌面LCP增加1.91%，没有删掉该样本。",
+    "部分FCP、SpeedIndex和TBT没有改善；保留全部三次数据。",
+    "两轮之间包含66c915dc正常版本交付。图片字节变化可直接核验，整体耗时差异也包含网络和其他发布变化。"
+  ],
+  "runtimeAfter": {
+    "siteAcceptedRun": "site-43774312394-2",
+    "siteAndBusinessFunctionsSha": "66c915dc67c5a6f7b5edcece316e1f1cabe44864",
+    "blogSha": "5428fb2284088dca9ae0b6032b8cbe63c3306660",
+    "blogImage": "blog-pages-011-20261116072030",
+    "blogConfigurationVersion": "blog-pages-014",
+    "blogWebImagesEnabled": true,
+    "measurementSourceSha": "ec9623894507b4cbdf296b5ffe0a4714e2f7bbf1"
+  }
+}
