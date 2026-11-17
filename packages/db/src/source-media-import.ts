@@ -18,6 +18,7 @@ import { CatalogWebImageSchema, hasSafeCatalogImageDelivery } from './catalog-we
 import {
   ImageDeletionIntentSchema,
   type ImageDeletionStore,
+  imageDeletionStorageTargets,
   planImageReferenceDeletion,
   readImageDeletionIntent,
 } from './image-deletion.ts';
@@ -268,13 +269,16 @@ export async function runSourceMediaImport(
     const references = await planImageReferenceDeletion(store, image, 95);
     if (references.status !== 'ready') return references;
     image = references.image;
+    const storage = imageDeletionStorageTargets(image);
+    if (!storage) return { status: 'corrupt' };
     const intent = ImageDeletionIntentSchema.parse({
-      schemaVersion: 'image-deletion-v1',
+      schemaVersion: Object.hasOwn(image, 'catalogWebImage')
+        ? 'image-deletion-web-v1'
+        : 'image-deletion-v1',
       operationId: command.owner,
       uploadedByUserId: SOURCE_MEDIA_IMPORT_OWNER,
       startedAt: command.now,
-      storageProvider: typeof image.storageProvider === 'string' ? image.storageProvider : '',
-      storageFileIds: typeof fileId === 'string' ? [fileId] : [],
+      ...storage,
     });
     await store.set('images', {
       ...image,

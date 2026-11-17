@@ -7,10 +7,7 @@
     "quality_profile": "showcase",
     "animation": "none",
     "column_fit": "spread",
-    "viewBox": [
-      1360,
-      560
-    ]
+    "viewBox": [1360, 560]
   },
   "participants": [
     {
@@ -148,10 +145,7 @@
     {
       "dot": "amber",
       "title": "验收状态",
-      "items": [
-        "本地完整路径与故障用例通过；尚未上线",
-        "真实 CloudBase 上传待共享部署恢复后验收"
-      ]
+      "items": ["本地完整路径与故障用例通过；尚未上线", "真实 CloudBase 上传待共享部署恢复后验收"]
     }
   ]
 }

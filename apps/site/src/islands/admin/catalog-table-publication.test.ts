@@ -268,6 +268,14 @@ for (const fault of [
             });
           result = await retry;
           if (fault === 'mutated-retry') selected.pop();
+          // Restored access can meet another product's shared-photo preparation.
+          // Exercise the UI's Continue action against the same owned tasks.
+          if (fault === 'revoked' && result.failures.length > 0) {
+            assert.ok(
+              result.failures.every((item) => item.outcome === 'unconfirmed' && item.retryable),
+            );
+            result = await retryBatchUpdate(result, selected, { published: true }, revisions);
+          }
           assert.equal(
             starts.every((command) => originalIds.get(command.productId) === command.operationId),
             true,

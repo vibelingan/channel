@@ -285,8 +285,9 @@ export async function runImageUpload(
     )
       return { status: 'conflict' };
   }
+  const { imageWebPreparation: _preparation, ...completedSource }: CollectionDoc = activeSource;
   const active = {
-    ...activeSource,
+    ...completedSource,
     ...(command.catalogWebImage ? { catalogWebImage: command.catalogWebImage } : {}),
     updatedAt: command.now,
   };

@@ -417,3 +417,97 @@ test('malformed uploader metadata is corrupt and cannot authorize expiry byte de
     assert.deepEqual(f.writes, []);
   }
 });
+
+test('deletion retains the exact original, migration and verified web target until every delete succeeds', async () => {
+  const { bindCatalogWebImage, catalogWebImagePath } = await import('./catalog-web-image.ts');
+  const f = fixture({ mimeType: 'image/png', byteSize: 5000000, checksumSha256: 'a'.repeat(64) });
+  assert.ok(f.row);
+  const path = catalogWebImagePath('i', 'a'.repeat(64), 'b'.repeat(64));
+  const web = bindCatalogWebImage(f.row, {
+    storageProvider: 'local-disk',
+    storageFileId: `local-disk:${path}`,
+    storagePath: path,
+    mimeType: 'image/webp',
+    byteSize: 512,
+    width: 100,
+    height: 100,
+    checksumSha256: 'b'.repeat(64),
+  });
+  f.patch({ catalogWebImage: web });
+  const deleted: string[] = [];
+  let fail = true;
+  const run = () =>
+    executeImageDeletion(
+      { manage: (c) => runImageDeletion(f.store, c), get: async () => f.row },
+      begin,
+      async (id) => {
+        deleted.push(id);
+        if (id === web.storageFileId && fail) throw Error('temporary delete failure');
+      },
+    );
+  assert.equal(await run(), 'failed');
+  assert.deepEqual(deleted, ['local://one', 'local://two', web.storageFileId]);
+  assert.ok(f.row);
+  const intent = readImageDeletionIntent(f.row);
+  assert.equal(intent?.schemaVersion, 'image-deletion-web-v1');
+  assert.deepEqual(intent?.storageFileIds, deleted);
+  f.patch({ catalogWebImage: { ...web, storageFileId: 'local-disk:another-image' } });
+  assert.equal(readImageDeletionIntent(f.row), null);
+  f.patch({ catalogWebImage: web });
+  fail = false;
+  assert.equal(await run(), 'deleted');
+  assert.equal(f.row, null);
+});
+
+test('an unfinished manual web checkpoint is included in orphan cleanup and unknown metadata cannot be erased', async () => {
+  const { bindCatalogWebImage, catalogWebImagePath } = await import('./catalog-web-image.ts');
+  const { imageUploadInputDigest } = await import('./image-upload.ts');
+  const f = fixture({
+    status: 'pending',
+    createdAt: '2026-10-01T00:00:00.000Z',
+    mimeType: 'image/png',
+    byteSize: 5000000,
+    uploadIntentId: 'intent',
+  });
+  assert.ok(f.row);
+  const path = catalogWebImagePath('i', 'a'.repeat(64), 'b'.repeat(64));
+  const web = bindCatalogWebImage(
+    { ...f.row, status: 'active', checksumSha256: 'a'.repeat(64) },
+    {
+      storageProvider: 'local-disk',
+      storageFileId: `local-disk:${path}`,
+      storagePath: path,
+      mimeType: 'image/webp',
+      byteSize: 512,
+      width: 100,
+      height: 100,
+      checksumSha256: 'b'.repeat(64),
+    },
+  );
+  const planned = {
+    schemaVersion: 'catalog-upload-web-v1',
+    inputDigest: imageUploadInputDigest(f.row),
+    byteSize: 5000000,
+    checksumSha256: 'a'.repeat(64),
+    catalogWebImage: web,
+  };
+  f.patch({ imageWebPreparation: { ...planned, schemaVersion: 'unknown' } });
+  const orphan = {
+    action: 'begin-orphan',
+    imageId: 'i',
+    owner: 'op',
+    startedAt: now,
+    cutoff: '2026-10-10T00:00:00.000Z',
+  } as const;
+  assert.equal((await runImageDeletion(f.store, orphan)).status, 'corrupt');
+  assert.deepEqual(f.writes, []);
+  f.patch({ imageWebPreparation: planned });
+  const result = await runImageDeletion(f.store, orphan);
+  assert.equal(result.status, 'ready');
+  assert.ok(f.row);
+  assert.deepEqual(readImageDeletionIntent(f.row)?.storageFileIds, [
+    'local://one',
+    'local://two',
+    web.storageFileId,
+  ]);
+});

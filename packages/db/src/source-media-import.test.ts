@@ -811,3 +811,38 @@ for (const action of ['warm', 'reuse'] as const)
     assert.equal(current.imageMutationOwner, '');
     assert.deepEqual(f.get('catalogDetailApprovals', plan.proof._id), plan.proof);
   });
+
+test('retiring an expired source import retains its exact original and web targets for resumable cleanup', async () => {
+  const { bindCatalogWebImage, catalogWebImagePath } = await import('./catalog-web-image.ts');
+  const f = await claimed();
+  const row = f.get('images', base.imageId);
+  assert.ok(row);
+  const path = catalogWebImagePath(base.imageId, target.checksumSha256, 'b'.repeat(64));
+  const web = bindCatalogWebImage(
+    { ...row, ...target, status: 'active' },
+    {
+      storageProvider: 'local-disk',
+      storageFileId: `local-disk:${path}`,
+      storagePath: path,
+      mimeType: 'image/webp',
+      byteSize: 512,
+      width: 100,
+      height: 100,
+      checksumSha256: 'b'.repeat(64),
+    },
+  );
+  assert.equal(
+    (await f.run({ ...checkpoint, target: { ...target, catalogWebImage: web } })).status,
+    'checkpointed',
+  );
+  hold(f, base.imageId, 'cleanup');
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'retired',
+  );
+  const terminal = f.get('images', base.imageId);
+  assert.ok(terminal);
+  const intent = readImageDeletionIntent(terminal);
+  assert.equal(intent?.schemaVersion, 'image-deletion-web-v1');
+  assert.deepEqual(intent?.storageFileIds, [target.storageFileId, web.storageFileId]);
+});
