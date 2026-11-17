@@ -125,30 +125,55 @@ export function LegacyAssistantWidget({
       { id: assistantId, role: 'assistant', text: '' },
     ]);
     try {
-      const active = conversation ?? (await createConversation(apiBase, controller.signal));
-      controller.signal.throwIfAborted();
-      if (!conversation) {
-        setConversation(active);
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(active));
+      let cursor = lastSequence;
+      async function newConversation() {
+        // Invalid credentials must not remain cached if creation also fails.
+        setConversation(null);
+        clearStoredConversation();
+        setLastSequence(0);
+        cursor = 0;
+        const created = await createConversation(apiBase, controller.signal);
+        controller.signal.throwIfAborted();
+        setConversation(created);
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(created));
         sessionStorage.setItem(SEQUENCE_KEY, '0');
+        return created;
       }
-      const response = await fetch(
-        `${apiBase}/api/ai/conversations/${active.conversationId}/messages`,
-        {
+      // A tab may stay open beyond the credential's lifetime after mounting.
+      let active =
+        conversation && Date.parse(conversation.expiresAt) > Date.now()
+          ? conversation
+          : await newConversation();
+      const body = JSON.stringify({ message, idempotencyKey: crypto.randomUUID() });
+      const send = (current: StoredConversation) =>
+        fetch(`${apiBase}/api/ai/conversations/${current.conversationId}/messages`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${active.credential}`,
+            Authorization: `Bearer ${current.credential}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message, idempotencyKey: crypto.randomUUID() }),
+          body,
           signal: controller.signal,
-        },
-      );
+        });
+      let response = await send(active);
       controller.signal.throwIfAborted();
+      // The BFF checks identity before accepting a message. Only an explicit
+      // 401 is safe to retry once; a timeout/5xx may already have accepted it.
+      if (response.status === 401) {
+        await response.body?.cancel();
+        active = await newConversation();
+        response = await send(active);
+      }
+      controller.signal.throwIfAborted();
+      if (response.status === 401) {
+        setConversation(null);
+        clearStoredConversation();
+        setLastSequence(0);
+      }
       if (!response.ok) throw new Error('message_failed');
       parseAppendMessage(await response.json());
       controller.signal.throwIfAborted();
-      await stream(active, controller, assistantId);
+      await stream(active, controller, assistantId, cursor);
     } catch (caught) {
       if (isAbortError(caught) || controller.signal.aborted || abortRef.current !== controller)
         return;
@@ -178,9 +203,10 @@ export function LegacyAssistantWidget({
     active: StoredConversation,
     controller: AbortController,
     assistantId: string,
+    initialSequence: number,
   ) {
     setStatus('streaming');
-    let cursor = lastSequence;
+    let cursor = initialSequence;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await fetch(
         `${apiBase}/api/ai/conversations/${active.conversationId}/events`,

@@ -120,6 +120,128 @@ test('a network failure while sending also keeps the composer', async ({ page })
   await expect(page.getByRole('link', { name: 'Send your project to our team' })).toBeVisible();
 });
 
+test('a rejected saved credential renews once and starts the new event cursor at zero', async ({
+  page,
+}) => {
+  await page.addInitScript((saved) => {
+    sessionStorage.setItem('channel.ai.conversation.v1', JSON.stringify(saved));
+    sessionStorage.setItem('channel.ai.sequence.v1', '87');
+  }, conversation);
+  const calls = { rejected: 0, create: 0, accepted: 0, cursors: [] as string[] };
+  const question = 'what product do you have? Top wirless headphones';
+  await page.route('**/api/ai-test/api/ai/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations')) {
+      calls.create += 1;
+      return json(route, { ...conversation, conversationId: 'renewed-conversation' });
+    }
+    if (path.includes(`/${conversation.conversationId}/messages`)) {
+      calls.rejected += 1;
+      return route.fulfill({ status: 401, json: { error: { code: 'UNAUTHORIZED' } } });
+    }
+    if (path.endsWith('/renewed-conversation/messages')) {
+      calls.accepted += 1;
+      expect(route.request().postDataJSON().message).toBe(question);
+      return json(route, accepted);
+    }
+    calls.cursors.push(route.request().headers()['last-event-id'] ?? 'missing');
+    return events(route, { type: 'final', sequence: 1, text: 'Here are our wireless headphones.' });
+  });
+  await open(page);
+  await page.getByRole('textbox', { name: 'Your question' }).fill(question);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveText(
+    'Here are our wireless headphones.',
+  );
+  expect(calls).toEqual({ rejected: 1, create: 1, accepted: 1, cursors: ['0'] });
+  await expect(page.locator('[data-message-role="visitor"]')).toHaveCount(1);
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeEnabled();
+});
+
+test('a credential that expires while the tab stays open is replaced before sending', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
+  await page.addInitScript(
+    (saved) => {
+      sessionStorage.setItem('channel.ai.conversation.v1', JSON.stringify(saved));
+      sessionStorage.setItem('channel.ai.sequence.v1', '87');
+    },
+    { ...conversation, expiresAt },
+  );
+  const posts: string[] = [];
+  let created = 0;
+  await page.route('**/api/ai-test/api/ai/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations')) {
+      created += 1;
+      return json(route, { ...conversation, conversationId: 'fresh-conversation' });
+    }
+    if (path.endsWith('/messages')) {
+      posts.push(path);
+      return json(route, accepted);
+    }
+    expect(route.request().headers()['last-event-id']).toBe('0');
+    return events(route, { type: 'final', sequence: 1, text: 'Fresh session answer.' });
+  });
+  await open(page);
+  await page.clock.fastForward(120_000);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('[data-message-role="assistant"]')).toHaveText('Fresh session answer.');
+  expect(created).toBe(1);
+  expect(posts).toEqual(['/api/ai-test/api/ai/conversations/fresh-conversation/messages']);
+});
+
+for (const status of [401, 429, 503]) {
+  test(`message HTTP ${status} recovery is bounded and does not replay uncertain submissions`, async ({
+    page,
+  }) => {
+    let creates = 0;
+    let posts = 0;
+    await page.route('**/api/ai-test/api/ai/**', async (route) => {
+      if (new URL(route.request().url()).pathname.endsWith('/conversations')) {
+        creates += 1;
+        return json(route, { ...conversation, conversationId: `conversation-${creates}` });
+      }
+      posts += 1;
+      return route.fulfill({
+        status,
+        json: { error: { code: status === 401 ? 'UNAUTHORIZED' : 'UNAVAILABLE' } },
+      });
+    });
+    await open(page);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.getByText('The assistant could not be reached just now.')).toBeVisible();
+    expect(creates).toBe(status === 401 ? 2 : 1);
+    expect(posts).toBe(status === 401 ? 2 : 1);
+    await expect(page.getByRole('textbox', { name: 'Your question' })).toBeEnabled();
+  });
+}
+
+test('an accepted message is not resubmitted when the event stream returns 401', async ({
+  page,
+}) => {
+  let creates = 0;
+  let posts = 0;
+  await page.route('**/api/ai-test/api/ai/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations')) {
+      creates += 1;
+      return json(route, conversation);
+    }
+    if (path.endsWith('/messages')) {
+      posts += 1;
+      return json(route, accepted);
+    }
+    return route.fulfill({ status: 401, json: { error: { code: 'UNAUTHORIZED' } } });
+  });
+  await open(page);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('The assistant could not be reached just now.')).toBeVisible();
+  expect({ creates, posts }).toEqual({ creates: 1, posts: 1 });
+});
+
 test('received activity and partial text display before the final answer, in one answer bubble', async ({
   page,
 }) => {
