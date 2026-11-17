@@ -15,7 +15,10 @@ try {
   if (slug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
     const started = performance.now();
     const rendered = await publicArticleForRender(slug);
-    Astro.response.headers.set('Server-Timing', `article-read;dur=${(performance.now() - started).toFixed(1)}`);
+    Astro.response.headers.set(
+      'Server-Timing',
+      `article-read;dur=${(performance.now() - started).toFixed(1)}`,
+    );
     article = rendered?.article ?? null;
     presentation = rendered?.presentation;
     if (rendered) Astro.response.headers.set('X-Article-Presentation', rendered.format);
@@ -23,7 +26,10 @@ try {
   else {
     const started = performance.now();
     ({ articles, next } = await publicArticleList());
-    Astro.response.headers.set('Server-Timing', `article-read;dur=${(performance.now() - started).toFixed(1)}`);
+    Astro.response.headers.set(
+      'Server-Timing',
+      `article-read;dur=${(performance.now() - started).toFixed(1)}`,
+    );
   }
 } catch {
   unavailable = true;

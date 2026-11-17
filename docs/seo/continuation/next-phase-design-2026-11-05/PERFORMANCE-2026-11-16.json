@@ -16,9 +16,7 @@
         "lighthouse": "13.0.1",
         "repeats": 3,
         "fieldInp": null,
-        "chromeVersions": [
-          "157.0.0.0"
-        ]
+        "chromeVersions": ["157.0.0.0"]
       },
       "after": {
         "phase": "after",
@@ -48,9 +46,7 @@
         "colo": "MSP",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": [
-          "157.0.0.0"
-        ],
+        "chromeVersions": ["157.0.0.0"],
         "repeats": 3,
         "fieldInp": null
       }
@@ -67,9 +63,7 @@
         "lighthouse": "13.0.1",
         "repeats": 3,
         "fieldInp": null,
-        "chromeVersions": [
-          "157.0.0.0"
-        ]
+        "chromeVersions": ["157.0.0.0"]
       },
       "after": {
         "phase": "after",
@@ -99,9 +93,7 @@
         "colo": "PDX",
         "node": "v22.23.4",
         "lighthouse": "13.0.1",
-        "chromeVersions": [
-          "157.0.0.0"
-        ],
+        "chromeVersions": ["157.0.0.0"],
         "repeats": 3,
         "fieldInp": null
       }
