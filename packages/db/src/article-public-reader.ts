@@ -36,8 +36,8 @@ export function createCloudBasePublicArticles(
   storage: {
     getObjectAsBase64(
       fileId: string,
-      options: { maxBytes: number; timeoutMs: number },
-    ): Promise<{ body: string }>;
+      options: { maxBytes: number; timeoutMs: number; measure?: boolean },
+    ): Promise<{ body: string; timings?: { lookupMs: number; downloadMs: number } }>;
   },
 ): PublicArticles {
   const transaction = articleTransaction(db);
@@ -172,18 +172,24 @@ export function createCloudBasePublicArticles(
         next: all.length > 12 ? articles.at(-1)?.articleId : null,
       });
     },
-    media: async (id, file) => {
+    media: async (id, file, options) => {
       if (
         !articleIdentity.safeParse(id).success ||
         !/^(?:[a-f0-9]{64}\.(?:jpg|png|webp)|web-v1-[a-f0-9]{64}\.webp)$/.test(file)
       )
         return null;
+      const started = performance.now();
       const ref = await mediaReference(id, file);
+      const referenceBeforeMs = performance.now() - started;
       if (!ref) return null;
+      const storageStarted = performance.now();
       const result = await storage.getObjectAsBase64(ref.storageFileId, {
         maxBytes: ref.byteSize,
         timeoutMs: 10_000,
+        ...(options?.measure ? { measure: true } : {}),
       });
+      const storageMs = performance.now() - storageStarted;
+      const validationStarted = performance.now();
       const bytes = Buffer.from(result.body, 'base64');
       if (
         bytes.toString('base64') !== result.body ||
@@ -191,10 +197,33 @@ export function createCloudBasePublicArticles(
         createHash('sha256').update(bytes).digest('hex') !== ref.sha256
       )
         throw Error('Public article image bytes mismatch');
+      const validationMs = performance.now() - validationStarted;
       // A withdrawal while storage was reading must not release private bytes.
+      const referenceAfterStarted = performance.now();
       const current = await mediaReference(id, file);
       if (!current || !isDeepStrictEqual(current.authorization, ref.authorization)) return null;
-      return { body: result.body, mimeType: ref.mimeType };
+      const referenceAfterMs = performance.now() - referenceAfterStarted;
+      return {
+        body: result.body,
+        mimeType: ref.mimeType,
+        ...(options?.measure
+          ? {
+              timings: {
+                referenceBeforeMs,
+                storageMs,
+                validationMs,
+                referenceAfterMs,
+                totalMs: performance.now() - started,
+                ...(result.timings
+                  ? {
+                      lookupMs: result.timings.lookupMs,
+                      downloadMs: result.timings.downloadMs,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+      };
     },
   };
 }

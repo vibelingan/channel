@@ -83,6 +83,39 @@ test('bounded CloudBase reading uses exact COS_URL, one raw GET and actual bytes
   ]);
   assert.equal(f.controls.downloadCalls, 0);
 });
+test('optional read timings separate URL lookup from the complete streamed body without exposing its target', async (t) => {
+  const f = await fixture(t, (_req, res) => {
+    res.write(Buffer.from([1]));
+    setTimeout(() => res.end(Buffer.from([2, 3, 4, 5])), 40);
+  });
+  f.controls.mintGate = () => new Promise((resolve) => setTimeout(resolve, 25));
+  const result = await f.storage.getObjectAsBase64(fileId, {
+    maxBytes: 5,
+    timeoutMs: 1000,
+    measure: true,
+  });
+  assert.equal(result.body, 'AQIDBAU=');
+  assert.equal(result.byteSize, 5);
+  assert.ok(result.timings, 'The bounded read must return its requested phase timings');
+  assert.ok(result.timings.lookupMs >= 20, 'Lookup must include the actual SDK wait');
+  assert.ok(result.timings.downloadMs >= 35, 'Download must include the final streamed chunk');
+  assert.deepEqual(Object.keys(result.timings).sort(), ['downloadMs', 'lookupMs']);
+  assert.doesNotMatch(JSON.stringify(result.timings), /cloud:|https:|private-test-token/);
+  assert.equal(f.controls.sdkCalls, 1);
+  assert.equal(f.controls.requests, 1);
+});
+test('measured lookup and body still share one total deadline', async (t) => {
+  const f = await fixture(t, (_req, res) => {
+    res.write(Buffer.from([1]));
+    const timer = setTimeout(() => res.end(Buffer.from([2, 3, 4, 5])), 40);
+    res.on('close', () => clearTimeout(timer));
+  });
+  f.controls.mintGate = () => new Promise((resolve) => setTimeout(resolve, 25));
+  await assert.rejects(
+    f.storage.getObjectAsBase64(fileId, { maxBytes: 5, timeoutMs: 50, measure: true }),
+    (error) => error instanceof MediaReadError && error.reason === 'timeout',
+  );
+});
 test('legacy callers without limits keep the existing SDK download contract', async (t) => {
   const f = await fixture(t);
   assert.deepEqual(await f.storage.getObjectAsBase64(fileId), { body: 'AQIDBAU=', byteSize: 5 });

@@ -53,6 +53,16 @@ export type ArticleRenderWebV1 = z.infer<typeof ArticleRenderWebV1Schema>;
 export function parseArticleRenderWebV1(input: unknown): ArticleRenderWebV1 {
   return ArticleRenderWebV1Schema.parse(input);
 }
+/** Numeric diagnostics for one successful public image read, not stored article data. */
+export interface ArticleMediaTimings {
+  referenceBeforeMs: number;
+  storageMs: number;
+  validationMs: number;
+  referenceAfterMs: number;
+  totalMs: number;
+  lookupMs?: number;
+  downloadMs?: number;
+}
 export interface PublicArticles {
   list(after?: string): Promise<ArticleList>;
   get(slug: string): Promise<import('./publication.ts').PublishedArticle | null>;
@@ -60,8 +70,10 @@ export interface PublicArticles {
   media(
     id: string,
     file: string,
+    options?: { measure?: boolean },
   ): Promise<{
     body: string;
     mimeType: string;
+    timings?: ArticleMediaTimings;
   } | null>;
 }

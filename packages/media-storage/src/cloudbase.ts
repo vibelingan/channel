@@ -15,6 +15,7 @@ import { type CloudBaseReadTransport, readCloudBaseBytes } from './cloudbase-get
 import { type CloudBasePutOptions, checkedUploadUrl, putCloudBaseBytes } from './cloudbase-put.ts';
 import {
   type MediaObjectReadOptions,
+  type MediaObjectReadResult,
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   type PutMediaObjectOptions,
@@ -204,10 +205,14 @@ export function createCloudBaseMediaStorage(
     async getObjectAsBase64(
       fileId: string,
       options?: MediaObjectReadOptions,
-    ): Promise<{ body: string; byteSize?: number }> {
+    ): Promise<MediaObjectReadResult> {
       if (options) {
-        const bytes = await readCloudBaseBytes(sdk, fileId, options, transport);
-        return { body: bytes.toString('base64'), byteSize: bytes.byteLength };
+        const { bytes, timings } = await readCloudBaseBytes(sdk, fileId, options, transport);
+        return {
+          body: bytes.toString('base64'),
+          byteSize: bytes.byteLength,
+          ...(timings ? { timings } : {}),
+        };
       }
       const { fileContent } = await sdk.downloadFile({ fileID: fileId });
       if (!fileContent) {

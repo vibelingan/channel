@@ -1,4 +1,4 @@
-import type { PublicArticles } from '@vibelingan-channel/articles/public-read';
+import type { ArticleMediaTimings, PublicArticles } from '@vibelingan-channel/articles/public-read';
 import {
   type ApiResult,
   err,
@@ -37,6 +37,27 @@ export interface HttpResponse {
   headers: Record<string, string>;
   body: string;
   isBase64Encoded: boolean;
+}
+
+/** Only fixed numeric phases of an authorized image read may become public headers. */
+function articleMediaTimingHeaders(timings?: ArticleMediaTimings): Record<string, string> {
+  if (!timings) return {};
+  const fields = {
+    'am-ref1': 'referenceBeforeMs',
+    'am-storage': 'storageMs',
+    'am-url': 'lookupMs',
+    'am-download': 'downloadMs',
+    'am-check': 'validationMs',
+    'am-ref2': 'referenceAfterMs',
+    'am-total': 'totalMs',
+  } as const;
+  const entries = Object.entries(fields).flatMap(([name, field]) => {
+    const value = timings[field];
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 120_000
+      ? [`${name};dur=${value.toFixed(1)}`]
+      : [];
+  });
+  return entries.length ? { 'Server-Timing': entries.join(', ') } : {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -362,13 +383,19 @@ async function routeGet(
         );
       }
       if (segments.length === 4 && segments[1] === 'media') {
-        const media = await config.articles.media(segments[2] ?? '', segments[3] ?? '');
+        const media = await config.articles.media(segments[2] ?? '', segments[3] ?? '', {
+          measure: true,
+        });
         return media
           ? binaryResponse(event, config, {
               ok: true,
               isBase64Encoded: true,
               body: media.body,
-              headers: { ...headers, 'Content-Type': media.mimeType },
+              headers: {
+                ...headers,
+                'Content-Type': media.mimeType,
+                ...articleMediaTimingHeaders(media.timings),
+              },
             })
           : jsonResponse(event, config, err('NOT_FOUND', 'Image not found'), 404, headers);
       }

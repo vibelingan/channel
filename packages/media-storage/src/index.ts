@@ -90,6 +90,17 @@ export interface PutMediaObjectOptions {
 export interface MediaObjectReadOptions {
   readonly maxBytes: number;
   readonly timeoutMs: number;
+  /** Request-local diagnostics; no URLs, object identities or credentials. */
+  readonly measure?: boolean;
+}
+export interface MediaObjectReadTimings {
+  lookupMs: number;
+  downloadMs: number;
+}
+export interface MediaObjectReadResult {
+  body: string;
+  byteSize?: number;
+  timings?: MediaObjectReadTimings;
 }
 const MEDIA_READ_ERROR = Symbol.for('@vibelingan-channel/media-read-error');
 export class MediaReadError extends Error {
@@ -119,7 +130,7 @@ export interface MediaStorageAdapter {
   getObjectAsBase64(
     fileId: string,
     options?: MediaObjectReadOptions,
-  ): Promise<{ body: string; byteSize?: number }>;
+  ): Promise<MediaObjectReadResult>;
   getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
   deleteObject(fileId: string): Promise<void>;
   /**

@@ -140,3 +140,71 @@ test('health confirms the applied public article flag rather than only the uploa
   const disabled = await handlePublicApiEvent({ path: '/api/health', httpMethod: 'GET' }, {});
   assert.equal(JSON.parse(disabled.body).data.articlePublicReadEnabled, false);
 });
+
+test('successful image diagnostics expose only fixed finite durations and preserve the binary response', async () => {
+  const response = await call('/api/articles/media/image-one/photo.webp', {
+    ...articles,
+    media: async (_id, _file, options) => {
+      assert.equal(options?.measure, true);
+      return {
+        body: 'AQI=',
+        mimeType: 'image/webp',
+        timings: {
+          referenceBeforeMs: 12.25,
+          storageMs: 30,
+          lookupMs: 10,
+          downloadMs: 19,
+          validationMs: 0.5,
+          referenceAfterMs: 11,
+          totalMs: 54,
+          privateUrl: 'https://storage.example/?signature=secret',
+          privateTenantId: 42,
+        },
+      };
+    },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body, 'AQI=');
+  assert.equal(response.isBase64Encoded, true);
+  assert.equal(response.headers['Content-Type'], 'image/webp');
+  assert.equal(response.headers['Cache-Control'], 'no-store');
+  assert.equal(
+    response.headers['Server-Timing'],
+    'am-ref1;dur=12.3, am-storage;dur=30.0, am-url;dur=10.0, am-download;dur=19.0, am-check;dur=0.5, am-ref2;dur=11.0, am-total;dur=54.0',
+  );
+  assert.doesNotMatch(
+    JSON.stringify(response),
+    /signature|secret|storage\.example|privateUrl|privateTenantId/,
+  );
+  assert.equal(response.headers['Timing-Allow-Origin'], undefined);
+});
+
+test('invalid diagnostic values and unavailable images cannot disclose timing metadata', async () => {
+  const response = await call('/api/articles/media/image-one/photo.webp', {
+    ...articles,
+    media: async () => ({
+      body: 'AQI=',
+      mimeType: 'image/webp',
+      timings: {
+        referenceBeforeMs: Number.NaN,
+        storageMs: Number.POSITIVE_INFINITY,
+        validationMs: -1,
+        referenceAfterMs: 1,
+        totalMs: 120001,
+      },
+    }),
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['Server-Timing'], 'am-ref2;dur=1.0');
+  for (const media of [
+    async () => null,
+    async () => {
+      throw Error('private timing information');
+    },
+  ]) {
+    const denied = await call('/api/articles/media/image-one/photo.webp', { ...articles, media });
+    assert([404, 503].includes(denied.statusCode));
+    assert.equal(denied.headers['Server-Timing'], undefined);
+    assert.doesNotMatch(denied.body, /private timing/);
+  }
+});

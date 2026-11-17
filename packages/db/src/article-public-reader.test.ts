@@ -312,7 +312,10 @@ async function webFixture(
       const selected = fileId === ready.web.storageFileId ? webBytes : bytes;
       assert.equal(options.maxBytes, selected.length);
       await duringRead();
-      return { body: (corrupt ? Buffer.from('wrong') : selected).toString('base64') };
+      return {
+        body: (corrupt ? Buffer.from('wrong') : selected).toString('base64'),
+        ...(options.measure ? { timings: { lookupMs: 11, downloadMs: 19 } } : {}),
+      };
     },
   });
   return {
@@ -382,6 +385,44 @@ test('withdrawal during a web object read prevents returning its bytes', async (
     });
   });
   assert.equal(await x.reader.media(x.image.id, x.file), null);
+});
+
+test('requested public media diagnostics preserve bytes and reauthorization without leaking object identities', async (t) => {
+  const x = await webFixture(t);
+  const plainStart = x.f.calls.length;
+  await x.reader.media(x.image.id, x.file);
+  const plainReads = x.f.calls.slice(plainStart).filter((c) => c.api === 'database.getDocument');
+  const before = x.f.calls.length;
+  const result = await x.reader.media(x.image.id, x.file, { measure: true });
+  assert.equal(result?.body, x.webBytes.toString('base64'));
+  assert.equal(result?.mimeType, 'image/webp');
+  assert.ok(result?.timings, 'The reader must return requested public phase timings');
+  assert.equal(result.timings.lookupMs, 11);
+  assert.equal(result.timings.downloadMs, 19);
+  for (const key of [
+    'referenceBeforeMs',
+    'storageMs',
+    'validationMs',
+    'referenceAfterMs',
+    'totalMs',
+  ] as const)
+    assert.ok(Number.isFinite(result.timings[key]) && result.timings[key] >= 0);
+  assert.doesNotMatch(JSON.stringify(result.timings), /cloud:|private|storageFileId|articleId/);
+  const reads = x.f.calls.slice(before).filter((c) => c.api === 'database.getDocument');
+  assert.equal(reads.length, plainReads.length, 'Measuring must not change the read budget');
+});
+
+test('measuring a read cannot release bytes or timings after an article is withdrawn during storage', async (t) => {
+  const x = await webFixture(t);
+  x.setDuringRead(async () => {
+    await x.repo.releases.request('admin', {
+      operation: 'withdraw',
+      articleId: x.draft.id,
+      expectedRevision: 1,
+      requestId: 'measured-web-withdraw',
+    });
+  });
+  assert.equal(await x.reader.media(x.image.id, x.file, { measure: true }), null);
 });
 
 test('replacement of the active source or ready registration while downloading never releases old web bytes', async (t) => {

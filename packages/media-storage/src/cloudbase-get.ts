@@ -2,7 +2,11 @@
 import type { ClientRequest, IncomingMessage, RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { CloudBaseStorageSdk } from './cloudbase.ts';
-import { type MediaObjectReadOptions, MediaReadError } from './index.ts';
+import {
+  type MediaObjectReadOptions,
+  type MediaObjectReadTimings,
+  MediaReadError,
+} from './index.ts';
 import { readMediaBytes } from './read-limits.ts';
 
 export interface CloudBaseReadTransport {
@@ -18,11 +22,15 @@ export async function readCloudBaseBytes(
   fileId: string,
   options: MediaObjectReadOptions,
   transport: CloudBaseReadTransport = {},
-): Promise<Buffer> {
-  return readMediaBytes(async (signal) => {
+): Promise<{ bytes: Buffer; timings?: MediaObjectReadTimings }> {
+  let lookupMs = 0;
+  let downloadStarted = 0;
+  const bytes = await readMediaBytes(async (signal) => {
+    const lookupStarted = performance.now();
     const result = await sdk.getTempFileURL({
       fileList: [{ fileID: fileId, maxAge: 60, urlType: 'COS_URL' }],
     });
+    lookupMs = performance.now() - lookupStarted;
     if (signal.aborted) throw new MediaReadError('timeout');
     const entry = result.fileList?.[0];
     if (
@@ -36,6 +44,7 @@ export async function readCloudBaseBytes(
     if (url.protocol !== 'https:' || url.username || url.password || url.hash)
       throw new MediaReadError('unavailable');
     const request = transport.downloadRequest ?? httpsRequest;
+    downloadStarted = performance.now();
     return new Promise<IncomingMessage>((resolve, reject) => {
       let incoming: IncomingMessage | undefined;
       const stop = () => {
@@ -63,4 +72,10 @@ export async function readCloudBaseBytes(
       else outgoing.end();
     });
   }, options);
+  return {
+    bytes,
+    ...(options.measure
+      ? { timings: { lookupMs, downloadMs: performance.now() - downloadStarted } }
+      : {}),
+  };
 }

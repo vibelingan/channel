@@ -1,5 +1,7 @@
 # 本轮执行计划：评审后按风险分段交付
 
+2026-11-17接口分段续作：PERF-3的请求内数值测量已实现，尚未上线。改动限公开图片读取、存储适配器和HTTP响应头；旧调用返回形状、字节及缓存不变。先红后绿的测试和一次错误字段变异已验证；部署与真实分段占比仍待完成，不能提前写成已找到慢点或已提速。具体边界、调用预算、SDK核对和线上验收见[模块06](06-page-performance.zh-CN.md#perf-3图片接口分段测量本地完成待远端与线上验收)。
+
 2026-11-17补充：文章图片直达现有公开API已完成正常Test部署和真实 `proxy→api→proxy→api→proxy` 切换；18份美国样本未证明直达更快，最终保留proxy；528商品和3篇公开文章的版本、内容摘要、时间未变，自动更新及Sales开关保留，本次临时函数清理完成。[模块06](06-page-performance.zh-CN.md#11月17日文章图片直达现有接口切换和恢复已验收)记录程序、部署、配置/官网生效不同步及实际性能结果。
 
 本段代码 `ca4fadf6` 的[SEO远端检查44039971359](https://github.com/vibelingan/channel/actions/runs/44039971359)、[Blog HTTP44039971184](https://github.com/vibelingan/channel/actions/runs/44039971184)、[Blog离线44039971125](https://github.com/vibelingan/channel/actions/runs/44039971125)与正常Test发布均通过。实际读过并核对 `page.ts`、`BlogView.astro`、文章route/middleware/health、`server-stage.mjs`、`article-public-reader.ts`、`SiteHeader.astro`、18份Lighthouse报告和真实配置/交付回执。具体措辞修正：“运行实例已确认”改为“云端配置已确认；官网健康、真实HTML和完整图片另验”，因为本次确实观察到配置先正常、官网稍后才切换。没有删授权检查或对事务强行并行，也没有为本段改SDK类型、CI部署提速、Hermes或pricing。
