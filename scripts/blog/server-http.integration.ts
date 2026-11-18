@@ -13,7 +13,7 @@ import { handlePublicApiEvent } from '../../apps/functions/public-api/src/http-a
 import {
   factoryVideoAsset,
   factoryVideoRangePath,
-} from '../../apps/site/src/lib/seo/video-record.ts';
+} from '../../apps/site/src/lib/seo/factory-video.ts';
 import { parseArticleContent } from '../../packages/articles/src/article.ts';
 import { createCloudBasePublicArticles } from '../../packages/db/src/article-public-reader.ts';
 import {

@@ -3,6 +3,7 @@ import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { factoryVideoAsset, factoryVideoRangePath } from '../../lib/seo/factory-video.ts';
 import {
   type WatchVideo,
   publicWatchVideos,
@@ -20,6 +21,10 @@ const { brand, nav, footer } = getSiteContent(DEFAULT_LOCALE);
 const origin = Astro.site ?? Astro.url.origin;
 const seconds = Math.round(video.durationSeconds);
 const page = watchPageDescriptor(video, origin, brand.name);
+const rangePlaybackPath =
+  video.src === factoryVideoAsset.source && video.sourceSha256 === factoryVideoAsset.sha256
+    ? factoryVideoRangePath
+    : undefined;
 ---
 
 <BaseLayout page={page} lang="en" socialImage={{ path: video.poster.src,
@@ -43,6 +48,7 @@ const page = watchPageDescriptor(video, origin, brand.name);
     <video controls playsinline preload="none" width={video.width} height={video.height}
       poster={video.poster.src} aria-label={video.title} aria-describedby="video-format video-description"
       class="block aspect-[4/3] w-full rounded-[var(--radius-card)] bg-black object-contain shadow-[var(--shadow-card)]">
+      {rangePlaybackPath && <source src={rangePlaybackPath} type="video/mp4" />}
       <source src={video.src} type="video/mp4" />
       <p>Your browser cannot play this video. <a href={video.src}>Open the video file</a> or read the scene summary below.</p>
     </video>

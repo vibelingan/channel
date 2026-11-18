@@ -5,7 +5,8 @@ import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import { loadEnv } from 'vite';
-import { factoryVideoAsset, publicWatchVideo } from './src/lib/seo/video-record.ts';
+import { factoryVideoAsset } from './src/lib/seo/factory-video.ts';
+import { publicWatchVideo } from './src/lib/seo/video-record.ts';
 
 const outDir = './dist-blog/';
 

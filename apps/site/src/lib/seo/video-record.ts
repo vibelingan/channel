@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { factoryVideoAsset } from './factory-video.ts';
 import { canonicalUrl, createPageDescriptor, siteOrigin } from './page.ts';
 
 const mediaPath = (extension: string) =>
@@ -46,18 +47,6 @@ export const WatchVideoSchema = z
     'Poster frame must belong to the video',
   );
 export type WatchVideo = z.infer<typeof WatchVideoSchema>;
-
-const factoryVideoSha256 = '3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d';
-
-/** Exactly one already-public asset is delivered by the range-capable Blog static server. */
-export const factoryVideoAsset = {
-  source: '/media/oem-factory.mp4',
-  sha256: factoryVideoSha256,
-  bytes: 7201197,
-  clientPath: `media/factory/oem-factory.${factoryVideoSha256.slice(0, 12)}.mp4`,
-} as const;
-
-export const factoryVideoRangePath = `/blog/${factoryVideoAsset.clientPath}`;
 
 // Existing client-supplied OEM.mp4. Facts and hashes were measured from this exact asset.
 // See docs/seo/continuation/next-phase-design-2026-11-05/evidence/video-factory-20261117.json.
