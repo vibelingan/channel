@@ -184,6 +184,7 @@ export function SkuDetailView({ content, state, onRetry, canonicalPath }: ViewPr
           <div className="grid min-w-0 gap-10 lg:grid-cols-2">
             <div className="min-w-0">
               <Gallery
+                imagePresentation={product.imagePresentation}
                 images={product.images ?? []}
                 alt={product.name}
                 productId={product._id}
@@ -268,6 +269,8 @@ export function SkuDetailView({ content, state, onRetry, canonicalPath }: ViewPr
                 >
                   <div className="aspect-square overflow-hidden bg-white">
                     <ProductMedia
+                      imagePresentation={candidate.imagePresentation}
+                      sizes="(min-width: 1024px) 280px, (min-width: 640px) 45vw, 90vw"
                       sources={candidate.images ?? []}
                       alt={candidate.name}
                       imageClassName="p-4"

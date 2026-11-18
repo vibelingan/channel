@@ -846,3 +846,45 @@ test('retiring an expired source import retains its exact original and web targe
   assert.equal(intent?.schemaVersion, 'image-deletion-web-v1');
   assert.deepEqual(intent?.storageFileIds, [target.storageFileId, web.storageFileId]);
 });
+
+test('source responsive preparation only appends targets and retirement preserves an unfinished set', async () => {
+  const { bindCatalogWebImage, catalogWebImagePath } = await import('./catalog-web-image.ts');
+  const f = await claimed();
+  const row = f.get('images', base.imageId);
+  assert.ok(row);
+  const source = { ...row, ...target, status: 'active' };
+  const sized = (width: number, sha: string) => {
+    const storagePath = catalogWebImagePath(base.imageId, target.checksumSha256, sha.repeat(64));
+    return bindCatalogWebImage(source, {
+      storageProvider: 'local-disk',
+      storagePath,
+      storageFileId: `local-disk:${storagePath}`,
+      mimeType: 'image/webp',
+      byteSize: width,
+      width,
+      height: width / 2,
+      checksumSha256: sha.repeat(64),
+    });
+  };
+  const original = { ...target, catalogWebImage: sized(800, 'b'), catalogWebVariants: {} };
+  assert.equal((await f.run({ ...checkpoint, target: original })).status, 'checkpointed');
+  assert.equal((await f.run({ ...activate, target: original })).status, 'conflict');
+  const partial = { ...original, catalogWebVariants: { '160': sized(160, 'c') } };
+  assert.equal((await f.run({ ...checkpoint, target: partial })).status, 'checkpointed');
+  assert.equal((await f.run({ ...checkpoint, target: original })).status, 'conflict');
+  assert.equal((await f.run({ ...activate, target })).status, 'conflict');
+  hold(f, base.imageId, 'cleanup');
+  assert.equal(
+    (await f.run({ action: 'retire', imageId: base.imageId, owner: 'cleanup', now: later })).status,
+    'retired',
+  );
+  const terminal = f.get('images', base.imageId);
+  assert.ok(terminal);
+  const intent = readImageDeletionIntent(terminal);
+  assert.equal(intent?.schemaVersion, 'image-deletion-web-v2');
+  assert.deepEqual(intent?.storageFileIds, [
+    target.storageFileId,
+    original.catalogWebImage.storageFileId,
+    partial.catalogWebVariants['160'].storageFileId,
+  ]);
+});

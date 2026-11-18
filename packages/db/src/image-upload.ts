@@ -12,8 +12,12 @@ import { readImageMutationState } from './adapter.ts';
 import { canFinalizePendingImageReferences } from './catalog-image-reference-store.ts';
 import {
   CatalogWebImageSchema,
+  CatalogWebVariantsSchema,
+  extendsCatalogWebVariants,
+  hasCompleteCatalogWebVariants,
   hasSafeCatalogImageDelivery,
   readCatalogWebImage,
+  readCatalogWebVariants,
 } from './catalog-web-image.ts';
 import type { ImageDeletionStore } from './image-deletion.ts';
 const token = z
@@ -41,6 +45,7 @@ export const ImageUploadCommandSchema = z.discriminatedUnion('action', [
       byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
       checksumSha256: digest,
       catalogWebImage: CatalogWebImageSchema.optional(),
+      catalogWebVariants: CatalogWebVariantsSchema.optional(),
     })
     .strict(),
   base
@@ -49,6 +54,7 @@ export const ImageUploadCommandSchema = z.discriminatedUnion('action', [
       byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
       checksumSha256: digest,
       catalogWebImage: CatalogWebImageSchema,
+      catalogWebVariants: CatalogWebVariantsSchema.optional(),
     })
     .strict(),
   base
@@ -66,6 +72,7 @@ const webPreparation = z
     byteSize: z.number().int().min(1).max(CATALOG_IMAGE_MAX_BYTES),
     checksumSha256: digest,
     catalogWebImage: CatalogWebImageSchema,
+    catalogWebVariants: CatalogWebVariantsSchema.optional(),
   })
   .strict();
 
@@ -186,7 +193,10 @@ export async function runImageUpload(
         image.checksumSha256 === command.checksumSha256 &&
         hasSafeCatalogImageDelivery(image) &&
         (command.catalogWebImage === undefined ||
-          isDeepStrictEqual(image.catalogWebImage, command.catalogWebImage))
+          isDeepStrictEqual(image.catalogWebImage, command.catalogWebImage)) &&
+        (command.catalogWebVariants === undefined ||
+          (isDeepStrictEqual(image.catalogWebVariants, command.catalogWebVariants) &&
+            hasCompleteCatalogWebVariants(image)))
           ? 'active'
           : 'conflict',
     };
@@ -261,11 +271,32 @@ export async function runImageUpload(
       byteSize: command.byteSize,
       checksumSha256: command.checksumSha256,
       catalogWebImage: command.catalogWebImage,
+      ...(command.catalogWebVariants !== undefined
+        ? { catalogWebVariants: command.catalogWebVariants }
+        : {}),
     });
+    if (
+      command.catalogWebVariants !== undefined &&
+      !readCatalogWebVariants({
+        ...activeSource,
+        catalogWebImage: command.catalogWebImage,
+        catalogWebVariants: command.catalogWebVariants,
+      })
+    )
+      return { status: 'conflict' };
     if (Object.hasOwn(image, 'imageWebPreparation')) {
-      return {
-        status: isDeepStrictEqual(image.imageWebPreparation, planned) ? 'checkpointed' : 'conflict',
-      };
+      const previous = readImageUploadWebPreparation(image);
+      if (
+        !previous ||
+        !isDeepStrictEqual(
+          { ...previous, catalogWebVariants: undefined },
+          { ...planned, catalogWebVariants: undefined },
+        ) ||
+        !extendsCatalogWebVariants(previous.catalogWebVariants, planned.catalogWebVariants) ||
+        (previous.catalogWebVariants !== undefined && planned.catalogWebVariants === undefined)
+      )
+        return { status: 'conflict' };
+      if (isDeepStrictEqual(previous, planned)) return { status: 'checkpointed' };
     }
     await store.set('images', { ...image, imageWebPreparation: planned, updatedAt: command.now });
     return { status: 'checkpointed' };
@@ -276,7 +307,8 @@ export async function runImageUpload(
       !planned ||
       planned.byteSize !== command.byteSize ||
       planned.checksumSha256 !== command.checksumSha256 ||
-      !isDeepStrictEqual(planned.catalogWebImage, command.catalogWebImage)
+      !isDeepStrictEqual(planned.catalogWebImage, command.catalogWebImage) ||
+      !isDeepStrictEqual(planned.catalogWebVariants, command.catalogWebVariants)
     )
       return { status: 'conflict' };
     if (
@@ -289,9 +321,14 @@ export async function runImageUpload(
   const active = {
     ...completedSource,
     ...(command.catalogWebImage ? { catalogWebImage: command.catalogWebImage } : {}),
+    ...(command.catalogWebVariants !== undefined
+      ? { catalogWebVariants: command.catalogWebVariants }
+      : {}),
     updatedAt: command.now,
   };
   if (!hasSafeCatalogImageDelivery(active)) return { status: 'conflict' };
+  if (command.catalogWebVariants !== undefined && !hasCompleteCatalogWebVariants(active))
+    return { status: 'conflict' };
   await store.set('images', {
     ...active,
     imageUploadCompletion: {

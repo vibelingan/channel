@@ -128,7 +128,14 @@ export async function protectedImagePreservesOriginalTarget(
     intent.attemptId !== marker.attemptId
   )
     return false;
-  const original: CollectionDoc = sourceRecord(intent);
+  let original: CollectionDoc;
+  try {
+    // Compare the same web bytes under the recorded original binding. A physical
+    // source move changes that binding, not the immutable derivative objects.
+    original = retargetCatalogWebImage(image, sourceRecord(intent));
+  } catch {
+    return false;
+  }
   // Display names may be edited after activation; they are not byte/storage identity.
   return Object.entries(target)
     .filter(([key]) => key !== 'name')

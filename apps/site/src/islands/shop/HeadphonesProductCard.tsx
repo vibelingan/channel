@@ -45,6 +45,8 @@ export function HeadphonesProductCard({
     >
       <div className="relative aspect-square overflow-hidden bg-white">
         <ProductMedia
+          imagePresentation={product.imagePresentation}
+          sizes="(min-width: 1280px) 280px, (min-width: 1024px) calc(33vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)"
           sources={product.images ?? []}
           alt={product.name}
           unavailableLabel={imageUnavailableLabel}

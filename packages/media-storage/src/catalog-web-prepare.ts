@@ -32,6 +32,8 @@ interface PrepareInput {
   storage: Pick<MediaStorageAdapter, 'putObject' | 'getObjectAsBase64'>;
   checkpoint(value: Readonly<PreparedCatalogWebObject>): Promise<void>;
   existing?: PreparedCatalogWebObject;
+  /** Explicit responsive preparation also handles small still originals. */
+  width?: 160 | 640 | 1280;
 }
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
@@ -40,6 +42,7 @@ export async function prepareCatalogWebObject(
   input: PrepareInput,
 ): Promise<PreparedCatalogWebObject | null> {
   if (
+    (input.width !== undefined && ![160, 640, 1280].includes(input.width)) ||
     !input.imageId ||
     input.imageId.length > 200 ||
     !input.bytes.length ||
@@ -91,6 +94,8 @@ export async function prepareCatalogWebObject(
       throw Error('Catalog web read-back pixels differ');
   };
   if (existing) {
+    if (existing.width > (input.width ?? 1280))
+      throw Error('Catalog web target exceeds its requested width');
     try {
       await verify(existing);
       return existing;
@@ -99,10 +104,10 @@ export async function prepareCatalogWebObject(
       // An unknown prior PUT may have left no bytes. Only the exact same immutable
       // content may be retried below; a corrupt readable object is never overwritten.
     }
-  } else if (input.bytes.length <= 100 * 1024) return null;
+  } else if (input.width === undefined && input.bytes.length <= 100 * 1024) return null;
   let generated: Awaited<ReturnType<typeof createCatalogWebImage>>;
   try {
-    generated = await createCatalogWebImage(input.bytes, input.mimeType);
+    generated = await createCatalogWebImage(input.bytes, input.mimeType, input.width ?? 1280);
   } catch (error) {
     if (
       error instanceof AnimatedCatalogWebImageError &&
@@ -148,4 +153,61 @@ export async function prepareCatalogWebObject(
     throw Error('Catalog web upload was not durably checkpointed');
   await verify(ready);
   return ready;
+}
+
+export interface PreparedCatalogWebVariants {
+  default: PreparedCatalogWebObject;
+  variants: {
+    '160'?: PreparedCatalogWebObject | undefined;
+    '640'?: PreparedCatalogWebObject | undefined;
+  };
+}
+
+/** Every checkpoint includes all earlier targets, including a PUT with an unknown outcome. */
+export async function prepareCatalogWebVariants(
+  input: Omit<PrepareInput, 'existing' | 'checkpoint' | 'width'> & {
+    existing?: PreparedCatalogWebVariants;
+    checkpoint(value: Readonly<PreparedCatalogWebVariants>): Promise<void>;
+  },
+): Promise<PreparedCatalogWebVariants | null> {
+  let planned = input.existing ? structuredClone(input.existing) : undefined;
+  const { existing: _existing, checkpoint: _checkpoint, ...source } = input;
+  const defaultObject = await prepareCatalogWebObject({
+    ...source,
+    // Keep the existing small-original admission rule for automatic ingestion.
+    ...(planned ? { existing: planned.default } : {}),
+    checkpoint: async (value) => {
+      const next = { default: value, variants: planned?.variants ?? {} };
+      await input.checkpoint(structuredClone(next));
+      planned = next;
+    },
+  });
+  if (!defaultObject) {
+    if (planned) throw Error('Existing web targets cannot be abandoned');
+    return null;
+  }
+  planned ??= { default: defaultObject, variants: {} };
+  for (const width of [160, 640] as const) {
+    const key = String(width) as '160' | '640';
+    if (defaultObject.width <= width) {
+      if (planned.variants[key]) throw Error('Unexpected duplicate catalog web target');
+      continue;
+    }
+    const existing = planned.variants[key];
+    const object = await prepareCatalogWebObject({
+      ...source,
+      width,
+      ...(existing ? { existing } : {}),
+      checkpoint: async (value) => {
+        if (!planned) throw Error('Catalog web default must be checkpointed first');
+        const next = { default: defaultObject, variants: { ...planned.variants, [key]: value } };
+        await input.checkpoint(structuredClone(next));
+        planned = next;
+      },
+    });
+    if (!object || object.width !== width) throw Error('Catalog responsive pixels differ');
+    // An existing target is verified without another write or database checkpoint.
+    planned = { default: defaultObject, variants: { ...planned.variants, [key]: object } };
+  }
+  return planned;
 }

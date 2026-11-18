@@ -178,15 +178,27 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     expect(web.height).toBe(800);
     expect(web.byteSize).toEqual(expect.any(Number));
     expect(Number(web.byteSize)).toBeLessThan(3_000_000);
+    const variants = record(image.catalogWebVariants);
+    const responsive = [160, 640].map((width) => {
+      const variant = record(variants[String(width)]);
+      expect(variant.width).toBe(width);
+      expect(variant.height).toBe((width * 1000) / 1600);
+      expect(variant.mimeType).toBe('image/webp');
+      return variant;
+    });
     const objects = [
       { storageFileId: image.storageFileId, storagePath: image.storagePath },
       { storageFileId: web.storageFileId, storagePath: web.storagePath },
+      ...responsive.map((variant) => ({
+        storageFileId: variant.storageFileId,
+        storagePath: variant.storagePath,
+      })),
     ];
     for (const object of objects) {
       expect(typeof object.storageFileId).toBe('string');
       expect(typeof object.storagePath).toBe('string');
     }
-    expect(new Set(objects.map((object) => object.storageFileId)).size).toBe(2);
+    expect(new Set(objects.map((object) => object.storageFileId)).size).toBe(4);
     receipt.objects = objects;
     const preview = await adminAction<{ mimeType: string; dataBase64: string }>(
       request,
@@ -220,12 +232,14 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       expect(result.image._id).toBe(imageId);
       expect(result.image.status).toBe('active');
       expect(result.image.catalogWebImage).toEqual(web);
+      expect(result.image.catalogWebVariants).toEqual(variants);
       expect(result.image.uploadedByUserId).toBeUndefined();
       expect(result.image.imageMutationOwner).toBeUndefined();
     }
     const replayed = await list();
     expect(replayed.items).toHaveLength(1);
     expect(replayed.items[0]?.catalogWebImage).toEqual(web);
+    expect(replayed.items[0]?.catalogWebVariants).toEqual(variants);
     expect(putCount).toBe(1);
     const anonymous = await request.get(`${e2e.apiUrl}/api/images/${imageId}`);
     expect(anonymous.status()).toBe(404);

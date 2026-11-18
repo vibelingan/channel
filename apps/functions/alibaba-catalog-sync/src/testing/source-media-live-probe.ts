@@ -9,7 +9,12 @@ import {
   removeDocIfFieldEquals,
   setAdapter,
 } from '@vibelingan-channel/db';
-import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
+import {
+  type CatalogWebImage,
+  hasCompleteCatalogWebVariants,
+  readCatalogWebImage,
+  readCatalogWebVariants,
+} from '@vibelingan-channel/db/catalog-web-image';
 import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
 import { mediaStorage, setMediaStorage } from '@vibelingan-channel/media-storage';
 import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
@@ -109,10 +114,17 @@ export async function main(event: unknown) {
     const { link, image } = await bound();
     if (image) {
       receipt.imageId = image._id;
-      receipt.objects = [image, readCatalogWebImage(image)].filter(Boolean).map((row) => ({
-        storageFileId: row?.storageFileId,
-        storagePath: row?.storagePath,
-      }));
+      const active = { ...image, status: 'active' };
+      receipt.objects = [
+        image,
+        readCatalogWebImage(active),
+        ...Object.values(readCatalogWebVariants(active) ?? {}),
+      ]
+        .filter(Boolean)
+        .map((row) => ({
+          storageFileId: row?.storageFileId,
+          storagePath: row?.storagePath,
+        }));
       const result =
         image.status === 'active' || image.status === 'deleted'
           ? await removeImportedCandidate(image._id)
@@ -192,6 +204,9 @@ export async function main(event: unknown) {
     assert.equal(image.checksumSha256, checksum);
     const web = readCatalogWebImage(image);
     assert.ok(web, 'Active source image has no safe web version');
+    assert.ok(hasCompleteCatalogWebVariants(image), 'Source image has no complete responsive set');
+    const variants = readCatalogWebVariants(image);
+    assert.ok(variants);
     const read = async (id: string, maximum: number) =>
       Buffer.from(
         (await mediaStorage().getObjectAsBase64(id, { maxBytes: maximum, timeoutMs: 30_000 })).body,
@@ -207,6 +222,26 @@ export async function main(event: unknown) {
     if (pixels.status === 'decoded') {
       assert.equal(pixels.width, web.width);
       assert.equal(pixels.height, web.height);
+    }
+    const responsiveSizes = [];
+    for (const width of [160, 640] as const) {
+      const variant: CatalogWebImage | undefined = variants[width];
+      assert.ok(variant);
+      const bytes = await read(variant.storageFileId, variant.byteSize);
+      assert.equal(sha256(bytes), variant.checksumSha256);
+      assert.equal(bytes.length, variant.byteSize);
+      const decoded = await decodeCatalogImagePixels(bytes, variant.mimeType);
+      assert.equal(decoded.status, 'decoded');
+      if (decoded.status === 'decoded') {
+        assert.equal(decoded.width, width);
+        assert.equal(decoded.height, variant.height);
+      }
+      responsiveSizes.push({
+        width,
+        height: variant.height,
+        byteSize: bytes.length,
+        sha256: variant.checksumSha256,
+      });
     }
     const second = await importCandidateImage(scope.sourceUrl, deps);
     assert.ok(second.ok);
@@ -226,10 +261,13 @@ export async function main(event: unknown) {
       webWidth: web.width,
       webHeight: web.height,
       webSha256: web.checksumSha256,
-      objects: [image, web].map((row) => ({
-        storageFileId: row.storageFileId,
-        storagePath: row.storagePath,
-      })),
+      responsiveSizes,
+      objects: [image, web, ...Object.values(variants)]
+        .filter((row) => row !== undefined)
+        .map((row) => ({
+          storageFileId: row.storageFileId,
+          storagePath: row.storagePath,
+        })),
     });
   } catch (error) {
     receipt.passed = false;

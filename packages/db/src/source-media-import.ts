@@ -14,10 +14,18 @@ import {
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
   canFinalizePendingImageReferences,
 } from './catalog-image-reference-store.ts';
-import { CatalogWebImageSchema, hasSafeCatalogImageDelivery } from './catalog-web-image.ts';
+import {
+  CatalogWebImageSchema,
+  CatalogWebVariantsSchema,
+  extendsCatalogWebVariants,
+  hasCompleteCatalogWebVariants,
+  hasSafeCatalogImageDelivery,
+  readCatalogWebVariants,
+} from './catalog-web-image.ts';
 import {
   ImageDeletionIntentSchema,
   type ImageDeletionStore,
+  hasResponsiveImageTargets,
   imageDeletionStorageTargets,
   planImageReferenceDeletion,
   readImageDeletionIntent,
@@ -61,6 +69,7 @@ export const SourceMediaTargetSchema = z
     mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
     name: z.string().min(1).max(200),
     catalogWebImage: CatalogWebImageSchema.optional(),
+    catalogWebVariants: CatalogWebVariantsSchema.optional(),
   })
   .strict()
   .refine(
@@ -199,7 +208,10 @@ function activeTargetMatches(image: CollectionDoc, target: SourceMediaTarget) {
     .every(([key, value]) => isDeepStrictEqual(image[key], value));
 }
 function targetMatches(image: CollectionDoc, target: SourceMediaTarget) {
-  return Object.entries(target).every(([key, value]) => isDeepStrictEqual(image[key], value));
+  return (
+    Object.hasOwn(image, 'catalogWebVariants') === Object.hasOwn(target, 'catalogWebVariants') &&
+    Object.entries(target).every(([key, value]) => isDeepStrictEqual(image[key], value))
+  );
 }
 function readyLink(
   link: CollectionDoc,
@@ -272,9 +284,11 @@ export async function runSourceMediaImport(
     const storage = imageDeletionStorageTargets(image);
     if (!storage) return { status: 'corrupt' };
     const intent = ImageDeletionIntentSchema.parse({
-      schemaVersion: Object.hasOwn(image, 'catalogWebImage')
-        ? 'image-deletion-web-v1'
-        : 'image-deletion-v1',
+      schemaVersion: hasResponsiveImageTargets(image)
+        ? 'image-deletion-web-v2'
+        : Object.hasOwn(image, 'catalogWebImage')
+          ? 'image-deletion-web-v1'
+          : 'image-deletion-v1',
       operationId: command.owner,
       uploadedByUserId: SOURCE_MEDIA_IMPORT_OWNER,
       startedAt: command.now,
@@ -410,7 +424,25 @@ export async function runSourceMediaImport(
     return { status: 'conflict' };
   if (readImageMutationState(image).state !== 'free') return { status: 'busy' };
   if (command.action === 'checkpoint') {
-    if (Object.hasOwn(image, 'storageFileId') && !targetMatches(image, command.target))
+    if (
+      Object.hasOwn(image, 'storageFileId') &&
+      (!Object.entries(command.target)
+        .filter(([key]) => key !== 'catalogWebVariants')
+        .every(([key, value]) => isDeepStrictEqual(image[key], value)) ||
+        !extendsCatalogWebVariants(image.catalogWebVariants, command.target.catalogWebVariants) ||
+        (Object.hasOwn(image, 'catalogWebImage') && command.target.catalogWebImage === undefined) ||
+        (Object.hasOwn(image, 'catalogWebVariants') &&
+          command.target.catalogWebVariants === undefined))
+    )
+      return { status: 'conflict' };
+    if (
+      command.target.catalogWebVariants !== undefined &&
+      !readCatalogWebVariants({
+        ...image,
+        ...command.target,
+        status: 'active',
+      })
+    )
       return { status: 'conflict' };
     const renewed = ownership.parse({
       ...current,
@@ -433,6 +465,8 @@ export async function runSourceMediaImport(
     if (!targetMatches(image, command.target)) return { status: 'conflict' };
     const active = { ...image, status: 'active', updatedAt: command.now };
     if (!hasSafeCatalogImageDelivery(active)) return { status: 'conflict' };
+    if (command.target.catalogWebVariants !== undefined && !hasCompleteCatalogWebVariants(active))
+      return { status: 'conflict' };
     await store.set('images', active);
     await store.set(
       'catalogSourceLinks',

@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import { readImageUploadWebPreparation, setAdapter } from '@vibelingan-channel/db';
-import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
+import {
+  hasCompleteCatalogWebVariants,
+  readCatalogWebImage,
+} from '@vibelingan-channel/db/catalog-web-image';
 import {
   type PutMediaObjectInput,
   type PutMediaObjectOptions,
@@ -94,6 +97,8 @@ test('the real local admin entry completes a large original, previews the verifi
   assert.ok(active);
   const web = readCatalogWebImage(active);
   assert.ok(web);
+  assert.equal(hasCompleteCatalogWebVariants(active), true);
+  assert.equal(storage.webWrites, 3);
   assert.equal(active.storageFileId, original.storageFileId);
   assert.equal(active.checksumSha256, originalSha);
   assert.equal(
@@ -148,7 +153,14 @@ test('an unknown web PUT result retains its target and the same authenticated re
   assert.ok(active);
   assert.equal(active.customAlt, 'Human edit during preparation');
   assert.deepEqual(readCatalogWebImage(active), target.catalogWebImage);
-  assert.equal(storage.webWrites, 1, 'Retry must not create or write another web image');
+  assert.equal(
+    storage.webWrites,
+    3,
+    'Retry reuses the first target and writes only the two missing sizes',
+  );
+  assert.equal(hasCompleteCatalogWebVariants(active), true);
+  success.parse(await call('completeUpload', { imageId: image._id }));
+  assert.equal(storage.webWrites, 3, 'A completed retry does not PUT any size again');
 });
 
 test('permission revoked during web preparation prevents activation and a later authorized retry resumes the same target', async (t) => {
@@ -169,5 +181,6 @@ test('permission revoked during web preparation prevents activation and a later 
   const active = await db.get('images', image._id);
   assert.ok(active);
   assert.ok(readCatalogWebImage(active));
-  assert.equal(storage.webWrites, 1);
+  assert.equal(storage.webWrites, 3);
+  assert.equal(hasCompleteCatalogWebVariants(active), true);
 });

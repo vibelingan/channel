@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -391,6 +391,89 @@ test(
         await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(6);
         await page.getByRole('button', { name: 'Show Less', exact: true }).click();
         await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(4);
+
+        // Real generated image bytes, local HTTP fixture, real browser selection.
+        const { largeCatalogPng } = await import(
+          '../../../../../packages/media-storage/src/catalog-image-fixtures.test-helper.ts'
+        );
+        const { createCatalogWebImage } = await import(
+          '../../../../../packages/media-storage/src/web-image.ts'
+        );
+        const original = await largeCatalogPng();
+        const outputs = new Map<number, Awaited<ReturnType<typeof createCatalogWebImage>>>();
+        for (const width of [160, 640, 1280] as const)
+          outputs.set(width, await createCatalogWebImage(original, 'image/png', width));
+        const source = '/api/images/responsive-20261118';
+        const selectedSizes: number[] = [];
+        await page.route('**/api/images/**', (route) => {
+          const url = new URL(route.request().url());
+          if (url.pathname.endsWith('/responsive-fallback') && url.searchParams.has('w'))
+            return route.fulfill({ status: 503, body: 'Prepared size unavailable' });
+          const width = Number(url.searchParams.get('w') ?? 1280);
+          const output = outputs.get(width);
+          assert.ok(output);
+          selectedSizes.push(width);
+          return route.fulfill({ contentType: 'image/webp', body: output.bytes });
+        });
+        const imagePresentation = {
+          [source]: [...outputs].map(([requested, value]) => ({
+            url: `${source}?w=${requested}`,
+            width: value.width,
+            height: value.height,
+          })),
+        };
+        await page.setViewportSize({ width: 375, height: 900 });
+        await mount(
+          galleryProps({ images: [source, '/api/images/unprepared'], imagePresentation }),
+        );
+        await expect(mainImage).toHaveJSProperty(
+          'currentSrc',
+          `${origin}api/images/responsive-20261118?w=640`,
+        );
+        const thumbnail = page.locator('[data-gallery-thumbnail="0"] img');
+        await expect(thumbnail).toHaveAttribute('sizes', '80px');
+        await expect(thumbnail).toHaveJSProperty(
+          'currentSrc',
+          `${origin}api/images/responsive-20261118?w=160`,
+        );
+        const screenshots = fileURLToPath(
+          new URL('../../../../../output/responsive-images-20261118/', import.meta.url),
+        );
+        await mkdir(screenshots, { recursive: true });
+        await page.screenshot({ path: join(screenshots, 'gallery-mobile.png'), fullPage: true });
+        assert.ok(selectedSizes.includes(160) && selectedSizes.includes(640));
+        await page.locator('[data-gallery-thumbnail="1"]').click();
+        await expect(mainImage).toHaveAttribute('src', '/api/images/unprepared');
+        assert.equal(
+          await mainImage.getAttribute('srcset'),
+          null,
+          'Unprepared next photo keeps its working original URL',
+        );
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.locator('[data-gallery-thumbnail="0"]').click();
+        await expect(mainImage).toHaveJSProperty('complete', true);
+        await page.screenshot({ path: join(screenshots, 'gallery-desktop.png'), fullPage: true });
+        const fallbackSource = '/api/images/responsive-fallback';
+        await mount(
+          galleryProps({
+            images: [fallbackSource],
+            imagePresentation: {
+              [fallbackSource]: imagePresentation[source].map((candidate) => ({
+                ...candidate,
+                url: candidate.url.replace(source, fallbackSource),
+              })),
+            },
+          }),
+        );
+        await expect(mainImage).toHaveJSProperty(
+          'currentSrc',
+          `${origin}api/images/responsive-fallback`,
+        );
+        assert.equal(
+          await mainImage.getAttribute('srcset'),
+          null,
+          'A failed size retries the same photo at its working default URL',
+        );
         assert.deepEqual(errors, []);
       } finally {
         await browser.close();

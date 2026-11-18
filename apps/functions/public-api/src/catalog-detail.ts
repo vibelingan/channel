@@ -11,6 +11,7 @@ import {
   readCatalogDetailPageSize,
 } from '@vibelingan-channel/shared/catalog-detail-pagination';
 import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
+import { budgetImagePresentation, publicImagePresentation } from './image-presentation.ts';
 
 export function createApprovedProductReader(read: {
   get: typeof defaultGet;
@@ -26,6 +27,7 @@ export function createApprovedProductReader(read: {
     sections = false,
     descriptionMedia = false,
     boundedPagination = false,
+    responsiveImages = false,
   ): Promise<ApiResult<CatalogDetailView>> {
     if (
       !Number.isSafeInteger(page) ||
@@ -139,7 +141,28 @@ export function createApprovedProductReader(read: {
       },
     });
     if (!decoded.ok) return err('INTERNAL_ERROR', 'Invalid approved detail.');
-    const result = ok(decoded.value);
+    const available =
+      CATALOG_DETAIL_PAGE_MAX_BYTES -
+      Buffer.byteLength(JSON.stringify(ok({ ...decoded.value, imagePresentation: {} }))) +
+      2;
+    const imagePresentation = responsiveImages
+      ? budgetImagePresentation(
+          await publicImagePresentation(
+            [
+              ...decoded.value.images,
+              ...(decoded.value.descriptionImages ?? []),
+              ...decoded.value.variants.items.flatMap((variant) => variant.images),
+            ],
+            list,
+          ),
+          available,
+        )
+      : undefined;
+    const result = ok(
+      imagePresentation && Object.keys(imagePresentation).length
+        ? { ...decoded.value, imagePresentation }
+        : decoded.value,
+    );
     if (Buffer.byteLength(JSON.stringify(result)) > CATALOG_DETAIL_PAGE_MAX_BYTES)
       return err('INTERNAL_ERROR', 'Approved detail exceeds its page budget.');
     return result;

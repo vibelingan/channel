@@ -7,7 +7,11 @@ import {
   buildCatalogImageReferencePlan,
   catalogImageReferenceEntry,
 } from './catalog-image-references.ts';
-import { catalogWebImagePath, readCatalogWebImage } from './catalog-web-image.ts';
+import {
+  catalogWebImagePath,
+  hasCompleteCatalogWebVariants,
+  readCatalogWebImage,
+} from './catalog-web-image.ts';
 import { type NodeSdkDatabase, manageImageUploadInCloudBase } from './cloudbase-adapter.ts';
 import {
   type ImageUploadCommand,
@@ -188,6 +192,54 @@ function readyWeb(byteSize: number) {
     checksumSha256: 'b'.repeat(64),
   };
 }
+
+test('responsive checkpoints append immutable targets; incomplete activation and omitted targets are rejected', async () => {
+  const f = seeded(true);
+  const byteSize = 4_500_001;
+  const web = readyWeb(byteSize);
+  const sized = (width: number, checksum: string) => {
+    const path = catalogWebImagePath(image._id, activate.checksumSha256, checksum.repeat(64));
+    return {
+      ...web,
+      width,
+      height: (width * 800) / 1280,
+      storagePath: path,
+      storageFileId: `local-disk:${path}`,
+      checksumSha256: checksum.repeat(64),
+    };
+  };
+  const small = sized(160, 'c');
+  const medium = sized(640, 'd');
+  const checkpoint = {
+    ...activate,
+    action: 'checkpoint-web' as const,
+    byteSize,
+    catalogWebImage: web,
+  };
+  const command = { ...activate, byteSize, catalogWebImage: web };
+  assert.equal((await f.run({ ...checkpoint, catalogWebVariants: {} })).status, 'checkpointed');
+  assert.equal((await f.run({ ...command, catalogWebVariants: {} })).status, 'conflict');
+  assert.equal(
+    (await f.run({ ...checkpoint, catalogWebVariants: { '160': small } })).status,
+    'checkpointed',
+  );
+  const before = f.snapshot();
+  for (const catalogWebVariants of [{}, { '160': { ...small, byteSize: 999 } }]) {
+    assert.equal((await f.run({ ...checkpoint, catalogWebVariants })).status, 'conflict');
+    assert.deepEqual(f.snapshot(), before);
+  }
+  const all = { '160': small, '640': medium };
+  assert.equal((await f.run({ ...checkpoint, catalogWebVariants: all })).status, 'checkpointed');
+  assert.equal(
+    (await f.run(command)).status,
+    'conflict',
+    'Old callers cannot silently discard planned sizes',
+  );
+  assert.equal((await f.run({ ...command, catalogWebVariants: all })).status, 'active');
+  const active = f.get('images', image._id);
+  assert.ok(active && hasCompleteCatalogWebVariants(active));
+  assert.equal(active.imageWebPreparation, undefined);
+});
 
 test('a fenced upload checkpoints its exact web target before activation and preserves the original and later human edits', async () => {
   const f = seeded(true);

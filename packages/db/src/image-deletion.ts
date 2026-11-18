@@ -12,7 +12,7 @@ import {
   CatalogImageReferenceError,
   catalogImageReferenceProofIds,
 } from './catalog-image-references.ts';
-import { readCatalogWebImage } from './catalog-web-image.ts';
+import { readCatalogWebImage, readCatalogWebVariants } from './catalog-web-image.ts';
 import { readImageUploadWebPreparation } from './image-upload.ts';
 
 const token = z
@@ -50,6 +50,13 @@ const intentFields = z.object({
 export const ImageDeletionIntentSchema = z.discriminatedUnion('schemaVersion', [
   intentFields
     .extend({
+      schemaVersion: z.literal('image-deletion-web-v2'),
+      uploadedByUserId: token.optional(),
+      storageFileIds: z.array(z.string().min(1).max(8192)).min(1).max(5),
+    })
+    .strict(),
+  intentFields
+    .extend({
       schemaVersion: z.literal('image-deletion-web-v1'),
       uploadedByUserId: token.optional(),
       storageFileIds: z.array(z.string().min(1).max(8192)).min(1).max(3),
@@ -77,7 +84,9 @@ export type ImageDeletionResult =
 
 export function imageDeletionStorageTargets(image: CollectionDoc) {
   let web = readCatalogWebImage({ ...image, status: 'active' });
+  let variants = readCatalogWebVariants({ ...image, status: 'active' });
   if (Object.hasOwn(image, 'catalogWebImage') && !web) return null;
+  if (Object.hasOwn(image, 'catalogWebVariants') && !variants) return null;
   if (Object.hasOwn(image, 'imageWebPreparation')) {
     const planned = readImageUploadWebPreparation(image);
     if (!planned) return null;
@@ -90,8 +99,26 @@ export function imageDeletionStorageTargets(image: CollectionDoc) {
     });
     if (!pendingWeb || (web && !isDeepStrictEqual(web, pendingWeb))) return null;
     web = pendingWeb;
+    if (planned.catalogWebVariants !== undefined) {
+      const pendingVariants = readCatalogWebVariants({
+        ...image,
+        status: 'active',
+        byteSize: planned.byteSize,
+        checksumSha256: planned.checksumSha256,
+        catalogWebImage: pendingWeb,
+        catalogWebVariants: planned.catalogWebVariants,
+      });
+      if (!pendingVariants || (variants && !isDeepStrictEqual(variants, pendingVariants)))
+        return null;
+      variants = pendingVariants;
+    }
   }
-  const values = [image.storageFileId, image.migrationStorageFileId, web?.storageFileId];
+  const values = [
+    image.storageFileId,
+    image.migrationStorageFileId,
+    web?.storageFileId,
+    ...Object.values(variants ?? {}).flatMap((value) => (value ? [value.storageFileId] : [])),
+  ];
   if (values.some((value) => value != null && typeof value !== 'string')) return null;
   const storageFileIds = [
     ...new Set(
@@ -107,6 +134,13 @@ export function imageDeletionStorageTargets(image: CollectionDoc) {
     return null;
   if (storageFileIds.some((value) => value.length > 8192)) return null;
   return { storageProvider, storageFileIds };
+}
+
+export function hasResponsiveImageTargets(image: CollectionDoc): boolean {
+  const preparation = readImageUploadWebPreparation(image);
+  return (
+    Object.hasOwn(image, 'catalogWebVariants') || preparation?.catalogWebVariants !== undefined
+  );
 }
 
 /** Only a persisted terminal row with unchanged storage identity may be resumed. */
@@ -216,8 +250,9 @@ export async function runImageDeletion(
   const storage = imageDeletionStorageTargets(image);
   if (!storage) return { status: 'corrupt' };
   const parsedIntent = ImageDeletionIntentSchema.safeParse({
-    schemaVersion:
-      Object.hasOwn(image, 'catalogWebImage') || Object.hasOwn(image, 'imageWebPreparation')
+    schemaVersion: hasResponsiveImageTargets(image)
+      ? 'image-deletion-web-v2'
+      : Object.hasOwn(image, 'catalogWebImage') || Object.hasOwn(image, 'imageWebPreparation')
         ? 'image-deletion-web-v1'
         : image.uploadedByUserId === undefined
           ? 'image-deletion-ownerless-v1'

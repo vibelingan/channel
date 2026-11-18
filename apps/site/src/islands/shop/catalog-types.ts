@@ -1,5 +1,6 @@
 /** Pure storefront catalog DTOs shared by runtime clients and contract tests. */
 import type { ManualCatalogPricing, ProductFamily } from '@vibelingan-channel/shared';
+import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
 
 export type { ProductFamily } from '@vibelingan-channel/shared';
 
@@ -43,6 +44,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  imagePresentation?: CatalogImagePresentation;
   publicPageReady?: boolean;
   _id: string;
   name: string;

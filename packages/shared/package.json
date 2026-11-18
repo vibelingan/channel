@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./catalog": "./src/catalog/index.ts",
+    "./catalog-image-presentation": "./src/catalog/image-presentation.ts",
     "./catalog-pricing": "./src/catalog/offer-pricing.ts",
     "./catalog-detail": "./src/catalog/product-detail.ts",
     "./catalog-detail-approval": "./src/catalog/detail-approval.ts",

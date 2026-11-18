@@ -56,6 +56,43 @@ test('detail 404 falls back to the anonymous base product, but outages never sil
   await assert.rejects(() => collectProductSnapshot(origin, origin, transport(undefined, 503)));
 });
 
+test('size hints preserve the legacy content revision and saved strict detail shape', async () => {
+  const source = '/api/images/image-1';
+  const imagePresentation = { [source]: [{ url: `${source}?w=160`, width: 160, height: 100 }] };
+  const baseProduct = { ...row, images: [source] };
+  const api =
+    (
+      product: typeof baseProduct & { imagePresentation?: typeof imagePresentation },
+    ): typeof fetch =>
+    async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/detail')) return new Response('', { status: 404 });
+      return Response.json({
+        ok: true,
+        data:
+          url.pathname === `/api/products/${row._id}`
+            ? product
+            : { items: [product], page: 1, pageSize: 48, total: 1 },
+      });
+    };
+  const before = await collectProductSnapshot(origin, origin, api(baseProduct));
+  const after = await collectProductSnapshot(
+    origin,
+    origin,
+    api({ ...baseProduct, imagePresentation }),
+  );
+  assert.equal(after.products[0]?.revision, before.products[0]?.revision);
+  assert.deepEqual(after.products[0]?.product.imagePresentation, imagePresentation);
+  const original = transport({ ...detailFixture(), imagePresentation });
+  const approved = await collectProductSnapshot(origin, origin, async (input, init) => {
+    if (new URL(String(input)).pathname.endsWith('/detail'))
+      assert.equal(new URL(String(input)).searchParams.has('media'), false);
+    return original(input, init);
+  });
+  assert.equal(approved.products[0]?.detail?.imagePresentation, undefined);
+  assert.equal(approved.products[0]?.detail?.revision, 'approved-r1');
+});
+
 test('changing public inventory aborts instead of producing a partial sitemap', async () => {
   let count = 0;
   const api: typeof fetch = async (input, init) => {

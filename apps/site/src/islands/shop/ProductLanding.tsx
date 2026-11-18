@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CatalogDetailController } from '../../catalog/application/CatalogDetailController.tsx';
 import { CatalogQuoteTransportContext } from '../../catalog/application/catalog-quote-transport.ts';
 import { submitPublicQuote } from '../../catalog/application/public-quote-transport.ts';
@@ -22,6 +22,15 @@ export function ProductLanding({
   canonicalPath: string;
 }) {
   const [variant, setVariant] = useState<string>();
+  const presentedBootstrap = useMemo(() => {
+    if (!bootstrap || !product.imagePresentation) return bootstrap;
+    const imagePresentation = Object.fromEntries(
+      Object.entries(product.imagePresentation).filter(([source]) =>
+        bootstrap.images.includes(source),
+      ),
+    );
+    return { ...bootstrap, imagePresentation };
+  }, [bootstrap, product.imagePresentation]);
   useEffect(() => {
     const read = () =>
       setVariant(new URLSearchParams(window.location.search).get('variant') ?? undefined);
@@ -42,7 +51,7 @@ export function ProductLanding({
     <CatalogQuoteTransportContext.Provider value={submitPublicQuote}>
       <CatalogDetailController
         productId={product._id}
-        bootstrap={bootstrap}
+        bootstrap={presentedBootstrap ?? bootstrap}
         copy={copy}
         requestedId={variant}
         onVariantChange={(id) => {

@@ -100,6 +100,7 @@ export function ProductDetail({ content }: Props) {
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
         <Gallery
+          imagePresentation={product.imagePresentation}
           images={product.images ?? []}
           alt={product.name}
           productId={product._id}

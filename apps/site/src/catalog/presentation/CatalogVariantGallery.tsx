@@ -1,4 +1,5 @@
 import type { CatalogDetailVariant } from '@vibelingan-channel/shared/catalog-detail';
+import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { useState } from 'react';
 import { Gallery, boundedGalleryImages } from '../../islands/shop/Gallery.tsx';
 import { catalogVariantLabels } from '../application/catalog-variant-labels.ts';
@@ -10,6 +11,7 @@ import type { VariantSelection } from '../application/catalog-variant-state.ts';
 import { useCatalogImagePrefetch } from '../application/use-catalog-image-prefetch.ts';
 
 export interface CatalogVariantGalleryProps {
+  imagePresentation?: CatalogImagePresentation | undefined;
   productId: string;
   revision?: string;
   name: string;
@@ -30,6 +32,7 @@ export interface CatalogVariantGalleryProps {
 const identity = (source: string) => source;
 
 function Session({
+  imagePresentation,
   productId,
   name,
   images,
@@ -75,6 +78,7 @@ function Session({
         Product photos
       </p>
       <Gallery
+        imagePresentation={imagePresentation}
         images={photos}
         imageLabels={photos.map((source) =>
           assigned.has(source)

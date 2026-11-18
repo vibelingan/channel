@@ -1,6 +1,10 @@
 /** Provider-neutral detail DTO. Authorization/publication happens before projection. */
 import { z } from 'zod';
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
+import {
+  CatalogImagePresentationSchema,
+  imagePresentationMatchesSources,
+} from './image-presentation.ts';
 import { PublicProductSchema } from './index.ts';
 import { catalogIssuesFromZod } from './issues.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
@@ -136,6 +140,7 @@ export const CatalogDetailPublicationSchema = z
   });
 
 const detailBase = CatalogDetailHeaderSchema.extend({
+  imagePresentation: CatalogImagePresentationSchema.optional(),
   revision: text(200).optional(),
   variants: z
     .object({
@@ -148,10 +153,26 @@ const detailBase = CatalogDetailHeaderSchema.extend({
     .strict(),
 }).strict();
 const validatePage = (
-  detail: { variants: z.infer<typeof detailBase>['variants'] },
+  detail: Pick<
+    z.infer<typeof detailBase>,
+    'variants' | 'images' | 'descriptionImages' | 'imagePresentation'
+  >,
   ctx: z.RefinementCtx,
 ) => {
   const { items, page, pageSize, total, hasMore } = detail.variants;
+  if (
+    detail.imagePresentation &&
+    !imagePresentationMatchesSources(detail.imagePresentation, [
+      ...detail.images,
+      ...(detail.descriptionImages ?? []),
+      ...items.flatMap((item) => item.images),
+    ])
+  )
+    ctx.addIssue({
+      code: 'custom',
+      path: ['imagePresentation'],
+      message: 'Unrelated image presentation',
+    });
   const offset = (page - 1) * pageSize;
   const expected = Math.max(0, Math.min(pageSize, total - offset));
   if (

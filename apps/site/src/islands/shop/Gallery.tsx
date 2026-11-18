@@ -1,9 +1,11 @@
+import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { useEffect, useRef, useState } from 'react';
 import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
 interface Props {
+  imagePresentation?: CatalogImagePresentation | undefined;
   images: readonly string[];
   imageLabels?: readonly string[];
   resolveImage?: (source: string) => string | undefined;
@@ -26,6 +28,7 @@ interface Props {
 }
 
 interface GalleryThumbnailListProps {
+  imagePresentation?: CatalogImagePresentation | undefined;
   images: readonly string[];
   imageLabels?: readonly string[];
   resolveImage?: (source: string) => string | undefined;
@@ -81,6 +84,7 @@ export function gallerySessionKey(
 }
 
 export function GalleryThumbnailList({
+  imagePresentation,
   images,
   imageLabels,
   resolveImage,
@@ -124,6 +128,8 @@ export function GalleryThumbnailList({
             aria-pressed={index === activeIndex}
           >
             <ProductMedia
+              imagePresentation={imagePresentation}
+              sizes="80px"
               sources={resolveImage ? [resolveImage(image) ?? ''] : [image]}
               alt=""
               unavailableLabel={unavailableLabel}
@@ -155,6 +161,7 @@ export function GalleryThumbnailList({
 }
 
 function GallerySession({
+  imagePresentation,
   images,
   imageLabels,
   resolveImage,
@@ -205,6 +212,8 @@ function GallerySession({
         }
       >
         <ProductMedia
+          imagePresentation={imagePresentation}
+          sizes="(min-width: 1280px) 520px, (min-width: 1024px) calc(50vw - 88px), (min-width: 640px) 520px, calc(100vw - 72px)"
           sources={resolvedSource ? [resolvedSource] : []}
           alt={imageLabels?.[activeIndex] || alt}
           unavailableLabel={unavailableLabel}
@@ -221,6 +230,7 @@ function GallerySession({
         </p>
       )}
       <GalleryThumbnailList
+        imagePresentation={imagePresentation}
         images={images}
         imageLabels={imageLabels}
         resolveImage={resolveImage}
@@ -244,6 +254,7 @@ function GallerySession({
 }
 
 export function Gallery({
+  imagePresentation,
   images,
   imageLabels,
   resolveImage,
@@ -271,6 +282,7 @@ export function Gallery({
   const list = layout === 'detail' ? [...new Set(sources)] : boundedGalleryImages(sources);
   return (
     <GallerySession
+      imagePresentation={imagePresentation}
       key={gallerySessionKey(productId, list)}
       images={list}
       imageLabels={

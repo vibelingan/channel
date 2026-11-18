@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { PublicProductSchema } from '@vibelingan-channel/shared/catalog';
 import { decodeCatalogDetailView } from '@vibelingan-channel/shared/catalog-detail';
+import { imagePresentationMatchesSources } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { z } from 'zod';
 import { startDetailPages } from '../../catalog/application/catalog-detail-pages.ts';
 import {
@@ -39,6 +40,10 @@ export interface ProductSnapshot {
 }
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+function legacyRevision(product: SeoPublicProduct): string {
+  const { imagePresentation: _presentation, ...content } = product;
+  return `legacy-${hash(content)}`;
+}
 function projectRow(value: unknown): SeoPublicProduct {
   const record = z.record(z.unknown()).parse(value);
   const fields: Record<string, unknown> = {};
@@ -49,6 +54,11 @@ function projectRow(value: unknown): SeoPublicProduct {
     if (item !== undefined && key !== 'publicPageReady') fields[key] = item;
   }
   const row = publicRow.parse(fields);
+  if (
+    row.imagePresentation &&
+    !imagePresentationMatchesSources(row.imagePresentation, row.images ?? [])
+  )
+    throw Error(`Unrelated image presentation: ${row._id}`);
   productKey(row._id);
   if (row.published === false) throw new Error(`Non-public product in snapshot: ${row._id}`);
   // Only public same-origin media routes or HTTPS assets; no data/javascript URLs.
@@ -64,7 +74,9 @@ function projectDetail(value: unknown, id: string): DetailPage {
   const decoded = decodeCatalogDetailView(value);
   if (!decoded.ok || !decoded.value.revision || decoded.value._id !== id)
     throw new Error(`Invalid public detail: ${id}`);
-  const detail = { ...decoded.value, revision: decoded.value.revision };
+  // Keep saved detail DTOs readable by accepted older renderers with strict decoders.
+  const { imagePresentation: _presentation, ...approved } = decoded.value;
+  const detail = { ...approved, revision: decoded.value.revision };
   const pages = startDetailPages(detail, new TextEncoder().encode(JSON.stringify(detail)).length);
   if (pages.status !== 'ready') throw new Error(`Invalid initial detail page: ${id}`);
   return detail;
@@ -106,7 +118,7 @@ export function decodeProductSnapshot(value: unknown, expectedSite: string): Pro
     ids.add(product._id);
     const detail =
       entry.detail === undefined ? undefined : projectDetail(entry.detail, product._id);
-    const revision = detail?.revision ?? `legacy-${hash(product)}`;
+    const revision = detail?.revision ?? legacyRevision(product);
     if (entry.revision !== revision) throw new Error(`Snapshot revision mismatch: ${product._id}`);
     return {
       product,
@@ -174,7 +186,7 @@ async function inventoryPage(page: number, api: typeof fetch) {
       page: z.number().int().positive(),
       pageSize: z.number().int().min(1).max(100),
     })
-    .parse(await publicJson(`/api/products?page=${page}&pageSize=48`, api));
+    .parse(await publicJson(`/api/products?page=${page}&pageSize=48&media=responsive-v1`, api));
 }
 
 /**
@@ -329,16 +341,19 @@ async function captureEntry(
   listed: SeoPublicProduct,
   api: typeof fetch,
 ): Promise<ProductSnapshotEntry> {
-  const result = await fetchCatalogDetailPage({ productId: listed._id }, { fetch: api });
+  const result = await fetchCatalogDetailPage(
+    { productId: listed._id },
+    { fetch: api, includeImagePresentation: false },
+  );
   if (result.status === 'ready')
     return { product: listed, detail: result.detail, revision: result.detail.revision };
   if (result.status !== 'not-found')
     throw new Error(`Public detail ${listed._id}: ${result.status}`);
   const product = projectRow(
-    await publicJson(`/api/products/${encodeURIComponent(listed._id)}`, api),
+    await publicJson(`/api/products/${encodeURIComponent(listed._id)}?media=responsive-v1`, api),
   );
   if (product._id !== listed._id) throw new Error('Public base detail identity mismatch');
-  return { product, revision: `legacy-${hash(product)}` };
+  return { product, revision: legacyRevision(product) };
 }
 async function verifyEntry(entry: ProductSnapshotEntry, api: typeof fetch): Promise<void> {
   if (entry.detail) {
@@ -348,13 +363,16 @@ async function verifyEntry(entry: ProductSnapshotEntry, api: typeof fetch): Prom
         revision: entry.revision,
         pageSize: entry.detail.variants.pageSize,
       },
-      { fetch: api },
+      { fetch: api, includeImagePresentation: false },
     );
     if (check.status !== 'ready' || hash(check.detail) !== hash(entry.detail))
       throw new Error(`Public revision changed: ${entry.product._id}`);
   } else {
     const check = projectRow(
-      await publicJson(`/api/products/${encodeURIComponent(entry.product._id)}`, api),
+      await publicJson(
+        `/api/products/${encodeURIComponent(entry.product._id)}?media=responsive-v1`,
+        api,
+      ),
     );
     if (publicCardHash(check) !== publicCardHash(entry.product))
       throw new Error(`Legacy public product changed: ${entry.product._id}`);
@@ -442,6 +460,10 @@ export async function collectProductRefresh(
 }
 
 function publicCardHash(product: SeoPublicProduct): string {
-  const { alibabaSourceLastSyncedAt: _pollTime, ...content } = product;
+  const {
+    alibabaSourceLastSyncedAt: _pollTime,
+    imagePresentation: _presentation,
+    ...content
+  } = product;
   return hash(content);
 }

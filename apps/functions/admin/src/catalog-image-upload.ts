@@ -15,12 +15,14 @@ import {
 } from '@vibelingan-channel/db';
 import {
   type CatalogWebImage,
+  type CatalogWebVariants,
   bindCatalogWebImage,
+  bindCatalogWebVariants,
   hasSafeCatalogImageDelivery,
   readCatalogWebImage,
 } from '@vibelingan-channel/db/catalog-web-image';
 import { isMediaReadError, mediaStorage } from '@vibelingan-channel/media-storage';
-import { prepareCatalogWebObject } from '@vibelingan-channel/media-storage/catalog-web-prepare';
+import { prepareCatalogWebVariants } from '@vibelingan-channel/media-storage/catalog-web-prepare';
 import { AnimatedCatalogWebImageError } from '@vibelingan-channel/media-storage/web-image';
 import {
   CATALOG_IMAGE_MAX_BYTES,
@@ -130,6 +132,7 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
     )
       return await reject('content', 'Uploaded bytes are not a valid image of the declared type.');
     let webImage: CatalogWebImage | undefined;
+    let webVariants: CatalogWebVariants | undefined;
     if (!readCatalogWebImage(image)) {
       const planned = readImageUploadWebPreparation(image);
       if (
@@ -140,30 +143,47 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
       const activeSource = { ...image, status: 'active', byteSize, checksumSha256 };
       let checkpointFailure: 'forbidden' | 'conflict' | undefined;
       try {
-        const object = await prepareCatalogWebObject({
+        const save = async (candidate: CatalogWebImage, variants: CatalogWebVariants) => {
+          const saved = await persist({
+            ...base,
+            action: 'checkpoint-web',
+            byteSize,
+            checksumSha256,
+            catalogWebImage: candidate,
+            catalogWebVariants: variants,
+            now: new Date().toISOString(),
+          });
+          if (saved.status !== 'checkpointed') {
+            checkpointFailure = saved.status === 'forbidden' ? 'forbidden' : 'conflict';
+            throw Error('Catalog web checkpoint was not authorized');
+          }
+        };
+        let lastVariants = planned?.catalogWebVariants;
+        const object = await prepareCatalogWebVariants({
           imageId,
           bytes,
           mimeType: String(image.mimeType),
           checksumSha256,
           storage: mediaStorage(),
-          ...(planned ? { existing: planned.catalogWebImage } : {}),
+          ...(planned
+            ? {
+                existing: {
+                  default: planned.catalogWebImage,
+                  variants: planned.catalogWebVariants ?? {},
+                },
+              }
+            : {}),
           checkpoint: async (value) => {
-            const candidate = bindCatalogWebImage(activeSource, value);
-            const saved = await persist({
-              ...base,
-              action: 'checkpoint-web',
-              byteSize,
-              checksumSha256,
-              catalogWebImage: candidate,
-              now: new Date().toISOString(),
-            });
-            if (saved.status !== 'checkpointed') {
-              checkpointFailure = saved.status === 'forbidden' ? 'forbidden' : 'conflict';
-              throw Error('Catalog web checkpoint was not authorized');
-            }
+            const variants = bindCatalogWebVariants(activeSource, value.variants);
+            await save(bindCatalogWebImage(activeSource, value.default), variants);
+            lastVariants = variants;
           },
         });
-        if (object) webImage = bindCatalogWebImage(activeSource, object);
+        if (object) {
+          webImage = bindCatalogWebImage(activeSource, object.default);
+          webVariants = bindCatalogWebVariants(activeSource, object.variants);
+          if (!isDeepStrictEqual(lastVariants, webVariants)) await save(webImage, webVariants);
+        }
       } catch (error) {
         if (checkpointFailure === 'forbidden')
           return err('FORBIDDEN', 'You no longer have permission to complete this upload.');
@@ -186,6 +206,7 @@ export async function finalizeCatalogImageUpload(imageId: string, actorId: strin
       byteSize,
       checksumSha256,
       ...(webImage ? { catalogWebImage: webImage } : {}),
+      ...(webVariants !== undefined ? { catalogWebVariants: webVariants } : {}),
       now: new Date().toISOString(),
     });
     if (result.status === 'forbidden')

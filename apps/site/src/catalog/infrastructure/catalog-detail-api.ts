@@ -30,6 +30,8 @@ export interface DetailPageRequest {
   revision?: string;
 }
 export interface DetailTransport {
+  /** Saved snapshots keep the strict detail DTO accepted by earlier renderers. */
+  includeImagePresentation?: boolean;
   signal?: AbortSignal;
   fetch?: typeof globalThis.fetch;
 }
@@ -138,6 +140,7 @@ export async function fetchCatalogDetailPage(
     view: 'sections-media',
     pagination: 'byte-budget-v1',
   });
+  if (transport.includeImagePresentation !== false) query.set('media', 'responsive-v1');
   if (revision !== undefined) query.set('revision', revision);
   let response: Response;
   try {

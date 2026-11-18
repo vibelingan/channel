@@ -240,7 +240,7 @@ function queryParams(event: Record<string, unknown>, url: URL): URLSearchParams 
   const raw = new URLSearchParams(
     typeof event.rawQueryString === 'string' ? event.rawQueryString : '',
   );
-  for (const key of ['family', 'productFamily', 'subcategoryIds', 'category']) {
+  for (const key of ['family', 'productFamily', 'subcategoryIds', 'category', 'w', 'media']) {
     const sources = [url.searchParams.getAll(key), raw.getAll(key)];
     for (const source of [event.queryStringParameters, event.multiValueQueryStringParameters]) {
       if (!isRecord(source) || !hasKey(source, key)) continue;
@@ -328,8 +328,9 @@ function apiSegments(path: string): string[] {
 
 async function routeGet(
   event: Record<string, unknown>,
-  config: PublicHttpConfig,
+  initialConfig: PublicHttpConfig,
 ): Promise<HttpResponse> {
+  let config = initialConfig;
   const rawPath = requestPath(event);
   const originalRawPath = typeof event.rawPath === 'string' ? event.rawPath : rawPath;
   if (pathHasUnsafeEncodedSegment(originalRawPath)) {
@@ -428,6 +429,18 @@ async function routeGet(
   }
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
+  if (collection === 'products') {
+    if (
+      params.getAll('media').length > 1 ||
+      (params.has('media') && params.get('media') !== 'responsive-v1')
+    )
+      return jsonResponse(
+        event,
+        config,
+        err('VALIDATION_ERROR', 'Invalid image presentation mode'),
+      );
+    config = { ...config, imagePresentation: params.get('media') === 'responsive-v1' };
+  }
   if (
     segments[0] === 'products' &&
     segments[1] !== 'slug' &&
@@ -463,6 +476,7 @@ async function routeGet(
         ['sections', 'sections-media'].includes(params.get('view') ?? ''),
         params.get('view') === 'sections-media',
         params.get('pagination') === 'byte-budget-v1',
+        config.imagePresentation === true,
       ),
       undefined,
       { ...CATALOG_CACHE_HEADERS, 'Cache-Control': 'no-store' },
@@ -504,7 +518,18 @@ async function routeGet(
   }
 
   if (segments[0] === 'images' && segments.length === 2) {
-    const result = await getCatalogImage(decodeSegment(segments[1] ?? ''));
+    const widths = params.getAll('w');
+    if (
+      widths.length > 1 ||
+      (widths.length === 1 && !['160', '640', '1280'].includes(widths[0] ?? ''))
+    )
+      return jsonResponse(
+        event,
+        config,
+        err('VALIDATION_ERROR', 'Unsupported or repeated image width'),
+      );
+    const width = widths.length === 0 ? undefined : (Number(widths[0]) as 160 | 640 | 1280);
+    const result = await getCatalogImage(decodeSegment(segments[1] ?? ''), width);
     return result.ok && 'isBase64Encoded' in result
       ? binaryResponse(event, config, result)
       : !result.ok && result.error.code === 'INTERNAL_ERROR'

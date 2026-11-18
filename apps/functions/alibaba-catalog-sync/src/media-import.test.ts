@@ -14,7 +14,10 @@ import {
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
-import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
+import {
+  hasCompleteCatalogWebVariants,
+  readCatalogWebImage,
+} from '@vibelingan-channel/db/catalog-web-image';
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
@@ -483,9 +486,10 @@ test('a real large Alibaba image is checkpointed with its verified web copy befo
   assert.ok(web);
   assert.equal(web.width, 1280);
   assert.equal(web.height, 800);
+  assert.equal(hasCompleteCatalogWebVariants(image), true);
   assert.deepEqual(
     storage.puts.map((p) => p.namespace),
-    ['catalog-web', 'catalog'],
+    ['catalog-web', 'catalog-web', 'catalog-web', 'catalog'],
   );
   assert.equal(storage.objects.get(web.storageFileId)?.length, web.byteSize);
   const again = await importCandidateImage(url, { fetchImpl, resolveDns: PUBLIC_DNS });
@@ -493,8 +497,8 @@ test('a real large Alibaba image is checkpointed with its verified web copy befo
   assert.equal(again.imageId, result.imageId);
   assert.equal(
     storage.puts.length,
-    2,
-    'A repeated completed source must not upload either copy again',
+    4,
+    'A repeated completed source must not upload the original or any size again',
   );
 });
 

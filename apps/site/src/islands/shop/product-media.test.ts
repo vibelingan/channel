@@ -25,6 +25,42 @@ const SOURCES = [
   'https://media.example.test/three.jpg',
 ] as const;
 
+test('responsive SSR preserves photo identity and alt and uses actual widths and thumbnail slot sizes', () => {
+  const source = '/api/images/ready';
+  const imagePresentation = {
+    [source]: [
+      { url: `${source}?w=160`, width: 160, height: 100 },
+      { url: `${source}?w=640`, width: 640, height: 400 },
+      { url: `${source}?w=1280`, width: 800, height: 500 },
+    ],
+  };
+  const html = renderToStaticMarkup(
+    createElement(Gallery, {
+      images: [source, '/api/images/other'],
+      alt: 'Human caption',
+      layout: 'detail',
+      imagePresentation,
+    }),
+  );
+  assert.match(html, /src="\/api\/images\/ready"/);
+  assert.match(html, /alt="Human caption"/);
+  assert.match(html, /srcSet="[^"]*\?w=160 160w[^\"]*\?w=640 640w[^\"]*\?w=1280 800w"/);
+  assert.equal(html.includes('1280w'), false, 'A maximum request is not the actual pixel width');
+  assert.match(html, /sizes="80px"/);
+  const fallback = renderToStaticMarkup(
+    createElement(ProductMedia, {
+      sources: ['/api/images/other'],
+      alt: 'Other photo',
+      imagePresentation,
+    }),
+  );
+  assert.equal(
+    fallback.includes('srcSet='),
+    false,
+    'A different fallback never inherits the old photo candidates',
+  );
+});
+
 test('supplier gallery requests never send the admin preview URL as a referrer', () => {
   const html = renderToStaticMarkup(
     createElement(ProductMedia, { sources: SOURCES, alt: 'Headset' }),

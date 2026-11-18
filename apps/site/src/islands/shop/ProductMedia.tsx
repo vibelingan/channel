@@ -1,9 +1,11 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   advanceFailedMedia,
   catalogMediaSourceId,
   createCatalogMediaState,
 } from '../../catalog/application/catalog-media.ts';
+import { responsiveImageAttributes } from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export interface ProductMediaState {
@@ -19,6 +21,8 @@ export type ProductMediaAction = {
 };
 
 export interface ProductMediaProps {
+  imagePresentation?: CatalogImagePresentation | undefined;
+  sizes?: string;
   sources: readonly string[];
   alt: string;
   unavailableLabel?: string;
@@ -78,11 +82,28 @@ function ProductMediaSession({
   loading = 'lazy',
   fetchPriority = 'auto',
   onLoad,
+  imagePresentation,
+  sizes = '100vw',
 }: ProductMediaProps) {
   const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
+  const [failedResponsiveSources, setFailedResponsiveSources] = useState<string[]>([]);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const source = sources[state.activeIndex];
+  const responsive = responsiveImageAttributes(source, imagePresentation, sizes);
+  const useResponsive = !!responsive.srcSet && !failedResponsiveSources.includes(source ?? '');
+  const activeIndex = state.activeIndex;
+  const handleFailure = useCallback(() => {
+    if (source === undefined) return;
+    if (useResponsive) {
+      // Retry this same photo once at its unchanged default URL before advancing.
+      setFailedResponsiveSources((previous) =>
+        previous.includes(source) ? previous : [...previous, source],
+      );
+      return;
+    }
+    dispatch({ type: 'sourceFailed', sourceIndex: activeIndex, source, sources });
+  }, [activeIndex, source, sources, useResponsive]);
 
   useEffect(() => {
     setUnavailableAnnouncement(source === undefined && alt ? `${alt}. ${unavailableLabel}` : '');
@@ -92,14 +113,13 @@ function ProductMediaSession({
   // the browser does not replay the error event — without this check an SSR
   // hero/card whose first gated source 404s during page load would sit on a
   // broken image forever instead of advancing through the ordered fallback.
-  const activeIndex = state.activeIndex;
   useEffect(() => {
     const image = imageRef.current;
     if (!image || source === undefined) return;
     if (image.complete && image.naturalWidth === 0) {
-      dispatch({ type: 'sourceFailed', sourceIndex: activeIndex, source, sources });
+      handleFailure();
     }
-  }, [activeIndex, source, sources]);
+  }, [handleFailure, source]);
 
   return (
     <>
@@ -125,6 +145,7 @@ function ProductMediaSession({
           ref={imageRef}
           data-product-media="image"
           src={source}
+          {...(useResponsive ? responsive : {})}
           alt={alt}
           width={width}
           height={height}
@@ -134,9 +155,7 @@ function ProductMediaSession({
           onLoad={onLoad}
           referrerPolicy="no-referrer"
           className={`h-full w-full object-contain ${imageClassName} ${className}`}
-          onError={() =>
-            dispatch({ type: 'sourceFailed', sourceIndex: state.activeIndex, source, sources })
-          }
+          onError={handleFailure}
         />
       )}
     </>

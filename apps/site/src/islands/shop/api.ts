@@ -1,5 +1,9 @@
 /** Shared product types + API client for the storefront islands. */
 import { isProductFamily, validateManualCatalogPricing } from '@vibelingan-channel/shared';
+import {
+  CatalogImagePresentationSchema,
+  imagePresentationMatchesSources,
+} from '@vibelingan-channel/shared/catalog-image-presentation';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
@@ -156,6 +160,16 @@ function isProduct(value: unknown): value is Product {
   if (value.publicPageReady !== undefined && typeof value.publicPageReady !== 'boolean')
     return false;
   if (value.productFamily !== undefined && !isProductFamily(value.productFamily)) return false;
+  if (value.imagePresentation !== undefined) {
+    const parsed = CatalogImagePresentationSchema.safeParse(value.imagePresentation);
+    if (
+      !parsed.success ||
+      !Array.isArray(value.images) ||
+      !value.images.every((source): source is string => typeof source === 'string') ||
+      !imagePresentationMatchesSources(parsed.data, value.images)
+    )
+      return false;
+  }
   for (const key of [
     'category',
     'skuCode',
@@ -224,7 +238,29 @@ function isCatalogPage(value: unknown): value is CatalogPage {
 function resolveProductMedia(product: Product, maxImages?: number): Product {
   if (!product.images) return product;
   const images = maxImages === undefined ? product.images : product.images.slice(0, maxImages);
-  return { ...product, images: images.map(apiMediaUrl) };
+  const imagePresentation = product.imagePresentation
+    ? Object.fromEntries(
+        images.flatMap((source) => {
+          const candidates = product.imagePresentation?.[source];
+          return candidates
+            ? [
+                [
+                  apiMediaUrl(source),
+                  candidates.map((candidate) => ({
+                    ...candidate,
+                    url: apiMediaUrl(candidate.url),
+                  })),
+                ],
+              ]
+            : [];
+        }),
+      )
+    : undefined;
+  return {
+    ...product,
+    images: images.map(apiMediaUrl),
+    ...(imagePresentation ? { imagePresentation } : {}),
+  };
 }
 
 function resolveCatalogMedia(page: CatalogPage, maxImages?: number): CatalogPage {
@@ -243,6 +279,7 @@ export async function fetchCatalog(
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
   const params = new URLSearchParams();
+  if (basePath === '/api/products') params.set('media', 'responsive-v1');
   if (query.subcategoryIds !== undefined) {
     if (
       query.categories !== undefined ||
@@ -280,10 +317,15 @@ export async function fetchCatalogItem(
   id: string,
   signal?: AbortSignal,
 ): Promise<Product> {
-  const res = await fetch(apiUrl(`${basePath}/${encodeURIComponent(id)}`), {
-    headers: catalogHeaders(),
-    signal,
-  });
+  const res = await fetch(
+    apiUrl(
+      `${basePath}/${encodeURIComponent(id)}${basePath === '/api/products' ? '?media=responsive-v1' : ''}`,
+    ),
+    {
+      headers: catalogHeaders(),
+      signal,
+    },
+  );
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
   const result = await readApiEnvelope<unknown>(res);
@@ -305,10 +347,13 @@ export function fetchProductFamily(
 }
 
 export async function fetchProductBySlug(slug: string, signal?: AbortSignal): Promise<Product> {
-  const res = await fetch(apiUrl(`/api/products/slug/${encodeURIComponent(slug)}`), {
-    headers: catalogHeaders(),
-    signal,
-  });
+  const res = await fetch(
+    apiUrl(`/api/products/slug/${encodeURIComponent(slug)}?media=responsive-v1`),
+    {
+      headers: catalogHeaders(),
+      signal,
+    },
+  );
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
   const result = await readApiEnvelope<unknown>(res);

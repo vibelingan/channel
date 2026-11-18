@@ -1748,3 +1748,127 @@ test('an oversized original without a prepared derivative returns a retryable re
   assert.equal(res.headers['Retry-After'], '30');
   assert.equal(res.isBase64Encoded, false);
 });
+
+test('width requests serve only exact ready sizes and preserve publication gates and bounded reads', async () => {
+  const store = seedStore();
+  const source = store.images?.find((image) => image._id === 'storage-active');
+  assert.ok(source);
+  Object.assign(source, {
+    storageFileId: 'cloud://active/source.png',
+    storagePath: 'source.png',
+    mimeType: 'image/png',
+    byteSize: 5_000_000,
+    checksumSha256: 'a'.repeat(64),
+  });
+  const files = new Map<string, Buffer>();
+  const descriptor = (width: number) => {
+    const bytes = Buffer.from(`verified-webp-width-${width}`);
+    const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+    const storagePath = catalogWebImagePath(
+      source._id,
+      String(source.checksumSha256),
+      checksumSha256,
+    );
+    const storageFileId = `cloud://active/${storagePath}`;
+    files.set(storageFileId, bytes);
+    return {
+      schemaVersion: 1,
+      sourceDigest: storedCatalogImageInputDigest(source),
+      storageProvider: 'cloudbase-storage',
+      storagePath,
+      storageFileId,
+      mimeType: 'image/webp',
+      byteSize: bytes.length,
+      width,
+      height: width / 2,
+      checksumSha256,
+    };
+  };
+  const original = descriptor(800);
+  const small = descriptor(160);
+  const medium = descriptor(640);
+  Object.assign(source, {
+    catalogWebImage: original,
+    catalogWebVariants: { '160': small, '640': medium },
+  });
+  setup(store);
+  const reads: string[] = [];
+  setMediaStorage({
+    ...fakeMediaStorage,
+    async getObjectAsBase64(id, options) {
+      reads.push(id);
+      const bytes = files.get(id);
+      assert.ok(bytes);
+      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000 });
+      return { body: bytes.toString('base64') };
+    },
+  });
+  const request = (query = '') =>
+    handlePublicApiEvent({ httpMethod: 'GET', path: `/api/images/${source._id}${query}` }, {});
+  for (const [query, expected] of [
+    ['', original],
+    ['?w=1280', original],
+    ['?w=640', medium],
+    ['?w=160', small],
+  ] as const) {
+    const response = await request(query);
+    assert.equal(response.statusCode, 200, query);
+    assert.equal(response.headers['Content-Type'], 'image/webp');
+    assert.equal(response.body, files.get(expected.storageFileId)?.toString('base64'));
+    assert.equal(reads.at(-1), expected.storageFileId);
+  }
+  assert.equal(reads.length, 4);
+  for (const query of [
+    '?w=320',
+    '?w=0',
+    '?w=160&w=160',
+    '?w=160&w=640',
+    '?w=',
+    '?w=0640',
+    '?w=160.0',
+  ])
+    assert.equal((await request(query)).statusCode, 400, query);
+  assert.equal(reads.length, 4, 'Invalid sizes do not fetch any image bytes');
+  source.catalogWebVariants = { '160': small };
+  const unavailable = await request('?w=640');
+  assert.equal(unavailable.statusCode, 503);
+  assert.equal(unavailable.headers['Retry-After'], '30');
+  assert.equal(reads.length, 4, 'An unprepared size never falls back to a larger body');
+  source.publishedRefCount = 0;
+  assert.equal((await request('?w=160')).statusCode, 404);
+  assert.equal(reads.length, 4, 'Knowing a ready size does not expose a private image');
+  source.publishedRefCount = 1;
+  source.catalogWebVariants = { '160': small, '640': medium };
+  store.products ??= [];
+  store.products.push({
+    _id: 'presentation-product',
+    name: 'Ready photo product',
+    productFamily: 'headphones',
+    published: true,
+    archived: false,
+    imageIds: [source._id],
+  });
+  const product = (query = '') =>
+    handlePublicApiEvent(
+      { httpMethod: 'GET', path: `/api/products/presentation-product${query}` },
+      {},
+    );
+  const ordinary = JSON.parse((await product()).body).data;
+  assert.equal(
+    ordinary.imagePresentation,
+    undefined,
+    'Old requests keep their strict original response',
+  );
+  const enhancedResponse = await product('?media=responsive-v1');
+  assert.equal(enhancedResponse.statusCode, 200);
+  const enhanced = JSON.parse(enhancedResponse.body).data;
+  const { imagePresentation, ...unchanged } = enhanced;
+  assert.deepEqual(unchanged, ordinary);
+  assert.deepEqual(
+    imagePresentation[`/api/images/${source._id}`].map((value: { width: number }) => value.width),
+    [160, 640, 800],
+  );
+  assert.equal(enhancedResponse.body.includes('cloud://'), false);
+  assert.equal((await product('?media=responsive-v1&media=responsive-v1')).statusCode, 400);
+  assert.equal(reads.length, 4, 'Product metadata does not download any original/derivative bytes');
+});

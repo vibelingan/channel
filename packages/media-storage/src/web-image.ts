@@ -8,7 +8,8 @@ export class AnimatedCatalogWebImageError extends Error {
 }
 
 /** Run during preparation, never in the public request path. Originals are retained. */
-export async function createCatalogWebImage(bytes: Uint8Array, mimeType: string) {
+export async function createCatalogWebImage(bytes: Uint8Array, mimeType: string, width = 1280) {
+  if (![160, 640, 1280].includes(width)) throw Error('Unsupported catalog image width');
   const source = await decodeCatalogImagePixels(bytes, mimeType);
   if (source.status !== 'decoded') throw Error('A complete still image is required');
   if (source.pages !== 1) throw new AnimatedCatalogWebImageError();
@@ -16,7 +17,7 @@ export async function createCatalogWebImage(bytes: Uint8Array, mimeType: string)
   const sharp = (await import('#catalog-image-decoder')).default;
   const output = await sharp(Buffer.from(bytes), { failOn: 'warning', limitInputPixels: 268402689 })
     .rotate()
-    .resize({ width: 1280, withoutEnlargement: true })
+    .resize({ width, withoutEnlargement: true })
     .toColourspace('srgb')
     .webp({ quality: 82, alphaQuality: 100, effort: 4 })
     .timeout({ seconds: 5 })

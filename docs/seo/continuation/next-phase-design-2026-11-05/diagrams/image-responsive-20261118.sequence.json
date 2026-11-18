@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "商品图片：先准备尺寸，再按页面选图",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "column_fit": "spread",
+    "viewBox": [
+      1520,
+      680
+    ]
+  },
+  "participants": [
+    {
+      "id": "producer",
+      "type": "backend",
+      "label": "后台上传／来源同步"
+    },
+    {
+      "id": "prepare",
+      "type": "backend",
+      "label": "图片准备程序"
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "图片登记与锁"
+    },
+    {
+      "id": "storage",
+      "type": "cloud",
+      "label": "私有图片存储"
+    },
+    {
+      "id": "web",
+      "type": "backend",
+      "label": "商品接口与网页"
+    },
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "访客浏览器"
+    }
+  ],
+  "segments": [
+    {
+      "from": 165,
+      "to": 315,
+      "label": "准备：每个适用尺寸逐个登记、写入、核验"
+    },
+    {
+      "from": 330,
+      "to": 505,
+      "label": "访问：只提供已就绪尺寸，读图时仍核对公开引用"
+    },
+    {
+      "from": 525,
+      "to": 595,
+      "label": "中断重试：保留原编号与已登记的文件目标"
+    }
+  ],
+  "messages": [
+    {
+      "id": "original",
+      "from": "producer",
+      "to": "prepare",
+      "y": 182,
+      "label": "交付已读取的原图字节"
+    },
+    {
+      "id": "lock",
+      "from": "prepare",
+      "to": "registry",
+      "y": 212,
+      "label": "核对原图与现有图片锁",
+      "variant": "security"
+    },
+    {
+      "id": "reserve",
+      "from": "prepare",
+      "to": "registry",
+      "y": 242,
+      "label": "先追加本尺寸的确切文件目标",
+      "variant": "security"
+    },
+    {
+      "id": "put",
+      "from": "prepare",
+      "to": "storage",
+      "y": 272,
+      "label": "按目标上传；完整读回并核验像素"
+    },
+    {
+      "id": "ready",
+      "from": "prepare",
+      "to": "registry",
+      "y": 302,
+      "label": "全部就绪后登记；原图与人工内容保留"
+    },
+    {
+      "id": "metadata",
+      "from": "web",
+      "to": "registry",
+      "y": 340,
+      "label": "批量读取就绪尺寸，不下载图字节"
+    },
+    {
+      "id": "markup",
+      "from": "web",
+      "to": "browser",
+      "y": 370,
+      "label": "返回原地址和实际像素宽度候选",
+      "variant": "return"
+    },
+    {
+      "id": "choose",
+      "from": "browser",
+      "to": "web",
+      "y": 400,
+      "label": "按显示大小选择 w=160／640／1280"
+    },
+    {
+      "id": "public",
+      "from": "web",
+      "to": "registry",
+      "y": 430,
+      "label": "核对当前公开引用及原图绑定",
+      "variant": "security"
+    },
+    {
+      "id": "bytes",
+      "from": "web",
+      "to": "storage",
+      "y": 460,
+      "label": "读取选中尺寸并核对完整字节"
+    },
+    {
+      "id": "response",
+      "from": "web",
+      "to": "browser",
+      "y": 490,
+      "label": "200图片；私有404；未就绪503",
+      "variant": "return"
+    },
+    {
+      "id": "retry",
+      "from": "producer",
+      "to": "prepare",
+      "y": 544,
+      "label": "对原记录继续完成"
+    },
+    {
+      "id": "reuse",
+      "from": "prepare",
+      "to": "storage",
+      "y": 578,
+      "label": "先读回原目标；缺失才向同一目标重试",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "本地实现，尚未发布",
+      "items": [
+        "真实像素、上传中断、图库选图已本地验证",
+        "既有商品尺寸准备、线上与性能验收仍待执行"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "原图身份和业务内容不变",
+      "items": [
+        "小图不放大；800宽不能标为1280w",
+        "图库、变体、alt与询盘继续用原图片身份"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "清理与恢复一起兼容",
+      "items": [
+        "清理逐个确认所有已登记尺寸；失败保留记录",
+        "恢复网页时保留兼容后端，不恢复商品或文章数据"
+      ]
+    }
+  ]
+}

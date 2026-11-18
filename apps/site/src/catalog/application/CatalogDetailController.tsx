@@ -163,6 +163,7 @@ export function CatalogDetailController({
         onClear={() => select()}
         media={
           <CatalogVariantGallery
+            imagePresentation={pages.imagePresentation}
             images={detail.images}
             name={detail.name}
             productId={productId}

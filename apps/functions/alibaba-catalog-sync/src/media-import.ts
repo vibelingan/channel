@@ -34,9 +34,12 @@ import {
   releaseImageMutation,
   unfinishedApprovalUsingImage,
 } from '@vibelingan-channel/db';
-import { bindCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
+import {
+  bindCatalogWebImage,
+  bindCatalogWebVariants,
+} from '@vibelingan-channel/db/catalog-web-image';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
-import { prepareCatalogWebObject } from '@vibelingan-channel/media-storage/catalog-web-prepare';
+import { prepareCatalogWebVariants } from '@vibelingan-channel/media-storage/catalog-web-prepare';
 import { AnimatedCatalogWebImageError } from '@vibelingan-channel/media-storage/web-image';
 import {
   CATALOG_IMAGE_MAX_BYTES,
@@ -402,7 +405,7 @@ export async function importCandidateImage(
               throw new Error('Source image checkpoint was not confirmed');
             checkpoint = intended;
           };
-          const web = await prepareCatalogWebObject({
+          const web = await prepareCatalogWebVariants({
             imageId,
             bytes,
             mimeType,
@@ -412,7 +415,8 @@ export async function importCandidateImage(
               await saveTarget(
                 SourceMediaTargetSchema.parse({
                   ...original,
-                  catalogWebImage: bindCatalogWebImage(activeSource, object),
+                  catalogWebImage: bindCatalogWebImage(activeSource, object.default),
+                  catalogWebVariants: bindCatalogWebVariants(activeSource, object.variants),
                 }),
               );
             },
@@ -420,7 +424,8 @@ export async function importCandidateImage(
           if (web) {
             const expected = SourceMediaTargetSchema.parse({
               ...original,
-              catalogWebImage: bindCatalogWebImage(activeSource, web),
+              catalogWebImage: bindCatalogWebImage(activeSource, web.default),
+              catalogWebVariants: bindCatalogWebVariants(activeSource, web.variants),
             });
             if (!checkpoint || !isDeepStrictEqual(checkpoint, expected))
               throw new Error('Source web image was not checkpointed before its bytes');
@@ -439,6 +444,9 @@ export async function importCandidateImage(
       checksumSha256,
       byteSize: bytes.byteLength,
       ...(checkpoint?.catalogWebImage ? { catalogWebImage: checkpoint.catalogWebImage } : {}),
+      ...(checkpoint?.catalogWebVariants !== undefined
+        ? { catalogWebVariants: checkpoint.catalogWebVariants }
+        : {}),
     });
     if (!checkpoint || !isDeepStrictEqual(checkpoint, returned)) return fail('write-failed');
     const committed = await persist({

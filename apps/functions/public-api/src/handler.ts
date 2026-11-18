@@ -9,7 +9,10 @@ import {
   readCatalogImageReference,
 } from '@vibelingan-channel/db';
 import type { CatalogSeoPageReader } from '@vibelingan-channel/db/catalog-seo-pages';
-import { readCatalogWebImage } from '@vibelingan-channel/db/catalog-web-image';
+import {
+  readCatalogWebImage,
+  readCatalogWebImageAtWidth,
+} from '@vibelingan-channel/db/catalog-web-image';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -42,6 +45,7 @@ export {
   publicItem,
 } from '@vibelingan-channel/shared/catalog-public-projection';
 import { readCatalogTaxonomy } from './catalog-taxonomy.ts';
+import { presentCatalogImages } from './image-presentation.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
@@ -60,6 +64,8 @@ export interface CatalogQuery {
 }
 
 export interface PublicApiConfig {
+  /** Set per explicitly opted-in request; ordinary clients keep their strict old DTO. */
+  imagePresentation?: boolean;
   catalogPages?: CatalogSeoPageReader;
   apiBaseUrl?: string;
   /**
@@ -274,17 +280,20 @@ export async function listCatalog(
           result.items.map((doc) => doc._id),
         )
       : null;
+  let items = result.items.map((doc, index) => {
+    const base = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
+    const projected = availability
+      ? { ...base, publicPageReady: availability.get(doc._id) === true }
+      : base;
+    const own = variants.get(doc._id);
+    // Only products that actually have variants gain the key, so existing
+    // legacy and Alibaba-linked payloads stay byte-identical.
+    return own === undefined || own.length === 0 ? projected : { ...projected, variants: own };
+  });
+  if (collection === 'products' && config.imagePresentation)
+    items = await presentCatalogImages(items);
   return ok({
-    items: result.items.map((doc, index) => {
-      const base = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
-      const projected = availability
-        ? { ...base, publicPageReady: availability.get(doc._id) === true }
-        : base;
-      const own = variants.get(doc._id);
-      // Only products that actually have variants gain the key, so existing
-      // legacy and Alibaba-linked payloads stay byte-identical.
-      return own === undefined || own.length === 0 ? projected : { ...projected, variants: own };
-    }),
+    items,
     total: result.total,
     page: result.page,
     pageSize: result.pageSize,
@@ -307,7 +316,14 @@ export async function getCatalogItem(
   }
   const item = await withVariants(collection, doc, publicItem(collection, doc, config, viewer));
   const availability = collection === 'products' ? await pageAvailability(config, [doc._id]) : null;
-  return ok(availability ? { ...item, publicPageReady: availability.get(doc._id) === true } : item);
+  const projected = availability
+    ? { ...item, publicPageReady: availability.get(doc._id) === true }
+    : item;
+  return ok(
+    collection === 'products' && config.imagePresentation
+      ? (await presentCatalogImages([projected]))[0]
+      : projected,
+  );
 }
 
 export async function getCatalogItemBySlug(
@@ -326,7 +342,10 @@ export async function getCatalogItemBySlug(
   }
   const item = await withVariants('products', doc, publicItem('products', doc, config, viewer));
   const availability = await pageAvailability(config, [doc._id]);
-  return ok(availability ? { ...item, publicPageReady: availability.get(doc._id) === true } : item);
+  const projected = availability
+    ? { ...item, publicPageReady: availability.get(doc._id) === true }
+    : item;
+  return ok(config.imagePresentation ? (await presentCatalogImages([projected]))[0] : projected);
 }
 
 /** Attach variants to one already-projected document, when it has any. */
@@ -419,12 +438,18 @@ function binaryImage(doc: CollectionDoc, body: string): BinaryResult | ApiResult
   };
 }
 
-export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
+export async function getCatalogImage(
+  imageId: string,
+  width?: 160 | 640 | 1280,
+): Promise<ApiResult<unknown> | BinaryResult> {
+  if (width !== undefined && ![160, 640, 1280].includes(width))
+    return err('VALIDATION_ERROR', 'Unsupported image width');
   let doc = await get('images', imageId);
   if (!doc || doc._id !== imageId) return err('NOT_FOUND', 'Image not found');
 
   // The placeholder is public by explicit id — never gated on refcount/status.
   if (imageId === PLACEHOLDER_IMAGE_ID) {
+    if (width !== undefined) return err('INTERNAL_ERROR', 'Requested image size is not prepared');
     return typeof doc.data === 'string'
       ? binaryImage(doc, doc.data)
       : err('NOT_FOUND', 'Image not found');
@@ -474,6 +499,7 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
       ? visibleByRefCount
       : await legacyImageIsPublicFallback(imageId);
     if (!visible || typeof doc.data !== 'string') return err('NOT_FOUND', 'Image not found');
+    if (width !== undefined) return err('INTERNAL_ERROR', 'Requested image size is not prepared');
     return binaryImage(doc, doc.data);
   }
 
@@ -489,7 +515,10 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
   ) {
     return err('NOT_FOUND', 'Image not found');
   }
-  const web = readCatalogWebImage(doc);
+  const web =
+    width === undefined ? readCatalogWebImage(doc) : readCatalogWebImageAtWidth(doc, width);
+  if (width !== undefined && !web)
+    return err('INTERNAL_ERROR', 'Requested image size is not prepared');
   if (!web && typeof doc.byteSize === 'number' && doc.byteSize > 4_400_000)
     return err('INTERNAL_ERROR', 'Image delivery preparation is required');
   try {

@@ -39,6 +39,8 @@ const nonNegativeNumber = z.number().nonnegative().finite();
  * server-side (`imageIds`), and supplier offer keys are absent, so `.strict()`
  * rejects them.
  */
+import { CatalogImagePresentationSchema } from './image-presentation.ts';
+
 export const PublicProductSchema = z
   .object({
     publicPageReady: z.boolean().optional(),
@@ -60,6 +62,7 @@ export const PublicProductSchema = z
     clearancePrice: nonNegativeNumber.optional(),
     published: z.boolean().optional(),
     images: z.array(z.string()).optional(),
+    imagePresentation: CatalogImagePresentationSchema.optional(),
     manualCatalogPricing: manualCatalogPricingSchema.optional(),
     catalogPricingMode: z.enum(['source', 'manual']).optional(),
     alibabaPrimarySourceKey: nonEmptyString.optional(),

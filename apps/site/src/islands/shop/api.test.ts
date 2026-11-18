@@ -68,7 +68,7 @@ test('family helper encodes exact family, category, search, and pagination query
   );
   assert.equal(
     calls[0]?.url,
-    '/api/products?productFamily=ai-gadgets&category=smart+home&search=camera+kit&page=2&pageSize=12',
+    '/api/products?media=responsive-v1&productFamily=ai-gadgets&category=smart+home&search=camera+kit&page=2&pageSize=12',
   );
   assert.equal(calls[0]?.init?.signal, controller.signal);
 });
@@ -86,7 +86,7 @@ test('slug helper encodes the slug as one path segment and resolves only nine im
     }),
   ]);
   const product = await fetchProductBySlug('Desk Lamp/Pro');
-  assert.equal(calls[0]?.url, '/api/products/slug/Desk%20Lamp%2FPro');
+  assert.equal(calls[0]?.url, '/api/products/slug/Desk%20Lamp%2FPro?media=responsive-v1');
   assert.deepEqual(product.images, images.slice(0, 9));
 });
 
@@ -151,7 +151,10 @@ test('related helper fetches the same family and excludes the current product', 
     related.map((product) => product._id),
     ['other-1', 'other-2'],
   );
-  assert.equal(calls[0]?.url, '/api/products?productFamily=toys&page=1&pageSize=3');
+  assert.equal(
+    calls[0]?.url,
+    '/api/products?media=responsive-v1&productFamily=toys&page=1&pageSize=3',
+  );
 });
 
 test('related helper skips network work for invalid or non-positive limits', async (t) => {
@@ -175,8 +178,8 @@ test('related helper truncates fractional limits and caps requests at 48 candida
   assert.deepEqual(
     calls.map((call) => call.url),
     [
-      '/api/products?productFamily=misc&page=1&pageSize=3',
-      '/api/products?productFamily=misc&page=1&pageSize=48',
+      '/api/products?media=responsive-v1&productFamily=misc&page=1&pageSize=3',
+      '/api/products?media=responsive-v1&productFamily=misc&page=1&pageSize=48',
     ],
   );
 });
@@ -480,7 +483,7 @@ test('fetchCatalog forwards pagination, current token, AbortSignal, and normaliz
 
   assert.equal(
     requestUrl,
-    '/api/products?category=bluetooth%2Cwired&search=studio&page=2&pageSize=48',
+    '/api/products?media=responsive-v1&category=bluetooth%2Cwired&search=studio&page=2&pageSize=48',
   );
   assert.equal(requestInit?.signal, controller.signal);
   assert.deepEqual(requestInit?.headers, { Authorization: 'Bearer token-page-2' });

@@ -12,8 +12,12 @@ import {
 } from './catalog-image-references.ts';
 import { createCatalogPreparationAuthority } from './catalog-preparation-authority.ts';
 import { runCatalogPreparationJob } from './catalog-preparation-jobs.ts';
-import { catalogWebImagePath, readCatalogWebImage } from './catalog-web-image.ts';
-import { runSourceMediaImport } from './source-media-import.ts';
+import {
+  bindCatalogWebImage,
+  catalogWebImagePath,
+  readCatalogWebImage,
+} from './catalog-web-image.ts';
+import { type SourceMediaTarget, runSourceMediaImport } from './source-media-import.ts';
 function fixture() {
   let now = 1792080000000;
   const authority = createCatalogPreparationAuthority({
@@ -519,107 +523,128 @@ test('begin on an already protected current image returns its existing committed
   );
 });
 
-test('source activation ACK replay accepts the same original content after a trusted protection switch', async () => {
-  const f = fixture();
-  Reflect.deleteProperty(f.rows, 'images/image');
-  const store = {
-    ...f.tx,
-    remove: async (c: string, id: string) => {
-      Reflect.deleteProperty(f.rows, `${c}/${id}`);
-    },
-  };
-  const base = {
-    sourceUrl: 'https://sc04.alicdn.com/protection.png',
-    operationId: 'source-operation',
-    imageId: 'image',
-    now: new Date(f.now).toISOString(),
-  };
-  const target = {
-    storageProvider: 'local-disk' as const,
-    storageMode: 'local-disk' as const,
-    storageFileId: 'local-disk:raw.png',
-    storagePath: 'raw.png',
-    byteSize: 123,
-    checksumSha256: 'a'.repeat(64),
-    mimeType: 'image/png' as const,
-    name: 'Source photo',
-  };
-  assert.equal((await runSourceMediaImport(store, { ...base, action: 'claim' })).status, 'claimed');
-  assert.equal(
-    (await runSourceMediaImport(store, { ...base, action: 'checkpoint', target })).status,
-    'checkpointed',
-  );
-  const activation = { ...base, action: 'activate' as const, target };
-  const first = await runSourceMediaImport(store, activation);
-  assert.equal(first.status, 'ready');
-  const renamed = f.rows['images/image'];
-  assert.ok(renamed);
-  renamed.name = 'My photo name';
-  assert.deepEqual(await runSourceMediaImport(store, activation), first);
-  const scope = await f.start();
-  const row = f.rows['images/image'];
-  assert.ok(row);
-  const begin = await f.run({
-    action: 'begin-image-protection',
-    ...scope,
-    imageId: 'image',
-    imageInputDigest: storedCatalogImageInputDigest(row),
-  });
-  assert.ok(begin.ok && 'protection' in begin);
-  const i = begin.protection;
-  const path = catalogProtectedStoragePath(
-    `${i.imageIdentity}:${i.checksumSha256}:${i.attemptId}`,
-    'original.png',
-  );
-  const protectedTarget = {
-    storageProvider: 'local-disk',
-    storageMode: 'local-disk',
-    storageFileId: `local-disk:${path}`,
-    storagePath: path,
-    byteSize: 123,
-  };
-  assert.ok(
-    (
-      await f.run({
-        action: 'checkpoint-image-protection',
-        ...scope,
-        imageId: 'image',
-        intentId: i._id,
-        target: protectedTarget,
-      })
-    ).ok,
-  );
-  const digest = storedCatalogImageInputDigest({ ...row, ...protectedTarget });
-  assert.ok(
-    (
-      await f.run({
-        action: 'commit-image-protection',
-        ...scope,
-        imageId: 'image',
-        intentId: i._id,
-        health: {
-          status: 'verified',
-          kind: 'stored-image-health-v1',
+for (const delivery of ['original', 'web', 'responsive'] as const)
+  test(`source activation ACK replay accepts the same original content after a trusted protection switch: ${delivery}`, async () => {
+    const f = fixture();
+    Reflect.deleteProperty(f.rows, 'images/image');
+    const store = {
+      ...f.tx,
+      remove: async (c: string, id: string) => {
+        Reflect.deleteProperty(f.rows, `${c}/${id}`);
+      },
+    };
+    const base = {
+      sourceUrl: 'https://sc04.alicdn.com/protection.png',
+      operationId: 'source-operation',
+      imageId: 'image',
+      now: new Date(f.now).toISOString(),
+    };
+    const target: SourceMediaTarget = {
+      storageProvider: 'local-disk' as const,
+      storageMode: 'local-disk' as const,
+      storageFileId: 'local-disk:raw.png',
+      storagePath: 'raw.png',
+      byteSize: 500000,
+      checksumSha256: 'a'.repeat(64),
+      mimeType: 'image/png' as const,
+      name: 'Source photo',
+    };
+    const source = { _id: 'image', status: 'active', publishedRefCount: 0, ...target };
+    const web = (width: number, sha: string) => {
+      const storagePath = catalogWebImagePath(source._id, target.checksumSha256, sha.repeat(64));
+      return bindCatalogWebImage(source, {
+        storageProvider: 'local-disk',
+        storagePath,
+        storageFileId: `local-disk:${storagePath}`,
+        mimeType: 'image/webp',
+        byteSize: width,
+        width,
+        height: width / 2,
+        checksumSha256: sha.repeat(64),
+      });
+    };
+    if (delivery !== 'original') target.catalogWebImage = web(800, 'b');
+    if (delivery === 'responsive')
+      target.catalogWebVariants = { '160': web(160, 'c'), '640': web(640, 'd') };
+    assert.equal(
+      (await runSourceMediaImport(store, { ...base, action: 'claim' })).status,
+      'claimed',
+    );
+    assert.equal(
+      (await runSourceMediaImport(store, { ...base, action: 'checkpoint', target })).status,
+      'checkpointed',
+    );
+    const activation = { ...base, action: 'activate' as const, target };
+    const first = await runSourceMediaImport(store, activation);
+    assert.equal(first.status, 'ready');
+    const renamed = f.rows['images/image'];
+    assert.ok(renamed);
+    renamed.name = 'My photo name';
+    assert.deepEqual(await runSourceMediaImport(store, activation), first);
+    const scope = await f.start();
+    const row = f.rows['images/image'];
+    assert.ok(row);
+    const begin = await f.run({
+      action: 'begin-image-protection',
+      ...scope,
+      imageId: 'image',
+      imageInputDigest: storedCatalogImageInputDigest(row),
+    });
+    assert.ok(begin.ok && 'protection' in begin);
+    const i = begin.protection;
+    const path = catalogProtectedStoragePath(
+      `${i.imageIdentity}:${i.checksumSha256}:${i.attemptId}`,
+      'original.png',
+    );
+    const protectedTarget = {
+      storageProvider: 'local-disk',
+      storageMode: 'local-disk',
+      storageFileId: `local-disk:${path}`,
+      storagePath: path,
+      byteSize: 500000,
+    };
+    assert.ok(
+      (
+        await f.run({
+          action: 'checkpoint-image-protection',
+          ...scope,
           imageId: 'image',
-          inputDigest: digest,
-          byteSize: 123,
-          checksumSha256: 'a'.repeat(64),
-          width: 24,
-          height: 16,
-          pages: 1,
-        },
-      })
-    ).ok,
-  );
-  const writes = f.writes.length;
-  assert.deepEqual(await runSourceMediaImport(store, activation), first);
-  assert.equal(f.writes.length, writes);
-  assert.equal(f.rows['images/image']?.storageFileId, protectedTarget.storageFileId);
-  const current = f.rows['images/image'];
-  assert.ok(current);
-  current.storageFileId = 'local-disk:foreign.png';
-  assert.equal((await runSourceMediaImport(store, activation)).status, 'conflict');
-});
+          intentId: i._id,
+          target: protectedTarget,
+        })
+      ).ok,
+    );
+    const digest = storedCatalogImageInputDigest({ ...row, ...protectedTarget });
+    assert.ok(
+      (
+        await f.run({
+          action: 'commit-image-protection',
+          ...scope,
+          imageId: 'image',
+          intentId: i._id,
+          health: {
+            status: 'verified',
+            kind: 'stored-image-health-v1',
+            imageId: 'image',
+            inputDigest: digest,
+            byteSize: 500000,
+            checksumSha256: 'a'.repeat(64),
+            width: 800,
+            height: 400,
+            pages: 1,
+          },
+        })
+      ).ok,
+    );
+    const writes = f.writes.length;
+    assert.deepEqual(await runSourceMediaImport(store, activation), first);
+    assert.equal(f.writes.length, writes);
+    assert.equal(f.rows['images/image']?.storageFileId, protectedTarget.storageFileId);
+    const current = f.rows['images/image'];
+    assert.ok(current);
+    current.storageFileId = 'local-disk:foreign.png';
+    assert.equal((await runSourceMediaImport(store, activation)).status, 'conflict');
+  });
 
 test('two products sharing an image serialize protection and reuse the checkpoint after cancellation', async () => {
   const h = await reserved();

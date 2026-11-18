@@ -3,6 +3,31 @@ import test from 'node:test';
 import { detailFixture } from '../testing/detail-fixture.ts';
 import { acceptDetailPage, startDetailPages } from './catalog-detail-pages.ts';
 
+test('size metadata follows loaded variants without changing approved revision paging', () => {
+  const one = detailFixture(51);
+  const firstImage = '/api/images/first-variant';
+  if (one.variants.items[0]) one.variants.items[0].images = [firstImage];
+  const firstMap = { [firstImage]: [{ url: `${firstImage}?w=160`, width: 160, height: 100 }] };
+  const first = startDetailPages({ ...one, imagePresentation: firstMap }, 1000);
+  assert.equal(first.status, 'ready');
+  if (first.status !== 'ready') return;
+  const two = detailFixture(51, 2);
+  const lastImage = '/api/images/last-variant';
+  if (two.variants.items[0]) two.variants.items[0].images = [lastImage];
+  const lastMap = { [lastImage]: [{ url: `${lastImage}?w=640`, width: 640, height: 400 }] };
+  const next = acceptDetailPage(first.value, { ...two, imagePresentation: lastMap }, 1000);
+  assert.equal(next.status, 'ready');
+  if (next.status !== 'ready') return;
+  assert.deepEqual(next.value.imagePresentation, { ...firstMap, ...lastMap });
+  assert.equal(next.value.items.length, 51);
+  assert.equal(next.value.currentPage.revision, 'approved-r1');
+  assert.equal(
+    acceptDetailPage(first.value, { ...two, imagePresentation: firstMap }, 1000).status,
+    'invalid-response',
+    "A page cannot add another variant page's undisclosed metadata",
+  );
+});
+
 test('structured content cannot change or downgrade in the middle of revision paging', () => {
   const content = {
     schemaVersion: 'catalog-content-v1',

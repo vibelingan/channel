@@ -2,6 +2,7 @@ import {
   type CatalogDetailView,
   decodeCatalogDetailView,
 } from '@vibelingan-channel/shared/catalog-detail';
+import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
 import {
   DETAIL_COLLECTION_BYTE_LIMIT,
   DETAIL_COLLECTION_PAGE_LIMIT,
@@ -10,6 +11,7 @@ import {
 } from '../detail-limits.ts';
 
 export interface DetailPages {
+  readonly imagePresentation?: CatalogImagePresentation;
   readonly mode: 'collecting' | 'complete' | 'paged';
   readonly currentPage: CatalogDetailView & { revision: string };
   readonly items: readonly CatalogDetailView['variants']['items'][number][];
@@ -24,7 +26,7 @@ function validBytes(bytes: number): boolean {
 }
 
 function headerKey(detail: CatalogDetailView): string {
-  const { variants: _variants, ...header } = detail;
+  const { variants: _variants, imagePresentation: _presentation, ...header } = detail;
   // Shared decoding produces a stable key order; compare every approved header field.
   return JSON.stringify(header);
 }
@@ -45,6 +47,7 @@ export function startDetailPages(input: unknown, bytes: number): DetailPagesResu
     value: {
       mode: paged ? 'paged' : hasMore ? 'collecting' : 'complete',
       currentPage: detail,
+      ...(detail.imagePresentation ? { imagePresentation: detail.imagePresentation } : {}),
       items,
       retainedBytes: bytes,
     },
@@ -86,7 +89,13 @@ export function acceptDetailPage(
   if (current.mode === 'paged') {
     return {
       status: 'ready',
-      value: { mode: 'paged', currentPage: detail, items: page.items, retainedBytes: bytes },
+      value: {
+        mode: 'paged',
+        currentPage: detail,
+        items: page.items,
+        retainedBytes: bytes,
+        ...(detail.imagePresentation ? { imagePresentation: detail.imagePresentation } : {}),
+      },
     };
   }
   if (
@@ -96,13 +105,24 @@ export function acceptDetailPage(
   )
     return {
       status: 'ready',
-      value: { mode: 'paged', currentPage: detail, items: page.items, retainedBytes: bytes },
+      value: {
+        mode: 'paged',
+        currentPage: detail,
+        items: page.items,
+        retainedBytes: bytes,
+        ...(detail.imagePresentation ? { imagePresentation: detail.imagePresentation } : {}),
+      },
     };
   return {
     status: 'ready',
     value: {
       mode: page.hasMore ? 'collecting' : 'complete',
       currentPage: detail,
+      ...(current.imagePresentation || detail.imagePresentation
+        ? {
+            imagePresentation: { ...current.imagePresentation, ...detail.imagePresentation },
+          }
+        : {}),
       items: [...current.items, ...page.items],
       retainedBytes: current.retainedBytes + bytes,
     },

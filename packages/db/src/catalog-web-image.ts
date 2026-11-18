@@ -32,6 +32,42 @@ export const CatalogWebImageSchema = z
   })
   .strict();
 export type CatalogWebImage = z.infer<typeof CatalogWebImageSchema>;
+export const CatalogWebVariantsSchema = z
+  .object({
+    '160': CatalogWebImageSchema.optional(),
+    '640': CatalogWebImageSchema.optional(),
+  })
+  .strict();
+export type CatalogWebVariants = z.infer<typeof CatalogWebVariantsSchema>;
+
+export function bindCatalogWebVariants(
+  source: CollectionDoc,
+  objects: {
+    '160'?: Omit<CatalogWebImage, 'schemaVersion' | 'sourceDigest'> | undefined;
+    '640'?: Omit<CatalogWebImage, 'schemaVersion' | 'sourceDigest'> | undefined;
+  },
+): CatalogWebVariants {
+  return CatalogWebVariantsSchema.parse(
+    Object.fromEntries(
+      Object.entries(objects).flatMap(([key, value]) =>
+        value ? [[key, bindCatalogWebImage(source, value)]] : [],
+      ),
+    ),
+  );
+}
+
+/** A preparation may only append targets. A retry must preserve every earlier identity. */
+export function extendsCatalogWebVariants(previous: unknown, next: unknown): boolean {
+  const before = CatalogWebVariantsSchema.safeParse(previous === undefined ? {} : previous);
+  const after = CatalogWebVariantsSchema.safeParse(next === undefined ? {} : next);
+  return (
+    before.success &&
+    after.success &&
+    Object.entries(before.data).every(([key, value]) =>
+      isDeepStrictEqual(value, Reflect.get(after.data, key)),
+    )
+  );
+}
 
 /** Bind a verified object to exactly the original that will become active. */
 export function bindCatalogWebImage(
@@ -68,6 +104,40 @@ export function readCatalogWebImage(image: CollectionDoc): CatalogWebImage | nul
     : null;
 }
 
+/** Partial maps are useful only for resumable preparation/deletion, never readiness. */
+export function readCatalogWebVariants(image: CollectionDoc): CatalogWebVariants | null {
+  const base = readCatalogWebImage(image);
+  const parsed = CatalogWebVariantsSchema.safeParse(image.catalogWebVariants);
+  if (!base || !parsed.success) return null;
+  for (const width of [160, 640] as const) {
+    const value = parsed.data[width];
+    if (!value) continue;
+    if (
+      base.width <= width ||
+      value.width !== width ||
+      !readCatalogWebImage({ ...image, catalogWebImage: value }) ||
+      Math.abs(value.height - (base.height * value.width) / base.width) > 1
+    )
+      return null;
+  }
+  return parsed.data;
+}
+
+export function readCatalogWebImageAtWidth(image: CollectionDoc, width: 160 | 640 | 1280) {
+  const base = readCatalogWebImage(image);
+  if (!base) return null;
+  if (width === 1280) return base;
+  if (Object.hasOwn(image, 'catalogWebVariants') && !readCatalogWebVariants(image)) return null;
+  return base.width <= width ? base : (readCatalogWebVariants(image)?.[width] ?? null);
+}
+
+export function hasCompleteCatalogWebVariants(image: CollectionDoc): boolean {
+  return (
+    readCatalogWebVariants(image) !== null &&
+    [160, 640, 1280].every((width) => readCatalogWebImageAtWidth(image, width as 160 | 640 | 1280))
+  );
+}
+
 /** The original is kept; only its ability to cross the existing HTTP boundary is constrained. */
 export function hasSafeCatalogImageDelivery(image: CollectionDoc): boolean {
   return (
@@ -81,6 +151,8 @@ export function retargetCatalogWebImage(
   previous: CollectionDoc,
   next: CollectionDoc,
 ): CollectionDoc {
+  if (Object.hasOwn(previous, 'catalogWebVariants') && !readCatalogWebVariants(previous))
+    throw Error('A moved image must preserve every responsive target');
   if (!Object.hasOwn(previous, 'catalogWebImage')) return next;
   const web = readCatalogWebImage(previous);
   if (
@@ -91,7 +163,22 @@ export function retargetCatalogWebImage(
   )
     throw Error('A moved image must preserve its verified web delivery');
   const candidate = { ...web, sourceDigest: storedCatalogImageInputDigest(next) };
-  const rebound = { ...next, catalogWebImage: candidate };
+  let rebound: CollectionDoc = { ...next, catalogWebImage: candidate };
+  if (Object.hasOwn(previous, 'catalogWebVariants')) {
+    const variants = readCatalogWebVariants(previous);
+    if (!variants) throw Error('A moved image must preserve every responsive target');
+    rebound = {
+      ...rebound,
+      catalogWebVariants: Object.fromEntries(
+        Object.entries(variants).map(([key, value]) => [
+          key,
+          { ...value, sourceDigest: storedCatalogImageInputDigest(next) },
+        ]),
+      ),
+    };
+    if (!readCatalogWebVariants(rebound))
+      throw Error('The moved source cannot use its responsive targets');
+  }
   if (!readCatalogWebImage(rebound))
     throw Error('The moved source cannot use the existing web object');
   return rebound;
