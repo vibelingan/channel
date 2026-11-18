@@ -4,7 +4,17 @@ import {
   imagePresentationMatchesSources,
 } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { z } from 'zod';
-import type { ProductSnapshot, ProductSnapshotEntry } from './product-snapshot.ts';
+
+// Release tools also read this file; keep their input independent of browser/API modules.
+interface ImageSnapshotEntry {
+  product: { _id: string };
+  revision: string;
+  detail?: { images: string[]; variants: { items: { images: string[] }[] } };
+}
+interface ImageSnapshot {
+  siteOrigin: string;
+  products: ImageSnapshotEntry[];
+}
 
 const schema = z
   .object({
@@ -27,14 +37,14 @@ const schema = z
 export type ProductSnapshotImages = z.infer<typeof schema>;
 export type ProductSnapshotImageEntry = ProductSnapshotImages['products'][number];
 
-function detailSources(entry: ProductSnapshotEntry) {
+function detailSources(entry: ImageSnapshotEntry) {
   return entry.detail
     ? [...entry.detail.images, ...entry.detail.variants.items.flatMap((variant) => variant.images)]
     : [];
 }
 
 /** Display hints are separate from the unchanged, strictly decoded content snapshot. */
-export function decodeProductSnapshotImages(value: unknown, snapshot: ProductSnapshot) {
+export function decodeProductSnapshotImages(value: unknown, snapshot: ImageSnapshot) {
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 4 * 1024 * 1024)
     throw Error('Product image hints exceed the build input limit');
   const parsed = schema.parse(value);
@@ -57,7 +67,7 @@ export function decodeProductSnapshotImages(value: unknown, snapshot: ProductSna
 
 /** Retain only unchanged approved records; withdrawals and replaced revisions lose their hints. */
 export function createProductSnapshotImages(
-  snapshot: ProductSnapshot,
+  snapshot: ImageSnapshot,
   previous: readonly ProductSnapshotImageEntry[] = [],
 ): ProductSnapshotImages {
   const entries = new Map(snapshot.products.map((entry) => [entry.product._id, entry]));
@@ -77,7 +87,7 @@ export function createProductSnapshotImages(
   );
 }
 
-export async function readProductSnapshotImages(file: string, snapshot: ProductSnapshot) {
+export async function readProductSnapshotImages(file: string, snapshot: ImageSnapshot) {
   let bytes: Buffer;
   try {
     bytes = await readFile(`${file}.images.json`);
@@ -92,7 +102,7 @@ export async function readProductSnapshotImages(file: string, snapshot: ProductS
 }
 
 /** Only the in-memory rendering view receives hints. No saved detail/revision is rewritten. */
-export function presentProductSnapshot(snapshot: ProductSnapshot, value: unknown): ProductSnapshot {
+export function presentProductSnapshot<T extends ImageSnapshot>(snapshot: T, value: unknown): T {
   const images = decodeProductSnapshotImages(value, snapshot);
   const byId = new Map(images.products.map((row) => [row.productId, row.images]));
   return {

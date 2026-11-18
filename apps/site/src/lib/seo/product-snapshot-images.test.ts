@@ -78,10 +78,8 @@ test('legacy absent hints remain readable; malformed or mismatched files fail in
 
 test('accepted reuse retains unchanged hints and drops withdrawn or replaced revisions', () => {
   assert.deepEqual(createProductSnapshotImages(snapshot, images.products), images);
-  assert.deepEqual(
-    createProductSnapshotImages({ ...snapshot, total: 0, products: [] }, images.products).products,
-    [],
-  );
+  const withdrawn = { ...snapshot, total: 0, products: [] };
+  assert.deepEqual(createProductSnapshotImages(withdrawn, images.products).products, []);
   assert.deepEqual(
     createProductSnapshotImages(
       {

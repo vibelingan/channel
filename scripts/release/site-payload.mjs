@@ -19,7 +19,7 @@ export function createSitePayload({
   releaseId,
   files,
   snapshot,
-  productImagePresentation = null,
+  productImagePresentation = /** @type {null | object} */ (null),
   blogDelivery = 'static',
   renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,archiveFileId:string,inputSchema:number}} */ (
     null
