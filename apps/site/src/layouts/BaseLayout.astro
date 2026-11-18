@@ -3,7 +3,7 @@ import type { ComponentProps } from 'astro/types';
 import '../styles/global.css';
 import DocumentLayout from './DocumentLayout.astro';
 
-type Props = ComponentProps<typeof DocumentLayout>;
+type Props = ComponentProps<typeof import('./DocumentLayout.astro').default>;
 ---
 
 <DocumentLayout {...Astro.props}><slot /></DocumentLayout>
