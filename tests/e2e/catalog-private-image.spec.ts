@@ -16,7 +16,8 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   request,
 }) => {
   test.skip(!e2e.catalogPrivateImageSmoke, 'Set E2E_CATALOG_PRIVATE_IMAGE_SMOKE=1.');
-  test.setTimeout(480_000);
+  // Two bounded transfers exercise the existing user retry; each PUT stays at five minutes.
+  test.setTimeout(840_000);
   requireAdminCredentialsWhenEnabled(true, 'Private image acceptance');
   const release = process.env.CHANNEL_EXPECTED_RELEASE ?? '';
   expect(release, 'An exact accepted program is required before writing the fixture.').toMatch(
@@ -84,18 +85,78 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   };
   await mkdir('output/catalog-private-image', { recursive: true });
   let putCount = 0;
+  let retryAttempts = 0;
   let failure: unknown;
   let cleanupFailure: unknown;
   const uploadTransport: Array<Record<string, unknown>> = [];
   const uploadStarts = new Map<string, number>();
+  const errorReads = new Set<Promise<void>>();
+  const network = await page.context().newCDPSession(page);
+  await network.send('Network.enable');
+  const storageRequests = new Set<string>();
+  const uploadNetwork: Array<Record<string, unknown>> = [];
+  network.on('Network.requestWillBeSent', ({ requestId, request: outgoing }) => {
+    const url = new URL(outgoing.url);
+    if (outgoing.method === 'PUT' && url.hostname.endsWith('.myqcloud.com'))
+      storageRequests.add(requestId);
+  });
+  network.on('Network.responseReceived', ({ requestId, response }) => {
+    if (!storageRequests.has(requestId)) return;
+    const timing = response.timing;
+    uploadNetwork.push({
+      status: response.status,
+      protocol: response.protocol,
+      timing: timing
+        ? Object.fromEntries(
+            [
+              'dnsStart',
+              'dnsEnd',
+              'connectStart',
+              'connectEnd',
+              'sslStart',
+              'sslEnd',
+              'sendStart',
+              'sendEnd',
+              'receiveHeadersStart',
+            ].map((key) => [key, Reflect.get(timing, key)]),
+          )
+        : null,
+    });
+  });
   page.on('response', (response) => {
     const req = response.request();
-    if (req.method() === 'PUT')
-      uploadTransport.push({
+    if (req.method() === 'PUT') {
+      const observed: Record<string, unknown> = {
         host: new URL(req.url()).hostname,
         status: response.status(),
         elapsedMs: Date.now() - (uploadStarts.get(req.url()) ?? Date.now()),
-      });
+      };
+      uploadTransport.push(observed);
+      if (response.status() >= 400) {
+        const read = (async () => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            const body = await Promise.race([
+              response.text(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(Error('Storage error body unavailable')), 2000);
+              }),
+            ]);
+            // Preserve only a provider error code, never signed URLs, headers or raw XML.
+            observed.storageErrorCode =
+              body.length <= 65_536
+                ? (/<Code>([A-Za-z0-9_.-]{1,80})<\/Code>/.exec(body)?.[1] ?? null)
+                : null;
+          } catch {
+            observed.storageErrorBodyUnavailable = true;
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        })();
+        errorReads.add(read);
+        void read.finally(() => errorReads.delete(read));
+      }
+    }
   });
   page.on('requestfailed', (req) => {
     if (req.method() === 'PUT')
@@ -156,8 +217,24 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       mimeType: 'image/png',
       buffer: bytes,
     });
-    // Includes the bounded transfer plus server-side verification and image preparation.
-    await expect(gallery.locator('[data-image-id]')).toHaveCount(1, { timeout: 360_000 });
+    const uploadState = async () =>
+      (await gallery.locator('[data-image-id]').count()) === 1
+        ? 'ready'
+        : (await gallery.getByRole('button', { name: 'Retry', exact: true }).isVisible())
+          ? 'failed'
+          : 'pending';
+    const waitForUpload = async () => {
+      // Finish immediately on the real UI failure instead of waiting out a readiness assertion.
+      await expect.poll(uploadState, { timeout: 360_000 }).not.toBe('pending');
+    };
+    await waitForUpload();
+    if ((await uploadState()) === 'failed') {
+      receipt.firstUploadFailure = (await gallery.innerText()).slice(0, 1200);
+      retryAttempts++;
+      await gallery.getByRole('button', { name: 'Retry', exact: true }).click();
+      await waitForUpload();
+    }
+    await expect(gallery.locator('[data-image-id]')).toHaveCount(1);
     await expect(gallery.getByText('Failed — retry')).toHaveCount(0);
     await expect(gallery.locator('img')).toBeVisible();
     const imageId = await gallery.locator('[data-image-id]').getAttribute('data-image-id');
@@ -240,7 +317,8 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     expect(replayed.items).toHaveLength(1);
     expect(replayed.items[0]?.catalogWebImage).toEqual(web);
     expect(replayed.items[0]?.catalogWebVariants).toEqual(variants);
-    expect(putCount).toBe(1);
+    expect(putCount).toBe(1 + retryAttempts);
+    expect(uiAdminRequestCounts.get('createUploadIntent')).toBe(1);
     const anonymous = await request.get(`${e2e.apiUrl}/api/images/${imageId}`);
     expect(anonymous.status()).toBe(404);
     const privateDenied = await request.post(`${e2e.apiUrl}/api/admin`, {
@@ -258,6 +336,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       completeReplays: 2,
       imageRecords: 1,
       cosPuts: putCount,
+      userRetryAttempts: retryAttempts,
       anonymousStatus: 404,
       unauthenticatedPreviewStatus: 401,
       productsCreated: 0,
@@ -285,6 +364,14 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       for (const image of remaining.items) {
         expect(image.name).toBe(name);
         expect(image.byteSize).toBe(bytes.length);
+        expect(
+          image.status !== 'pending' ||
+            uploadTransport.some(
+              (result) =>
+                typeof result.status === 'number' && result.status >= 200 && result.status < 300,
+            ),
+          `Incomplete private upload ${image._id} needs scoped cleanup after confirming storage state; no product was created.`,
+        ).toBe(true);
         if (image.status === 'pending')
           await adminAction(request, 'completeUpload', { imageId: image._id }, session.token);
         // The list hides uploader identity; abandonUpload rechecks it server-side.
@@ -300,7 +387,10 @@ test('private large image: real UI upload, backend preview, same-id replay and e
       receipt.cleanupError = error instanceof Error ? error.message : 'Cleanup unconfirmed';
       cleanupFailure = error;
     } finally {
+      await Promise.allSettled([...errorReads]);
       receipt.uploadTransport = uploadTransport;
+      receipt.uploadNetwork = uploadNetwork;
+      receipt.userRetryAttempts = retryAttempts;
       receipt.uiAdminRequestCounts = Object.fromEntries(uiAdminRequestCounts);
       receipt.unexpectedUiActions = [...unexpectedUiActions];
       await writeFile('output/catalog-private-image/result.json', JSON.stringify(receipt, null, 2));
