@@ -1,6 +1,12 @@
 # SEO / GEO Agent Handoff
 
-2026-10-20 current entry: [最终方案与交付索引](FINAL_DELIVERY.zh-CN.md) and
+## 2026-11-19 current delivery
+
+Use the [November briefing](continuation/next-phase-design-2026-11-05/BRIEFING-2026-11-19.zh-CN.md) for current website changes, search results, performance measurements and open items. The detailed [execution record](continuation/next-phase-design-2026-11-05/EXECUTION.zh-CN.md) links exact deployments and source commits on `feat/seo-foundation`.
+
+## 2026-10-20 handoff
+
+[最终方案与交付索引](FINAL_DELIVERY.zh-CN.md) and
 [流程审阅及未完成门禁](FINAL_REVIEW.zh-CN.md). The sections below are retained historical
 phase notes; their old branch commands, account blockers and test totals are not the current status.
 Continue on the existing `feat/seo-foundation` branch. The final diagram atlas is

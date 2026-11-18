@@ -13,7 +13,7 @@
 
 再分别打开旧、新两套完整构建，使用 412、768、1440 像素宽度，等公开表单初始化后测量。三个宽度的首屏截图逐字节相同，手机和平板菜单、桌面分类菜单、询盘分类选择和助手面板都能打开，两套页面测得的布局及操作尺寸一致。没有提交询盘或发送助手消息。构建检查覆盖 22 份 HTML 和 13 个规范地址。局部构建中五个非首页的内联样式输出顺序发生变化，所用共用样式、内联规则和网页内容保持一致。算作约 0.20 秒的受控首绘改善。正式网站整页表现和真实用户速度另验，首页与其他页面首次访问各读自己的文件。
 
-原始 Chrome 记录在本机 `output/seo-proof-tail-20261119/home-source-scope/`。测量前后使用同一字节版本与网络设定。规则和资源输出依据 [Tailwind 源扫描规则](https://tailwindcss.com/docs/detecting-classes-in-source-files)与 [Astro 样式构建说明](https://docs.astro.build/en/guides/styling/#bundling-control)。
+原始 Chrome 记录在本机 `output/seo-proof-tail-20261119/home-source-scope/`。测量前后使用同一字节版本与网络设定。本项目的 Biome 1.9 无法识别 Tailwind 的 `source(none)` 写法，因此仅这份入口文件由 Astro 构建检查及浏览器验证。其余代码继续使用原检查。规则和资源输出依据 [Tailwind 源扫描规则](https://tailwindcss.com/docs/detecting-classes-in-source-files)与 [Astro 样式构建说明](https://docs.astro.build/en/guides/styling/#bundling-control)。
 
 ## 11 月 19 日补验，首页样式压缩与浏览器缓存
 
