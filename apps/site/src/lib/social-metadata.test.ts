@@ -13,7 +13,7 @@ import type {
 } from '@astrojs/compiler/types';
 import sharp from 'sharp';
 
-const layoutPath = new URL('../layouts/BaseLayout.astro', import.meta.url);
+const layoutPath = new URL('../layouts/DocumentLayout.astro', import.meta.url);
 const layoutSource = readFileSync(fileURLToPath(layoutPath), 'utf8');
 
 const attribute = (node: ElementNode | ComponentNode, name: string): AttributeNode | undefined =>

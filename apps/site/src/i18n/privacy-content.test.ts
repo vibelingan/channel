@@ -76,7 +76,7 @@ test('each statement in the notice is still true of the code', () => {
 
   // "We do not use advertising or analytics cookies."
   assert.match(statement('No tracking'), /do not use advertising or analytics cookies/);
-  const layout = read('../layouts/BaseLayout.astro');
+  const layout = read('../layouts/DocumentLayout.astro');
   for (const tracker of ['googletagmanager', 'gtag(', 'hm.baidu.com', 'clarity.ms', 'umami']) {
     assert.ok(!layout.includes(tracker), tracker);
   }

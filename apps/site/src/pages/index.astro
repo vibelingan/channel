@@ -13,7 +13,8 @@ import SiteHeader from '../components/SiteHeader.astro';
 import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
-import BaseLayout from '../layouts/BaseLayout.astro';
+import BaseLayout from '../layouts/DocumentLayout.astro';
+import '../styles/home.css';
 
 const content = getSiteContent(DEFAULT_LOCALE);
 const { submit } = getOemContent(DEFAULT_LOCALE);

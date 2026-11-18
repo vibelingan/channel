@@ -60,6 +60,9 @@ test('only the host mounts the assistant island, and the shared layout does not'
     if ((await readFile(`${sources}${file}`, 'utf8')).includes('<AssistantWidget'))
       mounting.push(file);
   assert.deepEqual(mounting, ['components/AssistantHost.astro']);
-  const layout = await readFile(new URL('../layouts/BaseLayout.astro', import.meta.url), 'utf8');
+  const layout = await readFile(
+    new URL('../layouts/DocumentLayout.astro', import.meta.url),
+    'utf8',
+  );
   assert.ok(!layout.includes('AssistantHost'));
 });
