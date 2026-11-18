@@ -18,7 +18,7 @@
 
 另从网站真实受保护正文接口独立读回：Reddit及r/Entrepreneur为零、旧的两处 `(brand: …)` 为零、`These threads` 为零、`These questions` 已有；两处“品牌属于客户而非我们”均存在，Insten及COREMEE GIIK名称保留，图片仍为零。公开地址 `/blog/private-label-to-real-brand/` 实测404。VibeKB只读，没有借修网站改写原文。
 
-本地适用验证：工具18项、Python18项、真实已安装SDK的离线HTTP/事务19项（其中本轮新增4项）和独立包5项，共60项通过、无跳过。修改前的单项回归确实收到HTTP409；不是编译或缺依赖失败充当复现。初次本机缺独立工具依赖，按原锁文件执行该工具的npm ci后重新通过；未启动OrbStack。发布包在实际发布机的Node运行并由真实MCP调用验证，未把本机Node25当成生产Node20的证明。
+本地适用验证：工具18项、Python18项、真实已安装SDK的离线HTTP/事务19项（其中本轮新增4项）和独立包5项，共60项通过、无跳过。修改前的单项回归确实收到HTTP409；不是编译或缺依赖失败充当复现。初次本机缺独立工具依赖，按原锁文件执行该工具的npm ci后重新通过；未启动OrbStack。发布机实际运行Node22.23.1，已用该运行时完成上述真实MCP调用；包以Node20为构建兼容目标，本轮没有另外验收Node20运行。
 
 本次release分支没有自动远端CI：现有相关工作流的push范围是 `feat/seo-foundation`、main或PR，源码提交的check-runs实际为0；没有编造“CI全绿”、另开PR或改触发范围。没有公共页面／后端程序／SDK改动，未运行整站发布。原始MCP回执、正文检查和本地日志在本检出的 `output/` 与发布机私有 `backups/doc303-repair-20261118/`，不入Git。共享仓库的core.worktree指向另一检出，本轮Git操作显式指定本检出路径，未修改那份共享配置。
 
