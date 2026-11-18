@@ -74,10 +74,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - name: Use the Ubuntu archive for browser dependencies
-        run: |
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt
-          fi
+        run: sudo python3 scripts/ci-ubuntu-archive.py
       # Browser downloads (~45 s) come from the cache; system packages are still installed.
       - name: Restore Playwright browsers
         uses: actions/cache@v4

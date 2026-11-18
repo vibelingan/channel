@@ -58,7 +58,7 @@ function assertOffline(workflow) {
   const commands = blog.steps.filter((step) => step.run).map((step) => step.run);
   assert.deepEqual(commands, [
     'pnpm install --frozen-lockfile',
-    "if [ -f /etc/apt/apt-mirrors.txt ]; then\n  sudo sed -i 's/azure\\.archive\\.ubuntu\\.com/archive.ubuntu.com/g' /etc/apt/apt-mirrors.txt\nfi\n",
+    'sudo python3 scripts/ci-ubuntu-archive.py',
     'pnpm exec playwright install --with-deps chromium',
     'node scripts/run-catalog-admin-local-e2e.mjs --articles-only',
     'node scripts/run-blog-public-local-e2e.mjs',
