@@ -40,8 +40,11 @@ function web(width: number, letter: string) {
 }
 const base = web(800, 'b');
 const variants = { '160': web(160, 'c'), '640': web(640, 'd') };
-function fixture() {
-  let row: CollectionDoc = { ...structuredClone(original), catalogWebImage: base };
+function fixture(hasDefault = true) {
+  let row: CollectionDoc = {
+    ...structuredClone(original),
+    ...(hasDefault ? { catalogWebImage: base } : {}),
+  };
   const store = {
     get: async () => structuredClone(row),
     set: async (_collection: string, value: CollectionDoc) => {
@@ -139,4 +142,46 @@ test('source changes, lost lock, quarantine and foreign preparation stop an exis
     );
     assert.deepEqual(f.row(), before);
   }
+});
+
+test('reviewed originals begin serving new files only after the full prepared set is committed', async () => {
+  const f = fixture(false);
+  const input = { ...f.input, allowNewDefault: true as const };
+  assert.equal(
+    await runCatalogWebBackfill(f.store, { ...f.input, action: 'checkpoint' }),
+    'conflict',
+  );
+  assert.equal(await runCatalogWebBackfill(f.store, { ...input, action: 'complete' }), 'conflict');
+  assert.equal(
+    await runCatalogWebBackfill(f.store, {
+      ...input,
+      action: 'checkpoint',
+      catalogWebVariants: {},
+    }),
+    'checkpointed',
+  );
+  assert.equal(f.row().catalogWebImage, undefined);
+  assert.deepEqual(imageDeletionStorageTargets(f.row())?.storageFileIds, [
+    original.storageFileId,
+    base.storageFileId,
+  ]);
+  assert.equal(
+    await runCatalogWebBackfill(f.store, {
+      ...input,
+      action: 'checkpoint',
+      catalogWebImage: web(800, 'e'),
+    }),
+    'conflict',
+  );
+  assert.equal(
+    await runCatalogWebBackfill(f.store, { ...input, action: 'checkpoint' }),
+    'checkpointed',
+  );
+  f.patch({ alt: 'A person edited this while the files were prepared' });
+  assert.equal(await runCatalogWebBackfill(f.store, { ...input, action: 'complete' }), 'ready');
+  assert.deepEqual(f.row().catalogWebImage, base);
+  assert.deepEqual(f.row().catalogWebVariants, variants);
+  assert.equal(f.row().alt, 'A person edited this while the files were prepared');
+  assert.equal(f.row().storageFileId, original.storageFileId);
+  assert.equal(await runCatalogWebBackfill(f.store, { ...input, action: 'complete' }), 'ready');
 });

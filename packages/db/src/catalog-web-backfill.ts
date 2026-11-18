@@ -23,6 +23,7 @@ const commandSchema = z
     imageId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/),
     owner: z.string().min(1).max(200),
     sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    allowNewDefault: z.literal(true).optional(),
     catalogWebImage: CatalogWebImageSchema,
     catalogWebVariants: CatalogWebVariantsSchema,
   })
@@ -43,20 +44,25 @@ export async function runCatalogWebBackfill(
     lock.state !== 'owned' ||
     lock.owner !== command.owner ||
     storedCatalogImageInputDigest(image) !== command.sourceDigest ||
-    !base ||
-    !isDeepStrictEqual(base, command.catalogWebImage) ||
+    (base
+      ? !isDeepStrictEqual(base, command.catalogWebImage)
+      : Object.hasOwn(image, 'catalogWebImage') || !command.allowNewDefault) ||
     (Object.hasOwn(image, 'catalogWebVariants') && !readCatalogWebVariants(image)) ||
     !extendsCatalogWebVariants(image.catalogWebVariants, command.catalogWebVariants)
   )
     return 'conflict';
 
-  const candidate = { ...image, catalogWebVariants: command.catalogWebVariants };
+  const candidate = {
+    ...image,
+    catalogWebImage: command.catalogWebImage,
+    catalogWebVariants: command.catalogWebVariants,
+  };
   if (!readCatalogWebVariants(candidate)) return 'conflict';
   const saved = readImageUploadWebPreparation(image);
   if (
     Object.hasOwn(image, 'imageWebPreparation') &&
     (!saved ||
-      !isDeepStrictEqual(saved.catalogWebImage, base) ||
+      !isDeepStrictEqual(saved.catalogWebImage, command.catalogWebImage) ||
       saved.byteSize !== image.byteSize ||
       saved.checksumSha256 !== image.checksumSha256 ||
       !extendsCatalogWebVariants(saved.catalogWebVariants, command.catalogWebVariants))
@@ -71,7 +77,7 @@ export async function runCatalogWebBackfill(
         inputDigest: imageUploadInputDigest(image),
         byteSize: image.byteSize,
         checksumSha256: image.checksumSha256,
-        catalogWebImage: base,
+        catalogWebImage: command.catalogWebImage,
         catalogWebVariants: command.catalogWebVariants,
       },
     });
@@ -80,11 +86,15 @@ export async function runCatalogWebBackfill(
 
   if (!hasCompleteCatalogWebVariants(candidate)) return 'conflict';
   if (!saved)
-    return isDeepStrictEqual(image.catalogWebVariants, command.catalogWebVariants)
+    return base && isDeepStrictEqual(image.catalogWebVariants, command.catalogWebVariants)
       ? 'ready'
       : 'conflict';
   if (!isDeepStrictEqual(saved.catalogWebVariants, command.catalogWebVariants)) return 'conflict';
   const { imageWebPreparation: _preparation, ...current } = image;
-  await tx.set('images', { ...current, catalogWebVariants: command.catalogWebVariants });
+  await tx.set('images', {
+    ...current,
+    catalogWebImage: command.catalogWebImage,
+    catalogWebVariants: command.catalogWebVariants,
+  });
   return 'ready';
 }

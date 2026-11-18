@@ -9,7 +9,11 @@ import { z } from 'zod';
 interface ImageSnapshotEntry {
   product: { _id: string };
   revision: string;
-  detail?: { images: string[]; variants: { items: { images: string[] }[] } };
+  detail?: {
+    images: string[];
+    descriptionImages?: string[];
+    variants: { items: { images: string[] }[] };
+  };
 }
 interface ImageSnapshot {
   siteOrigin: string;
@@ -57,7 +61,10 @@ export function decodeProductSnapshotImages(value: unknown, snapshot: ImageSnaps
       seen.has(row.productId) ||
       !entry?.detail ||
       row.revision !== entry.revision ||
-      !imagePresentationMatchesSources(row.images, detailSources(entry))
+      !imagePresentationMatchesSources(row.images, [
+        ...detailSources(entry),
+        ...(entry.detail.descriptionImages ?? []),
+      ])
     )
       throw Error(`Unrelated product image hints: ${row.productId}`);
     seen.add(row.productId);
@@ -84,6 +91,28 @@ export function createProductSnapshotImages(
       }),
     },
     snapshot,
+  );
+}
+
+/** A recovery can use an older renderer whose sidecar only recognized gallery/variant sources. */
+export function galleryOnlyProductSnapshotImages(
+  snapshot: ImageSnapshot,
+  value: ProductSnapshotImages,
+): ProductSnapshotImages {
+  const images = decodeProductSnapshotImages(value, snapshot);
+  const sources = new Map(
+    snapshot.products.map((entry) => [entry.product._id, new Set(detailSources(entry))]),
+  );
+  return createProductSnapshotImages(
+    snapshot,
+    images.products.map((entry) => ({
+      ...entry,
+      images: Object.fromEntries(
+        Object.entries(entry.images).filter(([source]) =>
+          sources.get(entry.productId)?.has(source),
+        ),
+      ),
+    })),
   );
 }
 

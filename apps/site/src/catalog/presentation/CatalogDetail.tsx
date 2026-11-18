@@ -115,6 +115,7 @@ export function CatalogDetail({
         ) : (
           <CatalogDescriptionImages
             images={detail.descriptionImages ?? []}
+            imagePresentation={pages.imagePresentation}
             productName={detail.name}
           />
         )}

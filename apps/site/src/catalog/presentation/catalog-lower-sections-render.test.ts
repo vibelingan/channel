@@ -183,3 +183,31 @@ test('description image rendering retains the shared count cap and lazy loading'
     !html.includes(`src="/api/catalog/images/photo-${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT + 1}"`),
   );
 });
+
+test('a prepared description image uses its web sizes and reserves its natural layout', () => {
+  const source = '/api/images/description';
+  const html = renderToStaticMarkup(
+    createElement(CatalogDescriptionImages, {
+      images: [source, 'blob:https://admin.example.test/private'],
+      productName: 'Headphones',
+      imagePresentation: {
+        [source]: [
+          { url: `${source}?w=160`, width: 160, height: 101 },
+          { url: `${source}?w=640`, width: 640, height: 404 },
+          { url: `${source}?w=1280`, width: 804, height: 507 },
+        ],
+      },
+    }),
+  );
+  const [prepared, preview] = html.match(/<img\b[^>]*>/g) ?? [];
+  assert.ok(prepared && preview);
+  assert.match(
+    prepared,
+    /srcSet="\/api\/images\/description\?w=160 160w, \/api\/images\/description\?w=640 640w, \/api\/images\/description\?w=1280 804w"/i,
+  );
+  assert.match(prepared, /width="804" height="507"/);
+  assert.match(prepared, /loading="lazy"/);
+  assert.match(preview, /src="blob:https:\/\/admin.example.test\/private"/);
+  assert.doesNotMatch(preview, /srcset|width="804"/i);
+  assert.doesNotMatch(html, /rel="preload"/);
+});

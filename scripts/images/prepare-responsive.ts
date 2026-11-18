@@ -31,6 +31,7 @@ import {
 } from '../../packages/db/src/image-upload.ts';
 import { prepareCatalogWebVariants } from '../../packages/media-storage/src/catalog-web-prepare.ts';
 import { createCloudBaseMediaStorage } from '../../packages/media-storage/src/cloudbase.ts';
+import { createCatalogWebImage } from '../../packages/media-storage/src/web-image.ts';
 import type { CollectionDoc } from '../../packages/shared/src/index.ts';
 import { readFunctionRuntimeVersion } from '../blog/runtime-health.mjs';
 import { blogWorkerSdk } from '../blog/worker-source.ts';
@@ -55,6 +56,10 @@ export const ResponsivePreparationPlanSchema = z
     envId: z.literal('diversity-123-d9grnqfux221323bb'),
     region: z.literal('ap-shanghai'),
     programSha: z.string().regex(/^[a-f0-9]{40}$/),
+    publicApiProgramSha: z
+      .string()
+      .regex(/^[a-f0-9]{40}$/)
+      .optional(),
     images: z
       .array(
         z
@@ -62,7 +67,7 @@ export const ResponsivePreparationPlanSchema = z
             imageId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/),
             sourceDigest: sha,
             sourceSha256: sha,
-            defaultSha256: sha,
+            defaultSha256: sha.nullable(),
           })
           .strict(),
       )
@@ -128,7 +133,7 @@ export async function runCatalogResponsivePreparation(input: {
   for (const name of ['admin', 'public-api', 'alibaba-catalog-sync'])
     assert.equal(
       await readFunctionRuntimeVersion(plan.envId, name),
-      plan.programSha,
+      name === 'public-api' ? (plan.publicApiProgramSha ?? plan.programSha) : plan.programSha,
       `${name} is not the reviewed compatible program`,
     );
   const sdk = blogWorkerSdk({
@@ -176,16 +181,17 @@ export async function runCatalogResponsivePreparation(input: {
       assert.equal(source.checksumSha256, target.sourceSha256);
       const base = readCatalogWebImage(source);
       assert(
-        base && base.checksumSha256 === target.defaultSha256,
+        target.defaultSha256 === null
+          ? base || !Object.hasOwn(source, 'catalogWebImage')
+          : base?.checksumSha256 === target.defaultSha256,
         'Selected default image changed',
       );
       const saved = readImageUploadWebPreparation(source);
       assert(
-        !Object.hasOwn(source, 'imageWebPreparation') ||
-          (saved && saved.inputDigest === imageUploadInputDigest(source)),
+        !Object.hasOwn(source, 'imageWebPreparation') || saved,
         'Foreign preparation must be preserved',
       );
-      if (saved) assert.deepEqual(saved.catalogWebImage, base, 'Pending default differs');
+      if (saved && base) assert.deepEqual(saved.catalogWebImage, base, 'Pending default differs');
       const activeVariants = readCatalogWebVariants(source);
       assert(
         !Object.hasOwn(source, 'catalogWebVariants') || activeVariants,
@@ -215,11 +221,20 @@ export async function runCatalogResponsivePreparation(input: {
           };
           return runCatalogWebBackfill(store, command);
         });
+      const previousDefault = saved?.catalogWebImage ?? base;
+      if (target.defaultSha256 === null && previousDefault) {
+        const expected = await createCatalogWebImage(bytes, source.mimeType);
+        assert.equal(
+          previousDefault.checksumSha256,
+          expected.checksumSha256,
+          'A retry must match the selected original’s generated default',
+        );
+      }
       const command = {
         imageId: source._id,
         owner,
         sourceDigest: target.sourceDigest,
-        catalogWebImage: base,
+        ...(target.defaultSha256 === null ? { allowNewDefault: true as const } : {}),
       };
       const prepared = await prepareCatalogWebVariants({
         imageId: source._id,
@@ -227,10 +242,14 @@ export async function runCatalogResponsivePreparation(input: {
         mimeType: source.mimeType,
         checksumSha256: target.sourceSha256,
         storage,
-        existing: {
-          default: saved?.catalogWebImage ?? base,
-          variants: saved?.catalogWebVariants ?? activeVariants ?? {},
-        },
+        ...(previousDefault
+          ? {
+              existing: {
+                default: previousDefault,
+                variants: saved?.catalogWebVariants ?? activeVariants ?? {},
+              },
+            }
+          : {}),
         checkpoint: async (value) =>
           assert.equal(
             await persist({
@@ -242,16 +261,21 @@ export async function runCatalogResponsivePreparation(input: {
             'checkpointed',
           ),
       });
-      assert(prepared, 'Existing default must be retained');
+      assert(prepared, 'Selected image must have a verified web version');
+      const catalogWebImage = bindCatalogWebImage(source, prepared.default);
       const catalogWebVariants = bindCatalogWebVariants(source, prepared.variants);
       // Also checkpoint when a narrow image needs no separate file.
       assert.equal(
-        await persist({ ...command, action: 'checkpoint', catalogWebVariants }),
+        await persist({ ...command, action: 'checkpoint', catalogWebImage, catalogWebVariants }),
         'checkpointed',
       );
-      assert.equal(await persist({ ...command, action: 'complete', catalogWebVariants }), 'ready');
+      assert.equal(
+        await persist({ ...command, action: 'complete', catalogWebImage, catalogWebVariants }),
+        'ready',
+      );
       const after = await get();
       assert.equal(storedCatalogImageInputDigest(after), target.sourceDigest);
+      assert.deepEqual(readCatalogWebImage(after), catalogWebImage);
       assert.deepEqual(readCatalogWebVariants(after), catalogWebVariants);
       await save(`${source._id}.after.private.json`, after);
       results.push({

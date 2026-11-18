@@ -6,7 +6,10 @@ import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
 import COS from 'cos-nodejs-sdk-v5';
 import { productPath } from '../apps/site/src/lib/seo/product-identity.ts';
-import { readProductSnapshotImages } from '../apps/site/src/lib/seo/product-snapshot-images.ts';
+import {
+  galleryOnlyProductSnapshotImages,
+  readProductSnapshotImages,
+} from '../apps/site/src/lib/seo/product-snapshot-images.ts';
 import { prepareArticleBuild } from '../packages/articles/src/build.ts';
 import { articleReleaseBuildInput } from '../packages/articles/src/release-build.ts';
 import type { ClaimedArticleRelease } from '../packages/articles/src/release-store.ts';
@@ -979,7 +982,12 @@ try {
       }
     }
     const products = JSON.parse(await readFile(productFile, 'utf8'));
-    const productImagePresentation = await readProductSnapshotImages(productFile, products);
+    const offeredHints = await readProductSnapshotImages(productFile, products);
+    const productImagePresentation = programRestore
+      ? galleryOnlyProductSnapshotImages(products, offeredHints)
+      : offeredHints;
+    if (programRestore)
+      await writeFile(`${productFile}.images.json`, JSON.stringify(productImagePresentation));
     assert(Array.isArray(products.products));
     const snapshotPaths = products.products.map((p: { product: { _id: string } }) =>
       productPath(p.product._id),

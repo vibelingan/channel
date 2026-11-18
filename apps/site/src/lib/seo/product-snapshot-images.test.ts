@@ -7,6 +7,8 @@ import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import {
   createProductSnapshotImages,
   decodeProductSnapshotImages,
+  galleryOnlyProductSnapshotImages,
+  presentProductSnapshot,
   readProductSnapshotImages,
 } from './product-snapshot-images.ts';
 import { collectProductRefreshWithImages, decodeProductSnapshot } from './product-snapshot.ts';
@@ -63,6 +65,34 @@ test('image hints refuse foreign sites, unrelated sources, stale revisions, dupl
   ])
     assert.throws(() => decodeProductSnapshotImages({ ...images, products: [invalid] }, snapshot));
   assert.throws(() => decodeProductSnapshotImages({ ...images, products: [row, row] }, snapshot));
+});
+
+test('description hints survive the approved rendering snapshot and do not reach a legacy renderer', () => {
+  const description = '/api/images/approved-description';
+  const current = {
+    ...snapshot,
+    products: snapshot.products.map((entry) => ({
+      ...entry,
+      detail: { ...detail, descriptionImages: [description] },
+    })),
+  };
+  const newHints = createProductSnapshotImages(current, [
+    {
+      productId: detail._id,
+      revision: 'approved-r1',
+      images: {
+        ...images.products[0]?.images,
+        [description]: [{ url: `${description}?w=640`, width: 640, height: 400 }],
+      },
+    },
+  ]);
+  const rendered = presentProductSnapshot(current, newHints);
+  assert.equal(
+    Reflect.get(rendered.products[0]?.detail ?? {}, 'imagePresentation')?.[description]?.[0]?.width,
+    640,
+  );
+  assert.deepEqual(galleryOnlyProductSnapshotImages(current, newHints), images);
+  assert.throws(() => decodeProductSnapshotImages(newHints, snapshot));
 });
 
 test('legacy absent hints remain readable; malformed or mismatched files fail instead of silently falling back', async (t) => {
