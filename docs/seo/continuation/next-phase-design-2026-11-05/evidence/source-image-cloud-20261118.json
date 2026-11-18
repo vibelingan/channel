@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T01:50:52.323Z",
+  "sourceSha": "7f5cb62e9f6e4e31db7ffbb44e0bed23f5bc7282",
+  "ciRun": "https://github.com/vibelingan/channel/actions/runs/44217553943",
+  "function": {
+    "name": "seo-image-source-84a4837586f58772",
+    "status": "Active",
+    "available": "Available",
+    "runtime": "Nodejs20.19",
+    "handler": "index.main",
+    "timeout": 180,
+    "type": "Event",
+    "memoryMb": 256,
+    "codeSize": 9766132,
+    "triggers": 0,
+    "configMatched": true,
+    "sourceSha": "7f5cb62e9f6e4e31db7ffbb44e0bed23f5bc7282"
+  },
+  "artifact": {
+    "bytes": 1766753,
+    "sha256": "e26ea28ea81701ff322f3a246f4c4bb7572379fdfb34a21cf6e2e0a04f57bdf6",
+    "target": "linux-x64"
+  },
+  "invocations": {
+    "run": {
+      "requestId": "db7a82d7-ea12-4b35-b4e7-8ad5e8a34ecf",
+      "durationMs": 6611,
+      "billDurationMs": 6700,
+      "memoryBytes": 95154176
+    },
+    "cleanup": {
+      "requestId": "30715b86-173c-4bf4-bf20-544f659dc525",
+      "durationMs": 19240
+    }
+  },
+  "result": {
+    "schemaVersion": 1,
+    "action": "run",
+    "run": "84a4837586f58772014e35c360917c73",
+    "sourceSha": "7f5cb62e9f6e4e31db7ffbb44e0bed23f5bc7282",
+    "sourceUrl": "https://sc04.alicdn.com/channel-seo-acceptance/84a4837586f58772014e35c360917c73.png",
+    "linkId": "media:d57092871c8078be45f2c7454c4f66f98ec77fcbc4c4163e967cedb14c4a4a3e",
+    "sourceFetch": "synthetic-response-only",
+    "actualCloudDatabase": true,
+    "actualCloudStorage": true,
+    "productsWritten": 0,
+    "originalBytes": 4808831,
+    "originalSha256": "943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3",
+    "passed": true,
+    "imageId": "c89c3eb1-dc09-4803-b45d-4d4891971276",
+    "supplierFetches": 1,
+    "replaySameImage": true,
+    "proposedImageIds": [
+      "c89c3eb1-dc09-4803-b45d-4d4891971276",
+      "25b7333a-9557-4eef-b913-6bd38a6daebf"
+    ],
+    "webBytes": 1920,
+    "webWidth": 1280,
+    "webHeight": 800,
+    "webSha256": "060cac4987d29203d2a68b2916967545d18cb3f65566e923557f2a9f9fea412a",
+    "objects": [
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog/2026/11/c89c3eb1-dc09-4803-b45d-4d4891971276/alibaba-943d2870afaf.png",
+        "storagePath": "catalog/2026/11/c89c3eb1-dc09-4803-b45d-4d4891971276/alibaba-943d2870afaf.png"
+      },
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog-web/v1/f7072ca0e94ef8f1280f19b8fdb6ebae36daf47240a5fe9e987fe6e88bf0de50/943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3/060cac4987d29203d2a68b2916967545d18cb3f65566e923557f2a9f9fea412a.webp",
+        "storagePath": "catalog-web/v1/f7072ca0e94ef8f1280f19b8fdb6ebae36daf47240a5fe9e987fe6e88bf0de50/943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3/060cac4987d29203d2a68b2916967545d18cb3f65566e923557f2a9f9fea412a.webp"
+      }
+    ],
+    "elapsedMs": 5284
+  },
+  "cleanup": {
+    "schemaVersion": 1,
+    "action": "cleanup",
+    "run": "84a4837586f58772014e35c360917c73",
+    "sourceSha": "7f5cb62e9f6e4e31db7ffbb44e0bed23f5bc7282",
+    "sourceUrl": "https://sc04.alicdn.com/channel-seo-acceptance/84a4837586f58772014e35c360917c73.png",
+    "linkId": "media:d57092871c8078be45f2c7454c4f66f98ec77fcbc4c4163e967cedb14c4a4a3e",
+    "sourceFetch": "synthetic-response-only",
+    "actualCloudDatabase": true,
+    "actualCloudStorage": true,
+    "productsWritten": 0,
+    "imageId": "c89c3eb1-dc09-4803-b45d-4d4891971276",
+    "objects": [
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog/2026/11/c89c3eb1-dc09-4803-b45d-4d4891971276/alibaba-943d2870afaf.png",
+        "storagePath": "catalog/2026/11/c89c3eb1-dc09-4803-b45d-4d4891971276/alibaba-943d2870afaf.png"
+      },
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog-web/v1/f7072ca0e94ef8f1280f19b8fdb6ebae36daf47240a5fe9e987fe6e88bf0de50/943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3/060cac4987d29203d2a68b2916967545d18cb3f65566e923557f2a9f9fea412a.webp",
+        "storagePath": "catalog-web/v1/f7072ca0e94ef8f1280f19b8fdb6ebae36daf47240a5fe9e987fe6e88bf0de50/943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3/060cac4987d29203d2a68b2916967545d18cb3f65566e923557f2a9f9fea412a.webp"
+      }
+    ],
+    "cleanup": {
+      "ok": true,
+      "imageId": "c89c3eb1-dc09-4803-b45d-4d4891971276"
+    },
+    "cleaned": true
+  },
+  "anonymous": {
+    "anonymousStatus": 404,
+    "cacheControl": "no-cache"
+  },
+  "independentReadback": {
+    "observedAt": "2026-11-18T01:50:52.323Z",
+    "imageRecordsAbsent": true,
+    "sourceLinkAbsent": true,
+    "storageResults": [
+      {
+        "action": "list",
+        "cloudPath": "catalog/2026/11/c89c3eb1-dc09-4803-b45d-4d4891971276/",
+        "files": [],
+        "totalCount": 0
+      },
+      {
+        "action": "list",
+        "cloudPath": "catalog-web/v1/f7072ca0e94ef8f1280f19b8fdb6ebae36daf47240a5fe9e987fe6e88bf0de50/943d2870afaf7a1c94f57cd956b9ce928baca60a750a5106abba899a595538d3/",
+        "files": [],
+        "totalCount": 0
+      }
+    ],
+    "beforeAt": "2026-11-18T01:42:32.547Z",
+    "products": 528,
+    "articles": 3,
+    "productVersionsUnchanged": true,
+    "articleContentsRevisionTimesUnchanged": true,
+    "cloudWrites": 0,
+    "functionAbsent": true
+  },
+  "limits": {
+    "supplierResponseReplacedBySyntheticPixels": true,
+    "actualSupplierAvailabilityTested": false,
+    "productCreationApprovalAndPublicationRepeated": false,
+    "webPageLcpMeasured": false,
+    "siteOrBusinessFunctionRedeployed": false
+  },
+  "diagram": {
+    "type": "sequence",
+    "specificationSha256": "ab1aa61d485f81d879ecef49441d4234bba615fdb191e6819f704f8867b7a798",
+    "artifactSha256": "04a5e492875b9e47c1dd8f543c5ff3a02312e9119acaf07456b5b377806d56d0",
+    "artifactChecksPassed": 9,
+    "artifactChecks": 9,
+    "errors": 0,
+    "warnings": 0,
+    "browserEvidence": "passed",
+    "visualReview": "passed",
+    "visuallyReviewed": ["1440x900 light", "2048x1320 dark"],
+    "correctionRounds": 0
+  },
+  "ci": {
+    "runId": 44217553943,
+    "headSha": "7f5cb62e9f6e4e31db7ffbb44e0bed23f5bc7282",
+    "attempt": 2,
+    "conclusion": "success",
+    "successfulJobs": 20,
+    "firstAttempt": {
+      "conclusion": "cancelled",
+      "jobId": 134511064428,
+      "stage": "Install browsers for component unit tests",
+      "timeoutMinutes": 20,
+      "annotation": "The job has exceeded the maximum execution time of 20m0s",
+      "unitTestsStarted": false,
+      "downloadSlownessCauseEstablished": false
+    },
+    "retriedJob": {
+      "jobId": 134524206140,
+      "conclusion": "success",
+      "startedAt": "2026-11-18T02:12:13Z",
+      "completedAt": "2026-11-18T02:17:18Z"
+    },
+    "successfulOtherJobsRetainedOriginalTimes": true,
+    "nativeProbeCommandConfirmedInNode20Log": true,
+    "blogHttpRun": 44217553879,
+    "blogHttpConclusion": "success",
+    "blogOfflineRun": 44217553976,
+    "blogOfflineConclusion": "success"
+  }
+}
