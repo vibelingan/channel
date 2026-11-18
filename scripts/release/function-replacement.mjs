@@ -53,9 +53,10 @@ export async function replaceFunctionCode({
       const valid = await verifyCandidate();
       if (valid !== true && valid !== false) return { status: 'unknown', snapshot };
       const current = await provider.inspect(name);
+      // Pin observed installed bytes; identical code may be repacked with a different ZIP timestamp.
       if (
         current.configurationToken !== before.configurationToken ||
-        current.packageSha256 !== expectedHash ||
+        current.packageSha256 !== snapshot.packageSha256 ||
         current.status !== 'Active' ||
         current.availableStatus !== 'Available'
       )

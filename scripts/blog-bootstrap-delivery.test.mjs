@@ -178,6 +178,23 @@ for (const failure of ['network', 'configuration', 'program'])
     assert.equal(f.state.updates, 1);
   });
 
+test('same program with a different ZIP timestamp verifies the installed package without writing', async () => {
+  const f = await setup('public-api');
+  f.candidate = Buffer.from(f.original);
+  // A valid ZIP of identical files can differ only in local/central DOS times.
+  f.candidate.writeUInt16LE(1, 10);
+  const central = f.candidate.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  assert(central >= 0);
+  f.candidate.writeUInt16LE(1, central + 12);
+  assert.notEqual(sha256(f.candidate), sha256(f.original));
+  f.expectedVersion = f.beforeVersion;
+  f.readHealth = async () => f.beforeVersion;
+  const result = await replaceFunctionCode({ ...f, verifyCandidate: async () => true });
+  assert.equal(result.status, 'accepted');
+  assert.equal(result.alreadyInstalled, true);
+  assert.equal(f.state.updates, 0);
+});
+
 test('same-version acceptance still checks endpoints and makes no recovery write', async () => {
   const f = await setup('public-api');
   f.candidate = f.original;
