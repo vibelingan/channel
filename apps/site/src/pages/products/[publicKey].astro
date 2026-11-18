@@ -1,5 +1,5 @@
 ---
-import { SITE_DELIVERY_POLICY } from '../../../../../scripts/release/site-policy.mjs';
+import { publicCatalogImageApiOrigin } from '../../../../../scripts/release/site-policy.mjs';
 import AssistantHost from '../../components/AssistantHost.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
@@ -29,12 +29,10 @@ const site = getSiteContent(DEFAULT_LOCALE);
 const content = getCatalogContent(DEFAULT_LOCALE);
 const copy = getSharedDetailContent(DEFAULT_LOCALE);
 // This storefront's existing /api/images route serves the same public API.
-const publicApiOrigin = `https://${SITE_DELIVERY_POLICY.envId}.service.tcloudbase.com`;
-const heroImageApiOrigin =
-  Astro.site?.origin === SITE_DELIVERY_POLICY.siteOrigin &&
-  import.meta.env.PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, '') === publicApiOrigin
-    ? publicApiOrigin
-    : undefined;
+const heroImageApiOrigin = publicCatalogImageApiOrigin(
+  Astro.site?.origin,
+  import.meta.env.PUBLIC_API_BASE_URL,
+);
 const page = productPageDescriptor(
   entry,
   (Astro.site ?? Astro.url.origin).toString(),

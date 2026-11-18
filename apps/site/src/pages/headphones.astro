@@ -1,4 +1,5 @@
 ---
+import { publicCatalogImageApiOrigin } from '../../../../scripts/release/site-policy.mjs';
 import AssistantHost from '../components/AssistantHost.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -30,6 +31,10 @@ const { brand, nav, footer } = site;
 // order by ProductMedia. URLs stay behind the public image function — no
 // copied static asset, no authorization relaxation.
 const heroSources = hp.hero.sources.map((source) => apiMediaUrl(`/api/images/${source.imageId}`));
+const heroImageApiOrigin = publicCatalogImageApiOrigin(
+  Astro.site?.origin,
+  import.meta.env.PUBLIC_API_BASE_URL,
+);
 
 // SEO metadata
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
@@ -102,6 +107,8 @@ const page = categoryPageIdentity(
                 height={hp.hero.sources[0].height}
                 loading="eager"
                 fetchPriority="high"
+                preferSiteImage
+                siteImageApiOrigin={heroImageApiOrigin}
               />
             </div>
           </div>

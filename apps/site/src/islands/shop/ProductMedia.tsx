@@ -44,6 +44,7 @@ export interface ProductMediaProps {
   fetchPriority?: 'high' | 'low' | 'auto';
   onLoad?: () => void;
   preferSiteImage?: boolean;
+  siteImageApiOrigin?: string | undefined;
 }
 
 export function createProductMediaState(): ProductMediaState {
@@ -99,6 +100,7 @@ function ProductMediaSession({
   loading = 'lazy',
   fetchPriority = 'auto',
   preferSiteImage = false,
+  siteImageApiOrigin,
   onLoad,
   imagePresentation,
   sizes = '100vw',
@@ -107,7 +109,8 @@ function ProductMediaSession({
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
   const [failedResponsiveSources, setFailedResponsiveSources] = useState<string[]>([]);
   const [failedSiteSources, setFailedSiteSources] = useState<string[]>([]);
-  const apiOrigin = useContext(CatalogHeroImageApiOrigin);
+  const catalogApiOrigin = useContext(CatalogHeroImageApiOrigin);
+  const apiOrigin = siteImageApiOrigin ?? catalogApiOrigin;
   const imageRef = useRef<HTMLImageElement | null>(null);
   const source = sources[state.activeIndex];
   const siteSource =

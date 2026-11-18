@@ -26,6 +26,16 @@ export const SITE_DELIVERY_POLICY = Object.freeze({
     },
   ],
 });
+
+export function publicCatalogImageApiOrigin(siteOrigin, apiBaseUrl) {
+  const apiOrigin = `https://${SITE_DELIVERY_POLICY.envId}.service.tcloudbase.com`;
+  if (
+    siteOrigin === SITE_DELIVERY_POLICY.siteOrigin &&
+    apiBaseUrl?.trim().replace(/\/+$/, '') === apiOrigin
+  )
+    return apiOrigin;
+}
+
 export function assertCleanAcceptedSite(status) {
   if (
     status?.state !== 'idle' ||

@@ -93,6 +93,17 @@ test('the approved storefront renders the main photo at its own origin and keeps
     renderToStaticMarkup(media(source)),
     /https:\/\/public-api\.example\.test\/api\/images\/current/,
   );
+  const standalone = renderToStaticMarkup(
+    createElement(ProductMedia, {
+      sources: [source],
+      alt: 'Headphones category hero',
+      siteImageApiOrigin: origin,
+      preferSiteImage: true,
+      loading: 'eager',
+    }),
+  );
+  assert.match(standalone, /src="\/api\/images\/current"/);
+  assert.match(standalone, /alt="Headphones category hero"/);
 });
 
 test('a legacy photo shown as both the first main image and a thumbnail uses one URL', () => {
