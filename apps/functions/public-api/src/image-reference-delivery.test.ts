@@ -132,6 +132,9 @@ for (const provider of ['legacy-base64', 'local-disk', 'cloudbase-storage'] as c
         assert.equal(response.headers['Content-Type'], 'image/png');
         assert.equal(response.headers['X-Content-Type-Options'], 'nosniff');
         assert.equal(response.headers['Content-Security-Policy'], "default-src 'none'; sandbox");
+        assert.match(response.headers['Server-Timing'] ?? '', /ci-reference;dur=\d+\.\d/);
+      } else {
+        assert.equal(response.headers['Server-Timing'], undefined);
       }
       for (const secret of [
         'catalogPublishedReferenceLedger',

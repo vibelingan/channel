@@ -12,6 +12,7 @@ import { handleQuoteEvent } from './catalog-quote-http.ts';
 import { getPublicCatalogTaxonomy } from './catalog-taxonomy.ts';
 import {
   type BinaryResult,
+  type CatalogImageTimings,
   type CatalogQuery,
   type PublicApiConfig,
   getCatalogImage,
@@ -50,6 +51,26 @@ function articleMediaTimingHeaders(timings?: ArticleMediaTimings): Record<string
     'am-check': 'validationMs',
     'am-ref2': 'referenceAfterMs',
     'am-total': 'totalMs',
+  } as const;
+  const entries = Object.entries(fields).flatMap(([name, field]) => {
+    const value = timings[field];
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 120_000
+      ? [`${name};dur=${value.toFixed(1)}`]
+      : [];
+  });
+  return entries.length ? { 'Server-Timing': entries.join(', ') } : {};
+}
+
+function catalogImageTimingHeaders(timings?: CatalogImageTimings): Record<string, string> {
+  if (!timings) return {};
+  const fields = {
+    'ci-record': 'recordMs',
+    'ci-reference': 'referenceMs',
+    'ci-storage': 'storageMs',
+    'ci-url': 'lookupMs',
+    'ci-download': 'downloadMs',
+    'ci-check': 'validationMs',
+    'ci-total': 'totalMs',
   } as const;
   const entries = Object.entries(fields).flatMap(([name, field]) => {
     const value = timings[field];
@@ -205,7 +226,10 @@ function binaryResponse(
 ): HttpResponse {
   return {
     statusCode: 200,
-    headers: responseHeaders(event, config, result.headers),
+    headers: responseHeaders(event, config, {
+      ...result.headers,
+      ...catalogImageTimingHeaders(result.timings),
+    }),
     body: result.body,
     isBase64Encoded: true,
   };
@@ -529,7 +553,9 @@ async function routeGet(
         err('VALIDATION_ERROR', 'Unsupported or repeated image width'),
       );
     const width = widths.length === 0 ? undefined : (Number(widths[0]) as 160 | 640 | 1280);
-    const result = await getCatalogImage(decodeSegment(segments[1] ?? ''), width);
+    const result = await getCatalogImage(decodeSegment(segments[1] ?? ''), width, {
+      measure: true,
+    });
     return result.ok && 'isBase64Encoded' in result
       ? binaryResponse(event, config, result)
       : !result.ok && result.error.code === 'INTERNAL_ERROR'

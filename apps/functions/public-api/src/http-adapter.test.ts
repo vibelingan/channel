@@ -21,6 +21,7 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { getCatalogImage } from './handler.ts';
 import { type HttpResponse, handlePublicApiEvent } from './http-adapter.ts';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -1272,6 +1273,41 @@ test('storage-backed image with refCount 0 returns 404 (canonical, no scan)', as
   assert.equal((await imageReq('storage-zero')).statusCode, 404);
 });
 
+test('catalog timing preserves legacy bytes and storage transport; rejected reads expose no timings', async () => {
+  setup();
+  const optionsSeen: unknown[] = [];
+  setMediaStorage({
+    ...fakeMediaStorage,
+    async getObjectAsBase64(id, options) {
+      optionsSeen.push(options);
+      return fakeMediaStorage.getObjectAsBase64(id, options);
+    },
+  });
+  const direct = await getCatalogImage('storage-active');
+  const response = await imageReq('storage-active');
+  assert.ok(direct.ok && 'body' in direct);
+  assert.equal('timings' in direct, false, 'Existing direct calls do not request measurement');
+  assert.equal(response.body, direct.body);
+  assert.deepEqual(
+    optionsSeen,
+    [undefined, undefined],
+    'Measurement must not change legacy transport',
+  );
+  assert.match(response.headers['Server-Timing'] ?? '', /ci-record;dur=\d+\.\d/);
+  assert.match(response.headers['Server-Timing'] ?? '', /ci-storage;dur=\d+\.\d/);
+  assert.match(response.headers['Server-Timing'] ?? '', /ci-total;dur=\d+\.\d/);
+  assert.equal(response.headers['Timing-Allow-Origin'], undefined);
+  for (const path of [
+    '/api/images/storage-zero',
+    '/api/images/missing',
+    '/api/images/storage-active?w=320',
+  ]) {
+    const rejected = await handlePublicApiEvent({ httpMethod: 'GET', path }, {});
+    assert.equal(rejected.headers['Server-Timing'], undefined);
+  }
+  assert.equal(optionsSeen.length, 2, 'Rejected requests do not read storage');
+});
+
 test('pending storage-backed image returns 404 even with refCount>0', async () => {
   setup();
   assert.equal((await imageReq('storage-pending')).statusCode, 404);
@@ -1708,14 +1744,20 @@ test('public web image delivery serves exact verified bytes after the existing p
   setup(store);
   const calls: string[] = [];
   let corrupt = false;
+  let invalidTiming = false;
   setMediaStorage({
     ...fakeMediaStorage,
     async getObjectAsBase64(id, options) {
       calls.push(id);
-      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000 });
+      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000, measure: true });
       return {
         body: (corrupt ? Buffer.from('corrupt') : bytes).toString('base64'),
         byteSize: bytes.length,
+        timings: {
+          lookupMs: invalidTiming ? Number.NaN : 12.25,
+          downloadMs: invalidTiming ? Number.POSITIVE_INFINITY : 34.75,
+          privateUrl: 'secret.invalid',
+        },
       };
     },
   });
@@ -1723,13 +1765,27 @@ test('public web image delivery serves exact verified bytes after the existing p
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers['Content-Type'], 'image/webp');
   assert.equal(res.body, bytes.toString('base64'));
+  assert.match(res.headers['Server-Timing'] ?? '', /ci-url;dur=12\.3/);
+  assert.match(res.headers['Server-Timing'] ?? '', /ci-download;dur=34\.8/);
+  assert.equal(res.headers['Server-Timing']?.includes('secret'), false);
   assert.deepEqual(calls, [web.storageFileId]);
+  invalidTiming = true;
+  const invalid = await imageReq(source._id);
+  assert.equal(invalid.statusCode, 200);
+  assert.equal(invalid.body, res.body);
+  assert.doesNotMatch(
+    invalid.headers['Server-Timing'] ?? '',
+    /ci-url|ci-download|NaN|Infinity|secret/,
+  );
+  assert.match(invalid.headers['Server-Timing'] ?? '', /ci-total;dur=/);
   corrupt = true;
-  assert.equal((await imageReq(source._id)).statusCode, 503);
-  assert.equal(calls.length, 2);
+  const failed = await imageReq(source._id);
+  assert.equal(failed.statusCode, 503);
+  assert.equal(failed.headers['Server-Timing'], undefined);
+  assert.equal(calls.length, 3);
   source.publishedRefCount = 0;
   assert.equal((await imageReq(source._id)).statusCode, 404);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
 });
 test('an oversized original without a prepared derivative returns a retryable response before storage reads', async () => {
   const store = seedStore();
@@ -1799,8 +1855,10 @@ test('width requests serve only exact ready sizes and preserve publication gates
       reads.push(id);
       const bytes = files.get(id);
       assert.ok(bytes);
-      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000 });
-      return { body: bytes.toString('base64') };
+      assert.deepEqual(options, { maxBytes: bytes.length, timeoutMs: 15000, measure: true });
+      const lookupMs = Array.from(files.keys()).indexOf(id) + 1;
+      await new Promise<void>((done) => setImmediate(done));
+      return { body: bytes.toString('base64'), timings: { lookupMs, downloadMs: 5 } };
     },
   });
   const request = (query = '') =>
@@ -1818,6 +1876,12 @@ test('width requests serve only exact ready sizes and preserve publication gates
     assert.equal(reads.at(-1), expected.storageFileId);
   }
   assert.equal(reads.length, 4);
+  const overlapping = await Promise.all([request('?w=160'), request('?w=640')]);
+  assert.match(overlapping[0]?.headers['Server-Timing'] ?? '', /ci-url;dur=2\.0/);
+  assert.match(overlapping[1]?.headers['Server-Timing'] ?? '', /ci-url;dur=3\.0/);
+  assert.equal(overlapping[0]?.body, files.get(small.storageFileId)?.toString('base64'));
+  assert.equal(overlapping[1]?.body, files.get(medium.storageFileId)?.toString('base64'));
+  assert.equal(reads.length, 6, 'Overlapping requests retain their own measurements and bytes');
   for (const query of [
     '?w=320',
     '?w=0',
@@ -1828,15 +1892,15 @@ test('width requests serve only exact ready sizes and preserve publication gates
     '?w=160.0',
   ])
     assert.equal((await request(query)).statusCode, 400, query);
-  assert.equal(reads.length, 4, 'Invalid sizes do not fetch any image bytes');
+  assert.equal(reads.length, 6, 'Invalid sizes do not fetch any image bytes');
   source.catalogWebVariants = { '160': small };
   const unavailable = await request('?w=640');
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.headers['Retry-After'], '30');
-  assert.equal(reads.length, 4, 'An unprepared size never falls back to a larger body');
+  assert.equal(reads.length, 6, 'An unprepared size never falls back to a larger body');
   source.publishedRefCount = 0;
   assert.equal((await request('?w=160')).statusCode, 404);
-  assert.equal(reads.length, 4, 'Knowing a ready size does not expose a private image');
+  assert.equal(reads.length, 6, 'Knowing a ready size does not expose a private image');
   source.publishedRefCount = 1;
   source.catalogWebVariants = { '160': small, '640': medium };
   store.products ??= [];
@@ -1870,5 +1934,5 @@ test('width requests serve only exact ready sizes and preserve publication gates
   );
   assert.equal(enhancedResponse.body.includes('cloud://'), false);
   assert.equal((await product('?media=responsive-v1&media=responsive-v1')).statusCode, 400);
-  assert.equal(reads.length, 4, 'Product metadata does not download any original/derivative bytes');
+  assert.equal(reads.length, 6, 'Product metadata does not download any original/derivative bytes');
 });

@@ -133,11 +133,22 @@ export async function resolveCatalogViewer(
   }
 }
 
+export interface CatalogImageTimings {
+  recordMs?: number;
+  referenceMs?: number;
+  storageMs?: number;
+  lookupMs?: number;
+  downloadMs?: number;
+  validationMs?: number;
+  totalMs?: number;
+}
+
 export interface BinaryResult {
   ok: true;
   body: string;
   isBase64Encoded: true;
   headers: Record<string, string>;
+  timings?: CatalogImageTimings;
 }
 
 function isPublicCatalog(value: string): value is PublicCatalog {
@@ -441,17 +452,25 @@ function binaryImage(doc: CollectionDoc, body: string): BinaryResult | ApiResult
 export async function getCatalogImage(
   imageId: string,
   width?: 160 | 640 | 1280,
+  options?: { measure?: boolean },
 ): Promise<ApiResult<unknown> | BinaryResult> {
+  const started = options?.measure ? performance.now() : undefined;
+  const timings: CatalogImageTimings = {};
+  const finish = (result: BinaryResult | ApiResult<unknown>): BinaryResult | ApiResult<unknown> =>
+    started === undefined || !result.ok || !('isBase64Encoded' in result)
+      ? result
+      : { ...result, timings: { ...timings, totalMs: performance.now() - started } };
   if (width !== undefined && ![160, 640, 1280].includes(width))
     return err('VALIDATION_ERROR', 'Unsupported image width');
   let doc = await get('images', imageId);
+  if (started !== undefined) timings.recordMs = performance.now() - started;
   if (!doc || doc._id !== imageId) return err('NOT_FOUND', 'Image not found');
 
   // The placeholder is public by explicit id — never gated on refcount/status.
   if (imageId === PLACEHOLDER_IMAGE_ID) {
     if (width !== undefined) return err('INTERNAL_ERROR', 'Requested image size is not prepared');
     return typeof doc.data === 'string'
-      ? binaryImage(doc, doc.data)
+      ? finish(binaryImage(doc, doc.data))
       : err('NOT_FOUND', 'Image not found');
   }
 
@@ -461,7 +480,10 @@ export async function getCatalogImage(
       const emptyCount = emptyCatalogImageReferenceCount(doc);
       if (emptyCount !== null) refCount = emptyCount;
       else {
+        const referenceStarted = started === undefined ? undefined : performance.now();
         const snapshot = await readCatalogImageReference({ action: 'read', imageId });
+        if (referenceStarted !== undefined)
+          timings.referenceMs = performance.now() - referenceStarted;
         if (
           snapshot.state !== 'counted' ||
           snapshot.image._id !== imageId ||
@@ -495,12 +517,15 @@ export async function getCatalogImage(
     // The O(catalog) scan is a compatibility fallback ONLY for rows that predate
     // publishedRefCount (field absent). Once the field is PRESENT it is canonical
     // — a present-but-invalid counter is corruption and fails closed, never scans.
+    const referenceStarted = started === undefined ? undefined : performance.now();
     const visible = hasRefCountField
       ? visibleByRefCount
       : await legacyImageIsPublicFallback(imageId);
+    if (!hasRefCountField && referenceStarted !== undefined)
+      timings.referenceMs = performance.now() - referenceStarted;
     if (!visible || typeof doc.data !== 'string') return err('NOT_FOUND', 'Image not found');
     if (width !== undefined) return err('INTERNAL_ERROR', 'Requested image size is not prepared');
-    return binaryImage(doc, doc.data);
+    return finish(binaryImage(doc, doc.data));
   }
 
   // Storage-backed: only the recognised providers may proxy (matches the shared
@@ -522,10 +547,25 @@ export async function getCatalogImage(
   if (!web && typeof doc.byteSize === 'number' && doc.byteSize > 4_400_000)
     return err('INTERNAL_ERROR', 'Image delivery preparation is required');
   try {
+    const storageStarted = started === undefined ? undefined : performance.now();
     const object = await mediaStorage().getObjectAsBase64(
       web?.storageFileId ?? storageFileId,
-      web ? { maxBytes: web.byteSize, timeoutMs: 15000 } : undefined,
+      web
+        ? {
+            maxBytes: web.byteSize,
+            timeoutMs: 15000,
+            ...(started !== undefined ? { measure: true } : {}),
+          }
+        : undefined,
     );
+    if (storageStarted !== undefined) {
+      timings.storageMs = performance.now() - storageStarted;
+      if (object.timings) {
+        timings.lookupMs = object.timings.lookupMs;
+        timings.downloadMs = object.timings.downloadMs;
+      }
+    }
+    const validationStarted = started === undefined ? undefined : performance.now();
     if (web) {
       const bytes = Buffer.from(object.body, 'base64');
       if (
@@ -534,7 +574,9 @@ export async function getCatalogImage(
       )
         throw Error('Web image bytes do not match the prepared version');
     }
-    return binaryImage(web ? { ...doc, mimeType: web.mimeType } : doc, object.body);
+    if (web && validationStarted !== undefined)
+      timings.validationMs = performance.now() - validationStarted;
+    return finish(binaryImage(web ? { ...doc, mimeType: web.mimeType } : doc, object.body));
   } catch (e) {
     if (web) return err('INTERNAL_ERROR', 'Prepared image is temporarily unavailable');
     // Active metadata but unfetchable bytes (missing object / transient store
