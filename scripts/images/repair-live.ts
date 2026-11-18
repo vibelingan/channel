@@ -34,9 +34,12 @@ assert(
     env.GITHUB_REPOSITORY === 'vibelingan/channel' &&
     env.GITHUB_REF === 'refs/heads/feat/seo-foundation' &&
     env.TCB_ENV_ID === envId &&
-    env.IMAGE_DELIVERY_CONFIRM === 'PREPARE_WEB_IMAGES_AND_PUBLIC_API_ONLY',
+    ['PREPARE_WEB_IMAGES_AND_PUBLIC_API_ONLY', 'UPDATE_PUBLIC_API_ONLY'].includes(
+      env.IMAGE_DELIVERY_CONFIRM ?? '',
+    ),
   'Untrusted image repair invocation',
 );
+const programOnly = env.IMAGE_DELIVERY_CONFIRM === 'UPDATE_PUBLIC_API_ONLY';
 const sourceSha = z
   .string()
   .regex(/^[a-f0-9]{40}$/)
@@ -77,14 +80,16 @@ const manager = new CloudBase({
   secretId: env.TENCENTCLOUD_SECRETID,
   secretKey: env.TENCENTCLOUD_SECRETKEY,
 });
-const sdk = blogWorkerSdk({
-  env: envId,
-  region,
-  secretId: env.TENCENTCLOUD_SECRETID,
-  secretKey: env.TENCENTCLOUD_SECRETKEY,
-});
-const db: NodeSdkDatabase = sdk.database();
-const media = createCloudBaseMediaStorage(sdk);
+const sdk = programOnly
+  ? undefined
+  : blogWorkerSdk({
+      env: envId,
+      region,
+      secretId: env.TENCENTCLOUD_SECRETID,
+      secretKey: env.TENCENTCLOUD_SECRETKEY,
+    });
+const db: NodeSdkDatabase | undefined = sdk?.database();
+const media = sdk ? createCloudBaseMediaStorage(sdk) : undefined;
 const provider = createCloudbaseFunctionProvider({
   manager,
   target: { envId, siteOrigin: 'https://supplychainsai.com' },
@@ -127,7 +132,8 @@ function document(answer: unknown, id: string): CollectionDoc {
   return row;
 }
 const sources: CollectionDoc[] = [];
-for (const target of plan.targets) {
+for (const target of programOnly ? [] : plan.targets) {
+  assert(db);
   const row = document(await db.collection('images').doc(target.imageId).get(), target.imageId);
   assert(
     isStoredCatalogImageRecord(row, row._id) && row.storageProvider === 'cloudbase-storage',
@@ -148,6 +154,7 @@ for (const [name, body] of [
     JSON.stringify(
       {
         source: env.GITHUB_SHA,
+        operation: programOnly ? 'public-api-only' : 'prepare-images-and-public-api',
         functionName: 'public-api',
         before: before.snapshot,
         beforeVersion,
@@ -174,13 +181,21 @@ const result: {
   archiveId: number;
   source: string;
   images: object[];
+  endpointChecks: object[];
   program?: unknown;
   status?: string;
-} = { stage: 'prepare-images', archiveId: archive.id, source: sourceSha, images: [] };
+} = {
+  stage: programOnly ? 'update-public-api' : 'prepare-images',
+  archiveId: archive.id,
+  source: sourceSha,
+  images: [],
+  endpointChecks: [],
+};
 const save = () => writeFile(`${root}/result.json`, `${JSON.stringify(result, null, 2)}\n`);
 await save();
 try {
   for (const row of sources) {
+    assert(db && media);
     const existing = readCatalogWebImage(row);
     if (existing) {
       const stored = Buffer.from(
@@ -267,6 +282,66 @@ try {
   }
   result.stage = 'update-public-api';
   await save();
+  const googleImages = [
+    [
+      '3fbe8b166ac87f63003984d22ff5a5d7',
+      51178,
+      '8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794',
+    ],
+    [
+      '66baec6f6ac882aa00729f35667d3ea5',
+      65170,
+      'd7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274',
+    ],
+    [
+      '4db8df016ac88396000781db489eb227',
+      69280,
+      'f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224',
+    ],
+    [
+      'ea7765a56ab1dbea01d9b6924386c973',
+      87330,
+      '6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17',
+    ],
+    [
+      '31051309-b170-4ef2-a7f7-86c645fd3fad',
+      135494,
+      '010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659',
+    ],
+  ] as const;
+  const verifyImages = async () => {
+    result.stage = 'verify-five-google-errors';
+    await save();
+    for (const [id, bytes, checksum] of googleImages) {
+      const response = await fetchFully('GET', `https://supplychainsai.com/api/images/${id}`, {
+        timeoutMs: 20000,
+        maxBytes: 3_100_000,
+        redirect: 'error',
+      });
+      const timing = response.headers.get('server-timing') ?? '';
+      const timingValid =
+        !programOnly ||
+        (/(?:^|,\s*)ci-record;dur=\d+\.\d/.test(timing) &&
+          /(?:^|,\s*)ci-total;dur=\d+\.\d/.test(timing));
+      const valid =
+        response.status === 200 &&
+        response.headers.get('content-type')?.split(';')[0] === 'image/webp' &&
+        response.body.byteLength === bytes &&
+        hash(response.body) === checksum &&
+        timingValid;
+      result.endpointChecks.push({
+        imageId: id,
+        status: response.status,
+        bytes: response.body.byteLength,
+        sha256: hash(response.body),
+        timingValid,
+        valid,
+      });
+      await save();
+      if (!valid) return false;
+    }
+    return true;
+  };
   result.program = await replaceFunctionCode({
     name: 'public-api',
     provider,
@@ -276,29 +351,14 @@ try {
     beforeVersion,
     expectedVersion: env.GITHUB_SHA,
     readHealth: () => readFunctionRuntimeVersion(envId, 'public-api'),
+    ...(programOnly ? { verifyCandidate: verifyImages } : {}),
   });
   assert.equal(
     Reflect.get(Object(result.program), 'status'),
     'accepted',
     'Public API activation was not accepted',
   );
-  result.stage = 'verify-five-google-errors';
-  await save();
-  for (const id of [
-    '3fbe8b166ac87f63003984d22ff5a5d7',
-    '66baec6f6ac882aa00729f35667d3ea5',
-    '4db8df016ac88396000781db489eb227',
-    'ea7765a56ab1dbea01d9b6924386c973',
-    '31051309-b170-4ef2-a7f7-86c645fd3fad',
-  ]) {
-    const response = await fetchFully('GET', `https://supplychainsai.com/api/images/${id}`, {
-      timeoutMs: 30000,
-      maxBytes: 3_100_000,
-      redirect: 'error',
-    });
-    assert.equal(response.status, 200, 'A Google image URL is still unavailable');
-    assert.equal(response.headers.get('content-type')?.split(';')[0], 'image/webp');
-  }
+  if (!programOnly) assert(await verifyImages(), 'Google image URL acceptance failed');
   result.stage = 'complete';
   result.status = 'passed';
   await save();

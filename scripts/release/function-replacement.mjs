@@ -16,6 +16,7 @@ export async function replaceFunctionCode({
   now = Date.now,
   pause = () => new Promise((done) => setTimeout(done, 2000)),
   report = (_event) => {},
+  verifyCandidate = undefined,
 }) {
   const reportFailure = (stage, error) => {
     const diagnostic = {};
@@ -40,8 +41,31 @@ export async function replaceFunctionCode({
     throw new Error('A verified original and a distinct runtime version are required');
   if (archiveProfile === 'catalog-native-decoder' && name !== 'alibaba-catalog-sync')
     throw Error('Native archive profile is outside the fixed synchronization function');
+  if (verifyCandidate !== undefined && typeof verifyCandidate !== 'function')
+    throw Error('Candidate endpoint verification must be a function');
   const originalFiles = checkFunctionArchive(original, { profile: archiveProfile });
   const candidateFiles = checkFunctionArchive(candidate, { profile: archiveProfile });
+  const expectedHash = sha256(candidate);
+  // Only an explicit false is a confirmed rejection. A failed observation cannot authorize recovery.
+  async function verifyKnownCandidate(snapshot) {
+    if (!verifyCandidate) return { status: 'accepted', snapshot };
+    try {
+      const valid = await verifyCandidate();
+      if (valid !== true && valid !== false) return { status: 'unknown', snapshot };
+      const current = await provider.inspect(name);
+      if (
+        current.configurationToken !== before.configurationToken ||
+        current.packageSha256 !== expectedHash ||
+        current.status !== 'Active' ||
+        current.availableStatus !== 'Available'
+      )
+        return { status: 'unknown', snapshot: current };
+      return { status: valid ? 'accepted' : 'unhealthy', snapshot: current };
+    } catch (error) {
+      reportFailure('candidate-verification-unconfirmed', error);
+      return { status: 'unknown', snapshot };
+    }
+  }
   if (beforeVersion === expectedVersion) {
     if (identity(originalFiles.contentSha256) !== identity(candidateFiles.contentSha256))
       throw new Error('Same runtime version has different program bytes');
@@ -57,9 +81,11 @@ export async function replaceFunctionCode({
     await pause();
     if ((await readHealth()) !== expectedVersion)
       throw new Error('Existing version health changed');
-    return { status: 'accepted', snapshot: current, alreadyInstalled: true };
+    const verified = await verifyKnownCandidate(current);
+    return verified.status === 'accepted'
+      ? { ...verified, alreadyInstalled: true }
+      : { ...verified, status: 'unknown' };
   }
-  const expectedHash = sha256(candidate);
   const submit = (bytes, expectedSnapshot) =>
     provider.updateCode({
       name,
@@ -105,7 +131,10 @@ export async function replaceFunctionCode({
     reportFailure('code-observation-unconfirmed', error);
     return { status: 'unknown' };
   }
-  if (result.status === 'accepted') return result;
+  if (result.status === 'accepted') {
+    result = await verifyKnownCandidate(result.snapshot);
+    if (result.status === 'accepted' || result.status === 'unknown') return result;
+  }
   const current = result.snapshot;
   if (!current || current.configurationToken !== before.configurationToken)
     return { status: 'unknown' };

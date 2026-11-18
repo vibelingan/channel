@@ -69,6 +69,47 @@ test('selected-size preparation shares the deploy queue and cannot run from anot
     ),
   );
 });
+test('the API-only entry requires the original branch, exact function and explicit action', () => {
+  const caller = parse(readFileSync('.github/workflows/seo-static-canary.yml', 'utf8'));
+  const job = caller.jobs.image_api_update;
+  const selected = (ref, mode, action, variant) =>
+    Function(
+      'github',
+      'inputs',
+      `return ${job.if.slice(3, -2)}`,
+    )({ ref }, { mode, action, variant });
+  assert.equal(
+    selected('refs/heads/feat/seo-foundation', 'image-api-update', 'initialize', 'public-api'),
+    true,
+  );
+  for (const args of [
+    ['refs/heads/main', 'image-api-update', 'initialize', 'public-api'],
+    ['refs/heads/feat/seo-foundation', 'image-api-update', 'restore', 'public-api'],
+    ['refs/heads/feat/seo-foundation', 'image-api-update', 'initialize', 'admin'],
+    ['refs/heads/feat/seo-foundation', 'image-delivery-prepare', 'initialize', 'public-api'],
+  ])
+    assert.equal(selected(...args), false);
+  assert.equal(job.with.operation, 'api-only');
+  assert.equal(caller.concurrency.group, 'cloudbase-deploy-test');
+  assert.equal(caller.concurrency['cancel-in-progress'], false);
+  const workflow = parse(readFileSync('.github/workflows/seo-image-delivery.yml', 'utf8'));
+  const eligible = (ref, event_name, operation) =>
+    Function(
+      'github',
+      'inputs',
+      `return ${workflow.jobs.prepare.if.slice(3, -2)}`,
+    )({ ref, event_name }, { operation });
+  assert.equal(eligible('refs/heads/feat/seo-foundation', 'workflow_dispatch', 'api-only'), true);
+  assert.equal(eligible('refs/heads/feat/seo-foundation', 'push', 'api-only'), false);
+  assert.equal(eligible('refs/heads/feat/seo-foundation', 'workflow_dispatch', 'invalid'), false);
+  const confirm = (operation) =>
+    Function(
+      'inputs',
+      `return ${workflow.jobs.prepare.env.IMAGE_DELIVERY_CONFIRM.slice(3, -2)}`,
+    )({ operation });
+  assert.equal(confirm('api-only'), 'UPDATE_PUBLIC_API_ONLY');
+  assert.equal(confirm('prepare'), 'PREPARE_WEB_IMAGES_AND_PUBLIC_API_ONLY');
+});
 test('recovery refuses local invocation before reading artifacts or contacting CloudBase', () => {
   const require = createRequire(new URL('../packages/db/package.json', import.meta.url));
   const result = spawnSync(

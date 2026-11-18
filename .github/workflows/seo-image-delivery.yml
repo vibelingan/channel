@@ -43,12 +43,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 90
   prepare:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' && inputs.operation == 'prepare' }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' && (inputs.operation == 'prepare' || inputs.operation == 'api-only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: test
     env:
-      IMAGE_DELIVERY_CONFIRM: PREPARE_WEB_IMAGES_AND_PUBLIC_API_ONLY
+      IMAGE_DELIVERY_CONFIRM: ${{ inputs.operation == 'api-only' && 'UPDATE_PUBLIC_API_ONLY' || 'PREPARE_WEB_IMAGES_AND_PUBLIC_API_ONLY' }}
       IMAGE_EXPECTED_PACKAGE: ${{ inputs.expected_package }}
       TCB_ENV_ID: diversity-123-d9grnqfux221323bb
       CLOUDBASE_REGION: ap-shanghai
@@ -64,7 +64,18 @@ jobs:
         run: pnpm --filter @vibelingan-channel/fn-public-api build
         env: {CHANNEL_BUILD_SHA: '${{ github.sha }}'}
       - run: node scripts/images/package-public-api.mjs
-      - name: Archive originals, prepare the selected web images and update only public-api
+      - name: Select the actual function runtime for the independent package check
+        if: ${{ inputs.operation == 'api-only' }}
+        uses: actions/setup-node@v4
+        with: {node-version: '20.19.0'}
+      - name: Check the actual package under Node 20 without calling pnpm
+        if: ${{ inputs.operation == 'api-only' }}
+        run: node --input-type=module -e "import {readFileSync} from 'node:fs'; import {checkFunctionArchive} from './scripts/release/function-archive.mjs'; checkFunctionArchive(readFileSync('output/image-delivery-package/function.zip'), {smoke:true});"
+      - name: Restore Node 22 for the existing deployment tools
+        if: ${{ inputs.operation == 'api-only' }}
+        uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - name: Archive public-api and apply only the explicitly selected operation
         uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ github.token }}

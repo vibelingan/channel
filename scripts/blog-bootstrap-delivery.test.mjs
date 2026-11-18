@@ -121,6 +121,72 @@ test('the public API uses the same code-only update and exact restoration checks
   assert.equal(result.snapshot.name, 'public-api');
   assert.equal(result.snapshot.configurationToken, f.before.configurationToken);
 });
+
+test('a confirmed candidate endpoint is accepted without another code write', async () => {
+  const f = await setup('public-api');
+  let calls = 0;
+  const result = await replaceFunctionCode({
+    ...f,
+    verifyCandidate: async () => {
+      calls++;
+      return true;
+    },
+  });
+  assert.equal(result.status, 'accepted');
+  assert.equal(f.state.updates, 1);
+  assert.equal(calls, 1);
+});
+
+test('an inconclusive endpoint result cannot authorize program recovery', async () => {
+  const f = await setup('public-api');
+  const result = await replaceFunctionCode({ ...f, verifyCandidate: async () => undefined });
+  assert.equal(result.status, 'unknown');
+  assert.equal(f.state.updates, 1);
+});
+
+test('a definite candidate endpoint rejection restores only the exact saved program once', async () => {
+  const f = await setup('public-api');
+  let checks = 0;
+  const result = await replaceFunctionCode({
+    ...f,
+    verifyCandidate: async () => {
+      checks++;
+      assert.equal(await f.readHealth(), 'B');
+      return false;
+    },
+  });
+  assert.equal(checks, 1);
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(f.state.bytes, f.original);
+  assert.equal(f.state.updates, 2);
+});
+
+for (const failure of ['network', 'configuration', 'program'])
+  test(`candidate endpoint ${failure} uncertainty never restores over another state`, async () => {
+    const f = await setup('public-api');
+    const result = await replaceFunctionCode({
+      ...f,
+      verifyCandidate: async () => {
+        if (failure === 'network') throw Error('temporary network failure');
+        if (failure === 'configuration') f.state.detail.MemorySize = 512;
+        if (failure === 'program')
+          f.state.bytes = functionZip('exports.main=async()=>({version:"C"});');
+        return false;
+      },
+    });
+    assert.equal(result.status, 'unknown');
+    assert.equal(f.state.updates, 1);
+  });
+
+test('same-version acceptance still checks endpoints and makes no recovery write', async () => {
+  const f = await setup('public-api');
+  f.candidate = f.original;
+  f.expectedVersion = f.beforeVersion;
+  f.readHealth = async () => f.beforeVersion;
+  const result = await replaceFunctionCode({ ...f, verifyCandidate: async () => false });
+  assert.equal(result.status, 'unknown');
+  assert.equal(f.state.updates, 0);
+});
 test('Blog expansion cannot update another function', async () => {
   const f = await setup('admin');
   await assert.rejects(
