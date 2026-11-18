@@ -334,6 +334,7 @@ jobs:
           path: |
             apps/site/dist/
             output/seo-release/product-snapshot.json
+            output/seo-release/product-snapshot.json.images.json
             output/seo-release/product-source.json
             output/seo-release/blog/
             output/seo-release/build-record.json

@@ -19,6 +19,7 @@ export function createSitePayload({
   releaseId,
   files,
   snapshot,
+  productImagePresentation = null,
   blogDelivery = 'static',
   renderer = /** @type {null | {codeSha:string,manifestSha256:string,archiveSha256:string,archiveFileId:string,inputSchema:number}} */ (
     null
@@ -107,8 +108,11 @@ export function createSitePayload({
       database: 'unchanged',
       ...(renderer ? { renderer } : {}),
       ...(catalog ? { catalog } : {}),
+      ...(productImagePresentation ? { productImagePresentation } : {}),
     }),
   );
+  if (compatibility.length > limits.jsonBytes)
+    throw Error('Compatibility metadata exceeds the release input limit');
   data.set('compatibility.json', compatibility);
   const payload = {
     schemaVersion: 2,

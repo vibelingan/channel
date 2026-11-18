@@ -11,6 +11,14 @@ import {
 } from '../../catalog/infrastructure/catalog-detail-api.ts';
 import { siteOrigin } from './page.ts';
 import { productKey, productPath } from './product-identity.ts';
+import {
+  type ProductSnapshotImageEntry,
+  type ProductSnapshotImages,
+  createProductSnapshotImages,
+  decodeProductSnapshotImages,
+  presentProductSnapshot,
+  readProductSnapshotImages,
+} from './product-snapshot-images.ts';
 
 // Strip unknown top-level fields. Nested pricing still uses the strict shared contracts.
 // Missing family/slug are historical public data, never a reason to remove a product.
@@ -279,15 +287,32 @@ export async function collectProductSnapshot(
   origin: string,
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<ProductSnapshot> {
+  return (await captureProductSnapshot(site, origin, fetcher, false)).snapshot;
+}
+
+export async function collectProductSnapshotWithImages(
+  site: string,
+  origin: string,
+  fetcher: typeof fetch = globalThis.fetch,
+) {
+  return captureProductSnapshot(site, origin, fetcher, true);
+}
+
+async function captureProductSnapshot(
+  site: string,
+  origin: string,
+  fetcher: typeof fetch,
+  includeImages: boolean,
+): Promise<{ snapshot: ProductSnapshot; images: ProductSnapshotImages }> {
   const apiOrigin = siteOrigin(origin);
   const api = publicCatalogFetch(origin, fetcher);
   const products = await inventory(api);
-  const entries = await mapPublic(products, (listed) => captureEntry(listed, api));
+  const entries = await mapPublic(products, (listed) => captureEntry(listed, api, includeImages));
   const after = await inventory(api);
   if (hash(products) !== hash(after))
     throw new Error('Public inventory changed during snapshot; retry the complete acquisition');
   await mapPublic(entries, (entry) => verifyEntry(entry, api));
-  return decodeProductSnapshot(
+  const snapshot = decodeProductSnapshot(
     {
       schemaVersion: 1,
       purpose: 'public',
@@ -298,15 +323,27 @@ export async function collectProductSnapshot(
     },
     site,
   );
+  return {
+    snapshot,
+    images: createProductSnapshotImages(snapshot, includeImages ? capturedImages(entries) : []),
+  };
 }
 
 let loaded: Promise<ProductSnapshot> | undefined;
 export function readProductSnapshot(site: string): Promise<ProductSnapshot> {
   loaded ??= (async () => {
     const file = process.env.SEO_CATALOG_SNAPSHOT;
-    if (file) return decodeProductSnapshot(JSON.parse(await readFile(file, 'utf8')), site);
-    if (process.env.SEO_CATALOG_API_ORIGIN)
-      return collectProductSnapshot(site, process.env.SEO_CATALOG_API_ORIGIN);
+    if (file) {
+      const snapshot = decodeProductSnapshot(JSON.parse(await readFile(file, 'utf8')), site);
+      return presentProductSnapshot(snapshot, await readProductSnapshotImages(file, snapshot));
+    }
+    if (process.env.SEO_CATALOG_API_ORIGIN) {
+      const { snapshot, images } = await collectProductSnapshotWithImages(
+        site,
+        process.env.SEO_CATALOG_API_ORIGIN,
+      );
+      return presentProductSnapshot(snapshot, images);
+    }
     throw new Error(
       'Set SEO_CATALOG_SNAPSHOT or SEO_CATALOG_API_ORIGIN explicitly; refusing to build without the public product inventory.',
     );
@@ -340,10 +377,11 @@ export function reuseAcceptedProductSnapshot(
 async function captureEntry(
   listed: SeoPublicProduct,
   api: typeof fetch,
+  includeImagePresentation = false,
 ): Promise<ProductSnapshotEntry> {
   const result = await fetchCatalogDetailPage(
     { productId: listed._id },
-    { fetch: api, includeImagePresentation: false },
+    { fetch: api, includeImagePresentation },
   );
   if (result.status === 'ready')
     return { product: listed, detail: result.detail, revision: result.detail.revision };
@@ -365,7 +403,11 @@ async function verifyEntry(entry: ProductSnapshotEntry, api: typeof fetch): Prom
       },
       { fetch: api, includeImagePresentation: false },
     );
-    if (check.status !== 'ready' || hash(check.detail) !== hash(entry.detail))
+    if (
+      check.status !== 'ready' ||
+      hash(projectDetail(check.detail, entry.product._id)) !==
+        hash(projectDetail(entry.detail, entry.product._id))
+    )
       throw new Error(`Public revision changed: ${entry.product._id}`);
   } else {
     const check = projectRow(
@@ -377,6 +419,20 @@ async function verifyEntry(entry: ProductSnapshotEntry, api: typeof fetch): Prom
     if (publicCardHash(check) !== publicCardHash(entry.product))
       throw new Error(`Legacy public product changed: ${entry.product._id}`);
   }
+}
+
+function capturedImages(entries: readonly ProductSnapshotEntry[]): ProductSnapshotImageEntry[] {
+  return entries.flatMap((entry) =>
+    entry.detail?.imagePresentation
+      ? [
+          {
+            productId: entry.product._id,
+            revision: entry.revision,
+            images: entry.detail.imagePresentation,
+          },
+        ]
+      : [],
+  );
 }
 
 export async function collectProductInventory(
@@ -402,7 +458,45 @@ export async function collectProductRefresh(
   origin: string,
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<ProductSnapshot> {
+  return (await captureProductRefresh(acceptedInput, headsInput, site, origin, fetcher, false))
+    .snapshot;
+}
+
+export async function collectProductRefreshWithImages(
+  acceptedInput: unknown,
+  headsInput: unknown,
+  site: string,
+  origin: string,
+  acceptedImages: unknown,
+  fetcher: typeof fetch = globalThis.fetch,
+) {
+  return captureProductRefresh(
+    acceptedInput,
+    headsInput,
+    site,
+    origin,
+    fetcher,
+    true,
+    acceptedImages,
+  );
+}
+
+async function captureProductRefresh(
+  acceptedInput: unknown,
+  headsInput: unknown,
+  site: string,
+  origin: string,
+  fetcher: typeof fetch,
+  includeImages: boolean,
+  acceptedImages?: unknown,
+): Promise<{ snapshot: ProductSnapshot; images: ProductSnapshotImages }> {
   const accepted = decodeProductSnapshot(acceptedInput, site);
+  const retainedImages = new Map(
+    (acceptedImages === undefined
+      ? createProductSnapshotImages(accepted)
+      : decodeProductSnapshotImages(acceptedImages, accepted)
+    ).products.map((row) => [row.productId, row]),
+  );
   if (accepted.purpose !== 'public') throw Error('An accepted public snapshot is required');
   const parsed = z.array(refreshHeadSchema).max(50000).parse(headsInput);
   const heads = new Map(parsed.map((head) => [head.productId, head]));
@@ -432,7 +526,9 @@ export async function collectProductRefresh(
           head.semanticHash !== previous.publicVersion?.semanticHash ||
           head.detailRevision !== (previous.detail?.revision ?? null)));
     if (!refresh && previous) return previous;
-    const entry = await captureEntry(row, api);
+    const entry = await captureEntry(row, api, includeImages);
+    retainedImages.delete(row._id);
+    for (const images of capturedImages([entry])) retainedImages.set(row._id, images);
     if (head && (entry.detail?.revision ?? null) !== head.detailRevision)
       throw Error(`Tracked product revision changed: ${row._id}`);
     const value = {
@@ -453,10 +549,11 @@ export async function collectProductRefresh(
   if (hash(before.map(publicCardHash)) !== hash((await inventory(api)).map(publicCardHash)))
     throw Error('Public inventory changed during incremental acquisition');
   await mapPublic(refreshed, (entry) => verifyEntry(entry, api));
-  return decodeProductSnapshot(
+  const snapshot = decodeProductSnapshot(
     { ...accepted, total: products.length, apiOrigin: siteOrigin(origin), products },
     site,
   );
+  return { snapshot, images: createProductSnapshotImages(snapshot, [...retainedImages.values()]) };
 }
 
 function publicCardHash(product: SeoPublicProduct): string {

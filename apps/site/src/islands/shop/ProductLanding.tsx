@@ -24,12 +24,17 @@ export function ProductLanding({
   const [variant, setVariant] = useState<string>();
   const presentedBootstrap = useMemo(() => {
     if (!bootstrap || !product.imagePresentation) return bootstrap;
+    const sources = new Set([
+      ...bootstrap.images,
+      ...bootstrap.variants.items.flatMap((variant) => variant.images),
+    ]);
     const imagePresentation = Object.fromEntries(
-      Object.entries(product.imagePresentation).filter(([source]) =>
-        bootstrap.images.includes(source),
-      ),
+      Object.entries(product.imagePresentation).filter(([source]) => sources.has(source)),
     );
-    return { ...bootstrap, imagePresentation };
+    return {
+      ...bootstrap,
+      imagePresentation: { ...imagePresentation, ...bootstrap.imagePresentation },
+    };
   }, [bootstrap, product.imagePresentation]);
   useEffect(() => {
     const read = () =>

@@ -130,10 +130,21 @@ export async function prepareProducts(env = process.env) {
           acceptedSeal: accepted.accepted.seals.static,
         });
         const paths = resolve(output, 'product-current-paths.json');
+        const acceptedInput = resolve(output, 'accepted-product-input.json');
+        await writeFile(
+          acceptedInput,
+          await readFile(resolve(verified.directory, 'product-snapshot.json')),
+          { flag: 'wx' },
+        );
+        const images = JSON.parse(
+          await readFile(resolve(verified.directory, 'compatibility.json'), 'utf8'),
+        ).productImagePresentation;
+        if (images !== undefined)
+          await writeFile(`${acceptedInput}.images.json`, JSON.stringify(images), { flag: 'wx' });
         await command(['apps/site/scripts/prepare-product-public-paths.ts', paths]);
         await command([
           'apps/site/scripts/reuse-product-seo.ts',
-          resolve(verified.directory, 'product-snapshot.json'),
+          acceptedInput,
           paths,
           resolve(output, 'product-snapshot.json'),
         ]);

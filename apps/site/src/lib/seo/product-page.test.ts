@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -10,7 +12,12 @@ import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import { SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
 import { isPlainProductClick, productPath } from './product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from './product-page.ts';
-import type { ProductSnapshotEntry } from './product-snapshot.ts';
+import {
+  type ProductSnapshotEntry,
+  collectProductSnapshotWithImages,
+  decodeProductSnapshot,
+  readProductSnapshot,
+} from './product-snapshot.ts';
 
 const source = readFileSync(
   new URL('../../i18n/content/catalog/en-US.md', import.meta.url),
@@ -40,6 +47,79 @@ test('initial HTML uses the existing detail view for both canonical and no-slug 
     assert.match(html, bootstrap ? /Approved public body\./ : /Legacy public body\./);
     assert.doesNotMatch(html, /Loading product|data-catalog-schema/);
   }
+});
+
+test('capture, save and initial HTML retain configuration-photo sizes separately from the strict legacy content snapshot', async (t) => {
+  const general = '/api/images/general-photo';
+  const source = '/api/images/configuration-photo';
+  const candidates = [{ url: `${source}?w=640`, width: 640, height: 400 }];
+  const fixture = detailFixture(1);
+  const publicProduct = {
+    ...product,
+    images: [general],
+    imagePresentation: { [general]: [{ url: `${general}?w=160`, width: 160, height: 100 }] },
+  };
+  const detail = {
+    ...fixture,
+    images: [source],
+    imagePresentation: { [source]: candidates },
+    variants: {
+      ...fixture.variants,
+      items: fixture.variants.items.map((variant) => ({ ...variant, images: [source] })),
+    },
+  };
+  const requests: URL[] = [];
+  const capture = await collectProductSnapshotWithImages(
+    'https://example.com',
+    'https://example.com',
+    async (input) => {
+      const url = new URL(String(input));
+      requests.push(url);
+      return Response.json({
+        ok: true,
+        data: url.pathname.endsWith('/detail')
+          ? detail
+          : { items: [publicProduct], page: 1, pageSize: 48, total: 1 },
+      });
+    },
+  );
+  assert.equal(requests.length, 4, 'no extra image acquisition requests');
+  assert.equal(
+    requests.filter(
+      (url) =>
+        url.pathname.endsWith('/detail') && url.searchParams.get('media') === 'responsive-v1',
+    ).length,
+    1,
+  );
+  assert.equal(capture.snapshot.products[0]?.detail?.imagePresentation, undefined);
+  assert.deepEqual(
+    decodeProductSnapshot(capture.snapshot, 'https://example.com'),
+    capture.snapshot,
+  );
+  const directory = mkdtempSync(join(tmpdir(), 'snapshot-images-'));
+  const previous = process.env.SEO_CATALOG_SNAPSHOT;
+  t.after(() => {
+    rmSync(directory, { recursive: true, force: true });
+    if (previous === undefined) Reflect.deleteProperty(process.env, 'SEO_CATALOG_SNAPSHOT');
+    else process.env.SEO_CATALOG_SNAPSHOT = previous;
+  });
+  const file = join(directory, 'products.json');
+  writeFileSync(file, JSON.stringify(capture.snapshot));
+  writeFileSync(`${file}.images.json`, JSON.stringify(capture.images));
+  process.env.SEO_CATALOG_SNAPSHOT = file;
+  const rendered = (await readProductSnapshot('https://example.com')).products[0];
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(
+    createElement(ProductLanding, {
+      product: rendered.product,
+      bootstrap: rendered.detail,
+      content,
+      copy: content.sharedDetail,
+      canonicalPath: productPath(product._id),
+    }),
+  );
+  assert.match(html, /srcSet="[^"]*configuration-photo\?w=640 640w/);
+  assert.doesNotMatch(html, /general-photo\?w=160/);
 });
 test('one stable identity drives metadata schema and breadcrumbs without inferring variant-wide offers', () => {
   const detail = {

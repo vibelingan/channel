@@ -6,6 +6,8 @@ import { DefaultArtifactClient } from '@actions/artifact';
 import CloudBase from '@cloudbase/manager-node';
 import COS from 'cos-nodejs-sdk-v5';
 import { productPath } from '../apps/site/src/lib/seo/product-identity.ts';
+import { readProductSnapshotImages } from '../apps/site/src/lib/seo/product-snapshot-images.ts';
+import { decodeProductSnapshot } from '../apps/site/src/lib/seo/product-snapshot.ts';
 import { prepareArticleBuild } from '../packages/articles/src/build.ts';
 import { articleReleaseBuildInput } from '../packages/articles/src/release-build.ts';
 import type { ClaimedArticleRelease } from '../packages/articles/src/release-store.ts';
@@ -531,6 +533,18 @@ try {
   if (automatic && baseline?.envelope.codeSha !== codeSha)
     throw Error('The content executor must match the currently accepted website code');
   const productFile = join(directory, 'product-snapshot.json');
+  // Work on a copy: the verified recovery package must remain byte-for-byte intact.
+  const acceptedProductInput = async () => {
+    if (!baseline) throw Error('Accepted site input is required');
+    const file = join(directory, 'accepted-product-snapshot.json');
+    await writeFile(file, readObject(baseline.directory, 'product-snapshot.json'), { flag: 'wx' });
+    const images = JSON.parse(
+      readObject(baseline.directory, 'compatibility.json').toString(),
+    ).productImagePresentation;
+    if (images !== undefined)
+      await writeFile(`${file}.images.json`, JSON.stringify(images), { flag: 'wx' });
+    return file;
+  };
   const built =
     env.SITE_DELIVERY_BUILT_INPUT === '1'
       ? readBuiltSite({
@@ -910,7 +924,7 @@ try {
         join(root, 'apps/site/node_modules/.bin/tsx'),
         [
           'apps/site/scripts/refresh-product-seo.ts',
-          join(baseline.directory, 'product-snapshot.json'),
+          await acceptedProductInput(),
           headsFile,
           productFile,
         ],
@@ -921,6 +935,16 @@ try {
       await writeFile(productFile, await readFile('output/seo-release/product-snapshot.json'), {
         flag: 'wx',
       });
+      try {
+        await writeFile(
+          `${productFile}.images.json`,
+          await readFile('output/seo-release/product-snapshot.json.images.json'),
+          { flag: 'wx' },
+        );
+      } catch (error) {
+        if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'))
+          throw error;
+      }
     } else if (env.SITE_PRODUCT_SOURCE === 'accepted') {
       const pathsFile = join(directory, 'reuse-public-paths.json');
       await writeFile(pathsFile, JSON.stringify(await readPublicProductPaths()), { flag: 'wx' });
@@ -928,7 +952,7 @@ try {
         join(root, 'apps/site/node_modules/.bin/tsx'),
         [
           'apps/site/scripts/reuse-product-seo.ts',
-          join(baseline.directory, 'product-snapshot.json'),
+          await acceptedProductInput(),
           pathsFile,
           productFile,
         ],
@@ -956,6 +980,10 @@ try {
       }
     }
     const products = JSON.parse(await readFile(productFile, 'utf8'));
+    const productImagePresentation = await readProductSnapshotImages(
+      productFile,
+      decodeProductSnapshot(products, policy.siteOrigin),
+    );
     assert(Array.isArray(products.products));
     const snapshotPaths = products.products.map((p: { product: { _id: string } }) =>
       productPath(p.product._id),
@@ -1063,6 +1091,7 @@ try {
         : {}),
       files,
       snapshot: products,
+      productImagePresentation,
       objectProofs: baseline.staticManifest.entries.flatMap((e: SiteObjectEntry) =>
         e.objectVersion ? [{ ...e, ...e.objectVersion }] : [],
       ),

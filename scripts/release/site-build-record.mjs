@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { identity, sha256 } from './input.mjs';
@@ -22,6 +22,9 @@ function state({
       purpose: 'same-run-site-build',
       codeSha,
       productsSha256: sha256(readFileSync(productFile)),
+      ...(existsSync(`${productFile}.images.json`)
+        ? { productImagesSha256: sha256(readFileSync(`${productFile}.images.json`)) }
+        : {}),
       ...(productSourceFile
         ? { productSourceSha256: sha256(readFileSync(productSourceFile)) }
         : {}),

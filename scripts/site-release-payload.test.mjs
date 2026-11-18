@@ -88,6 +88,37 @@ test('catalog acceptance proof is sealed with the precise snapshot and cannot be
   );
   assert.throws(() => siteArtifact({ ...f, run: run() }), /Corrupt/);
 });
+
+test('optional image hints are retained in the hashed compatibility file without changing snapshot members', (t) => {
+  const f = fixture(t);
+  const hints = {
+    schemaVersion: 1,
+    purpose: 'product-snapshot-images',
+    siteOrigin: policy.siteOrigin,
+    products: [],
+  };
+  createSitePayload({ ...f, productImagePresentation: hints });
+  const input = siteArtifact({ ...f, run: run() });
+  const path = join(f.directory, input.envelope.compatibilityRef.path);
+  const compatibility = JSON.parse(readFileSync(path));
+  assert.deepEqual(compatibility.productImagePresentation, hints);
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(f.directory, 'product-snapshot.json'))),
+    f.snapshot,
+  );
+  assert.equal(
+    input.envelope.entries.some((e) => e.path.endsWith('.images.json')),
+    false,
+  );
+  writeFileSync(
+    path,
+    JSON.stringify({
+      ...compatibility,
+      productImagePresentation: { ...hints, products: ['changed'] },
+    }),
+  );
+  assert.throws(() => siteArtifact({ ...f, run: run() }), /Corrupt/);
+});
 for (const path of [
   '__auth/x.html',
   'BingSiteAuth.xml',

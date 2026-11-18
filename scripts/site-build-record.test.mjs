@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -28,6 +28,19 @@ test('normal delivery consumes exact built bytes and both frozen inputs, refusin
     writeFileSync(file, original);
   }
   assert.equal(readBuiltSite(input).size, 2);
+  // Presence as well as bytes is frozen: an extra input cannot be swapped in later.
+  const imagesFile = `${productFile}.images.json`;
+  writeFileSync(imagesFile, '{}');
+  assert.throws(() => readBuiltSite(input), /frozen input changed/);
+  unlinkSync(imagesFile);
+  unlinkSync(recordFile);
+  writeFileSync(imagesFile, '{"products":[]}');
+  sealBuiltSite(input);
+  assert.equal(readBuiltSite(input).size, 2);
+  writeFileSync(imagesFile, '{"products":["changed"]}');
+  assert.throws(() => readBuiltSite(input), /frozen input changed/);
+  unlinkSync(imagesFile);
+  assert.throws(() => readBuiltSite(input), /frozen input changed/);
 });
 
 test('server Blog records its separate ownership and never requires or freezes a fake article snapshot', (t) => {
