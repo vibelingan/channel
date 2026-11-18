@@ -128,17 +128,26 @@ test('exact executor CI is mandatory and cannot be satisfied by a different SHA 
   const client = createGithubSource({
     policy,
     token: 'fake',
-    request: async () => ({
-      status: 200,
-      body: Buffer.from(JSON.stringify({ workflow_runs: runs })),
-    }),
+    request: async (_method, url) => {
+      const lookup = new URL(url);
+      assert.equal(lookup.searchParams.get('head_sha'), codeSha);
+      // GitHub's filtered index returned no completed runs for this exact SHA.
+      return {
+        status: 200,
+        body: Buffer.from(
+          JSON.stringify({ workflow_runs: lookup.searchParams.has('status') ? [] : runs }),
+        ),
+      };
+    },
   });
   await assert.rejects(client.requireCI(codeSha), /no successful offline CI/);
   runs = [{ ...run, path: '.github/workflows/seo-module-1.yml', event: 'pull_request' }];
   await assert.rejects(client.requireCI(codeSha));
   runs = [{ ...runs[0], event: 'push', head_sha: 'c'.repeat(40) }];
   await assert.rejects(client.requireCI(codeSha));
-  runs = [{ ...runs[0], head_sha: codeSha }];
+  runs = [{ ...runs[0], head_sha: codeSha, status: 'in_progress' }];
+  await assert.rejects(client.requireCI(codeSha));
+  runs = [{ ...runs[0], status: 'completed' }];
   await client.requireCI(codeSha);
 });
 

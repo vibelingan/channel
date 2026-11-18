@@ -35,8 +35,9 @@ export function createGithubReadClient({ policy, token, request = fetchFully }) 
       if (!/^[a-f0-9]{40}$/.test(codeSha)) throw new Error('Invalid executor SHA');
       if (ref !== policy.trustedRef && ref !== 'refs/heads/test')
         throw Error('Unapproved executor ref');
+      // GitHub's status-filtered list can omit a completed run. Check status on each result.
       const result = await api(
-        `/actions/workflows/seo-module-1.yml/runs?head_sha=${codeSha}&status=completed&per_page=100`,
+        `/actions/workflows/seo-module-1.yml/runs?head_sha=${codeSha}&per_page=100`,
       );
       if (
         !result.workflow_runs?.some(
