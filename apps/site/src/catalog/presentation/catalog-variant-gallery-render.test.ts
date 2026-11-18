@@ -405,8 +405,11 @@ test(
           outputs.set(width, await createCatalogWebImage(original, 'image/png', width));
         const source = '/api/images/responsive-20261118';
         const selectedSizes: number[] = [];
+        const unrequestedDefaultReads: string[] = [];
         await page.route('**/api/images/**', (route) => {
           const url = new URL(route.request().url());
+          if (url.pathname.endsWith('/responsive-20261118') && !url.searchParams.has('w'))
+            unrequestedDefaultReads.push(url.href);
           if (url.pathname.endsWith('/responsive-fallback') && url.searchParams.has('w'))
             return route.fulfill({ status: 503, body: 'Prepared size unavailable' });
           const width = Number(url.searchParams.get('w') ?? 1280);
@@ -423,8 +426,27 @@ test(
           })),
         };
         await page.setViewportSize({ width: 375, height: 900 });
+        await page.evaluate(() => {
+          const NativeImage = window.Image;
+          window.Image = new Proxy(NativeImage, {
+            construct(target, args) {
+              const image = Reflect.construct(target, args) as HTMLImageElement;
+              image.addEventListener('load', () => {
+                document.documentElement.dataset.prefetchSource = image.currentSrc;
+              });
+              return image;
+            },
+          });
+        });
+        const preparedVariant = variant({ images: [source] });
         await mount(
-          galleryProps({ images: [source, '/api/images/unprepared'], imagePresentation }),
+          galleryProps({
+            productId: 'responsive-native-product',
+            images: [source, '/api/images/unprepared'],
+            selection: { status: 'selected', variant: preparedVariant },
+            variants: [preparedVariant],
+            imagePresentation,
+          }),
         );
         await expect(mainImage).toHaveJSProperty(
           'currentSrc',
@@ -436,6 +458,11 @@ test(
           'currentSrc',
           `${origin}api/images/responsive-20261118?w=160`,
         );
+        await expect(page.locator('html')).toHaveAttribute(
+          'data-prefetch-source',
+          `${origin}api/images/responsive-20261118?w=640`,
+        );
+        assert.deepEqual(unrequestedDefaultReads, [], 'Prefetch must reuse the displayed size');
         const screenshots = fileURLToPath(
           new URL('../../../../../output/responsive-images-20261118/', import.meta.url),
         );

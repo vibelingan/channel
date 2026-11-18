@@ -1,6 +1,6 @@
 # 评审后图入口与复刻方法
 
-11月18日多尺寸续作新增图源[image-responsive](image-responsive-20261118.sequence.json)，本机交付HTML为`output/responsive-images-20261118/image-responsive.html`。它说明本地已实现的尺寸准备、追加登记、浏览器选择、当前引用检查和中断重试；琥珀色卡明确标记尚未发布，不替代此前默认图的真实云上验收。只提交图源；HTML、截图及测试回执保存在忽略目录。生成命令沿用下文sequence入口，浏览器检查与人工看图结果记录在`output/responsive-images-20261118/local-receipt.json`，实现状态见[原模块文档](../01-images.zh-CN.md#多尺寸实现与交付边界11月18日)。
+11月18日多尺寸图源[image-responsive](image-responsive-20261118.sequence.json)已更新七张真图、31次官网读取、同档预读和后台大图重验失败的准确状态。本机HTML为output/responsive-images-20261118/image-responsive.html，9/9产物检查、0错误/警告；四个桌面尺寸及端点深浅主题检查通过，并实际复核1440浅色、2048深色截图。源SHA为93a3893e770ca6dd06302019695f347a0e3382eed20539395531d2d4c347bb18，HTML SHA为5b14a85261a3a24944fea37686e03042e4cdc81bf28faa277d2524d6f8ae3d0f。仅提交图源和本说明，HTML、截图及回执保存在忽略目录；此图明确页面/性能尚待交付，不把清理成功写成上传通过。
 
 11月18日更新：图片上传图源`image-new-upload-20261117.sequence.json`已改为两类私有云上入口的实际验收状态；本机最新HTML为`output/source-media-probe-20261118/image-pipeline.html`。目录内同名旧HTML继续保留历史版本，不能据其“尚未上线”判断当前状态。复刻时将下方deliver命令的类型设为sequence、输入设为该图源，输出选择本机新位置。图源及小回执入Git，生成HTML和截图仍保存在忽略目录。
 

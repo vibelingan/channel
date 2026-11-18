@@ -120,6 +120,7 @@ export function CatalogVariantGallery(props: CatalogVariantGalleryProps) {
   useCatalogImagePrefetch(
     props.resolveImage ? [] : props.variants.flatMap((v) => v.images),
     loadedIdentity === productIdentity,
+    props.imagePresentation,
   );
   const key = JSON.stringify([
     props.productId,

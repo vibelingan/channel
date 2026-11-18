@@ -1,6 +1,7 @@
 import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { useEffect, useRef, useState } from 'react';
 import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
+import { catalogGalleryImageSizes } from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
@@ -213,7 +214,7 @@ function GallerySession({
       >
         <ProductMedia
           imagePresentation={imagePresentation}
-          sizes="(min-width: 1280px) 520px, (min-width: 1024px) calc(50vw - 88px), (min-width: 640px) 520px, calc(100vw - 72px)"
+          sizes={catalogGalleryImageSizes}
           sources={resolvedSource ? [resolvedSource] : []}
           alt={imageLabels?.[activeIndex] || alt}
           unavailableLabel={unavailableLabel}
