@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ArticleMediaRecordSchema, articleIdentity } from '@vibelingan-channel/articles/media';
 import {
   ArticleListSchema,
+  type ArticleRenderTimings,
   type ArticleRenderWebV1,
   ArticleSummarySchema,
   type PublicArticles,
@@ -42,10 +43,20 @@ export function createCloudBasePublicArticles(
 ): PublicArticles {
   const transaction = articleTransaction(db);
   const validSlug = (slug: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length <= 200;
-  async function bySlug(store: ArticleStore, slug: string) {
+  async function bySlug(
+    store: ArticleStore,
+    slug: string,
+    timings?: Pick<ArticleRenderTimings, 'slugMs' | 'publicationMs'>,
+  ) {
+    const slugStarted = performance.now();
     const owner = await row(store, 'articleSlugs', slug);
     if (!owner) return null;
+    const publicationStarted = performance.now();
     const article = await accepted(store, articleIdentity.parse(owner.articleId));
+    if (timings) {
+      timings.slugMs = publicationStarted - slugStarted;
+      timings.publicationMs = performance.now() - publicationStarted;
+    }
     if (article && article.content.slug !== slug) throw Error('Public article URL mismatch');
     return article;
   }
@@ -116,18 +127,27 @@ export function createCloudBasePublicArticles(
       if (!validSlug(slug)) return null;
       return transaction((store) => bySlug(store, slug));
     },
-    getRender: async (slug): Promise<ArticleRenderWebV1 | null> => {
+    getRender: async (slug, onTiming): Promise<ArticleRenderWebV1 | null> => {
       if (!validSlug(slug)) return null;
-      return transaction(async (store) => {
-        const article = await bySlug(store, slug);
+      const started = performance.now();
+      const result = await transaction(async (store) => {
+        const timings: Omit<ArticleRenderTimings, 'totalMs'> = { slugMs: 0, publicationMs: 0 };
+        const article = await bySlug(store, slug, timings);
         if (!article) return null;
-        const sidecar = await readArticleWebMedia(store, article.articleId);
-        return {
+        const hasMedia = Object.keys(article.media).length > 0;
+        const mediaStarted = performance.now();
+        const sidecar = hasMedia ? await readArticleWebMedia(store, article.articleId) : null;
+        if (hasMedia) timings.webMediaMs = performance.now() - mediaStarted;
+        const value: ArticleRenderWebV1 = {
           schemaVersion: 1,
           article,
           presentation: buildArticleWebPresentation(article, sidecar),
         };
+        return { value, timings };
       });
+      if (!result) return null;
+      onTiming?.({ ...result.timings, totalMs: performance.now() - started });
+      return result.value;
     },
     list: async (after) => {
       if (after !== undefined) articleIdentity.parse(after);

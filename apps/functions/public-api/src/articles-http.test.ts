@@ -79,7 +79,10 @@ test('new render response is separate from unchanged old GET and media filenames
   const reader: PublicArticles = {
     ...articles,
     get: async () => article,
-    getRender: async () => render,
+    getRender: async (_slug, onTiming) => {
+      onTiming?.({ slugMs: 12, publicationMs: 4, webMediaMs: Number.NaN, totalMs: 17 });
+      return render;
+    },
     media: async (id, requested) => {
       assert.equal(id, 'image-one');
       assert.equal(requested, file);
@@ -90,6 +93,10 @@ test('new render response is separate from unchanged old GET and media filenames
   const response = await call('/api/articles/slug/guide?view=render-web-v1', reader);
   assert.equal(response.statusCode, 200);
   assert.deepEqual(JSON.parse(response.body).data, render);
+  assert.equal(
+    response.headers['Server-Timing'],
+    'ar-url;dur=12.0, ar-publication;dur=4.0, ar-total;dur=17.0',
+  );
   const media = await call(`/api/articles/media/image-one/${file}`, reader);
   assert.equal(media.statusCode, 200);
   assert.equal(media.isBase64Encoded, true);

@@ -67,7 +67,7 @@ test('real SDK writes and reads the publication without exposing private drafts'
   assert.equal((await reader.list()).articles.length, 0);
 });
 
-test('the explicit render read reuses the accepted article and reads only one additional sidecar', async (t) => {
+test('a text-only article is rendered without reading image registrations and disappears on withdrawal', async (t) => {
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
   const reader = createCloudBasePublicArticles(f.db, storage);
@@ -86,11 +86,17 @@ test('the explicit render read reuses the accepted article and reads only one ad
     presentation: { media: {} },
   });
   const reads = f.calls.slice(before).filter((c) => c.api === 'database.getDocument');
-  assert.deepEqual(reads.map((c) => c.params.collectionName).sort(), [
-    'articleAccepted',
-    'articleSlugs',
-    'articleWebMedia',
-  ]);
+  assert.deepEqual(
+    reads.map((c) => c.params.collectionName),
+    ['articleSlugs', 'articleAccepted'],
+  );
+  await repo.releases.request('admin', {
+    operation: 'withdraw',
+    articleId: draft.id,
+    expectedRevision: 1,
+    requestId: 'render-withdraw',
+  });
+  assert.equal(await reader.getRender(content.slug), null);
 });
 
 test('real SDK pagination returns twelve bounded summaries without documents or duplicates', async (t) => {
@@ -342,7 +348,14 @@ async function webFixture(
 test('render view has one sidecar read, no original-record scan or bytes, and no private storage fields', async (t) => {
   const x = await webFixture(t);
   const before = x.f.calls.length;
-  const result = await x.reader.getRender('web-image-guide');
+  let timingReported = false;
+  const result = await x.reader.getRender('web-image-guide', (timings) => {
+    assert(timings.slugMs >= 0 && timings.publicationMs >= 0);
+    assert(timings.webMediaMs !== undefined && timings.webMediaMs >= 0);
+    assert(timings.totalMs >= timings.slugMs + timings.publicationMs + timings.webMediaMs);
+    timingReported = true;
+  });
+  assert(timingReported);
   assert.equal(
     result?.presentation.media[x.image.id]?.url,
     `/media/articles/${x.image.id}/${x.file}`,

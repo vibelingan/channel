@@ -63,10 +63,20 @@ export interface ArticleMediaTimings {
   lookupMs?: number;
   downloadMs?: number;
 }
+/** Numeric diagnostics for a successful public article render read. */
+export interface ArticleRenderTimings {
+  slugMs: number;
+  publicationMs: number;
+  webMediaMs?: number;
+  totalMs: number;
+}
 export interface PublicArticles {
   list(after?: string): Promise<ArticleList>;
   get(slug: string): Promise<import('./publication.ts').PublishedArticle | null>;
-  getRender(slug: string): Promise<ArticleRenderWebV1 | null>;
+  getRender(
+    slug: string,
+    onTiming?: (timings: ArticleRenderTimings) => void,
+  ): Promise<ArticleRenderWebV1 | null>;
   media(
     id: string,
     file: string,

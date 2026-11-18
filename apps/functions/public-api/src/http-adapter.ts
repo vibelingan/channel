@@ -1,4 +1,8 @@
-import type { ArticleMediaTimings, PublicArticles } from '@vibelingan-channel/articles/public-read';
+import type {
+  ArticleMediaTimings,
+  ArticleRenderTimings,
+  PublicArticles,
+} from '@vibelingan-channel/articles/public-read';
 import {
   type ApiResult,
   err,
@@ -40,18 +44,12 @@ export interface HttpResponse {
   isBase64Encoded: boolean;
 }
 
-/** Only fixed numeric phases of an authorized image read may become public headers. */
-function articleMediaTimingHeaders(timings?: ArticleMediaTimings): Record<string, string> {
+/** Only fixed numeric stages of a successful public read belong in the response. */
+function fixedTimingHeaders<T extends object>(
+  timings: T | undefined,
+  fields: Readonly<Record<string, keyof T>>,
+): Record<string, string> {
   if (!timings) return {};
-  const fields = {
-    'am-ref1': 'referenceBeforeMs',
-    'am-storage': 'storageMs',
-    'am-url': 'lookupMs',
-    'am-download': 'downloadMs',
-    'am-check': 'validationMs',
-    'am-ref2': 'referenceAfterMs',
-    'am-total': 'totalMs',
-  } as const;
   const entries = Object.entries(fields).flatMap(([name, field]) => {
     const value = timings[field];
     return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 120_000
@@ -61,9 +59,20 @@ function articleMediaTimingHeaders(timings?: ArticleMediaTimings): Record<string
   return entries.length ? { 'Server-Timing': entries.join(', ') } : {};
 }
 
+function articleMediaTimingHeaders(timings?: ArticleMediaTimings): Record<string, string> {
+  return fixedTimingHeaders(timings, {
+    'am-ref1': 'referenceBeforeMs',
+    'am-storage': 'storageMs',
+    'am-url': 'lookupMs',
+    'am-download': 'downloadMs',
+    'am-check': 'validationMs',
+    'am-ref2': 'referenceAfterMs',
+    'am-total': 'totalMs',
+  });
+}
+
 function catalogImageTimingHeaders(timings?: CatalogImageTimings): Record<string, string> {
-  if (!timings) return {};
-  const fields = {
+  return fixedTimingHeaders(timings, {
     'ci-record': 'recordMs',
     'ci-reference': 'referenceMs',
     'ci-storage': 'storageMs',
@@ -71,14 +80,7 @@ function catalogImageTimingHeaders(timings?: CatalogImageTimings): Record<string
     'ci-download': 'downloadMs',
     'ci-check': 'validationMs',
     'ci-total': 'totalMs',
-  } as const;
-  const entries = Object.entries(fields).flatMap(([name, field]) => {
-    const value = timings[field];
-    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 120_000
-      ? [`${name};dur=${value.toFixed(1)}`]
-      : [];
   });
-  return entries.length ? { 'Server-Timing': entries.join(', ') } : {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -396,15 +398,28 @@ async function routeGet(
             headers,
           );
         const slug = decodeSegment(segments[2] ?? '');
+        let timings: ArticleRenderTimings | undefined;
         const article = views.length
-          ? await config.articles.getRender(slug)
+          ? await config.articles.getRender(slug, (measured) => {
+              timings = measured;
+            })
           : await config.articles.get(slug);
         return jsonResponse(
           event,
           config,
           article ? ok(article) : err('NOT_FOUND', 'Article not found'),
           article ? 200 : 404,
-          headers,
+          article
+            ? {
+                ...headers,
+                ...fixedTimingHeaders<ArticleRenderTimings>(timings, {
+                  'ar-url': 'slugMs',
+                  'ar-publication': 'publicationMs',
+                  'ar-web-media': 'webMediaMs',
+                  'ar-total': 'totalMs',
+                }),
+              }
+            : headers,
         );
       }
       if (segments.length === 4 && segments[1] === 'media') {
