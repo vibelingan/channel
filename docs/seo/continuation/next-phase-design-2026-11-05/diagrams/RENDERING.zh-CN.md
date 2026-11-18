@@ -1,6 +1,6 @@
 # 评审后图入口与复刻方法
 
-11月18日最新多尺寸图源[image-responsive](image-responsive-20261118.sequence.json)已改为真实私有上传成功并清理、配置照片首屏漏项仍在补验的状态。本机HTML为output/responsive-images-20261118/image-responsive.html，9/9产物检查、0错误/警告；1440、1600、1920、2048四个桌面尺寸及两端深浅主题通过，并实际看过1440浅色和2048深色图，完整标签、方向与状态卡均可见。源SHA 82b905ffec571c2c3525c362de8f42824332f6f8a701e827741556243ff047b9；HTML SHA 8247b3d43b50e853384761a6327df76e9fd2f329c28c07b96417a5e92d6d1335。只提交图源和说明，HTML、截图和机器回执留在忽略目录。图中的LCP After仍未执行。
+11月18日最新多尺寸图源[image-responsive](image-responsive-20261118.sequence.json)已更新为真实上传、首屏尺寸和六次业务操作通过，并明确标出美国前后已测、整页LCP尚未达标。本机HTML为 `output/responsive-images-20261118/image-responsive.html`。最新deliver通过9/9产物检查，0错误、0警告；visual-check在1440×900、1600×1000、1920×1080、2048×1320均无横向/纵向溢出，并完成两端浅色/深色截图。实际看过1440浅色及2048深色图，核对完整标签、箭头和三张状态卡；结构检查、自动浏览器检查、看图复核分别通过。图源SHA `69e30a12b82a760e81398327e47fd02ae147ece447e846114c43a7ee8923399b`，HTML SHA `3299357277feb6cc04a2b16c5896ebb001ae93e5e14f0cc35bea9c035356d3b3`；修正轮数0。图源与此说明提交Git，生成HTML、截图及机器回执留在忽略目录。下方其他图保留其日期对应的历史状态。
 
 11月18日更新：图片上传图源`image-new-upload-20261117.sequence.json`已改为两类私有云上入口的实际验收状态；本机最新HTML为`output/source-media-probe-20261118/image-pipeline.html`。目录内同名旧HTML继续保留历史版本，不能据其“尚未上线”判断当前状态。复刻时将下方deliver命令的类型设为sequence、输入设为该图源，输出选择本机新位置。图源及小回执入Git，生成HTML和截图仍保存在忽略目录。
 
