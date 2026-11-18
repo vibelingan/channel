@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { packageBlogServer } from './blog/package-server.mjs';
+import { selectBlogTransitionProgram } from './blog/prepare-asset-transition.mjs';
 import { submitBlogServer } from './blog/server-stage.mjs';
 function fixture({ exists = false, lostReply = false, incomplete = false } = {}) {
   const calls = [];
@@ -117,12 +122,72 @@ test('explicit update persists the actual old image before one submission, witho
     }
     return original(name, input);
   };
-  await submitBlogServer({ ...f, operation: 'update' });
+  await submitBlogServer({
+    ...f,
+    operation: 'update',
+    prepareUpdate: async () => ({
+      phase: 'preload',
+      directory: '/tmp/preload',
+      missingAssets: ['client/_astro/new.css'],
+    }),
+  });
   assert.match(f.saves[0].before.imageUrl, /blog-pages-001-/);
   assert.equal(f.saves[0].status, 'recovery-input-saved');
   const write = f.calls.find((x) => x.name === 'manageCloudRun');
   assert.equal(write.input.serverConfig, undefined);
+  assert.equal(write.input.targetPath, '/tmp/preload');
+  assert.equal(f.saves.at(-1).assetTransition.phase, 'preload');
   assert(!JSON.stringify(f.saves).includes('DO_NOT_WRITE_REDACTED_ENV'));
+});
+
+test('an update preloads missing assets while preserving both programs and fails on corrupt live bytes', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'channel-blog-transition-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const siteOrigin = 'https://supplychainsai.com';
+  const make = async (name, codeSha, style, body = style) => {
+    const source = join(root, `src-${name}`);
+    await mkdir(join(source, 'server'), { recursive: true });
+    await mkdir(join(source, 'client/_astro'), { recursive: true });
+    await writeFile(join(source, 'server/entry.mjs'), name);
+    await writeFile(join(source, 'client/_astro', style), body);
+    const directory = join(root, name);
+    await packageBlogServer({ source, destination: directory, codeSha, siteOrigin });
+    return { directory, codeSha };
+  };
+  const current = await make('old', 'a'.repeat(40), 'old.css');
+  const candidate = await make('new', 'b'.repeat(40), 'new.css');
+  const reply = async (_, url) => ({
+    status: 200,
+    body: Buffer.from(new URL(url).pathname.split('/').at(-1)),
+  });
+  const select = (name, request, next = candidate) =>
+    selectBlogTransitionProgram({
+      current,
+      candidate: next,
+      destination: join(root, name),
+      siteOrigin,
+      request,
+    });
+
+  const preload = await select('first', (method, url) =>
+    url.endsWith('/new.css') ? { status: 404 } : reply(method, url),
+  );
+  assert.equal(preload.phase, 'preload');
+  assert.deepEqual(preload.missingAssets, ['client/_astro/new.css']);
+  assert.equal(await readFile(join(preload.directory, 'server/entry.mjs'), 'utf8'), 'old');
+  assert.equal(await readFile(join(preload.directory, 'client/_astro/new.css'), 'utf8'), 'new.css');
+
+  const ready = await select('second', reply);
+  assert.equal(ready.phase, 'candidate');
+  assert.equal(await readFile(join(ready.directory, 'server/entry.mjs'), 'utf8'), 'new');
+  assert.equal(await readFile(join(ready.directory, 'client/_astro/old.css'), 'utf8'), 'old.css');
+
+  await assert.rejects(
+    select('bad-live', async () => ({ status: 200, body: Buffer.from('bad.css') })),
+    /did not serve the expected asset/,
+  );
+  const conflict = await make('conflict', 'c'.repeat(40), 'old.css', 'bad.css');
+  await assert.rejects(select('collision', reply, conflict), /changed without a new URL/);
 });
 test('in-flight or unexpected service settings stop an update before writes', async () => {
   for (const mutate of [

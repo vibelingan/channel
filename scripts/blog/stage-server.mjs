@@ -2,7 +2,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { DefaultArtifactClient } from '@actions/artifact';
 import { createGithubReadClient } from '../release/github-read.mjs';
+import { fetchFully } from '../smoke-http.mjs';
 import { connectBlogMcp } from './mcp-client.mjs';
+import { selectBlogTransitionProgram } from './prepare-asset-transition.mjs';
 import { checkBlogServerPackage } from './server-package-check.mjs';
 import { submitBlogServer } from './server-stage.mjs';
 
@@ -22,6 +24,9 @@ const operation = process.env.BLOG_SERVER_STAGE_OPERATION ?? 'create';
 if (!['create', 'update'].includes(operation)) throw Error('Explicit Blog operation required');
 const directory = resolve('output/blog-server-package');
 const manifest = await checkBlogServerPackage(directory, { codeSha, siteOrigin });
+const currentSha = process.env.BLOG_SERVER_CURRENT_SHA;
+if (operation === 'update' && !/^[a-f0-9]{40}$/.test(currentSha ?? ''))
+  throw Error('The running Blog release must be identified before an update');
 await createGithubReadClient({
   token: process.env.GITHUB_TOKEN,
   policy: {
@@ -52,6 +57,37 @@ try {
     record,
     save,
     operation,
+    prepareUpdate:
+      operation === 'update'
+        ? async () => {
+            const selected = await selectBlogTransitionProgram({
+              current: { directory: resolve('output/blog-server-current'), codeSha: currentSha },
+              candidate: { directory, codeSha },
+              destination: resolve('output/blog-server-transition'),
+              siteOrigin,
+            });
+            const response = await fetchFully('GET', `${siteOrigin}/blog/health.json`, {
+              maxBytes: 16384,
+              redirect: 'error',
+            });
+            const health = JSON.parse(response.body.toString());
+            if (
+              response.status !== 200 ||
+              health.service !== serverName ||
+              health.releaseId !== currentSha ||
+              health.siteOrigin !== siteOrigin
+            )
+              throw Error('The running Blog program changed during the asset check');
+            const selectedSha = selected.phase === 'preload' ? currentSha : codeSha;
+            const verified = await checkBlogServerPackage(selected.directory, {
+              codeSha: selectedSha,
+              siteOrigin,
+            });
+            record.packageBytes = verified.totalBytes;
+            record.submittedCodeSha = selectedSha;
+            return selected;
+          }
+        : undefined,
     archiveBefore: async () => {
       const result = await new DefaultArtifactClient().uploadArtifact(
         `blog-server-before-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`,

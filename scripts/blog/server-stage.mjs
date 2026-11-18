@@ -8,6 +8,7 @@ export async function submitBlogServer({
   save,
   operation = 'create',
   archiveBefore,
+  prepareUpdate,
 }) {
   const serverName = 'blog-pages';
   const siteOrigin = 'https://supplychainsai.com';
@@ -36,6 +37,12 @@ export async function submitBlogServer({
       if (!exists) throw Error('The existing Blog service is required for an update');
       const detail = await client.call('queryCloudRun', { action: 'detail', serverName });
       record.before = blogServerRecoveryInput(detail.data);
+      if (prepareUpdate) {
+        const prepared = await prepareUpdate();
+        if (!isAbsolute(prepared.directory)) throw Error('Invalid Blog deployment directory');
+        directory = prepared.directory;
+        record.assetTransition = { phase: prepared.phase, missingAssets: prepared.missingAssets };
+      }
       record.operation = operation;
       record.status = 'recovery-input-saved';
       await save();

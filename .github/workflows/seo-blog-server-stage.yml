@@ -22,32 +22,54 @@ jobs:
       - run: npm ci --prefix tools/cloud-handoff --ignore-scripts --no-audit --no-fund
       - run: node tools/cloud-handoff/check-runtime.mjs
       - run: node --test tools/cloud-handoff/transport.integration.mjs
-      - name: Select the successful Blog HTTP build for this exact source
+      - name: Select the successful Blog builds for this commit and the running program
         uses: actions/github-script@v7
         id: source
         with:
           script: |
-            const result = await github.rest.actions.listWorkflowRuns({
-              ...context.repo, workflow_id: 'seo-blog-server.yml', head_sha: context.sha, per_page: 20,
-            });
-            const run = result.data.workflow_runs.find(r =>
-              r.head_sha === context.sha && r.head_branch === 'feat/seo-foundation' &&
-              r.path === '.github/workflows/seo-blog-server.yml' && r.event === 'push' &&
-              r.status === 'completed' && r.conclusion === 'success' &&
-              r.repository?.full_name === 'vibelingan/channel' &&
-              r.head_repository?.full_name === 'vibelingan/channel'
-            );
-            if (!run) throw new Error('The exact Blog HTTP build has not passed. No cloud write started.');
-            core.setOutput('run_id', String(run.id));
+            async function verifiedRun(sha) {
+              const result = await github.rest.actions.listWorkflowRuns({
+                ...context.repo, workflow_id: 'seo-blog-server.yml', head_sha: sha, per_page: 20,
+              });
+              const run = result.data.workflow_runs.find(r =>
+                r.head_sha === sha && r.head_branch === 'feat/seo-foundation' &&
+                r.path === '.github/workflows/seo-blog-server.yml' && r.event === 'push' &&
+                r.status === 'completed' && r.conclusion === 'success' &&
+                r.repository?.full_name === 'vibelingan/channel' &&
+                r.head_repository?.full_name === 'vibelingan/channel'
+              );
+              if (!run) throw new Error(`No successful Blog HTTP build for ${sha}. No cloud write started.`);
+              return String(run.id);
+            }
+            core.setOutput('run_id', await verifiedRun(context.sha));
+            if (${{ inputs.operation == 'update' }}) {
+              const response = await fetch('https://supplychainsai.com/blog/health.json', {
+                redirect: 'error', signal: AbortSignal.timeout(15000),
+              });
+              const health = await response.json();
+              if (!response.ok || health.service !== 'blog-pages' || health.status !== 'ok' ||
+                  health.siteOrigin !== 'https://supplychainsai.com' || !/^[a-f0-9]{40}$/.test(health.releaseId))
+                throw new Error('Could not identify the running Blog program. No cloud write started.');
+              core.setOutput('current_sha', health.releaseId);
+              core.setOutput('current_run_id', await verifiedRun(health.releaseId));
+            }
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.source.outputs.run_id }}
           name: blog-server-${{ github.sha }}
           path: output/blog-server-package
+      - uses: actions/download-artifact@v4
+        if: ${{ inputs.operation == 'update' }}
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.current_run_id }}
+          name: blog-server-${{ steps.source.outputs.current_sha }}
+          path: output/blog-server-current
       - name: Stage only the isolated Blog page service
         env:
           BLOG_SERVER_STAGE_OPERATION: ${{ inputs.operation }}
+          BLOG_SERVER_CURRENT_SHA: ${{ steps.source.outputs.current_sha }}
           BLOG_SERVER_STAGE_CONFIRM: ISOLATED_BLOG_PAGES_ONLY
           GITHUB_TOKEN: ${{ github.token }}
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
