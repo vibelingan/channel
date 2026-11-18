@@ -1,5 +1,9 @@
 @import "tailwindcss";
 @import "./tokens.css";
+/* Archives lack Git metadata, so exclude dependencies and generated pages explicitly. */
+@source not "../../node_modules";
+@source not "../../.astro";
+@source not "../../dist";
 
 /* Shared by both chat transports. Motion never stands in for task progress. */
 .assistant-activity-dots i {
