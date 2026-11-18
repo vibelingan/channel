@@ -27,11 +27,19 @@ test('all manual modes select exactly one job and retain the existing shared tar
       'inputs',
       'startsWith',
       `return ${expression.slice(3, -2)}`,
-    )({ ref: policy.trustedRef }, { mode, action }, (x, p) => x.startsWith(p));
+    )(
+      { ref: policy.trustedRef },
+      { mode, action, variant: mode === 'image-api-update' ? 'public-api' : undefined },
+      (x, p) => x.startsWith(p),
+    );
   for (const mode of workflow.on.workflow_dispatch.inputs.mode.options) {
     const selected = Object.entries(workflow.jobs)
       .filter(([, job]) => run(job.if, mode))
       .map(([key]) => key);
+    if (mode === 'image-api-update') {
+      assert.deepEqual(selected, ['image_api_update']);
+      continue;
+    }
     if (mode === 'image-delivery-prepare') {
       assert.deepEqual(selected, ['image_delivery_prepare']);
       continue;
