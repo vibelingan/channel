@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T01:18:13.582Z",
+  "runtimeSource": "cb0fb3712565f4f8bfe806b040cfaf20fb7f2356",
+  "testSource": "abc65876276cc85999bedb18dee9d047782a7648",
+  "normalDeployment": "https://github.com/vibelingan/channel/actions/runs/44137384987",
+  "acceptanceRun": "https://github.com/vibelingan/channel/actions/runs/44213761075",
+  "acceptance": {
+    "release": "cb0fb3712565f4f8bfe806b040cfaf20fb7f2356",
+    "name": "private-media-44213761075-1-large-private.png",
+    "originalBytes": 4808831,
+    "checksum": "44a65c2c55384e558320bdbde0bad2307d8a1ec3811df4e4c0988a33dc245936",
+    "objects": [
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog/2026/11/1bd25ef1-6078-44c1-bd8d-a105aaf75274/original-private-media-44213761075-1-large-private.png",
+        "storagePath": "catalog/2026/11/1bd25ef1-6078-44c1-bd8d-a105aaf75274/original-private-media-44213761075-1-large-private.png"
+      },
+      {
+        "storageFileId": "cloud://diversity-123-d9grnqfux221323bb.6469-diversity-123-d9grnqfux221323bb-1443560658/catalog-web/v1/95c560e3732bde07392838f00af71e5bc054ec061687c32f73ee91a1e1895cd9/44a65c2c55384e558320bdbde0bad2307d8a1ec3811df4e4c0988a33dc245936/0db2e1854ca5935d9255fc91713397570d7be4decd905b9fb5dfc9e48e5e2147.webp",
+        "storagePath": "catalog-web/v1/95c560e3732bde07392838f00af71e5bc054ec061687c32f73ee91a1e1895cd9/44a65c2c55384e558320bdbde0bad2307d8a1ec3811df4e4c0988a33dc245936/0db2e1854ca5935d9255fc91713397570d7be4decd905b9fb5dfc9e48e5e2147.webp"
+      }
+    ],
+    "imageId": "80a3158d6afcfb5500164c2e3ee5cbac",
+    "sourceHashMatches": true,
+    "previewHashMatches": true,
+    "previewBytes": 1904,
+    "previewDimensions": {
+      "width": 1280,
+      "height": 800
+    },
+    "completeReplays": 2,
+    "imageRecords": 1,
+    "cosPuts": 1,
+    "anonymousStatus": 404,
+    "unauthenticatedPreviewStatus": 401,
+    "productsCreated": 0,
+    "productsPublished": 0,
+    "backendPreviewDecoded": true,
+    "uiPersistedReopenTested": false,
+    "passed": true,
+    "cleanupImageIds": ["80a3158d6afcfb5500164c2e3ee5cbac"],
+    "cleanupReply": "confirmed",
+    "cleanupElapsedMs": 19551,
+    "cleaned": true,
+    "uploadTransport": [
+      {
+        "host": "6469-diversity-123-d9grnqfux221323bb-1443560658.cos.ap-shanghai.myqcloud.com",
+        "status": 200,
+        "elapsedMs": 131920
+      },
+      {
+        "host": "6469-diversity-123-d9grnqfux221323bb-1443560658.cos.ap-shanghai.myqcloud.com",
+        "error": "net::ERR_ABORTED",
+        "elapsedMs": 131921
+      }
+    ],
+    "uiAdminRequestCounts": {
+      "login": 1,
+      "me": 1,
+      "list": 3,
+      "inquiryCapabilities": 1,
+      "catalogDetailCapabilities": 1,
+      "productReviewSummary": 1,
+      "createUploadIntent": 1,
+      "inquiry": 1,
+      "catalogCategories": 3,
+      "getImagePreview": 1,
+      "completeUpload": 1
+    },
+    "unexpectedUiActions": []
+  },
+  "independentReadback": {
+    "observedAt": "2026-11-18T01:18:13.582Z",
+    "imageId": "80a3158d6afcfb5500164c2e3ee5cbac",
+    "imageRecordAbsent": true,
+    "ownedObjectDirectoriesEmpty": [true, true],
+    "beforeAt": "2026-11-17T17:30:11.644Z",
+    "products": 528,
+    "articles": 3,
+    "productVersionsUnchanged": true,
+    "articleContentRevisionTimesUnchanged": true,
+    "cloudWrites": 0
+  },
+  "limits": {
+    "realCloudBase": true,
+    "syntheticImage": true,
+    "syntheticBytesNotPhotoCompressionBenchmark": true,
+    "persistedProductReopenTested": false,
+    "sourceImportCloudAcceptance": false,
+    "networkSpeedImprovementProven": false
+  }
+}

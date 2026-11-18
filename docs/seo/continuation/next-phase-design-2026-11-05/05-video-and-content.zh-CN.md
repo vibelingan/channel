@@ -99,6 +99,10 @@ GEO 继续依靠真实可引用事实、清晰来源和普通 SEO。当前 Googl
 
 11月18日线上补验：[Deploy Test44111073926](https://github.com/vibelingan/channel/actions/runs/44111073926)已经成功交付`f628fad6`。[真实观看页](https://supplychainsai.com/videos/factory-overview/)已可打开，1920像素桌面实际看图核对标题、真实帧海报、848像素播放器、原生控件和文字说明，无横向溢出；截图保存在`output/seo-video-watch-20261117/watch-live-desktop.jpg`。本次没有重新宣称手机线上播放或拖动通过，前文Range问题仍未解决，**观看页已上线，视频拖动与独立视频收录仍未完成验收，本模块不能标为全部完成**。
 
+11月18日02:43的Google实时检查进一步确认：该观看页`URL is available to Google`、`Page can be indexed`，并明确显示`Video detected`，面包屑1项有效。正式索引查询在提交前仍是“Google未知该网址”；随后只申请一次收录，Google实际显示`Indexing requested`并确认加入抓取队列。两张原始截图及结构化数值保留在`output/seo-video-watch-20261117/google-live-video-detected.jpg`、`google-index-requested.jpg`和`google-live-video.json`。这是Google真实抓取、发现视频和受理请求的证据，不是搜索结果或视频索引完成的证据。
+
+据此把问题分开：新观看页已能让Google发现视频；Range未正确返回206仍影响拖动体验，但目前没有证据证明它就是未收录原因，不能把等待Range修复设成提交该观看页的前提。Google说明[实时检查只能报告视频发现，不能确认视频已进入索引](https://support.google.com/webmasters/answer/9012289?hl=en)；[视频搜索还要求观看页先进入索引并满足其他条件](https://developers.google.com/search/docs/appearance/video)。本次没有重编码原视频、填写虚构上传日期、重复提交或新增CDN。措辞修正：“视频收录卡在Range”改为“Google已发现新观看页的视频，正式索引尚待处理；Range是另一个已复现的播放体验问题”。
+
 本轮实际检查`video-record.ts`、观看页、FactorySection、Astro sitemap 3.7.3序列化实现、现有输出检查、托管读取适配器和官方视频地图规范。Context7不可用，SDK对照复用已安装Manager5.9.1及既有只读COS读取器，未新增SDK方法、类型声明或权限。措辞把“视频无法播放”改为“本地原生播放已通过；官网网关忽略Range，线上拖动仍未通过”，把“元数据齐全”改为“已确认资料进入视频地图，首次公开日期尚未确认”。
 
 ### 视频分段的后续处理顺序
