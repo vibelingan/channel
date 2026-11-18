@@ -2,6 +2,8 @@
 
 ## 11月19日交付说明及复盘
 
+**本轮官网已经验证。** 商品详情页的两张缩略图和四张说明图改用适合网页的WebP，实际手机浏览器下载1.72 MB→170 KB。528件现行商品重新生成HTML，自动更新使用新程序。手机和桌面在真实页面操作图库、规格与询盘均正常，两个发布临时函数已清理。24份新美国测试已读回，本次商品手机LCP由6.94秒降到4.86秒，部分对照变慢，整站仍未达到目标。[发布回执](https://github.com/vibelingan/channel/actions/runs/44348055191) · [传输数据与整页复测](06-page-performance.zh-CN.md)
+
 这条工作从让搜索引擎收到实际商品和文章正文开始。商品页生成独立HTML、分类有可跟随的商品链接和真实分页，文章发布直接由文章服务器对外显示。后来接通商品变更自动更新、备份恢复和正式收录入口。11月发现旧图超过云函数响应上限，于是先修公开图片，再补后台上传和供应商同步的图片生产入口，最后按Chrome记录处理页面速度。原设计、历史决定和真实运行各自保留在[SEO总入口](../../README.md)、[商品更新记录](../README.zh-CN.md)及本目录各模块。
 
 | 用户能看到什么 | 交付及证明 | 仍缺的结果 |
@@ -19,7 +21,7 @@
 
 **怎样在下个项目复用。** 工具来源本次逐项核对了GitHub项目和提交。Addy Osmani的Web Quality Skills约3,106星（`afa8da94`），用于Lighthouse与Core Web Vitals测量方法。Marketing Skills约61,177星（`73573e94`），参考`seo-audit`的搜索意图、标题、链接和内容覆盖。Vercel Agent Skills约34,467星（`1a2c79d4`），用于已经发现的React渲染或包问题。Chrome DevTools MCP约58,173星（`343e6b1e`）是工具；本次实际使用本机独立Chrome的DevTools协议、Network与Performance trace，没有连接个人Chrome的调试端口。Node.js官方诊断参考CPU采样和火焰图，用在证据指向服务端计算的时候。以上为查询时整个仓库的星数。把官方标准放在首位，仅吸收适用做法，加入项目上已证明的限制和复现，更新上游时复核代表案例。[Web Quality Skills](https://github.com/addyosmani/web-quality-skills) · [Marketing Skills](https://github.com/coreyhaines31/marketingskills) · [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills) · [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) · [Node.js诊断](https://nodejs.org/en/learn/diagnostics/poor-performance)
 
-本机两个独立仓库已写入可审阅版本：engineering-craft的 `skills/technical-seo-audit` 和 `skills/web-performance-audit` 保存深入技术与案例。dev-pipeline的 `commands/seo.md`、更新的 `commands/perf.md` 及 `docs/WORKFLOW_ROUTES.md` 负责何时调用。新站有首个可运行版本后跑两项检查，发布后复验；修复、重构和需求迭代使用现有不同命令组合，同一执行者就能完成。原站项目保留实测数据和发布事实。两份技能已通过文件链接接入本机Codex和Claude Code的技能目录，保留原有技能。dev-pipeline的主流程已加首次可运行网站的检查，发布说明接到实际交付命令，另外提供四个可回放的评审案例。两个工具仓库目前都是本机改动，需经过独立评审和分发后才能被其他机器采用。复核了两份技能入口、8个索引分支和14个实际命令目标；流程图9项产物校验、四张不同屏幕和主题的浏览器截图及实际看图通过。发布说明现在接入 `docs/DELIVERY_EVIDENCE.md` 的读者检查：先说谁在哪里遇到什么，再核对原因、修补、现实结果、证据及遗留问题。回放了错误注入和真实读回口径；未用子Agent模拟独立采用，也不能保证新会话永不犯错。
+本机两个独立仓库已写入可审阅版本：engineering-craft的 `skills/technical-seo-audit` 和 `skills/web-performance-audit` 保存深入技术与案例。dev-pipeline的 `commands/seo.md`、更新的 `commands/perf.md` 及 `docs/WORKFLOW_ROUTES.md` 负责何时调用。新站有首个可运行版本后跑两项检查，发布后复验；修复、重构和需求迭代使用现有不同命令组合，同一执行者就能完成。原站项目保留实测数据和发布事实。两份技能已通过文件链接接入本机Codex和Claude Code的技能目录，保留原有技能。dev-pipeline的主流程已加首次可运行网站的检查，发布说明接到实际交付命令，另外提供四个可回放的评审案例。两个工具仓库目前都是本机改动。已实际核对Claude Code加载的插件副本，其中缺少新版SEO命令；本机源码通过插件清单检查，安装采用仍需单独验收。检查也提醒插件根目录的CLAUDE.md不会作为项目说明加载，不能依赖它确保新会话执行。复核了两份技能入口、8个索引分支和14个实际命令目标；流程图9项产物校验、四张不同屏幕和主题的浏览器截图及实际看图通过。发布说明现在接入 `docs/DELIVERY_EVIDENCE.md` 的读者检查：先说谁在哪里遇到什么，再核对原因、修补、现实结果、证据及遗留问题。回放了错误注入和真实读回口径；未用子Agent模拟独立采用，也不能保证新会话永不犯错。
 
 11月18日晚间至19日已完成Google本轮各报告读取与三份实际CSV导出，浏览器桌面限制已解除。5个历史4xx复查待5/失败0、旧404及noindex各待1/失败0；当前相关资源完整GET成功。959条“已抓取未收录”全部为图片；12条“已发现未收录”逐个HTML检查通过。83展示/3点击，截至11月16日；相邻14天展示16→66、点击2→1，尚不能称流量稳定增长。Bing当前仍0/0，重复元数据为www与HTTP旧首页。完整当前状态及未完成项见[模块08](08-search-and-outcomes.zh-CN.md)，不再把当时的跨桌面中断写成本轮最终阻塞。
 
