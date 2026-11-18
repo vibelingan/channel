@@ -80,7 +80,14 @@ test('new render response is separate from unchanged old GET and media filenames
     ...articles,
     get: async () => article,
     getRender: async (_slug, onTiming) => {
-      onTiming?.({ slugMs: 12, publicationMs: 4, webMediaMs: Number.NaN, totalMs: 17 });
+      onTiming?.({
+        slugMs: 12,
+        publicationMs: 4,
+        publicationReadMs: 3.5,
+        publicationValidationMs: 0.4,
+        webMediaMs: Number.NaN,
+        totalMs: 17,
+      });
       return render;
     },
     media: async (id, requested) => {
@@ -95,7 +102,7 @@ test('new render response is separate from unchanged old GET and media filenames
   assert.deepEqual(JSON.parse(response.body).data, render);
   assert.equal(
     response.headers['Server-Timing'],
-    'ar-url;dur=12.0, ar-publication;dur=4.0, ar-total;dur=17.0',
+    'ar-url;dur=12.0, ar-publication;dur=4.0, ar-pub-read;dur=3.5, ar-pub-check;dur=0.4, ar-total;dur=17.0',
   );
   const media = await call(`/api/articles/media/image-one/${file}`, reader);
   assert.equal(media.statusCode, 200);

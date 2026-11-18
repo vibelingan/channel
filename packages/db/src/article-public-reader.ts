@@ -25,11 +25,21 @@ async function row(store: ArticleStore, collection: string, id: string) {
   if (_id !== id) throw Error('Public article record identity mismatch');
   return value;
 }
-async function accepted(store: ArticleStore, id: string) {
+async function accepted(
+  store: ArticleStore,
+  id: string,
+  timings?: Pick<ArticleRenderTimings, 'publicationReadMs' | 'publicationValidationMs'>,
+) {
+  const started = timings ? performance.now() : 0;
   const value = await row(store, 'articleAccepted', id);
   if (!value || value.publication === null) return null;
+  const readAt = timings ? performance.now() : 0;
   const article = parsePublishedArticle(value.publication);
   if (article.articleId !== id) throw Error('Public article identity mismatch');
+  if (timings) {
+    timings.publicationReadMs = readAt - started;
+    timings.publicationValidationMs = performance.now() - readAt;
+  }
   return article;
 }
 export function createCloudBasePublicArticles(
@@ -46,13 +56,13 @@ export function createCloudBasePublicArticles(
   async function bySlug(
     store: ArticleStore,
     slug: string,
-    timings?: Pick<ArticleRenderTimings, 'slugMs' | 'publicationMs'>,
+    timings?: Omit<ArticleRenderTimings, 'totalMs' | 'webMediaMs'>,
   ) {
     const slugStarted = performance.now();
     const owner = await row(store, 'articleSlugs', slug);
     if (!owner) return null;
     const publicationStarted = performance.now();
-    const article = await accepted(store, articleIdentity.parse(owner.articleId));
+    const article = await accepted(store, articleIdentity.parse(owner.articleId), timings);
     if (timings) {
       timings.slugMs = publicationStarted - slugStarted;
       timings.publicationMs = performance.now() - publicationStarted;

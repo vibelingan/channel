@@ -67,6 +67,8 @@ export interface ArticleMediaTimings {
 export interface ArticleRenderTimings {
   slugMs: number;
   publicationMs: number;
+  publicationReadMs?: number;
+  publicationValidationMs?: number;
   webMediaMs?: number;
   totalMs: number;
 }

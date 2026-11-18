@@ -415,6 +415,8 @@ async function routeGet(
                 ...fixedTimingHeaders<ArticleRenderTimings>(timings, {
                   'ar-url': 'slugMs',
                   'ar-publication': 'publicationMs',
+                  'ar-pub-read': 'publicationReadMs',
+                  'ar-pub-check': 'publicationValidationMs',
                   'ar-web-media': 'webMediaMs',
                   'ar-total': 'totalMs',
                 }),

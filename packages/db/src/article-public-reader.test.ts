@@ -352,6 +352,9 @@ test('render view has one sidecar read, no original-record scan or bytes, and no
   const result = await x.reader.getRender('web-image-guide', (timings) => {
     assert(timings.slugMs >= 0 && timings.publicationMs >= 0);
     assert(timings.webMediaMs !== undefined && timings.webMediaMs >= 0);
+    assert(timings.publicationReadMs !== undefined && timings.publicationReadMs >= 0);
+    assert(timings.publicationValidationMs !== undefined && timings.publicationValidationMs >= 0);
+    assert(timings.publicationMs >= timings.publicationReadMs + timings.publicationValidationMs);
     assert(timings.totalMs >= timings.slugMs + timings.publicationMs + timings.webMediaMs);
     timingReported = true;
   });

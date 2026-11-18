@@ -126,113 +126,109 @@ const paragraphSchema = z
     content: z.array(inlineSchema).default([]),
   })
   .strict();
-const listItemSchema: z.ZodType<ArticleListItem, z.ZodTypeDef, unknown> = z.lazy(() =>
-  z
-    .object({
-      type: z.literal('listItem'),
-      content: z
-        .array(blockSchema)
-        .min(1)
-        .refine((nodes) => nodes[0]?.type === 'paragraph', 'A list item starts with a paragraph'),
-    })
-    .strict(),
-);
-const cellSchema: z.ZodType<ArticleCell, z.ZodTypeDef, unknown> = z.lazy(() =>
-  z
-    .object({
-      type: z.enum(['tableCell', 'tableHeader']),
-      attrs: z
-        .object({
-          colspan: z.literal(1).default(1),
-          rowspan: z.literal(1).default(1),
-          colwidth: z.null().default(null),
-        })
-        .strict()
-        .default({ colspan: 1, rowspan: 1, colwidth: null }),
-      content: z
-        .array(blockSchema)
-        .min(1)
-        .refine((nodes) => !containsTable(nodes), 'Nested tables are not supported'),
-    })
-    .strict(),
-);
+// Resolve recursion lazily while reusing the same validation rules on every node.
+const blockSchema: z.ZodType<ArticleBlock, z.ZodTypeDef, unknown> = z.lazy(() => blockTypeSchema);
+const listItemSchema = z
+  .object({
+    type: z.literal('listItem'),
+    content: z
+      .array(blockSchema)
+      .min(1)
+      .refine((nodes) => nodes[0]?.type === 'paragraph', 'A list item starts with a paragraph'),
+  })
+  .strict();
+const cellSchema = z
+  .object({
+    type: z.enum(['tableCell', 'tableHeader']),
+    attrs: z
+      .object({
+        colspan: z.literal(1).default(1),
+        rowspan: z.literal(1).default(1),
+        colwidth: z.null().default(null),
+      })
+      .strict()
+      .default({ colspan: 1, rowspan: 1, colwidth: null }),
+    content: z
+      .array(blockSchema)
+      .min(1)
+      .refine((nodes) => !containsTable(nodes), 'Nested tables are not supported'),
+  })
+  .strict();
 const rowSchema = z
   .object({ type: z.literal('tableRow'), content: z.array(cellSchema).min(1).max(12) })
   .strict();
-const blockSchema: z.ZodType<ArticleBlock, z.ZodTypeDef, unknown> = z.lazy(() =>
-  z.discriminatedUnion('type', [
-    paragraphSchema,
-    z
-      .object({
-        type: z.literal('heading'),
-        attrs: z.object({ level: z.number().int().min(2).max(6), textAlign }).strict(),
-        content: z.array(inlineSchema).default([]),
-      })
-      .strict(),
-    z.object({ type: z.literal('bulletList'), content: z.array(listItemSchema).min(1) }).strict(),
-    z
-      .object({
-        type: z.literal('orderedList'),
-        attrs: z
-          .object({ start: z.number().int().min(1).max(10000).default(1) })
-          .strict()
-          .default({ start: 1 }),
-        content: z.array(listItemSchema).min(1),
-      })
-      .strict(),
-    z.object({ type: z.literal('blockquote'), content: z.array(blockSchema).min(1) }).strict(),
-    z
-      .object({
-        type: z.literal('codeBlock'),
-        attrs: z
-          .object({
-            language: z
-              .string()
-              .max(32)
-              .regex(/^[A-Za-z0-9_+-]+$/)
-              .nullable()
-              .default(null),
-          })
-          .strict()
-          .default({ language: null }),
-        content: z
-          .array(textSchema)
-          .refine(
-            (nodes) => nodes.every((node) => node.marks.length === 0),
-            'Code blocks cannot contain text marks',
-          )
-          .default([]),
-      })
-      .strict(),
-    z.object({ type: z.literal('horizontalRule') }).strict(),
-    z
-      .object({
-        type: z.literal('articleImage'),
-        attrs: z
-          .object({
-            mediaId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
-            alt: z.string().trim().min(1).max(300),
-            caption: z.string().max(500).default(''),
-            align: z.enum(['left', 'center', 'right']).default('center'),
-          })
-          .strict(),
-      })
-      .strict(),
-    z
-      .object({
-        type: z.literal('table'),
-        content: z
-          .array(rowSchema)
-          .min(1)
-          .max(50)
-          .refine(
-            (rows) => rows.every((row) => row.content.length === rows[0]?.content.length),
-            'Table rows must have equal cell counts',
-          ),
-      })
-      .strict(),
-  ]),
-);
+const blockTypeSchema = z.discriminatedUnion('type', [
+  paragraphSchema,
+  z
+    .object({
+      type: z.literal('heading'),
+      attrs: z.object({ level: z.number().int().min(2).max(6), textAlign }).strict(),
+      content: z.array(inlineSchema).default([]),
+    })
+    .strict(),
+  z.object({ type: z.literal('bulletList'), content: z.array(listItemSchema).min(1) }).strict(),
+  z
+    .object({
+      type: z.literal('orderedList'),
+      attrs: z
+        .object({ start: z.number().int().min(1).max(10000).default(1) })
+        .strict()
+        .default({ start: 1 }),
+      content: z.array(listItemSchema).min(1),
+    })
+    .strict(),
+  z.object({ type: z.literal('blockquote'), content: z.array(blockSchema).min(1) }).strict(),
+  z
+    .object({
+      type: z.literal('codeBlock'),
+      attrs: z
+        .object({
+          language: z
+            .string()
+            .max(32)
+            .regex(/^[A-Za-z0-9_+-]+$/)
+            .nullable()
+            .default(null),
+        })
+        .strict()
+        .default({ language: null }),
+      content: z
+        .array(textSchema)
+        .refine(
+          (nodes) => nodes.every((node) => node.marks.length === 0),
+          'Code blocks cannot contain text marks',
+        )
+        .default([]),
+    })
+    .strict(),
+  z.object({ type: z.literal('horizontalRule') }).strict(),
+  z
+    .object({
+      type: z.literal('articleImage'),
+      attrs: z
+        .object({
+          mediaId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
+          alt: z.string().trim().min(1).max(300),
+          caption: z.string().max(500).default(''),
+          align: z.enum(['left', 'center', 'right']).default('center'),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('table'),
+      content: z
+        .array(rowSchema)
+        .min(1)
+        .max(50)
+        .refine(
+          (rows) => rows.every((row) => row.content.length === rows[0]?.content.length),
+          'Table rows must have equal cell counts',
+        ),
+    })
+    .strict(),
+]);
 
 export const ArticleDocumentSchema: z.ZodType<ArticleDocument, z.ZodTypeDef, unknown> = z
   .object({
