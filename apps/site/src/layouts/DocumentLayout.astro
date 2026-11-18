@@ -144,6 +144,7 @@ const serializedSchemaGraph = JSON.stringify(schemaGraph).replaceAll('<', '\\u00
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <slot name="resource-hints" />
     <meta name="description" content={description} />
     <script is:inline id="channel-page-descriptor" type="application/json" set:html={serializedDescriptor} />
     {robots !== 'index,follow' && <meta name="robots" content={robots} />}

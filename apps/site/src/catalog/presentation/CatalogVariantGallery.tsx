@@ -31,21 +31,12 @@ export interface CatalogVariantGalleryProps {
 }
 const identity = (source: string) => source;
 
-function Session({
-  imagePresentation,
-  productId,
-  name,
+export function catalogVariantGalleryPhotos({
   images,
   selection,
-  variants,
   resolveImage = identity,
   sourceImages,
-  loadingImages,
-  unavailableLabel,
-  onMainImageLoad,
-  onSelectVariant,
-  tappedPhoto,
-}: CatalogVariantGalleryProps) {
+}: Pick<CatalogVariantGalleryProps, 'images' | 'selection' | 'resolveImage' | 'sourceImages'>) {
   const selected = selection.status === 'selected' ? selection.variant : undefined;
   const specific = selected
     ? selected.images.length
@@ -67,6 +58,30 @@ function Session({
     .flatMap((source) => boundedGalleryImages([source]))
     .filter((source) => !assigned.has(source) && !assignedUrls.has(source));
   const photos = [...new Set([...assigned.keys(), ...general])];
+  return { selected, photos, assigned };
+}
+
+function Session({
+  imagePresentation,
+  productId,
+  name,
+  images,
+  selection,
+  variants,
+  resolveImage = identity,
+  sourceImages,
+  loadingImages,
+  unavailableLabel,
+  onMainImageLoad,
+  onSelectVariant,
+  tappedPhoto,
+}: CatalogVariantGalleryProps) {
+  const { selected, photos, assigned } = catalogVariantGalleryPhotos({
+    images,
+    selection,
+    resolveImage,
+    ...(sourceImages ? { sourceImages } : {}),
+  });
   const label = selected
     ? (catalogVariantLabels(variants, (index) => `Configuration ${index + 1}`)[
         variants.findIndex((v) => v.id === selected.id)

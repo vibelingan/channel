@@ -13,7 +13,10 @@ import {
   catalogMediaSourceId,
   createCatalogMediaState,
 } from '../../catalog/application/catalog-media.ts';
-import { responsiveImageAttributes } from '../../catalog/presentation/responsive-images.ts';
+import {
+  responsiveImageAttributes,
+  siteCatalogImagePath,
+} from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export const CatalogHeroImageApiOrigin = createContext<string | undefined>(undefined);
@@ -81,12 +84,6 @@ export function productMediaReducer(
 
 function normalizeSources(sources: readonly string[]): string[] {
   return [...createCatalogMediaState(sources, apiMediaUrl).sources];
-}
-
-function siteCatalogImagePath(url: string, apiOrigin: string): string | undefined {
-  if (!url.startsWith(`${apiOrigin}/api/images/`)) return undefined;
-  const path = url.slice(apiOrigin.length);
-  return /^\/api\/images\/[A-Za-z0-9_-]+(?:\?w=(?:160|640|1280))?$/.test(path) ? path : undefined;
 }
 
 function ProductMediaSession({

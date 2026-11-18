@@ -5,7 +5,7 @@ import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
-import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
+import { ProductLanding, initialProductImagePreload } from '../../islands/shop/ProductLanding.tsx';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { productKey, productPath } from '../../lib/seo/product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from '../../lib/seo/product-page.ts';
@@ -33,6 +33,7 @@ const heroImageApiOrigin = publicCatalogImageApiOrigin(
   Astro.site?.origin,
   import.meta.env.PUBLIC_API_BASE_URL,
 );
+const hero = initialProductImagePreload(entry.product, entry.detail, heroImageApiOrigin);
 const page = productPageDescriptor(
   entry,
   (Astro.site ?? Astro.url.origin).toString(),
@@ -41,6 +42,11 @@ const page = productPageDescriptor(
 );
 ---
 <BaseLayout page={page}>
+  <Fragment slot="resource-hints">
+    {hero && (
+      <link rel="preload" as="image" imagesrcset={hero.srcSet} imagesizes={hero.sizes} fetchpriority="high" referrerpolicy="no-referrer" />
+    )}
+  </Fragment>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} heroImageApiOrigin={heroImageApiOrigin} client:load />
