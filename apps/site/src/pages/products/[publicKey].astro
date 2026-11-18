@@ -1,4 +1,5 @@
 ---
+import { SITE_DELIVERY_POLICY } from '../../../../../scripts/release/site-policy.mjs';
 import AssistantHost from '../../components/AssistantHost.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
@@ -27,6 +28,13 @@ const { entry, duplicateName } = Astro.props;
 const site = getSiteContent(DEFAULT_LOCALE);
 const content = getCatalogContent(DEFAULT_LOCALE);
 const copy = getSharedDetailContent(DEFAULT_LOCALE);
+// This storefront's existing /api/images route serves the same public API.
+const publicApiOrigin = `https://${SITE_DELIVERY_POLICY.envId}.service.tcloudbase.com`;
+const heroImageApiOrigin =
+  Astro.site?.origin === SITE_DELIVERY_POLICY.siteOrigin &&
+  import.meta.env.PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, '') === publicApiOrigin
+    ? publicApiOrigin
+    : undefined;
 const page = productPageDescriptor(
   entry,
   (Astro.site ?? Astro.url.origin).toString(),
@@ -37,7 +45,7 @@ const page = productPageDescriptor(
 <BaseLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
-    <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} client:load />
+    <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} heroImageApiOrigin={heroImageApiOrigin} client:load />
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
   <AssistantHost />

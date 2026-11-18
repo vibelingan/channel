@@ -12,6 +12,7 @@ import {
 } from './Gallery.tsx';
 import { detailScrollBehavior } from './HeadphonesPage.tsx';
 import {
+  CatalogHeroImageApiOrigin,
   ProductMedia,
   createProductMediaState,
   productMediaImageKey,
@@ -58,6 +59,38 @@ test('responsive SSR preserves photo identity and alt and uses actual widths and
     fallback.includes('srcSet='),
     false,
     'A different fallback never inherits the old photo candidates',
+  );
+});
+
+test('the approved storefront renders the main photo at its own origin and keeps other images unchanged', () => {
+  const origin = 'https://public-api.example.test';
+  const source = `${origin}/api/images/current`;
+  const imagePresentation = {
+    [source]: [{ url: `${source}?w=640`, width: 640, height: 480 }],
+  };
+  const media = (url: string, primary = true) =>
+    createElement(ProductMedia, {
+      sources: [url],
+      alt: 'Headphones',
+      ...(primary ? { loading: 'eager', fetchPriority: 'high' } : {}),
+      imagePresentation,
+    });
+  const render = (url: string, primary?: boolean) =>
+    renderToStaticMarkup(
+      createElement(CatalogHeroImageApiOrigin.Provider, { value: origin }, media(url, primary)),
+    );
+  assert.match(render(source), /src="\/api\/images\/current"/);
+  assert.match(render(source), /srcSet="\/api\/images\/current\?w=640 640w"/);
+  assert.match(render(source), /imageSrcSet="\/api\/images\/current\?w=640 640w"/);
+  assert.match(render(source, false), /https:\/\/public-api\.example\.test\/api\/images\/current/);
+  assert.match(render(SOURCES[0]), /https:\/\/media\.example\.test\/one\.jpg/);
+  assert.match(
+    render(`${origin}/api/admin/images/current`),
+    /https:\/\/public-api\.example\.test\/api\/admin/,
+  );
+  assert.match(
+    renderToStaticMarkup(media(source)),
+    /https:\/\/public-api\.example\.test\/api\/images\/current/,
   );
 });
 

@@ -9,13 +9,14 @@ export function responsiveImageAttributes(
   source: string | undefined,
   presentation: CatalogImagePresentation | undefined,
   sizes: string,
+  mapMediaUrl: (url: string) => string = (url) => url,
 ) {
   if (!source || !presentation) return {};
   const entry = Object.entries(presentation).find(([original]) => apiMediaUrl(original) === source);
   if (!entry) return {};
   return {
     srcSet: entry[1]
-      .map((candidate) => `${apiMediaUrl(candidate.url)} ${candidate.width}w`)
+      .map((candidate) => `${mapMediaUrl(apiMediaUrl(candidate.url))} ${candidate.width}w`)
       .join(', '),
     sizes,
   };

@@ -1,5 +1,13 @@
 import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   advanceFailedMedia,
   catalogMediaSourceId,
@@ -7,6 +15,8 @@ import {
 } from '../../catalog/application/catalog-media.ts';
 import { responsiveImageAttributes } from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
+
+export const CatalogHeroImageApiOrigin = createContext<string | undefined>(undefined);
 
 export interface ProductMediaState {
   activeIndex: number;
@@ -71,6 +81,12 @@ function normalizeSources(sources: readonly string[]): string[] {
   return [...createCatalogMediaState(sources, apiMediaUrl).sources];
 }
 
+function siteCatalogImagePath(url: string, apiOrigin: string): string | undefined {
+  if (!url.startsWith(`${apiOrigin}/api/images/`)) return undefined;
+  const path = url.slice(apiOrigin.length);
+  return /^\/api\/images\/[A-Za-z0-9_-]+(?:\?w=(?:160|640|1280))?$/.test(path) ? path : undefined;
+}
+
 function ProductMediaSession({
   sources,
   alt,
@@ -88,13 +104,36 @@ function ProductMediaSession({
   const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
   const [failedResponsiveSources, setFailedResponsiveSources] = useState<string[]>([]);
+  const [failedSiteSources, setFailedSiteSources] = useState<string[]>([]);
+  const apiOrigin = useContext(CatalogHeroImageApiOrigin);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const source = sources[state.activeIndex];
-  const responsive = responsiveImageAttributes(source, imagePresentation, sizes);
+  const siteSource =
+    apiOrigin &&
+    source &&
+    loading === 'eager' &&
+    fetchPriority === 'high' &&
+    !failedSiteSources.includes(source)
+      ? siteCatalogImagePath(source, apiOrigin)
+      : undefined;
+  const renderedSource = siteSource ?? source;
+  const responsive = responsiveImageAttributes(
+    source,
+    imagePresentation,
+    sizes,
+    siteSource && apiOrigin ? (url) => siteCatalogImagePath(url, apiOrigin) ?? url : undefined,
+  );
   const useResponsive = !!responsive.srcSet && !failedResponsiveSources.includes(source ?? '');
   const activeIndex = state.activeIndex;
   const handleFailure = useCallback(() => {
     if (source === undefined) return;
+    if (siteSource) {
+      // Retry the same size through the existing public API host.
+      setFailedSiteSources((previous) =>
+        previous.includes(source) ? previous : [...previous, source],
+      );
+      return;
+    }
     if (useResponsive) {
       // Retry this same photo once at its unchanged default URL before advancing.
       setFailedResponsiveSources((previous) =>
@@ -103,7 +142,7 @@ function ProductMediaSession({
       return;
     }
     dispatch({ type: 'sourceFailed', sourceIndex: activeIndex, source, sources });
-  }, [activeIndex, source, sources, useResponsive]);
+  }, [activeIndex, siteSource, source, sources, useResponsive]);
 
   useEffect(() => {
     setUnavailableAnnouncement(source === undefined && alt ? `${alt}. ${unavailableLabel}` : '');
@@ -128,7 +167,7 @@ function ProductMediaSession({
           {unavailableAnnouncement}
         </output>
       ) : null}
-      {source === undefined ? (
+      {renderedSource === undefined ? (
         <div
           data-product-media="fallback"
           className={`flex aspect-square h-full w-full flex-col items-center justify-center bg-surface-alt px-4 text-center text-ink-muted ${className}`}
@@ -141,10 +180,10 @@ function ProductMediaSession({
         </div>
       ) : (
         <img
-          key={productMediaImageKey(state.activeIndex, source)}
+          key={productMediaImageKey(state.activeIndex, renderedSource)}
           ref={imageRef}
           data-product-media="image"
-          src={source}
+          src={renderedSource}
           {...(useResponsive ? responsive : {})}
           alt={alt}
           width={width}
