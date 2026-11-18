@@ -37,6 +37,38 @@ test('image repair has only the manual original-branch entry and inherits the sh
     43748962618,
   );
 });
+test('selected-size preparation shares the deploy queue and cannot run from another branch or restore action', () => {
+  const caller = parse(readFileSync('.github/workflows/seo-static-canary.yml', 'utf8'));
+  const deploy = parse(readFileSync('.github/workflows/deploy-test.yml', 'utf8'));
+  assert.deepEqual(caller.concurrency, deploy.concurrency);
+  const job = caller.jobs.image_sizes_prepare;
+  const selected = (ref, mode, action) =>
+    Function('github', 'inputs', `return ${job.if.slice(3, -2)}`)({ ref }, { mode, action });
+  assert.equal(
+    selected('refs/heads/feat/seo-foundation', 'image-sizes-prepare', 'initialize'),
+    true,
+  );
+  for (const args of [
+    ['refs/heads/main', 'image-sizes-prepare', 'initialize'],
+    ['refs/heads/feat/seo-foundation', 'image-sizes-prepare', 'restore'],
+    ['refs/heads/feat/seo-foundation', 'plan', 'initialize'],
+  ])
+    assert.equal(selected(...args), false);
+  const workflow = parse(readFileSync('.github/workflows/seo-image-delivery.yml', 'utf8'));
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_call']);
+  assert.equal(workflow.jobs.responsive.environment, 'test');
+  assert.equal(job.with.operation, 'responsive');
+  assert.equal(workflow.jobs.responsive.env.TENCENTCLOUD_SECRETKEY, undefined);
+  assert.equal(
+    workflow.jobs.responsive.steps.filter((step) => step.env?.TENCENTCLOUD_SECRETKEY).length,
+    1,
+  );
+  assert.ok(
+    !workflow.jobs.responsive.steps.some((step) =>
+      /deploy-cloudbase|repair-live|restore-public-api|package:functions/.test(step.run ?? ''),
+    ),
+  );
+});
 test('recovery refuses local invocation before reading artifacts or contacting CloudBase', () => {
   const require = createRequire(new URL('../packages/db/package.json', import.meta.url));
   const result = spawnSync(

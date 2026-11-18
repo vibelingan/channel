@@ -13,7 +13,7 @@
     {
       "id": "producer",
       "type": "backend",
-      "label": "后台上传／来源同步"
+      "label": "上传／来源同步／旧图准备"
     },
     {
       "id": "prepare",

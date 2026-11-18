@@ -1174,7 +1174,7 @@ test('ambiguous slug and id never load a different product or remain stuck loadi
 test('direct SKU journey renders nine images, facts, related links, and preserves browser Back', async ({
   page,
 }) => {
-  await page.route('**/api/products/slug/visionclip-ai-camera', (route) =>
+  await page.route('**/api/products/slug/visionclip-ai-camera?media=responsive-v1', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: envelope(product) }),
   );
   await page.route('**/api/products?*', (route) =>
@@ -1263,7 +1263,9 @@ test('direct SKU journey renders nine images, facts, related links, and preserve
 });
 
 test('missing and unknown slugs render not-found without detail', async ({ page }) => {
-  await page.route('**/api/products/slug/unknown', (route) => route.fulfill({ status: 404 }));
+  await page.route('**/api/products/slug/unknown?media=responsive-v1', (route) =>
+    route.fulfill({ status: 404 }),
+  );
 
   await page.goto('/products/item/');
   await expect(page.getByRole('heading', { level: 1, name: 'Product not found.' })).toBeVisible();
@@ -1301,7 +1303,7 @@ test('manual tiers drive card, in-page detail, slug detail, and AggregateOffer w
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.route('**/api/products/slug/interactive-tiered-toy', (route) =>
+  await page.route('**/api/products/slug/interactive-tiered-toy?media=responsive-v1', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: envelope(tieredToy) }),
   );
   await page.route('**/api/products?*', (route) => {
@@ -1447,7 +1449,7 @@ test('card shows the approved summary and each configuration shows its own tiers
 
 test('retry recovers from a detail transport error', async ({ page }) => {
   let attempts = 0;
-  await page.route('**/api/products/slug/visionclip-ai-camera', (route) => {
+  await page.route('**/api/products/slug/visionclip-ai-camera?media=responsive-v1', (route) => {
     attempts += 1;
     return attempts === 1
       ? route.fulfill({ status: 500 })
@@ -1481,7 +1483,7 @@ test('related-product failure leaves the loaded detail usable', async ({ page })
   const relatedReleased = new Promise<void>((resolve) => {
     releaseRelated = resolve;
   });
-  await page.route('**/api/products/slug/visionclip-ai-camera', (route) =>
+  await page.route('**/api/products/slug/visionclip-ai-camera?media=responsive-v1', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: envelope(product) }),
   );
   await page.route('**/api/products?*', async (route) => {

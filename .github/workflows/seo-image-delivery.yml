@@ -12,6 +12,36 @@ permissions:
   contents: read
   actions: read
 jobs:
+  responsive:
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' && inputs.operation == 'responsive' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    env:
+      CATALOG_RESPONSIVE_CONFIRM: PREPARE_SELECTED_SIZES_ONLY
+      IMAGE_EXPECTED_PROGRAM: ${{ inputs.expected_package }}
+      TCB_ENV_ID: diversity-123-d9grnqfux221323bb
+      CLOUDBASE_REGION: ap-shanghai
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0', cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - name: Add verified sizes only to the reviewed existing photographs
+        run: ./packages/db/node_modules/.bin/tsx scripts/images/prepare-responsive-ci.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: responsive-image-preparation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/responsive-image-preparation/
+          if-no-files-found: ignore
+          retention-days: 90
   prepare:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && github.event_name == 'workflow_dispatch' && inputs.operation == 'prepare' }}
     runs-on: ubuntu-latest
