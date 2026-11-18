@@ -47,6 +47,18 @@ export const WatchVideoSchema = z
   );
 export type WatchVideo = z.infer<typeof WatchVideoSchema>;
 
+const factoryVideoSha256 = '3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d';
+
+/** Exactly one already-public asset is delivered by the range-capable Blog static server. */
+export const factoryVideoAsset = {
+  source: '/media/oem-factory.mp4',
+  sha256: factoryVideoSha256,
+  bytes: 7201197,
+  clientPath: `media/factory/oem-factory.${factoryVideoSha256.slice(0, 12)}.mp4`,
+} as const;
+
+export const factoryVideoRangePath = `/blog/${factoryVideoAsset.clientPath}`;
+
 // Existing client-supplied OEM.mp4. Facts and hashes were measured from this exact asset.
 // See docs/seo/continuation/next-phase-design-2026-11-05/evidence/video-factory-20261117.json.
 export const watchVideos: readonly WatchVideo[] = [
@@ -55,9 +67,9 @@ export const watchVideos: readonly WatchVideo[] = [
     status: 'public',
     title: 'Factory & workshop overview',
     description: 'A silent factory tour showing offices, tooling, moulding and assembly work.',
-    src: '/media/oem-factory.mp4',
-    sourceSha256: '3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d',
-    byteSize: 7201197,
+    src: factoryVideoAsset.source,
+    sourceSha256: factoryVideoAsset.sha256,
+    byteSize: factoryVideoAsset.bytes,
     width: 960,
     height: 720,
     durationSeconds: 130.733333,

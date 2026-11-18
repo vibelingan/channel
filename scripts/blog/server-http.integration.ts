@@ -10,6 +10,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { handlePublicApiEvent } from '../../apps/functions/public-api/src/http-adapter.ts';
+import {
+  factoryVideoAsset,
+  factoryVideoRangePath,
+} from '../../apps/site/src/lib/seo/video-record.ts';
 import { parseArticleContent } from '../../packages/articles/src/article.ts';
 import { createCloudBasePublicArticles } from '../../packages/db/src/article-public-reader.ts';
 import {
@@ -171,6 +175,27 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       await new Promise((r) => setTimeout(r, 100));
     }
   }
+  const videoUrl = `${serverOrigin}${factoryVideoRangePath}`;
+  const videoRange = await fetch(videoUrl, { headers: { Range: 'bytes=3500000-3501023' } });
+  assert.equal(videoRange.status, 206);
+  assert.equal(videoRange.headers.get('content-type'), 'video/mp4');
+  assert.equal(
+    videoRange.headers.get('content-range'),
+    `bytes 3500000-3501023/${factoryVideoAsset.bytes}`,
+  );
+  const expectedVideo = await readFile(
+    new URL(`../../apps/site/public${factoryVideoAsset.source}`, import.meta.url),
+  );
+  assert.deepEqual(
+    Buffer.from(await videoRange.arrayBuffer()),
+    expectedVideo.subarray(3500000, 3501024),
+  );
+  const invalidRange = await fetch(videoUrl, {
+    headers: { Range: `bytes=${factoryVideoAsset.bytes}-` },
+  });
+  assert.equal(invalidRange.status, 416);
+  assert.equal(invalidRange.headers.get('content-range'), `bytes */${factoryVideoAsset.bytes}`);
+  await invalidRange.arrayBuffer();
   const get = (path: string) => fetch(`${origin}${path}`, { redirect: 'error' });
   // Opening the formal host must never open the provider's default address.
   for (const headers of [

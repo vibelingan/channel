@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Package only the already built public Blog service. No repository, credentials,
- * videos, product snapshots or user uploads enter the deployment context. */
+ * product snapshots or user uploads enter the deployment context. */
 export async function packageBlogServer({ source, destination, codeSha, siteOrigin }) {
   if (!/^[a-f0-9]{40}$/.test(codeSha)) throw Error('An exact source commit is required');
   const site = new URL(siteOrigin);
