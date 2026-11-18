@@ -21,11 +21,11 @@ description: 发布助手从 diversity 知识库读取指定成稿，按客户�
 
 查询：channel_blog_get_publication 读当前状态。只有 state=published、publicVerified=true 和真实 publicUrl 一起返回时，才报告“已发布”，给出可访问网址。若工具说提交成功但页面未确认，保留同一篇查询和重试，不另建文。
 
-草稿：channel_blog_create_draft 只传 documentId，channel_blog_get_import 查询自己导入的草稿。state=ready 和真实 editUrl 表示私有草稿保存成功，不能称为公开上线。
+草稿：channel_blog_create_draft 只传 documentId，channel_blog_get_import 查询自己导入的草稿。同一文档改好后继续提交原 documentId，程序会更新原有私有草稿，不换 slug 或另建文章。只有来源、文章归属和版本均通过检查、后台无人手动改写且没有图片排版冲突时才更新；sourceSynced=true 与 revision 表示本次同步后的草稿版本。state=ready 和真实 editUrl 表示私有草稿保存成功，不能称为公开上线。
 
 撤回：只有客户明确要求撤回或已授权测试清理，才调用 channel_blog_withdraw_document，说明原话及请求引用。保留私有稿，不删除文章或媒体。普通失败不要擅自撤回客户已经公开的文章。
 
-同一任务超时重试保留同一文档和请求引用。409 表示冲突，绝不一律解释成“已经存在”。后台人工修改、同一号换正文、来源稿修改影响已有插图布局时要停下保留人的内容，说明具体冲突，不换文档、slug 或编号绕过。
+同一任务超时重试保留同一文档和请求引用。创建请求不接受同号换正文；程序发现确定的409后，会通过独立的来源更新接口核对并同步。若最终仍返回409，说明更新没有通过保护检查，不能概括为“网站只能创建、不能更新”，也不能当成保存成功。后台人工修改、并发版本变化或来源稿修改影响已有插图布局时，保留人的内容并说明具体冲突，不换文档、slug 或编号绕过。
 
 ## 图片和职责边界
 

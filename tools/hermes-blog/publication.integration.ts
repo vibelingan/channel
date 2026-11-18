@@ -14,6 +14,7 @@ import {
 } from '../../packages/db/src/article-repository.ts';
 import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
 import { BlogToolError, createBlogToolClient } from './client.mjs';
+import { saveKbDocument } from './draft.mjs';
 import { kbDraftRequest, kbSourceHash } from './kb-draft.mjs';
 import { publishKbDocument } from './publication.mjs';
 const binding = {
@@ -40,6 +41,108 @@ const approval = {
   messageRef: 'wecom:customer:message-1',
   instruction: 'Publish this article on our company Blog.',
 };
+
+test('draft submission updates the same KB article without publishing or duplicate drafts', async (t) => {
+  const f = fixture(t);
+  const first = await saveKbDocument(f.client, binding, selected);
+  const corrected = {
+    ...selected,
+    article: {
+      ...selected.article,
+      body: '## Customer cases\n\nThese questions. Manufactured for a customer under their own Insten brand. The brand belongs to our customer, not to us.',
+    },
+  };
+  const updated = await saveKbDocument(f.client, binding, corrected);
+  assert.equal(updated.articleId, first.articleId);
+  const draft = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
+  assert.equal(draft.revision, 2);
+  assert(JSON.stringify(draft.content.body).includes('The brand belongs to our customer'));
+  assert.equal(draft.published, null);
+  const again = await saveKbDocument(f.client, binding, corrected);
+  assert.equal(again.articleId, first.articleId);
+  assert.equal((await f.repo.get({ actorId: 'admin', articleId: first.articleId })).revision, 2);
+  assert.equal([...f.rows.keys()].filter((k) => k.startsWith('articleDrafts/')).length, 1);
+  assert(!f.calls.some(([method, path]) => method === 'POST' && path.endsWith('/publication')));
+});
+
+test('draft source correction preserves human edits and cannot turn into publication', async (t) => {
+  const f = fixture(t);
+  const first = await saveKbDocument(f.client, binding, selected);
+  const before = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
+  await f.repo.save({
+    actorId: 'admin',
+    articleId: first.articleId,
+    expectedRevision: before.revision,
+    content: { ...before.content, title: 'Human title retained' },
+  });
+  await assert.rejects(
+    saveKbDocument(f.client, binding, {
+      ...selected,
+      article: {
+        ...selected.article,
+        body: '## Corrected source\n\nCustomer brand.',
+      },
+    }),
+    /保留人工修改/,
+  );
+  const after = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
+  assert.equal(after.content.title, 'Human title retained');
+  assert.equal(after.revision, 2);
+  assert.equal(after.published, null);
+  assert(!f.calls.some(([method, path]) => method === 'POST' && path.endsWith('/source')));
+});
+
+test('saving corrected source of a published article only updates its private draft', async (t) => {
+  const f = fixture(t);
+  const first = await publishKbDocument(f.client, binding, selected, approval, {
+    request: f.request,
+  });
+  const before = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
+  f.calls.length = 0;
+  await saveKbDocument(f.client, binding, {
+    ...selected,
+    article: { ...selected.article, title: 'Private corrected title' },
+  });
+  const after = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
+  assert.equal(after.content.title, 'Private corrected title');
+  assert.deepEqual(after.published, before.published);
+  assert(!f.calls.some(([method, path]) => method === 'POST' && path.endsWith('/publication')));
+});
+
+test('draft updates do not turn authentication, quota or uncertain outcomes into source writes', async () => {
+  for (const status of [401, 403, 429, 503, undefined]) {
+    const error = new BlogToolError('Original failure', status);
+    let reads = 0;
+    const client = {
+      createDraft: async () => {
+        throw error;
+      },
+      getPublication: async () => {
+        reads++;
+      },
+      syncSource: async () => {
+        throw Error('Unexpected source update');
+      },
+    };
+    await assert.rejects(saveKbDocument(client, binding, selected), (e) => e === error);
+    assert.equal(reads, 0);
+  }
+});
 function fixture(t) {
   const f = articleSdkFixture(t);
   let visible = true;
@@ -91,7 +194,11 @@ function fixture(t) {
       },
       service,
     );
-    return { status: r.statusCode, headers: new Headers(r.headers), body: Buffer.from(r.body) };
+    return {
+      status: r.statusCode,
+      headers: new Headers(r.headers),
+      body: Buffer.from(r.body),
+    };
   };
   const client = createBlogToolClient(
     {
@@ -136,7 +243,10 @@ test('publisher creates one missing draft then publishes exact tables/links/auth
   assert(first.publicVerified);
   assert.equal(first.state, 'published');
   assert.equal(f.calls.length, 5); // state 404, create, state, publish, public HTML
-  const draft = await f.repo.get({ actorId: 'admin', articleId: first.articleId });
+  const draft = await f.repo.get({
+    actorId: 'admin',
+    articleId: first.articleId,
+  });
   assert.equal(draft.content.authorName, 'SupplyChainsAI');
   assert(JSON.stringify(draft.content.body).includes('table'));
   assert(JSON.stringify(draft.content.body).includes('https://supplychainsai.com/oem/'));
@@ -158,7 +268,9 @@ test('a public-page failure keeps the committed publication receipt; retry check
   const f = fixture(t);
   f.hide();
   await assert.rejects(
-    publishKbDocument(f.client, binding, selected, approval, { request: f.request }),
+    publishKbDocument(f.client, binding, selected, approval, {
+      request: f.request,
+    }),
     (e) =>
       e instanceof BlogToolError &&
       e.receipt?.state === 'published' &&
@@ -171,7 +283,10 @@ test('source update stays on the same article; a human-edited draft is never rep
   const first = await publishKbDocument(f.client, binding, selected, approval, {
     request: f.request,
   });
-  const edited = { ...selected, article: { ...selected.article, title: 'Exact revised title' } };
+  const edited = {
+    ...selected,
+    article: { ...selected.article, title: 'Exact revised title' },
+  };
   const next = await publishKbDocument(
     f.client,
     binding,

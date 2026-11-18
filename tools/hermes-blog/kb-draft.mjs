@@ -34,7 +34,7 @@ export function kbDraftRequest(binding, source) {
       ]),
     )
     .digest('hex');
-  // Edits keep the key: the website rejects changed replays instead of overwriting a human draft.
+  // Keep one article per KB document; edits use the separate source-update route.
   return draftInput.parse({
     ...document.article,
     externalTaskId: `vibekb:${trusted.workspaceId}:${document.documentId}`,

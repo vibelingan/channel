@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { BlogToolError } from './client.mjs';
 import { createBlogToolClient } from './client.mjs';
 import { readPrivateJson } from './credential-file.mjs';
+import { saveKbDocument } from './draft.mjs';
 import { completeImageJob } from './image-client.mjs';
-import { kbDraftRequest } from './kb-draft.mjs';
 import { maintainCredentialFile } from './maintenance.mjs';
 import { publishKbDocument } from './publication.mjs';
 
@@ -26,7 +26,11 @@ try {
   const state = await maintainCredentialFile(args[1]);
   if (args[2] === '--maintain') {
     console.log(
-      JSON.stringify({ ok: true, expiresAt: state.expiresAt, rotateAfter: state.rotateAfter }),
+      JSON.stringify({
+        ok: true,
+        expiresAt: state.expiresAt,
+        rotateAfter: state.rotateAfter,
+      }),
     );
   } else if (args[2] === '--get-import') {
     console.log(JSON.stringify(await createBlogToolClient(state.config).getImport(args[3])));
@@ -96,10 +100,7 @@ try {
           JSON.stringify(await publishKbDocument(client, binding, selected, input.approval)),
         );
     } else {
-      const input = kbDraftRequest(binding, source);
-      const created = await client.createDraft(input);
-      const confirmed = await client.getImport(created.operationId);
-      console.log(JSON.stringify(confirmed));
+      console.log(JSON.stringify(await saveKbDocument(client, binding, source)));
     }
   }
 } catch (error) {
