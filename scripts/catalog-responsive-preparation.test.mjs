@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const { tsImport } = createRequire(new URL('../apps/site/package.json', import.meta.url))(
@@ -74,5 +77,49 @@ test('the operator cannot reach a cloud call or create output before confirmatio
   } finally {
     if (previous === undefined) Reflect.deleteProperty(process.env, 'CATALOG_RESPONSIVE_CONFIRM');
     else process.env.CATALOG_RESPONSIVE_CONFIRM = previous;
+  }
+});
+
+test('a clean checkout creates private output parents and an existing result is never overwritten', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'catalog-responsive-clean-'));
+  const env = {
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: 'vibelingan/channel',
+    GITHUB_REF: 'refs/heads/feat/seo-foundation',
+    GITHUB_EVENT_NAME: 'workflow_dispatch',
+    GITHUB_WORKFLOW_REF:
+      'vibelingan/channel/.github/workflows/seo-static-canary.yml@refs/heads/feat/seo-foundation',
+    TCB_ENV_ID: plan.envId,
+    CLOUDBASE_REGION: plan.region,
+    CATALOG_RESPONSIVE_CONFIRM: 'PREPARE_SELECTED_SIZES_ONLY',
+  };
+  const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    calls.push(String(url));
+    throw Error('controlled-stop-before-cloud-identity');
+  });
+  const outputDirectory = join(root, 'clean-checkout', 'output', 'result');
+  const input = { config: { secretId: 'fixture', secretKey: 'not-live' }, plan, outputDirectory };
+  try {
+    Object.assign(process.env, env);
+    await assert.rejects(
+      runCatalogResponsivePreparation(input),
+      /controlled-stop-before-cloud-identity/,
+    );
+    assert.deepEqual(calls, [`https://${plan.envId}.service.tcloudbase.com/api/admin`]);
+    const scope = await readFile(join(outputDirectory, 'scope.private.json'), 'utf8');
+    assert.deepEqual(JSON.parse(scope).plan, plan);
+    for (const path of [join(root, 'clean-checkout', 'output'), outputDirectory])
+      assert.equal((await stat(path)).mode & 0o777, 0o700);
+    await assert.rejects(runCatalogResponsivePreparation(input), { code: 'EEXIST' });
+    assert.equal(calls.length, 1, 'Existing output must stop before another cloud request');
+    assert.equal(await readFile(join(outputDirectory, 'scope.private.json'), 'utf8'), scope);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
+    await rm(root, { recursive: true, force: true });
   }
 });

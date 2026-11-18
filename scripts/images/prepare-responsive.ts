@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from '../../packages/db/src/catalog-detail-commit.ts';
@@ -113,6 +113,7 @@ export async function runCatalogResponsivePreparation(input: {
   assert(input.outputDirectory.trim(), 'Private output directory required');
   assertResponsivePreparationInvocation(process.env);
   const directory = resolve(input.outputDirectory);
+  await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
   await mkdir(directory, { mode: 0o700 });
   const save = (name: string, value: unknown) =>
     writeFile(join(directory, name), JSON.stringify(value, null, 2), { mode: 0o600, flag: 'wx' });
