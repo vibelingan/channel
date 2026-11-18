@@ -7,10 +7,7 @@
     "quality_profile": "showcase",
     "animation": "none",
     "column_fit": "spread",
-    "viewBox": [
-      1520,
-      680
-    ]
+    "viewBox": [1520, 680]
   },
   "participants": [
     {
@@ -172,10 +169,7 @@
     {
       "dot": "cyan",
       "title": "原图身份和业务内容不变",
-      "items": [
-        "小图不放大；800宽不能标为1280w",
-        "图库、变体、alt与询盘继续用原图片身份"
-      ]
+      "items": ["小图不放大；800宽不能标为1280w", "图库、变体、alt与询盘继续用原图片身份"]
     },
     {
       "dot": "emerald",
