@@ -165,6 +165,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     const uploaded = await list();
     expect(uploaded.items).toHaveLength(1);
     const image = uploaded.items[0];
+    if (!image) throw new Error('Uploaded image is missing from its exact-name lookup.');
     expect(image?._id).toBe(imageId);
     expect(image?.status).toBe('active');
     expect(image?.byteSize).toBe(bytes.length);

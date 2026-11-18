@@ -95,7 +95,7 @@ export async function adminAction<T>(
   const response = await request.post(`${e2e.apiUrl}/api/admin`, {
     data: { action, data, token },
     maxRetries: action === 'get' || action === 'list' ? 1 : 0,
-    timeout: options?.timeoutMs,
+    ...(options?.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
   });
   const json = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok() || !json.ok) {
