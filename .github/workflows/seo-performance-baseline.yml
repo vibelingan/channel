@@ -9,15 +9,16 @@ on:
         default: before
         options: [before, after]
       scope:
-        description: All page types, four image pages, or the one affected article
+        description: Page loading or a separate image transport diagnosis
         type: choice
         required: true
         default: all
-        options: [all, image-pages, article]
+        options: [all, image-pages, article, image-transport]
 permissions:
   contents: read
 jobs:
   baseline:
+    if: ${{ inputs.scope != 'image-transport' }}
     runs-on: ubuntu-latest
     timeout-minutes: 65
     strategy:
@@ -42,4 +43,26 @@ jobs:
         with:
           name: seo-${{ inputs.phase }}-${{ inputs.scope }}-${{ matrix.profile }}-${{ github.run_id }}
           path: performance-evidence/
+          retention-days: 30
+  transport:
+    if: ${{ inputs.scope == 'image-transport' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare fixed public image endpoints from verified US egress
+        env:
+          MEASUREMENT_PHASE: ${{ inputs.phase }}
+        run: node scripts/performance/image-transport.mjs "$MEASUREMENT_PHASE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-${{ inputs.phase }}-image-transport-${{ github.run_id }}
+          path: performance-evidence/transport/
           retention-days: 30
