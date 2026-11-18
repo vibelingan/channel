@@ -36,6 +36,10 @@ test('all manual modes select exactly one job and retain the existing shared tar
       assert.deepEqual(selected, ['image_delivery_prepare']);
       continue;
     }
+    if (mode === 'image-sizes-prepare') {
+      assert.deepEqual(selected, ['image_sizes_prepare']);
+      continue;
+    }
     if (mode === 'blog-publication-prepare') {
       assert.deepEqual(selected, ['blog_publication_prepare']);
       continue;
