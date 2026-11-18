@@ -1,0 +1,467 @@
+{
+  "observedAt": "2026-11-18T23:17:39.438Z",
+  "currentSite": {
+    "deliveryRun": "44415726225",
+    "expectedRendererSha": "62b71cbe3453807ad3c430262be216082b2944f2"
+  },
+  "browser": {
+    "type": "observed CDP timings, not Lighthouse simulated timings or field data",
+    "chrome": "149.0.7827.55",
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuSlowdown": 4,
+    "egressTrace": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "protocolSample": "Cold contexts, three sequential rounds for five URLs. Same machine. Performance trace captured per route at the first sample. No interactions.",
+    "paths": {
+      "article": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "blog": "/blog/",
+      "category": "/headphones/",
+      "home": "/",
+      "product": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+    },
+    "samples": [
+      {
+        "page": "article",
+        "repeat": 1,
+        "lcpTag": "IMG",
+        "lcpMs": 5300,
+        "documentFirstByteMs": 2513,
+        "fcpMs": 3556,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [62, 84],
+        "htmlServerTiming": "article-read;dur=421.4, blog-handler;dur=429.7",
+        "imageBytes": 91902,
+        "imageDiscoveryAfterDocumentMs": 80,
+        "imageFirstByteAfterRequestMs": 1975,
+        "imageBodyMs": 717,
+        "imagePaintAfterReadMs": 15,
+        "imageServerTiming": "blog-handler;dur=797.1"
+      },
+      {
+        "page": "blog",
+        "repeat": 1,
+        "lcpTag": "P",
+        "lcpMs": 2540,
+        "documentFirstByteMs": 1511,
+        "fcpMs": 2504,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": "article-read;dur=136.7, blog-handler;dur=139.0"
+      },
+      {
+        "page": "product",
+        "repeat": 1,
+        "lcpTag": "IMG",
+        "lcpMs": 3488,
+        "documentFirstByteMs": 1465,
+        "fcpMs": 3192,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": null,
+        "imageBytes": 16116,
+        "imageDiscoveryAfterDocumentMs": 696,
+        "imageFirstByteAfterRequestMs": 1233,
+        "imageBodyMs": 89,
+        "imagePaintAfterReadMs": 5,
+        "imageServerTiming": "ci-record;dur=43.7, ci-storage;dur=226.8, ci-url;dur=103.0, ci-download;dur=123.6, ci-check;dur=0.1, ci-total;dur=271.6"
+      },
+      {
+        "page": "home",
+        "repeat": 1,
+        "lcpTag": "P",
+        "lcpMs": 2984,
+        "documentFirstByteMs": 1477,
+        "fcpMs": 2916,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [54, 60],
+        "htmlServerTiming": null
+      },
+      {
+        "page": "category",
+        "repeat": 1,
+        "lcpTag": "IMG",
+        "lcpMs": 4148,
+        "documentFirstByteMs": 1448,
+        "fcpMs": 3076,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": null,
+        "imageBytes": 63062,
+        "imageDiscoveryAfterDocumentMs": 476,
+        "imageFirstByteAfterRequestMs": 1709,
+        "imageBodyMs": 510,
+        "imagePaintAfterReadMs": 4,
+        "imageServerTiming": "ci-record;dur=48.7, ci-storage;dur=273.1, ci-total;dur=322.0"
+      },
+      {
+        "page": "category",
+        "repeat": 2,
+        "lcpTag": "IMG",
+        "lcpMs": 3984,
+        "documentFirstByteMs": 1451,
+        "fcpMs": 3088,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": null,
+        "imageBytes": 63062,
+        "imageDiscoveryAfterDocumentMs": 458,
+        "imageFirstByteAfterRequestMs": 1604,
+        "imageBodyMs": 466,
+        "imagePaintAfterReadMs": 4,
+        "imageServerTiming": "ci-record;dur=37.1, ci-storage;dur=123.0, ci-total;dur=160.4"
+      },
+      {
+        "page": "home",
+        "repeat": 2,
+        "lcpTag": "P",
+        "lcpMs": 2876,
+        "documentFirstByteMs": 1438,
+        "fcpMs": 2804,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [55],
+        "htmlServerTiming": null
+      },
+      {
+        "page": "product",
+        "repeat": 2,
+        "lcpTag": "IMG",
+        "lcpMs": 3356,
+        "documentFirstByteMs": 1416,
+        "fcpMs": 3088,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": null,
+        "imageBytes": 16116,
+        "imageDiscoveryAfterDocumentMs": 704,
+        "imageFirstByteAfterRequestMs": 1138,
+        "imageBodyMs": 91,
+        "imagePaintAfterReadMs": 6,
+        "imageServerTiming": "ci-record;dur=36.9, ci-storage;dur=194.4, ci-url;dur=100.3, ci-download;dur=93.9, ci-check;dur=0.1, ci-total;dur=232.0"
+      },
+      {
+        "page": "blog",
+        "repeat": 2,
+        "lcpTag": "P",
+        "lcpMs": 2500,
+        "documentFirstByteMs": 1531,
+        "fcpMs": 2468,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": "article-read;dur=158.7, blog-handler;dur=161.3"
+      },
+      {
+        "page": "article",
+        "repeat": 2,
+        "lcpTag": "IMG",
+        "lcpMs": 4428,
+        "documentFirstByteMs": 1661,
+        "fcpMs": 2632,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": "article-read;dur=345.8, blog-handler;dur=354.0",
+        "imageBytes": 91902,
+        "imageDiscoveryAfterDocumentMs": 84,
+        "imageFirstByteAfterRequestMs": 1847,
+        "imageBodyMs": 824,
+        "imagePaintAfterReadMs": 13,
+        "imageServerTiming": "blog-handler;dur=696.0"
+      },
+      {
+        "page": "article",
+        "repeat": 3,
+        "lcpTag": "IMG",
+        "lcpMs": 4580,
+        "documentFirstByteMs": 1802,
+        "fcpMs": 2776,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": "article-read;dur=341.1, blog-handler;dur=348.5",
+        "imageBytes": 91902,
+        "imageDiscoveryAfterDocumentMs": 70,
+        "imageFirstByteAfterRequestMs": 1843,
+        "imageBodyMs": 850,
+        "imagePaintAfterReadMs": 15,
+        "imageServerTiming": "blog-handler;dur=682.9"
+      },
+      {
+        "page": "blog",
+        "repeat": 3,
+        "lcpTag": "P",
+        "lcpMs": 3004,
+        "documentFirstByteMs": 2191,
+        "fcpMs": 2956,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": "article-read;dur=120.9, blog-handler;dur=123.0"
+      },
+      {
+        "page": "product",
+        "repeat": 3,
+        "lcpTag": "IMG",
+        "lcpMs": 3416,
+        "documentFirstByteMs": 1409,
+        "fcpMs": 3092,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [],
+        "htmlServerTiming": null,
+        "imageBytes": 16116,
+        "imageDiscoveryAfterDocumentMs": 741,
+        "imageFirstByteAfterRequestMs": 1142,
+        "imageBodyMs": 118,
+        "imagePaintAfterReadMs": 6,
+        "imageServerTiming": "ci-record;dur=28.8, ci-storage;dur=192.0, ci-url;dur=100.2, ci-download;dur=91.7, ci-check;dur=0.1, ci-total;dur=222.1"
+      },
+      {
+        "page": "home",
+        "repeat": 3,
+        "lcpTag": "P",
+        "lcpMs": 2944,
+        "documentFirstByteMs": 1400,
+        "fcpMs": 2864,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [66],
+        "htmlServerTiming": null
+      },
+      {
+        "page": "category",
+        "repeat": 3,
+        "lcpTag": "IMG",
+        "lcpMs": 4056,
+        "documentFirstByteMs": 1576,
+        "fcpMs": 3252,
+        "layoutShiftEntries": [],
+        "longTaskDurationsMs": [51],
+        "htmlServerTiming": null,
+        "imageBytes": 63062,
+        "imageDiscoveryAfterDocumentMs": 477,
+        "imageFirstByteAfterRequestMs": 1559,
+        "imageBodyMs": 413,
+        "imagePaintAfterReadMs": 32,
+        "imageServerTiming": "ci-record;dur=33.3, ci-storage;dur=127.4, ci-total;dur=160.7"
+      }
+    ]
+  },
+  "productImagePreloadReplay": {
+    "type": "Local real HTTP replay of public HTML, CSS and same image bytes with paced writes. Excludes dynamic and unrelated resources. One added responsive preload after viewport in candidate.",
+    "profile": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "htmlBytes": 98812,
+    "imageBytes": 16116,
+    "chunks": 4000,
+    "chunkIntervalMs": 20,
+    "imageFirstByteWaitMs": 850,
+    "samples": [
+      {
+        "pair": 1,
+        "mode": "control",
+        "lcpMs": 1440,
+        "fcpMs": 992,
+        "discoveryAfterDocumentMs": 324,
+        "initiator": "img",
+        "imageRequests": 1
+      },
+      {
+        "pair": 1,
+        "mode": "early",
+        "lcpMs": 1104,
+        "fcpMs": 912,
+        "discoveryAfterDocumentMs": 8,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 2,
+        "mode": "early",
+        "lcpMs": 1108,
+        "fcpMs": 920,
+        "discoveryAfterDocumentMs": 8,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 2,
+        "mode": "control",
+        "lcpMs": 1412,
+        "fcpMs": 876,
+        "discoveryAfterDocumentMs": 313,
+        "initiator": "img",
+        "imageRequests": 1
+      },
+      {
+        "pair": 3,
+        "mode": "control",
+        "lcpMs": 1416,
+        "fcpMs": 892,
+        "discoveryAfterDocumentMs": 321,
+        "initiator": "img",
+        "imageRequests": 1
+      },
+      {
+        "pair": 3,
+        "mode": "early",
+        "lcpMs": 1108,
+        "fcpMs": 912,
+        "discoveryAfterDocumentMs": 11,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 4,
+        "mode": "early",
+        "lcpMs": 1108,
+        "fcpMs": 908,
+        "discoveryAfterDocumentMs": 8,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 4,
+        "mode": "control",
+        "lcpMs": 1416,
+        "fcpMs": 888,
+        "discoveryAfterDocumentMs": 319,
+        "initiator": "img",
+        "imageRequests": 1
+      },
+      {
+        "pair": 5,
+        "mode": "control",
+        "lcpMs": 1420,
+        "fcpMs": 888,
+        "discoveryAfterDocumentMs": 323,
+        "initiator": "img",
+        "imageRequests": 1
+      },
+      {
+        "pair": 5,
+        "mode": "early",
+        "lcpMs": 1108,
+        "fcpMs": 932,
+        "discoveryAfterDocumentMs": 8,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 6,
+        "mode": "early",
+        "lcpMs": 1112,
+        "fcpMs": 912,
+        "discoveryAfterDocumentMs": 9,
+        "initiator": "link",
+        "imageRequests": 1
+      },
+      {
+        "pair": 6,
+        "mode": "control",
+        "lcpMs": 1436,
+        "fcpMs": 892,
+        "discoveryAfterDocumentMs": 317,
+        "initiator": "img",
+        "imageRequests": 1
+      }
+    ]
+  },
+  "gsc": {
+    "property": "https://supplychainsai.com/",
+    "pageReportDate": "2026-11-13",
+    "indexed": 528,
+    "excluded": 988,
+    "imageValidationStarted": "2026-11-16",
+    "imageValidationPending": 5,
+    "imageValidationFailed": 0,
+    "performanceImpressions": 83,
+    "performanceClicks": 3,
+    "cwvReportDate": "2026-11-12",
+    "cwvSufficientSamples": false
+  },
+  "historic4xxWebsiteChecks": [
+    {
+      "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "status": 200,
+      "bytes": 51178,
+      "mime": "image/webp",
+      "sameSha256": true
+    },
+    {
+      "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "status": 200,
+      "bytes": 65170,
+      "mime": "image/webp",
+      "sameSha256": true
+    },
+    {
+      "path": "/api/images/4db8df016ac88396000781db489eb227",
+      "status": 200,
+      "bytes": 69280,
+      "mime": "image/webp",
+      "sameSha256": true
+    },
+    {
+      "path": "/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "status": 200,
+      "bytes": 87330,
+      "mime": "image/webp",
+      "sameSha256": true
+    },
+    {
+      "path": "/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 200,
+      "bytes": 135494,
+      "mime": "image/webp",
+      "sameSha256": true
+    }
+  ],
+  "bing": {
+    "checkedAtLocalDate": "2026-11-19",
+    "property": "https://supplychainsai.com/",
+    "rootMap": {
+      "status": "Success",
+      "lastCrawlInConsole": "2026-11-18",
+      "urlsDiscoveredInRootRow": 2,
+      "visibleChildRows": [
+        {
+          "path": "/blog/sitemap.xml",
+          "lastCrawlInConsole": "2026-11-07",
+          "urlsDiscovered": 3
+        }
+      ]
+    },
+    "liveDocumentCounts": {
+      "/sitemap-0.xml": 580,
+      "/blog/sitemap.xml": 4
+    },
+    "staticMapSeparateSubmission": {
+      "attempts": 1,
+      "submittedDateInConsole": "2026-11-18",
+      "path": "/sitemap-0.xml",
+      "status": "Processing",
+      "lastCrawlInConsole": "2026-11-07",
+      "urlsDiscovered": 0
+    }
+  }
+}
