@@ -31,6 +31,14 @@
 
 www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核对：裸域HTTP目前返回200，www的HTTP/HTTPS均一跳301到HTTPS裸域并保留路径和查询串。不要把历史原生开关试验的307写成当前状态；本轮只读取，没有改域名或HTTPS开关。主域 HTTP 301 仍未完成：CloudBase 原生强制 HTTPS 曾实测返回 307，已恢复；实施先核对官方及现场入口能力，再选择最小范围的永久跳转入口。若必须让根域经过新边缘服务，单独列 DNS、TLS、费用和回退方案，不能借静态子域试验悄悄接管根域。现有 API 和第三方回调列入兼容核对，不笼统用 301 改写所有 POST。
 
+### 11 月 19 日复核主域入口
+
+已用管理接口只读核对上海站点为 CloudBase 标准版，官网主域仍使用直连并同时接受 HTTP 和 HTTPS。这个入口下，首页和通用路径进入静态托管，`/blog` 进入文章服务。实测 `http://supplychainsai.com/headphones/?page=2` 返回 200；`https://www.supplychainsai.com/headphones/?page=2` 一跳 301 到 `https://supplychainsai.com/headphones/?page=2`。历史试验记录表明，主域直连开启 `HTTP_TO_HTTPS` 时返回 307，试验后已恢复。Google 将 307 当作临时跳转。腾讯 CLI 文档将同一设置写为 301，但自定义域名的产品文档在边缘加速下列出可选 301。现网返回值是此次验收依据。 [CloudBase 网关配置](https://docs.cloudbase.net/cli-v1/gateway) · [CloudBase 自定义域名](https://docs.cloudbase.net/service/custom-domain) · [Google 跳转规则](https://developers.google.com/search/docs/crawling-indexing/301-redirects)
+
+给腾讯支持的复现已经准备好：请确认当前直连入口能否配置永久跳转，给出适用于现有环境的设置和接口。可从上述公开分类地址开始核对路径及查询参数。静态托管的路径替换规则按路径或错误码匹配，不能作为已确认的协议跳转开关。若只有边缘加速支持目标行为，产品文档要求标准版及资源点计费，且需切换根域 DNS。当前已确认套餐等级，账单模式、增量费用和切换前的试验入口仍需核对。此次没有发工单、开通收费服务或改 DNS。 [静态托管规则](https://docs.cloudbase.net/hosting/manage#重定向规则) · [计费说明](https://docs.cloudbase.net/quick-start/resource-point)
+
+任何新的入口都先在隔离地址验证。用首页、带查询参数的分类路径及商品页验 HTTP GET/HEAD 一跳 301 并保留地址，同时读回原有 HTTPS 页面、文章、地图、真实 404、公开图片和受保护入口。涉及写入的接口和回调维持原有 HTTPS 合同，只在隔离环境验证请求方法及正文。测试失败时保留原入口，先确认恢复前的证书、DNS 和源站路由都可用。视频分段按自己的 206 与播放器拖动检查验收。海外静态子域的工作仍按原顺序排期。
+
 补一个真实可用的 `/favicon.ico`，保留 SVG；不把其他未知路径转首页。OEM、Toys 的待收录需要核对真实内容和相关内链，不能断言分页就是它们未收录的唯一原因。
 
 ## 分段验收与恢复
