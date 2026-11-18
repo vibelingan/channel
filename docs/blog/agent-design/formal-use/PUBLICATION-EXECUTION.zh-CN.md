@@ -10,7 +10,17 @@
 
 先把原调用抽成相同行为并写回归，已实际复现相同HTTP409；接线修复后新增的改稿、重放不增版、人工修改保护、保留已有公开版及错误不扩大操作均通过。沿用原文章HTTP/SDK离线验证入口，真实云端核对另记；没有把测试替身当作线上身份验收。
 
-发布范围只包含现有发布机的调用程序和对应技能说明；不修改 article-import、CloudBase SDK、网站页面或权限，不重启 Hermes gateway，不推 test，不发布文章。发布前保存旧调用程序摘要和 binding 配置，固定新包摘要；只切该 binding 的 invokeBundle 路径。客户来源、网站版本或图片状态变化时停止，不覆盖人工修改。恢复只退程序路径，不把旧正文或数据库备份写回。当前代码和本地回归完成，真实doc303同步及部署回执将在下面补记。
+发布范围只包含现有发布机的调用程序和对应技能说明；不修改 article-import、CloudBase SDK、网站页面或权限，不重启 Hermes gateway，不推 test，不发布文章。发布前保存旧调用程序摘要和 binding 配置，固定新包摘要；只切该 binding 的 invokeBundle 路径。客户来源、网站版本或图片状态变化时停止，不覆盖人工修改。恢复只退程序路径，不把旧正文或数据库备份写回。
+
+**已部署并完成真实验收。** 功能代码 `cfdd3819ab09321980d6c5cc01d9afd620c6e364` 已推原 `release/assistant-seo-20261104`。发布机只更新调用程序，包为187,752字节、SHA256 `5ac4e5eaeee284384f97e2fcd3b5f3858d8122bfaf48f0faad004e4ec2275f3c`；旧包摘要 `8f21d7bf5462819b799de6312ed936be971714c138949f5ff22782271baae810` 与原binding保留在该机私有备份目录。已安装的原MCP仍通过原配置路径逐次读取调用程序，未重启gateway；对应技能只在确认原文件摘要匹配后更新，未覆盖其他自定义规则。
+
+经SSH调用发布机**实际已安装的MCP工具** `channel_blog_create_draft(documentId=303)`，使用真实VibeKB和网站接口：同一 `article-c08b410d84a3179dc237893c8f81e29713417e728685d19887be5360099f7ef2` 返回 `revision=2, sourceSynced=true`。原编辑地址保留。再次提交相同文档后仍为第2版，来源摘要不变，未增加草稿；这里只调用保存和状态查询工具，没有调用公开工具。网站状态仍是 `ready`、`publicUrl=null`、`publishedRevision=null`。
+
+另从网站真实受保护正文接口独立读回：Reddit及r/Entrepreneur为零、旧的两处 `(brand: …)` 为零、`These threads` 为零、`These questions` 已有；两处“品牌属于客户而非我们”均存在，Insten及COREMEE GIIK名称保留，图片仍为零。公开地址 `/blog/private-label-to-real-brand/` 实测404。VibeKB只读，没有借修网站改写原文。
+
+本地适用验证：工具18项、Python18项、真实已安装SDK的离线HTTP/事务19项（其中本轮新增4项）和独立包5项，共60项通过、无跳过。修改前的单项回归确实收到HTTP409；不是编译或缺依赖失败充当复现。初次本机缺独立工具依赖，按原锁文件执行该工具的npm ci后重新通过；未启动OrbStack。发布包在实际发布机的Node运行并由真实MCP调用验证，未把本机Node25当成生产Node20的证明。
+
+本次release分支没有自动远端CI：现有相关工作流的push范围是 `feat/seo-foundation`、main或PR，源码提交的check-runs实际为0；没有编造“CI全绿”、另开PR或改触发范围。没有公共页面／后端程序／SDK改动，未运行整站发布。原始MCP回执、正文检查和本地日志在本检出的 `output/` 与发布机私有 `backups/doc303-repair-20261118/`，不入Git。共享仓库的core.worktree指向另一检出，本轮Git操作显式指定本检出路径，未修改那份共享配置。
 
 实际复核 `formal-invoke.mjs`、`kb-draft.mjs`、`client.mjs`、网站 `import-store.ts`、`import-publication.ts`、HTTP路由及已安装发布机配置。将“网站草稿API只建不更新”改为“普通提交工具没有接上已存在的来源更新接口”，明确失败的调用方、接收方和409的原因。沿用原故障处理与读者复核流程；未创建平行功能分支或代理。
 
