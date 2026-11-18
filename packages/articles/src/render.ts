@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import {
+  type ArticleDocument,
   type ArticleMark,
   type ArticleNode,
+  checkJsonBudget,
   parseArticleDocument,
   readArticleInput,
   safeArticleHref,
@@ -27,6 +29,7 @@ export function renderArticle(
   options: RenderOptions,
 ): { html: string; text: string; mediaIds: string[] } {
   const doc = parseArticleDocument(input);
+  checkJsonBudget(doc);
   if (!['public', 'preview'].includes(options.mode))
     throw new Error('Explicit article render mode required');
   const firstBlock =
@@ -88,11 +91,14 @@ export function renderArticle(
       }
     }
   }
-  return { html: html(doc.document), text: articleText(doc), mediaIds: [...mediaIds] };
+  return { html: html(doc.document), text: articleTextFromDocument(doc), mediaIds: [...mediaIds] };
 }
 
 export function articleText(input: unknown): string {
-  const doc = parseArticleDocument(input);
+  return articleTextFromDocument(parseArticleDocument(input));
+}
+
+export function articleTextFromDocument(doc: ArticleDocument): string {
   function text(node: ArticleNode): string {
     if (node.type === 'text') return node.text;
     if (node.type === 'hardBreak') return '\n';

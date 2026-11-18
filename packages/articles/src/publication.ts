@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ArticleContentSchema } from './article.ts';
 import { articleContentHash, parsePublicationContent } from './drafts.ts';
 import { articleImageIds } from './media.ts';
 
@@ -31,7 +30,7 @@ export const articlePageDataShape = {
   articleId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
   revision: z.number().int().positive().safe(),
   contentHash: hash,
-  content: ArticleContentSchema,
+  content: z.unknown().transform((input) => parsePublicationContent(input)),
   publishedAt: timestamp,
   modifiedAt: timestamp,
   media: z.record(identity, mediaSchema),
@@ -49,16 +48,17 @@ export type PublishedArticle = z.infer<typeof publicationSchema>;
 /** Consumes the publisher's explicit public projection, never a draft or database row. */
 export function parsePublishedArticle(input: unknown): PublishedArticle {
   const value = publicationSchema.parse(input);
-  const content = checkArticlePageData(value).content;
+  checkArticlePageData(value);
   if (value.modifiedAt > value.acceptedAt)
     throw new Error('Article publication dates are out of order');
-  return { ...value, content };
+  return value;
 }
 
+/** Check relationships between fields after the accepted or candidate schema has parsed them. */
 export function checkArticlePageData<T extends z.infer<z.ZodObject<typeof articlePageDataShape>>>(
   value: T,
 ): T {
-  const content = parsePublicationContent(value.content);
+  const { content } = value;
   if (articleContentHash(content) !== value.contentHash)
     throw new Error('Article content hash mismatch');
   if (value.publishedAt > value.modifiedAt)
@@ -70,7 +70,7 @@ export function checkArticlePageData<T extends z.infer<z.ZodObject<typeof articl
     [...images].some((id) => !Object.hasOwn(value.media, id))
   )
     throw new Error('Article public media map must match the body exactly');
-  return { ...value, content };
+  return value;
 }
 
 export function articleMediaPath(mediaId: string, input: unknown): string {

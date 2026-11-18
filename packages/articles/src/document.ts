@@ -287,7 +287,7 @@ const supportedTypes = new Set([
   'code',
   'link',
 ]);
-function checkJsonBudget(input: unknown): void {
+export function checkJsonBudget(input: unknown): void {
   const active = new WeakSet<object>();
   const stack: { value: unknown; depth: number; exit?: boolean }[] = [{ value: input, depth: 0 }];
   const encoder = new TextEncoder();

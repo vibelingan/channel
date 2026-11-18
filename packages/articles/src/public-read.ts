@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ArticleContentSchema } from './article.ts';
 import { articlePageDataShape, parsePublishedArticle } from './publication.ts';
 import { ArticleWebPresentationSchema, parseArticleWebPresentation } from './web-media.ts';
 
@@ -10,13 +11,12 @@ export const ArticleSummarySchema = z
     contentHash: articlePageDataShape.contentHash,
     publishedAt: articlePageDataShape.publishedAt,
     modifiedAt: articlePageDataShape.modifiedAt,
-    content: articlePageDataShape.content
-      .pick({
-        title: true,
-        slug: true,
-        authorName: true,
-        excerpt: true,
-      })
+    content: ArticleContentSchema.pick({
+      title: true,
+      slug: true,
+      authorName: true,
+      excerpt: true,
+    })
       .extend({
         slug: z
           .string()

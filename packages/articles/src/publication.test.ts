@@ -67,6 +67,15 @@ test('rejects changed content, invalid publication fields and dates in the wrong
     assert.throws(() => parsePublishedArticle({ ...value, ...change }));
 });
 
+test('checks public article input size before normalizing the content', () => {
+  const value = publicationFixture();
+  const paddedTitle = `${' '.repeat(512 * 1024)}${value.content.title}`;
+  assert.throws(
+    () => parsePublishedArticle({ ...value, content: { ...value.content, title: paddedTitle } }),
+    /Article exceeds 512 KiB/,
+  );
+});
+
 test('requires an exact public media map and derives immutable image paths', () => {
   const value = publicationFixture();
   const candidate = prepareArticlePublication(

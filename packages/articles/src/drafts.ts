@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { type ArticleContent, parseArticleContent } from './article.ts';
-import { ArticleValidationError } from './document.ts';
-import { articleText } from './render.ts';
+import { ArticleValidationError, checkJsonBudget } from './document.ts';
+import { articleTextFromDocument } from './render.ts';
 
 export interface PublishedArticleReference {
   revision: number;
@@ -93,6 +93,7 @@ export function prepareArticlePublication(current: ArticleDraft, now: string): A
 
 export function parsePublicationContent(input: unknown, publishedSlug?: string): ArticleContent {
   const content = parseArticleContent(input);
+  checkJsonBudget(content);
   const issues: { path: string; message: string }[] = [];
   if (!content.title)
     issues.push({ path: 'title', message: 'A title is required for publication' });
@@ -100,7 +101,7 @@ export function parsePublicationContent(input: unknown, publishedSlug?: string):
     issues.push({ path: 'slug', message: 'A lowercase hyphenated slug is required' });
   if (!content.authorName)
     issues.push({ path: 'authorName', message: 'An author is required for publication' });
-  if (!articleText(content.body))
+  if (!articleTextFromDocument(content.body))
     issues.push({ path: 'body', message: 'The article body is empty' });
   if (publishedSlug !== undefined && publishedSlug !== content.slug)
     issues.push({

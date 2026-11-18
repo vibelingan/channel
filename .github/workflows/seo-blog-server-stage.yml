@@ -28,10 +28,15 @@ jobs:
         with:
           script: |
             const result = await github.rest.actions.listWorkflowRuns({
-              ...context.repo, workflow_id: 'seo-blog-server.yml', head_sha: context.sha,
-              branch: 'feat/seo-foundation', event: 'push', status: 'completed', per_page: 20,
+              ...context.repo, workflow_id: 'seo-blog-server.yml', head_sha: context.sha, per_page: 20,
             });
-            const run = result.data.workflow_runs.find(r => r.conclusion === 'success' && r.head_sha === context.sha && r.head_repository?.full_name === 'vibelingan/channel');
+            const run = result.data.workflow_runs.find(r =>
+              r.head_sha === context.sha && r.head_branch === 'feat/seo-foundation' &&
+              r.path === '.github/workflows/seo-blog-server.yml' && r.event === 'push' &&
+              r.status === 'completed' && r.conclusion === 'success' &&
+              r.repository?.full_name === 'vibelingan/channel' &&
+              r.head_repository?.full_name === 'vibelingan/channel'
+            );
             if (!run) throw new Error('The exact Blog HTTP build has not passed. No cloud write started.');
             core.setOutput('run_id', String(run.id));
       - uses: actions/download-artifact@v4
