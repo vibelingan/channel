@@ -72,6 +72,7 @@ test('the approved storefront renders the main photo at its own origin and keeps
     createElement(ProductMedia, {
       sources: [url],
       alt: 'Headphones',
+      preferSiteImage: primary,
       ...(primary ? { loading: 'eager', fetchPriority: 'high' } : {}),
       imagePresentation,
     });
@@ -92,6 +93,27 @@ test('the approved storefront renders the main photo at its own origin and keeps
     renderToStaticMarkup(media(source)),
     /https:\/\/public-api\.example\.test\/api\/images\/current/,
   );
+});
+
+test('a legacy photo shown as both the first main image and a thumbnail uses one URL', () => {
+  const api = 'https://public-api.example.test';
+  const first = `${api}/api/images/first`;
+  const other = `${api}/api/images/other`;
+  const html = renderToStaticMarkup(
+    createElement(
+      CatalogHeroImageApiOrigin.Provider,
+      { value: api },
+      createElement(Gallery, {
+        images: [first, other],
+        alt: 'Headphones',
+        layout: 'detail',
+        mainImagePriority: 'high',
+      }),
+    ),
+  );
+  assert.equal((html.match(/<img[^>]+src="\/api\/images\/first"/g) ?? []).length, 2);
+  assert(!html.includes(`src="${first}"`));
+  assert(html.includes(`src="${other}"`));
 });
 
 test('supplier gallery requests never send the admin preview URL as a referrer', () => {

@@ -29,6 +29,7 @@ interface Props {
 }
 
 interface GalleryThumbnailListProps {
+  siteImageSource?: string | undefined;
   imagePresentation?: CatalogImagePresentation | undefined;
   images: readonly string[];
   imageLabels?: readonly string[];
@@ -85,6 +86,7 @@ export function gallerySessionKey(
 }
 
 export function GalleryThumbnailList({
+  siteImageSource,
   imagePresentation,
   images,
   imageLabels,
@@ -137,6 +139,7 @@ export function GalleryThumbnailList({
               width={80}
               height={80}
               fetchPriority="low"
+              preferSiteImage={image === siteImageSource}
               imageClassName="h-full w-full object-contain"
             />
           </button>
@@ -179,6 +182,9 @@ function GallerySession({
   mainImagePriority = 'auto',
 }: Props) {
   const initialIndex = initialSource ? images.indexOf(initialSource) : -1;
+  // A thumbnail can display the very same file as the starting main photo.
+  const siteImageSource =
+    mainImagePriority === 'high' ? images[Math.max(0, initialIndex)] : undefined;
   const [active, setActive] = useState(Math.max(0, initialIndex));
   const [expanded, setExpanded] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -220,6 +226,7 @@ function GallerySession({
           unavailableLabel={unavailableLabel}
           loading="eager"
           fetchPriority={mainImagePriority}
+          preferSiteImage={!!activeSource && activeSource === siteImageSource}
           onLoad={onMainImageLoad}
           imageClassName="h-full w-full object-contain"
         />
@@ -231,6 +238,7 @@ function GallerySession({
         </p>
       )}
       <GalleryThumbnailList
+        siteImageSource={siteImageSource}
         imagePresentation={imagePresentation}
         images={images}
         imageLabels={imageLabels}

@@ -43,6 +43,7 @@ export interface ProductMediaProps {
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
   onLoad?: () => void;
+  preferSiteImage?: boolean;
 }
 
 export function createProductMediaState(): ProductMediaState {
@@ -97,6 +98,7 @@ function ProductMediaSession({
   height = 800,
   loading = 'lazy',
   fetchPriority = 'auto',
+  preferSiteImage = false,
   onLoad,
   imagePresentation,
   sizes = '100vw',
@@ -109,11 +111,7 @@ function ProductMediaSession({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const source = sources[state.activeIndex];
   const siteSource =
-    apiOrigin &&
-    source &&
-    loading === 'eager' &&
-    fetchPriority === 'high' &&
-    !failedSiteSources.includes(source)
+    apiOrigin && source && preferSiteImage && !failedSiteSources.includes(source)
       ? siteCatalogImagePath(source, apiOrigin)
       : undefined;
   const renderedSource = siteSource ?? source;
