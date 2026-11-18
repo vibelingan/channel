@@ -53,13 +53,33 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   expect((await list()).items).toHaveLength(0);
   const receipt: Record<string, unknown> = { release, name, originalBytes: bytes.length, checksum };
   const abandon = async (imageId: string): Promise<{ deleted: boolean }> => {
+    const started = Date.now();
     try {
-      return await adminAction(request, 'abandonUpload', { imageId }, session.token);
+      const result = await adminAction<{ deleted: boolean }>(
+        request,
+        'abandonUpload',
+        { imageId },
+        session.token,
+        { timeoutMs: 60_000 },
+      );
+      receipt.cleanupReply = 'confirmed';
+      return result;
     } catch (error) {
-      const afterUnknown = await list().catch(() => null);
-      if (!afterUnknown || afterUnknown.items.some((row) => row._id === imageId)) throw error;
-      receipt.cleanupConfirmedByReadback = true;
-      return { deleted: true };
+      if (error instanceof Error && error.message.startsWith('abandonUpload failed')) throw error;
+      receipt.cleanupReply = 'unknown';
+      // Never repeat a delete after a lost reply. Read this exact operation's result twice at most.
+      for (let readback = 0; readback < 2; readback++) {
+        if (readback) await new Promise((resolve) => setTimeout(resolve, 2000));
+        receipt.cleanupWaitReads = readback + 1;
+        const afterUnknown = await list().catch(() => null);
+        if (afterUnknown && !afterUnknown.items.some((row) => row._id === imageId)) {
+          receipt.cleanupConfirmedByReadback = true;
+          return { deleted: true };
+        }
+      }
+      throw error;
+    } finally {
+      receipt.cleanupElapsedMs = Date.now() - started;
     }
   };
   await mkdir('output/catalog-private-image', { recursive: true });
@@ -157,6 +177,16 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     expect(web.height).toBe(800);
     expect(web.byteSize).toEqual(expect.any(Number));
     expect(Number(web.byteSize)).toBeLessThan(3_000_000);
+    const objects = [
+      { storageFileId: image.storageFileId, storagePath: image.storagePath },
+      { storageFileId: web.storageFileId, storagePath: web.storagePath },
+    ];
+    for (const object of objects) {
+      expect(typeof object.storageFileId).toBe('string');
+      expect(typeof object.storagePath).toBe('string');
+    }
+    expect(new Set(objects.map((object) => object.storageFileId)).size).toBe(2);
+    receipt.objects = objects;
     const preview = await adminAction<{ mimeType: string; dataBase64: string }>(
       request,
       'getImagePreview',
