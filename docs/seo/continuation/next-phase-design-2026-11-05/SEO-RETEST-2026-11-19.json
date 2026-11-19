@@ -1978,6 +1978,415 @@
       "003a": [103201, 94085],
       "804e": [107418, 98284],
       "ffc8": [93361, 85470]
+    },
+    "secondProduct": {
+      "mobile": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "htmlBytes": {
+        "before": 103201,
+        "after": 94085
+      },
+      "imageBytes": 70186,
+      "chrome": "149.0.7827.55",
+      "pacedChunkSize": 4000,
+      "pacedChunkIntervalMs": {
+        "fast": 20,
+        "slow": 80
+      },
+      "imageFirstByteWaitMs": 850,
+      "rows": [
+        {
+          "pair": 1,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 169.40000000596046,
+          "imageStart": 499.40000000596046,
+          "imageFirst": 1351.9000000059605,
+          "imageEnd": 1701.4000000059605,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1712,
+          "fcp": 780
+        },
+        {
+          "pair": 1,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.29999999701977,
+          "imageStart": 440.40000000596046,
+          "imageFirst": 1291.9000000059605,
+          "imageEnd": 1644,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1648,
+          "fcp": 632
+        },
+        {
+          "pair": 2,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153.09999999403954,
+          "imageStart": 458.59999999403954,
+          "imageFirst": 1311.0999999940395,
+          "imageEnd": 1661.7000000029802,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1672,
+          "fcp": 636
+        },
+        {
+          "pair": 2,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.80000001192093,
+          "imageStart": 485.20000000298023,
+          "imageFirst": 1337.4000000059605,
+          "imageEnd": 1692.2000000029802,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1700,
+          "fcp": 632
+        },
+        {
+          "pair": 3,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.79999999701977,
+          "imageStart": 484.79999999701977,
+          "imageFirst": 1337.0999999940395,
+          "imageEnd": 1691.7999999970198,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1720,
+          "fcp": 620
+        },
+        {
+          "pair": 3,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.69999998807907,
+          "imageStart": 442.79999999701977,
+          "imageFirst": 1294.3999999910593,
+          "imageEnd": 1648.7999999970198,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1656,
+          "fcp": 636
+        },
+        {
+          "pair": 4,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 159.90000000596046,
+          "imageStart": 451.79999999701977,
+          "imageFirst": 1303.2999999970198,
+          "imageEnd": 1655.2000000029802,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1660,
+          "fcp": 632
+        },
+        {
+          "pair": 4,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.5,
+          "imageStart": 483.20000000298023,
+          "imageFirst": 1335.2999999970198,
+          "imageEnd": 1685,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1696,
+          "fcp": 628
+        },
+        {
+          "pair": 5,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.79999999701977,
+          "imageStart": 484.6000000089407,
+          "imageFirst": 1336.2000000029802,
+          "imageEnd": 1682,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1688,
+          "fcp": 624
+        },
+        {
+          "pair": 5,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.5,
+          "imageStart": 442.29999999701977,
+          "imageFirst": 1294.4000000059605,
+          "imageEnd": 1648.5,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1656,
+          "fcp": 628
+        },
+        {
+          "pair": 6,
+          "mode": "smaller",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.6000000089407,
+          "imageStart": 445.29999999701977,
+          "imageFirst": 1296.2000000029802,
+          "imageEnd": 1648.4000000059605,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1656,
+          "fcp": 624
+        },
+        {
+          "pair": 6,
+          "mode": "control",
+          "profile": "fast",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.90000000596046,
+          "imageStart": 487.40000000596046,
+          "imageFirst": 1339.9000000059605,
+          "imageEnd": 1693.4000000059605,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 1720,
+          "fcp": 628
+        },
+        {
+          "pair": 7,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153,
+          "imageStart": 1443.2000000029802,
+          "imageFirst": 2295.5999999940395,
+          "imageEnd": 2643.5999999940395,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2672,
+          "fcp": 684
+        },
+        {
+          "pair": 7,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153,
+          "imageStart": 1277.7999999970198,
+          "imageFirst": 2130.5999999940395,
+          "imageEnd": 2483.199999988079,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2516,
+          "fcp": 688
+        },
+        {
+          "pair": 8,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.70000000298023,
+          "imageStart": 1280.7999999970198,
+          "imageFirst": 2133.6000000089407,
+          "imageEnd": 2486.1000000089407,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2492,
+          "fcp": 688
+        },
+        {
+          "pair": 8,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152,
+          "imageStart": 1446.8999999910593,
+          "imageFirst": 2299.699999988079,
+          "imageEnd": 2651.5,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2660,
+          "fcp": 696
+        },
+        {
+          "pair": 9,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153.09999999403954,
+          "imageStart": 1443,
+          "imageFirst": 2296.0999999940395,
+          "imageEnd": 2648.4000000059605,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2656,
+          "fcp": 692
+        },
+        {
+          "pair": 9,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153,
+          "imageStart": 1283.5999999940395,
+          "imageFirst": 2136.7000000029802,
+          "imageEnd": 2487.7999999970198,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2496,
+          "fcp": 688
+        },
+        {
+          "pair": 10,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 151.79999999701977,
+          "imageStart": 1282.0999999940395,
+          "imageFirst": 2134,
+          "imageEnd": 2487.2000000029802,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2496,
+          "fcp": 688
+        },
+        {
+          "pair": 10,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.59999999403954,
+          "imageStart": 1444,
+          "imageFirst": 2295,
+          "imageEnd": 2644.7999999970198,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2652,
+          "fcp": 688
+        },
+        {
+          "pair": 11,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.69999998807907,
+          "imageStart": 1448.2999999970198,
+          "imageFirst": 2300.199999988079,
+          "imageEnd": 2659.2999999970198,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2692,
+          "fcp": 684
+        },
+        {
+          "pair": 11,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 154.79999999701977,
+          "imageStart": 1284.8999999910593,
+          "imageFirst": 2138.199999988079,
+          "imageEnd": 2491.199999988079,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2520,
+          "fcp": 712
+        },
+        {
+          "pair": 12,
+          "mode": "smaller",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 153.79999999701977,
+          "imageStart": 1282.8999999910593,
+          "imageFirst": 2135.7999999970198,
+          "imageEnd": 2487.3999999910593,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2496,
+          "fcp": 720
+        },
+        {
+          "pair": 12,
+          "mode": "control",
+          "profile": "slow",
+          "httpReads": 1,
+          "loaded": 800,
+          "htmlFirst": 152.8999999910593,
+          "imageStart": 1438.7000000029802,
+          "imageFirst": 2290.7000000029802,
+          "imageEnd": 2639.3999999910593,
+          "bytes": 70186,
+          "initiator": "img",
+          "resourceCount": 1,
+          "lcp": 2672,
+          "fcp": 692
+        }
+      ]
     }
   },
   "publicImageConnectionComparison": {
@@ -2349,6 +2758,369 @@
           "gatewayLogMs": 448
         }
       ]
+    }
+  },
+  "productHydrationLive": {
+    "conditions": {
+      "chrome": "149.0.7827.55",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpu": 4,
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      }
+    },
+    "matchedBrowserAndEgress": true,
+    "afterEgress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "data": {
+      "before": {
+        "at": "2026-11-19T02:42:25.940Z",
+        "routes": {
+          "control": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 2445.1,
+                "fcp": 7068,
+                "lcp": 7944,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 1219.4,
+                "imageFirstByte": 2711.9,
+                "transfer": 1562.8,
+                "paint": 4.8,
+                "bytes": 63062
+              },
+              {
+                "repeat": 2,
+                "ttfb": 2357,
+                "fcp": 7116,
+                "lcp": 7184,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 782.2,
+                "imageFirstByte": 2589.0,
+                "transfer": 1034.1,
+                "paint": 421.7,
+                "bytes": 63062
+              },
+              {
+                "repeat": 3,
+                "ttfb": 2363.2,
+                "fcp": 5828,
+                "lcp": 7488,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 798.9,
+                "imageFirstByte": 3743.8,
+                "transfer": 576.2,
+                "paint": 5.9,
+                "bytes": 63062
+              }
+            ],
+            "medianMs": {
+              "ttfb": 2363.2,
+              "fcp": 7068,
+              "lcp": 7488,
+              "requestAfterHtml": 798.9,
+              "imageFirstByte": 2711.9,
+              "transfer": 1034.1,
+              "paint": 5.9
+            }
+          },
+          "otherProduct": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 1889.6,
+                "fcp": 4508,
+                "lcp": 6476,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 1668.1,
+                "imageFirstByte": 2200.0,
+                "transfer": 710.2,
+                "paint": 8.1,
+                "bytes": 70186
+              },
+              {
+                "repeat": 2,
+                "ttfb": 1601.3,
+                "fcp": 7196,
+                "lcp": 7244,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 1457.5,
+                "imageFirstByte": 2178.7,
+                "transfer": 1111.6,
+                "paint": 894.9,
+                "bytes": 70186
+              },
+              {
+                "repeat": 3,
+                "ttfb": 2089.6,
+                "fcp": 5036,
+                "lcp": 5968,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 1312.3,
+                "imageFirstByte": 1727.4,
+                "transfer": 808.3,
+                "paint": 30.4,
+                "bytes": 70186
+              }
+            ],
+            "medianMs": {
+              "ttfb": 1889.6,
+              "fcp": 5036,
+              "lcp": 6476,
+              "requestAfterHtml": 1457.5,
+              "imageFirstByte": 2178.7,
+              "transfer": 808.3,
+              "paint": 30.4
+            }
+          },
+          "product": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 3769.8,
+                "fcp": 6772,
+                "lcp": 8024,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 1123.0,
+                "imageFirstByte": 3034.0,
+                "transfer": 88.8,
+                "paint": 8.4,
+                "bytes": 16116
+              },
+              {
+                "repeat": 2,
+                "ttfb": 1579.9,
+                "fcp": 4500,
+                "lcp": 6024,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 1418.5,
+                "imageFirstByte": 2835.1,
+                "transfer": 186.1,
+                "paint": 4.4,
+                "bytes": 16116
+              },
+              {
+                "repeat": 3,
+                "ttfb": 1915.6,
+                "fcp": 4940,
+                "lcp": 6332,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.oRPSUKm0.js",
+                "requestAfterHtml": 2658.2,
+                "imageFirstByte": 1615.6,
+                "transfer": 131.0,
+                "paint": 11.6,
+                "bytes": 16116
+              }
+            ],
+            "medianMs": {
+              "ttfb": 1915.6,
+              "fcp": 4940,
+              "lcp": 6332,
+              "requestAfterHtml": 1418.5,
+              "imageFirstByte": 2835.1,
+              "transfer": 131.0,
+              "paint": 8.4
+            }
+          }
+        }
+      },
+      "after": {
+        "at": "2026-11-19T03:51:06.137Z",
+        "routes": {
+          "control": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 2408.6,
+                "fcp": 6820,
+                "lcp": 7492,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 693.4,
+                "imageFirstByte": 3231.5,
+                "transfer": 1154.7,
+                "paint": 3.8,
+                "bytes": 63062
+              },
+              {
+                "repeat": 2,
+                "ttfb": 1619.9,
+                "fcp": 5172,
+                "lcp": 10296,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 1730.1,
+                "imageFirstByte": 2745.3,
+                "transfer": 4192.5,
+                "paint": 8.2,
+                "bytes": 63062
+              },
+              {
+                "repeat": 3,
+                "ttfb": 2079.1,
+                "fcp": 5672,
+                "lcp": 6424,
+                "lcpElement": "IMG",
+                "component": null,
+                "requestAfterHtml": 1121.5,
+                "imageFirstByte": 2450.5,
+                "transfer": 766.2,
+                "paint": 6.7,
+                "bytes": 63062
+              }
+            ],
+            "medianMs": {
+              "ttfb": 2079.1,
+              "fcp": 5672,
+              "lcp": 7492,
+              "requestAfterHtml": 1121.5,
+              "imageFirstByte": 2745.3,
+              "transfer": 1154.7,
+              "paint": 6.7
+            }
+          },
+          "otherProduct": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 4304.8,
+                "fcp": 7904,
+                "lcp": 9284,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 1406.3,
+                "imageFirstByte": 2622.6,
+                "transfer": 946.5,
+                "paint": 3.8,
+                "bytes": 70186
+              },
+              {
+                "repeat": 2,
+                "ttfb": 2192.9,
+                "fcp": 4704,
+                "lcp": 6536,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 1630.6,
+                "imageFirstByte": 1312.1,
+                "transfer": 1394.7,
+                "paint": 5.7,
+                "bytes": 70186
+              },
+              {
+                "repeat": 3,
+                "ttfb": 2144,
+                "fcp": 4832,
+                "lcp": 8036,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 1243.8,
+                "imageFirstByte": 2075.0,
+                "transfer": 2568.1,
+                "paint": 5.1,
+                "bytes": 70186
+              }
+            ],
+            "medianMs": {
+              "ttfb": 2192.9,
+              "fcp": 4832,
+              "lcp": 8036,
+              "requestAfterHtml": 1406.3,
+              "imageFirstByte": 2075.0,
+              "transfer": 1394.7,
+              "paint": 5.1
+            }
+          },
+          "product": {
+            "samples": [
+              {
+                "repeat": 1,
+                "ttfb": 2176.4,
+                "fcp": 5792,
+                "lcp": 6748,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 1614.7,
+                "imageFirstByte": 2833.9,
+                "transfer": 110.2,
+                "paint": 12.8,
+                "bytes": 16116
+              },
+              {
+                "repeat": 2,
+                "ttfb": 2100.8,
+                "fcp": 4212,
+                "lcp": 4780,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 882.0,
+                "imageFirstByte": 1703.8,
+                "transfer": 87.4,
+                "paint": 6,
+                "bytes": 16116
+              },
+              {
+                "repeat": 3,
+                "ttfb": 2764.9,
+                "fcp": 4952,
+                "lcp": 6508,
+                "lcpElement": "IMG",
+                "component": "/_astro/ProductLanding.C7B-ez42.js",
+                "requestAfterHtml": 1440.2,
+                "imageFirstByte": 2201.4,
+                "transfer": 94.0,
+                "paint": 7.5,
+                "bytes": 16116
+              }
+            ],
+            "medianMs": {
+              "ttfb": 2176.4,
+              "fcp": 4952,
+              "lcp": 6508,
+              "requestAfterHtml": 1440.2,
+              "imageFirstByte": 2201.4,
+              "transfer": 94.0,
+              "paint": 7.5
+            }
+          }
+        }
+      }
+    },
+    "deliveryRun": "44451413234",
+    "rendererSha": "f1d0bf61b635c78dbcdd713f3c1fe64c35abdcd5",
+    "siteHTMLReadbackBytes": {
+      "003a": [103981, 94865],
+      "804e": [112379, 103211],
+      "ffc8": [98813, 90889]
     }
   }
 }
