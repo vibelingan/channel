@@ -347,7 +347,10 @@ test('watch pages bind their audited descriptor and keep unique concise metadata
   assert.equal(binding.kind, 'expression');
   assert.equal(binding.value, 'page');
   assert.ok(layouts[0]?.attributes.every(({ kind }) => kind !== 'spread'));
-  assert.match(source, /const page = watchPageDescriptor\(video, origin, brand\.name\);/);
+  assert.match(
+    source,
+    /const page = watchPageDescriptor\(video, origin, brand\.name, blogServer\);/,
+  );
   const site = parseFrontmatter('../i18n/content/en-US.md');
   assert.ok(site.brand);
   const titles = new Set<string>();

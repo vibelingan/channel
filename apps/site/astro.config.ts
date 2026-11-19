@@ -78,7 +78,7 @@ export default defineConfig({
     sitemap({
       serialize: (item) => {
         const date = productDates.get(item.url);
-        return withVideoSitemapMetadata(date ? { ...item, lastmod: date } : item, site);
+        return withVideoSitemapMetadata(date ? { ...item, lastmod: date } : item, site, blogServer);
       },
       filter: (page) =>
         blogServer && new URL(page).pathname.startsWith('/blog') ? false : includeInSitemap(page),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { factoryVideoAsset } from './factory-video.ts';
+import { factoryVideoAsset, factoryVideoRangePath } from './factory-video.ts';
 import { canonicalUrl, createPageDescriptor, siteOrigin } from './page.ts';
 
 const mediaPath = (extension: string) =>
@@ -103,13 +103,32 @@ export function watchVideoPath(video: WatchVideo): string {
   return `/videos/${video.id}/`;
 }
 
-export function watchPageDescriptor(video: WatchVideo, originInput: string | URL, brand: string) {
+export function watchVideoSources(
+  video: WatchVideo,
+  blogServer: boolean,
+): readonly [string, ...string[]] {
+  if (
+    blogServer &&
+    video.src === factoryVideoAsset.source &&
+    video.sourceSha256 === factoryVideoAsset.sha256
+  ) {
+    return [factoryVideoRangePath, video.src];
+  }
+  return [video.src];
+}
+
+export function watchPageDescriptor(
+  video: WatchVideo,
+  originInput: string | URL,
+  brand: string,
+  blogServer = false,
+) {
   const record = WatchVideoSchema.parse(video);
   if (record.status !== 'public') throw Error('Withdrawn videos have no public watch page');
   const origin = siteOrigin(originInput);
   const path = watchVideoPath(record);
   const url = canonicalUrl(path, origin);
-  const schema = videoObject(record, origin);
+  const schema = videoObject(record, origin, blogServer);
   return createPageDescriptor({
     path,
     kind: 'marketing',
@@ -133,6 +152,7 @@ export function watchPageDescriptor(video: WatchVideo, originInput: string | URL
 export function videoObject(
   video: WatchVideo,
   originInput: string | URL,
+  blogServer = false,
 ): Record<string, unknown> | null {
   const record = WatchVideoSchema.parse(video);
   if (record.status !== 'public' || record.publication.status !== 'verified') return null;
@@ -144,7 +164,7 @@ export function videoObject(
     url,
     name: record.title,
     description: record.description,
-    contentUrl: new URL(record.src, origin).href,
+    contentUrl: new URL(watchVideoSources(record, blogServer)[0], origin).href,
     thumbnailUrl: new URL(record.poster.src, origin).href,
     uploadDate: record.publication.at,
     duration: `PT${record.durationSeconds}S`,
@@ -163,6 +183,7 @@ interface SitemapVideo {
 export function withVideoSitemapMetadata<T extends { url: string }>(
   item: T,
   originInput: string | URL,
+  blogServer: boolean,
   records: readonly WatchVideo[] = watchVideos,
 ): T & { video?: SitemapVideo[] } {
   const origin = siteOrigin(originInput);
@@ -177,7 +198,7 @@ export function withVideoSitemapMetadata<T extends { url: string }>(
         title: video.title,
         description: video.description,
         thumbnail_loc: new URL(video.poster.src, origin).href,
-        content_loc: new URL(video.src, origin).href,
+        content_loc: new URL(watchVideoSources(video, blogServer)[0], origin).href,
         duration: Math.round(video.durationSeconds),
         ...(video.publication.status === 'verified'
           ? { publication_date: video.publication.at }
