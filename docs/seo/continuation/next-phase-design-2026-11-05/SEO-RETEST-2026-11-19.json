@@ -461,7 +461,15 @@
       "path": "/sitemap-0.xml",
       "status": "Processing",
       "lastCrawlInConsole": "2026-11-07",
-      "urlsDiscovered": 0
+      "urlsDiscovered": 0,
+      "latestReadback": {
+        "checkedAtLocalDate": "2026-11-19",
+        "status": "Success",
+        "lastCrawlInConsole": "2026-11-18",
+        "urlsDiscovered": 580,
+        "sampleProductPath": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "sampleProductIndexState": "Discovered but not crawled"
+      }
     }
   },
   "compiledHeroPreloadPublicResult": {
@@ -625,6 +633,107 @@
           "stylesheetResponseStartMs": 646
         }
       ]
+    },
+    "recovery": {
+      "initialRunId": 44427975103,
+      "attemptsStoppedBeforeWebsiteWrites": 2,
+      "initialFailure": "Admin health connection timed out; underlying network cause remains unconfirmed.",
+      "successfulRunId": 44429020643,
+      "deliveryId": "site-44429020643-1",
+      "rendererSha": "62b71cbe3453807ad3c430262be216082b2944f2",
+      "acceptedAt": "2026-11-19T00:46:46.067Z",
+      "publicFilesWithIdenticalBytes": 9,
+      "catalogRevisionsMatched": 528,
+      "blogPublicArticleBodiesMatched": 3,
+      "bothTemporaryFunctionsIndependentlyConfirmedAbsent": true,
+      "browserMeasurementAt": "2026-11-19T00:53:38.737Z",
+      "targetStylesheetReusedConnection": 2,
+      "judgement": "Critical CSS reused the connection twice out of three target measurements. The two routes were slower overall, including the route never using the hint.",
+      "samples": [
+        {
+          "product": "product",
+          "repeat": 1,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 5488,
+          "lcpMs": 8520,
+          "htmlFirstByteMs": 1897,
+          "imageFirstByteAfterRequestMs": 1814,
+          "imageBodyAfterFirstByteMs": 3612,
+          "stylesheetConnectionCompleteMs": 193,
+          "stylesheetResponseStartMs": 1292,
+          "imageHandlerTotalMs": 256.0
+        },
+        {
+          "product": "legacy",
+          "repeat": 1,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 5036,
+          "lcpMs": 7924,
+          "htmlFirstByteMs": 2290,
+          "imageFirstByteAfterRequestMs": 2466,
+          "imageBodyAfterFirstByteMs": 1109,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 1107
+        },
+        {
+          "product": "legacy",
+          "repeat": 2,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 5020,
+          "lcpMs": 7272,
+          "htmlFirstByteMs": 2188,
+          "imageFirstByteAfterRequestMs": 2209,
+          "imageBodyAfterFirstByteMs": 1752,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 681
+        },
+        {
+          "product": "product",
+          "repeat": 2,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 5096,
+          "lcpMs": 5128,
+          "htmlFirstByteMs": 2221,
+          "imageFirstByteAfterRequestMs": 1600,
+          "imageBodyAfterFirstByteMs": 178,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 644,
+          "imageHandlerTotalMs": 210.9
+        },
+        {
+          "product": "product",
+          "repeat": 3,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 5692,
+          "lcpMs": 5720,
+          "htmlFirstByteMs": 1945,
+          "imageFirstByteAfterRequestMs": 1495,
+          "imageBodyAfterFirstByteMs": 88,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 658,
+          "imageHandlerTotalMs": 223.3
+        },
+        {
+          "product": "legacy",
+          "repeat": 3,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 4996,
+          "lcpMs": 7532,
+          "htmlFirstByteMs": 2295,
+          "imageFirstByteAfterRequestMs": 2267,
+          "imageBodyAfterFirstByteMs": 1563,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 1045
+        }
+      ],
+      "galleryBrowserWidthsPassed": [375, 1440],
+      "galleryOptionsPerWidth": 3
     }
   }
 }
