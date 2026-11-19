@@ -4439,5 +4439,72 @@
         "upstreamMs": 1014
       }
     ]
+  },
+  "googleSitemapProcessed": {
+    "reportDate": "2026-11-19",
+    "property": "https://supplychainsai.com/",
+    "source": "Google Search Console sitemap report, opened in the signed-in browser",
+    "rows": [
+      {
+        "path": "/sitemap-0.xml",
+        "lastRead": "2026-11-19",
+        "status": "Success",
+        "discoveredPages": 580,
+        "discoveredVideos": 1
+      },
+      {
+        "path": "/sitemap-index.xml",
+        "lastRead": "2026-11-19",
+        "status": "Success",
+        "discoveredPages": 584,
+        "discoveredVideos": 1
+      }
+    ]
+  },
+  "blogMediaProxyTiming": {
+    "firstTimingCommit": "1eee56a522b4cecdfc0ced19cb06ad15337cdab1",
+    "uploadDeadlineCommit": "ae952d1fa23c896cbe287f16fec10fe14d6cfcef",
+    "result": "local packaged acceptance passed; both production submissions timed out; old production program independently rechecked",
+    "activeRelease": "62b71cbe3453807ad3c430262be216082b2944f2",
+    "providerVersion": "blog-pages-023",
+    "candidateOnly": true,
+    "ciRuns": [44469588679, 44469588757, 44469588687],
+    "deploymentAttempts": [
+      {
+        "run": 44468596092,
+        "requestTimeoutSeconds": 120,
+        "result": "outcome-unknown on the caller; no new deployment later observed"
+      },
+      {
+        "run": 44470966736,
+        "requestTimeoutSeconds": 360,
+        "result": "outcome-unknown on the caller; no new deployment later observed"
+      }
+    ],
+    "previousSuccessfulSubmission": {
+      "run": 44414982239,
+      "observedStepSeconds": 26
+    },
+    "baselineDirectApi": {
+      "webpBytes": 91902,
+      "samples": 3,
+      "publicReferenceChecksMs": [528.6, 650.1, 527.2],
+      "storageMs": [560.6, 214, 199.5]
+    },
+    "localPackageProbe": {
+      "sdk": "@cloudbase/manager-node@5.9.1",
+      "compressedBytes": 8046469,
+      "elapsedMs": 326,
+      "buildUploadOfferSeparateCallMs": 2465,
+      "differentNetworkFromGitHub": true
+    },
+    "liveParityAfterFailedSubmissions": {
+      "publishedArticles": 3,
+      "catalogPublicRevisions": 528,
+      "historic4xxImages": 5,
+      "blogSitemapSha256": "ea75f7de1c4a63cbaab71bc408ea4f3978eefaceb66d7b5a74139ad4ab036496",
+      "looksAtFullArticleHTML": true,
+      "matchingCatalogAndPublicFileBytes": true
+    }
   }
 }
