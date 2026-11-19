@@ -735,5 +735,421 @@
       "galleryBrowserWidthsPassed": [375, 1440],
       "galleryOptionsPerWidth": 3
     }
+  },
+  "postRecoveryProductStyles": {
+    "observedAt": "2026-11-19T01:04:57.099Z",
+    "egress": "colo=NRT loc=JP",
+    "coldTransportSamples": [
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "site",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 3031,
+        "firstByteAfterTlsMs": 1583,
+        "bodyMs": 883,
+        "totalMs": 5497,
+        "upstreamMs": 574
+      },
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "environment-api",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 4217,
+        "firstByteAfterTlsMs": 1570,
+        "bodyMs": 956,
+        "totalMs": 6744,
+        "upstreamMs": 364
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "site",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 1787,
+        "firstByteAfterTlsMs": 1942,
+        "bodyMs": 31,
+        "totalMs": 3761,
+        "upstreamMs": 957
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "environment-api",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 1931,
+        "firstByteAfterTlsMs": 5212,
+        "bodyMs": 1,
+        "totalMs": 7144,
+        "upstreamMs": 299
+      },
+      {
+        "asset": "shared-css",
+        "entry": "site",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 102058,
+        "protocol": "1.1",
+        "tlsCompleteMs": 916,
+        "firstByteAfterTlsMs": 796,
+        "bodyMs": 1811,
+        "totalMs": 3522,
+        "upstreamMs": 324
+      },
+      {
+        "asset": "shared-css",
+        "entry": "site",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 102058,
+        "protocol": "1.1",
+        "tlsCompleteMs": 926,
+        "firstByteAfterTlsMs": 680,
+        "bodyMs": 1638,
+        "totalMs": 3244,
+        "upstreamMs": 215
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "environment-api",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 2475,
+        "firstByteAfterTlsMs": 1563,
+        "bodyMs": 1,
+        "totalMs": 4039,
+        "upstreamMs": 305
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "site",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 934,
+        "firstByteAfterTlsMs": 1077,
+        "bodyMs": 39,
+        "totalMs": 2050,
+        "upstreamMs": 526
+      },
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "environment-api",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 3506,
+        "firstByteAfterTlsMs": 1642,
+        "bodyMs": 624,
+        "totalMs": 5772,
+        "upstreamMs": 298
+      },
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "site",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 932,
+        "firstByteAfterTlsMs": 1534,
+        "bodyMs": 736,
+        "totalMs": 3202,
+        "upstreamMs": 542
+      },
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "site",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 934,
+        "firstByteAfterTlsMs": 1904,
+        "bodyMs": 389,
+        "totalMs": 3228,
+        "upstreamMs": 552
+      },
+      {
+        "asset": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "entry": "environment-api",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 51178,
+        "protocol": "1.1",
+        "tlsCompleteMs": 1432,
+        "firstByteAfterTlsMs": 1573,
+        "bodyMs": 1611,
+        "totalMs": 4616,
+        "upstreamMs": 265
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "site",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 930,
+        "firstByteAfterTlsMs": 1007,
+        "bodyMs": 1587,
+        "totalMs": 3524,
+        "upstreamMs": 450
+      },
+      {
+        "asset": "96d9cd126ac88460006e1c2f6fe3d0a4?w=640",
+        "entry": "environment-api",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 16116,
+        "protocol": "1.1",
+        "tlsCompleteMs": 1972,
+        "firstByteAfterTlsMs": 1085,
+        "bodyMs": 2205,
+        "totalMs": 5262,
+        "upstreamMs": 234
+      },
+      {
+        "asset": "shared-css",
+        "entry": "site",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 102058,
+        "protocol": "1.1",
+        "tlsCompleteMs": 927,
+        "firstByteAfterTlsMs": 671,
+        "bodyMs": 2203,
+        "totalMs": 3801,
+        "upstreamMs": 200
+      }
+    ],
+    "productStyleBytesBefore": 102058,
+    "productStyleBytesCandidate": 55633,
+    "unaffectedBuildFileHashes": {
+      "index.html": "6bea184c3cc915db803e6d039107e358f65280f657811a52b16c02f5d79f3481",
+      "headphones/index.html": "6562e18948f26f45924b554d7d1fc3921cf806133d28b9dc9d56f06f9639e069",
+      "oem/index.html": "7007ff66bee6fca8e2530e829fed6f0fd3eebc75d8f64c9a117f1a5b3eca2aba",
+      "admin/index.html": "c4cbeafd24198b10219ba24d4a3cc20dfa87d2c11aa8e3967a337ea75ed7a3de",
+      "portfolio/index.html": "fb2cca94cb3c58fe56b379227f4f0fb30a3b2c115063c959a373bdddeab7923a",
+      "robots.txt": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090",
+      "sitemap-0.xml": "8b619dd37aaf725197f356ff1895425ae2ff7e8c0c191e5757720703d2170dd2"
+    },
+    "sharedStyleRemainedByteIdentical": true,
+    "replay": {
+      "chrome": "149.0.7827.55",
+      "samples": [
+        {
+          "index": 0,
+          "fcp": 1348,
+          "lcp": 1348,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 965.4000000059605
+        },
+        {
+          "index": 1,
+          "fcp": 1008,
+          "lcp": 1008,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 740.2000000029802
+        },
+        {
+          "index": 1,
+          "fcp": 1004,
+          "lcp": 1004,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 740.7000000029802
+        },
+        {
+          "index": 0,
+          "fcp": 1252,
+          "lcp": 1252,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 978.2999999970198
+        },
+        {
+          "index": 0,
+          "fcp": 1256,
+          "lcp": 1256,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 979.7000000029802
+        },
+        {
+          "index": 1,
+          "fcp": 1012,
+          "lcp": 1012,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 739.2999999970198
+        },
+        {
+          "index": 1,
+          "fcp": 1008,
+          "lcp": 1008,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 738.3999999910593
+        },
+        {
+          "index": 0,
+          "fcp": 1256,
+          "lcp": 1256,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 980.0999999940395
+        },
+        {
+          "index": 0,
+          "fcp": 1256,
+          "lcp": 1256,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 980.2000000029802
+        },
+        {
+          "index": 1,
+          "fcp": 1016,
+          "lcp": 1016,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 739.5
+        },
+        {
+          "index": 1,
+          "fcp": 1012,
+          "lcp": 1012,
+          "lcpTag": "H1",
+          "cssBytes": 55633,
+          "cssDownload": 740
+        },
+        {
+          "index": 0,
+          "fcp": 1268,
+          "lcp": 1268,
+          "lcpTag": "H1",
+          "cssBytes": 102058,
+          "cssDownload": 979
+        }
+      ]
+    },
+    "replayConditions": "Local HTTP, 412px viewport, 150ms latency, 200 KB/s, 4x CPU throttle, fixed markup, scripts excluded",
+    "buildBrowserComparison": {
+      "browser": "149.0.7827.55",
+      "results": [
+        {
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "width": 412,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 5
+        },
+        {
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "width": 412,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 5
+        },
+        {
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "width": 1440,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 5
+        },
+        {
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "width": 1440,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 5
+        },
+        {
+          "path": "/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+          "width": 412,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 4
+        },
+        {
+          "path": "/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+          "width": 412,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 4
+        },
+        {
+          "path": "/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+          "width": 1440,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 4
+        },
+        {
+          "path": "/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+          "width": 1440,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 4
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "width": 412,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 3
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "width": 412,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 3
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "width": 1440,
+          "build": 0,
+          "bytes": 102058,
+          "stylesheet": "/_astro/BaseLayout.mfjaJzIa.css",
+          "variants": 3
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "width": 1440,
+          "build": 1,
+          "bytes": 55633,
+          "stylesheet": "/_astro/_publicKey_.BePS2EtE.css",
+          "variants": 3
+        }
+      ]
+    }
   }
 }

@@ -6,10 +6,11 @@ import SiteHeader from '../../components/SiteHeader.astro';
 import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
-import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocumentLayout from '../../layouts/DocumentLayout.astro';
 import { productKey, productPath } from '../../lib/seo/product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from '../../lib/seo/product-page.ts';
 import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
+import '../../styles/product.css';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
@@ -40,11 +41,11 @@ const page = productPageDescriptor(
   duplicateName,
 );
 ---
-<BaseLayout page={page}>
+<DocumentLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} heroImageApiOrigin={heroImageApiOrigin} client:load />
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
   <AssistantHost />
-</BaseLayout>
+</DocumentLayout>

@@ -1,0 +1,18 @@
+/* Biome 1.9 cannot parse Tailwind's import source modifier. Astro compiles it at build time. */
+@import "tailwindcss" source(none);
+@import "./document.css";
+
+/* Include product variants, legacy details, related products, and the shared shell. */
+@source "../pages/products/[publicKey].astro";
+@source "../layouts/DocumentLayout.astro";
+@source "../catalog/presentation";
+@source "../islands/shop";
+@source "../components/AssistantHost.astro";
+@source "../components/SiteFooter.astro";
+@source "../components/SiteHeader.astro";
+@source "../components/chat";
+@source "../components/form";
+@source "../islands/ai/AssistantWidget.tsx";
+@source "../islands/ai/assistant";
+@source "../islands/auth/AccountMenu.tsx";
+@source not "../**/*.test.*";
