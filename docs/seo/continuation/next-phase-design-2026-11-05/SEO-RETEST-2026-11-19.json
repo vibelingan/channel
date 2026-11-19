@@ -1150,6 +1150,419 @@
           "variants": 3
         }
       ]
+    },
+    "delivery": {
+      "firstCiFailedRunId": 44435828792,
+      "lastCiRunId": 44436819918,
+      "rendererArchiveRunId": 44437596762,
+      "runId": 44437956368,
+      "deliveryId": "site-44437956368-1",
+      "acceptedAt": "2026-11-19T01:56:58.306Z",
+      "siteRendererSha": "05a2f7dbcaab69ef3dc16d39e56866cf16375b00",
+      "publicFilesWithIdenticalBytes": 9,
+      "publicProductRevisionsMatched": 528,
+      "publicArticleBodiesMatched": 3,
+      "temporaryFunctionsConfirmedAbsent": 2,
+      "galleryBrowserWidthsPassed": [375, 1440],
+      "websiteBeforeAfter": {
+        "before": {
+          "observedAt": "2026-11-19T01:17:05.329Z",
+          "egress": {
+            "colo": "NRT",
+            "loc": "JP"
+          },
+          "samples": [
+            {
+              "page": "product",
+              "repeat": 1,
+              "fcpMs": 5056,
+              "lcpMs": 6144,
+              "htmlFirstByteMs": 2680,
+              "imageStartAfterHtmlMs": 1278,
+              "imageFirstByteAfterRequestMs": 1646,
+              "imageBodyMs": 532
+            },
+            {
+              "page": "legacy",
+              "repeat": 1,
+              "fcpMs": 6908,
+              "lcpMs": 11204,
+              "htmlFirstByteMs": 3116,
+              "imageStartAfterHtmlMs": 1028,
+              "imageFirstByteAfterRequestMs": 2340,
+              "imageBodyMs": 4717
+            },
+            {
+              "page": "legacy",
+              "repeat": 2,
+              "fcpMs": 4920,
+              "lcpMs": 7888,
+              "htmlFirstByteMs": 2071,
+              "imageStartAfterHtmlMs": 1068,
+              "imageFirstByteAfterRequestMs": 2055,
+              "imageBodyMs": 2657
+            },
+            {
+              "page": "product",
+              "repeat": 2,
+              "fcpMs": 6120,
+              "lcpMs": 7276,
+              "htmlFirstByteMs": 2988,
+              "imageStartAfterHtmlMs": 1682,
+              "imageFirstByteAfterRequestMs": 1423,
+              "imageBodyMs": 1179
+            },
+            {
+              "page": "product",
+              "repeat": 3,
+              "fcpMs": 6812,
+              "lcpMs": 6860,
+              "htmlFirstByteMs": 1837,
+              "imageStartAfterHtmlMs": 1972,
+              "imageFirstByteAfterRequestMs": 2055,
+              "imageBodyMs": 90
+            },
+            {
+              "page": "legacy",
+              "repeat": 3,
+              "fcpMs": 5416,
+              "lcpMs": 8664,
+              "htmlFirstByteMs": 2308,
+              "imageStartAfterHtmlMs": 1276,
+              "imageFirstByteAfterRequestMs": 2837,
+              "imageBodyMs": 2240
+            }
+          ]
+        },
+        "after": {
+          "observedAt": "2026-11-19T02:04:39.397Z",
+          "egress": {
+            "colo": "NRT",
+            "loc": "JP"
+          },
+          "samples": [
+            {
+              "page": "product",
+              "repeat": 1,
+              "fcpMs": 6628,
+              "lcpMs": 9072,
+              "htmlFirstByteMs": 4396,
+              "imageStartAfterHtmlMs": 1222,
+              "imageFirstByteAfterRequestMs": 3219,
+              "imageBodyMs": 226
+            },
+            {
+              "page": "legacy",
+              "repeat": 1,
+              "fcpMs": 4012,
+              "lcpMs": 6900,
+              "htmlFirstByteMs": 1892,
+              "imageStartAfterHtmlMs": 1592,
+              "imageFirstByteAfterRequestMs": 2057,
+              "imageBodyMs": 1355
+            },
+            {
+              "page": "legacy",
+              "repeat": 2,
+              "fcpMs": 5224,
+              "lcpMs": 7476,
+              "htmlFirstByteMs": 1833,
+              "imageStartAfterHtmlMs": 2161,
+              "imageFirstByteAfterRequestMs": 2593,
+              "imageBodyMs": 850
+            },
+            {
+              "page": "product",
+              "repeat": 2,
+              "fcpMs": 4276,
+              "lcpMs": 6576,
+              "htmlFirstByteMs": 2096,
+              "imageStartAfterHtmlMs": 1696,
+              "imageFirstByteAfterRequestMs": 1399,
+              "imageBodyMs": 1375
+            },
+            {
+              "page": "product",
+              "repeat": 3,
+              "fcpMs": 6136,
+              "lcpMs": 6216,
+              "htmlFirstByteMs": 2064,
+              "imageStartAfterHtmlMs": 1661,
+              "imageFirstByteAfterRequestMs": 2371,
+              "imageBodyMs": 96
+            },
+            {
+              "page": "legacy",
+              "repeat": 3,
+              "fcpMs": 4836,
+              "lcpMs": 5288,
+              "htmlFirstByteMs": 1502,
+              "imageStartAfterHtmlMs": 1385,
+              "imageFirstByteAfterRequestMs": 1929,
+              "imageBodyMs": 440
+            }
+          ]
+        }
+      },
+      "sameSessionStylesheetComparison": {
+        "browser": "149.0.7827.55",
+        "egress": "colo=NRT loc=JP",
+        "samples": [
+          {
+            "kind": "original",
+            "fcp": 6232,
+            "lcp": {
+              "tag": "IMG",
+              "value": 6312
+            },
+            "htmlFirstByte": 2599.0999999940395,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 6197.899999991059,
+              "time": 3169.8999999910593
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 4560,
+            "lcp": {
+              "tag": "IMG",
+              "value": 5920
+            },
+            "htmlFirstByte": 2088.2000000029802,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 4526.0999999940395,
+              "time": 1894.5999999940395
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 5240,
+            "lcp": {
+              "tag": "IMG",
+              "value": 6724
+            },
+            "htmlFirstByte": 2082.2999999970198,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 5202.5,
+              "time": 3059.2000000029802
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "original",
+            "fcp": 6484,
+            "lcp": {
+              "tag": "IMG",
+              "value": 6508
+            },
+            "htmlFirstByte": 3593.7999999970198,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 6445.9000000059605,
+              "time": 2810.6000000089407
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "original",
+            "fcp": 7744,
+            "lcp": {
+              "tag": "IMG",
+              "value": 7780
+            },
+            "htmlFirstByte": 3199.1000000089407,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 7707.9000000059605,
+              "time": 4461.5999999940395
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 4848,
+            "lcp": {
+              "tag": "IMG",
+              "value": 6308
+            },
+            "htmlFirstByte": 2026.4000000059605,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 4798.100000008941,
+              "time": 2247.5
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 5168,
+            "lcp": {
+              "tag": "IMG",
+              "value": 5316
+            },
+            "htmlFirstByte": 1850.199999988079,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 5134.199999988079,
+              "time": 3185
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "original",
+            "fcp": 7824,
+            "lcp": {
+              "tag": "IMG",
+              "value": 7864
+            },
+            "htmlFirstByte": 4467.899999991059,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 7791.199999988079,
+              "time": 3276.5
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "original",
+            "fcp": 6956,
+            "lcp": {
+              "tag": "IMG",
+              "value": 7092
+            },
+            "htmlFirstByte": 2418,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 6919.399999991059,
+              "time": 3912.5
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 7004,
+            "lcp": {
+              "tag": "IMG",
+              "value": 7100
+            },
+            "htmlFirstByte": 2244.5,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 6943.70000000298,
+              "time": 4658.800000011921
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "current",
+            "fcp": 5712,
+            "lcp": {
+              "tag": "IMG",
+              "value": 5808
+            },
+            "htmlFirstByte": 2421.7999999970198,
+            "css": {
+              "size": 55633,
+              "body": 55633,
+              "end": 5682.20000000298,
+              "time": 3215.5
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          },
+          {
+            "kind": "original",
+            "fcp": 6004,
+            "lcp": {
+              "tag": "IMG",
+              "value": 6084
+            },
+            "htmlFirstByte": 1841.7999999970198,
+            "css": {
+              "size": 102058,
+              "body": 102058,
+              "end": 5967.79999999702,
+              "time": 3192.7000000029802
+            },
+            "title": "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj…",
+            "hero": [
+              "Foldable Oem Best Selling Wholesale Bt 5.0 Over Ear Dj Headphones Professional Headset",
+              "24px",
+              90
+            ]
+          }
+        ],
+        "failures": []
+      }
     }
   }
 }
