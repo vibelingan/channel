@@ -40,8 +40,10 @@ export async function connectBlogMcp() {
     await client.close().catch(() => {});
     throw error;
   }
-  async function call(name, args) {
-    const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 120000 });
+  async function call(name, args, { timeoutMs = 120_000 } = {}) {
+    const result = await client.callTool({ name, arguments: args }, undefined, {
+      timeout: timeoutMs,
+    });
     const block = result.content?.find((item) => item.type === 'text');
     if (!block) throw new Error('CloudBase MCP returned no structured response');
     const value = JSON.parse(block.text);

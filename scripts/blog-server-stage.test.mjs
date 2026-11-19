@@ -24,8 +24,8 @@ function fixture({ exists = false, lostReply = false, incomplete = false } = {})
     archiveBefore: async () => ({ artifactId: '123', sha256: 'a'.repeat(64) }),
     save: async () => saves.push(structuredClone(record)),
     client: {
-      call: async (name, input) => {
-        calls.push({ name, input });
+      call: async (name, input, options) => {
+        calls.push({ name, input, options });
         if (name === 'queryCloudRun')
           return {
             data: {
@@ -115,12 +115,12 @@ function online() {
 test('explicit update persists the actual old image before one submission, without replacing configuration', async () => {
   const f = fixture({ exists: true });
   const original = f.client.call;
-  f.client.call = async (name, input) => {
+  f.client.call = async (name, input, options) => {
     if (name === 'queryCloudRun' && input.action === 'detail') {
       f.calls.push({ name, input });
       return { data: online() };
     }
-    return original(name, input);
+    return original(name, input, options);
   };
   await submitBlogServer({
     ...f,
@@ -136,6 +136,12 @@ test('explicit update persists the actual old image before one submission, witho
   const write = f.calls.find((x) => x.name === 'manageCloudRun');
   assert.equal(write.input.serverConfig, undefined);
   assert.equal(write.input.targetPath, '/tmp/preload');
+  assert.deepEqual(write.options, { timeoutMs: 360_000 });
+  assert(
+    f.calls
+      .filter((call) => call.name === 'queryCloudRun')
+      .every((call) => call.options === undefined),
+  );
   assert.equal(f.saves.at(-1).assetTransition.phase, 'preload');
   assert(!JSON.stringify(f.saves).includes('DO_NOT_WRITE_REDACTED_ENV'));
 });

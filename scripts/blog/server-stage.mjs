@@ -61,7 +61,7 @@ export async function submitBlogServer({
     // One submission. A timeout does not authorize repeating a possibly started deployment.
     record.status = 'submitting';
     await save();
-    const started = await client.call('manageCloudRun', {
+    const deployment = {
       action: 'deploy',
       serverName,
       serverType: 'container',
@@ -86,7 +86,9 @@ export async function submitBlogServer({
             },
           }
         : {}),
-    });
+    };
+    // The package upload precedes Tencent's registration and shares the request deadline.
+    const started = await client.call('manageCloudRun', deployment, { timeoutMs: 360_000 });
     if (started.success !== true) throw Error('The cloud submission has no successful receipt');
     record.status = 'submitted';
     record.submission = {
