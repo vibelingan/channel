@@ -10,6 +10,14 @@ export class AnimatedCatalogWebImageError extends Error {
 /** Run during preparation, never in the public request path. Originals are retained. */
 export async function createCatalogWebImage(bytes: Uint8Array, mimeType: string, width = 1280) {
   if (![160, 640, 1280].includes(width)) throw Error('Unsupported catalog image width');
+  return createWebImage(bytes, mimeType, width);
+}
+
+export function createArticleMobileWebImage(bytes: Uint8Array, mimeType: string) {
+  return createWebImage(bytes, mimeType, 768);
+}
+
+async function createWebImage(bytes: Uint8Array, mimeType: string, width: number) {
   const source = await decodeCatalogImagePixels(bytes, mimeType);
   if (source.status !== 'decoded') throw Error('A complete still image is required');
   if (source.pages !== 1) throw new AnimatedCatalogWebImageError();

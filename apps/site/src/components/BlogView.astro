@@ -1,7 +1,10 @@
 ---
 import type { ArticlePageData } from '@vibelingan-channel/articles/build';
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
-import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
+import type {
+  ArticleMobileWebPresentation,
+  ArticleWebPresentation,
+} from '@vibelingan-channel/articles/web-media';
 import PageHero from '../components/PageHero.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -29,6 +32,7 @@ interface Props {
   next?: string | null;
   cursor?: string;
   presentation?: ArticleWebPresentation;
+  mobile?: ArticleMobileWebPresentation;
 }
 const {
   articles,
@@ -38,6 +42,7 @@ const {
   next = null,
   cursor,
   presentation,
+  mobile,
 } = Astro.props;
 const location = dummy
   ? dummyBlogLocation
@@ -81,7 +86,7 @@ const page = cursor
           </p>
           {article.modifiedAt !== article.publishedAt && <p class="mt-2 text-sm text-ink-muted">Updated <time datetime={article.modifiedAt}>{articleDate(article.modifiedAt)}</time></p>}
         </header>
-        <div class="article-body" set:html={articleBody(article, location, presentation)} />
+        <div class="article-body" set:html={articleBody(article, location, presentation, mobile)} />
         <a href={location.root} class="mt-12 inline-flex min-h-11 items-center font-semibold text-brand-700 underline underline-offset-4">All insights</a>
       </article>
     ) : (

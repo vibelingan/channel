@@ -3,13 +3,15 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { parseArticleContent } from '@vibelingan-channel/articles';
 import {
+  articleMobileMediaPath,
   articleWebMediaObjectInput,
   articleWebMediaSource,
   articleWebMediaSourceDigest,
 } from '@vibelingan-channel/articles/web-media';
 import { createCloudBasePublicArticles } from './article-public-reader.ts';
-import { createCloudBaseArticleRepository } from './article-repository.ts';
+import { articleTransaction, createCloudBaseArticleRepository } from './article-repository.ts';
 import { articleSdkFixture } from './article-sdk-fixture.test-helper.ts';
+import { registerArticleResponsiveMedia } from './article-web-media.ts';
 
 const content = parseArticleContent({
   title: 'Public guide',
@@ -225,11 +227,15 @@ async function webFixture(
   t: Parameters<typeof articleSdkFixture>[0],
   sameWebpBytes = false,
   mediaId = 'web-image-one',
+  large = false,
 ) {
   const f = articleSdkFixture(t);
   const repo = createCloudBaseArticleRepository(f.db, { mode: 'server' });
   const bytes = Buffer.from('original article pixels');
   const webBytes = sameWebpBytes ? bytes : Buffer.from('prepared web pixels');
+  const mobileBytes = Buffer.from('small');
+  const width = large ? 1280 : 64;
+  const height = width / 2;
   const digest = (value: Buffer) => createHash('sha256').update(value).digest('hex');
   const draft = await repo.create({
     actorId: 'admin',
@@ -278,8 +284,8 @@ async function webFixture(
     mimeType: sameWebpBytes ? ('image/webp' as const) : ('image/png' as const),
     byteSize: bytes.length,
     checksumSha256: digest(bytes),
-    width: 64,
-    height: 32,
+    width,
+    height,
   };
   f.put('articleMedia', image.id, image);
   await repo.releases.request('admin', {
@@ -302,20 +308,39 @@ async function webFixture(
       storagePath: webPath,
       mimeType: 'image/webp' as const,
       byteSize: webBytes.length,
-      width: 64,
-      height: 32,
+      width,
+      height,
       checksumSha256: digest(webBytes),
     },
   };
   const sidecar = { schemaVersion: 1, articleId: draft.id, media: { [image.id]: ready } };
   f.put('articleWebMedia', draft.id, sidecar);
+  const mobileInput = articleWebMediaObjectInput(source, digest(mobileBytes));
+  const mobilePath = `articles/2026/11/${mobileInput.logicalId}/${mobileInput.fileName}`;
+  const compact = {
+    ...ready,
+    web: {
+      ...ready.web,
+      storageFileId: `cloud://private/${mobilePath}`,
+      storagePath: mobilePath,
+      width: 768,
+      height: 384,
+      byteSize: mobileBytes.length,
+      checksumSha256: digest(mobileBytes),
+    },
+  };
   const reads: string[] = [];
   let duringRead = async () => {};
   let corrupt = false;
   const reader = createCloudBasePublicArticles(f.db, {
     getObjectAsBase64: async (fileId, options) => {
       reads.push(fileId);
-      const selected = fileId === originalStorage.storageFileId ? bytes : webBytes;
+      const selected =
+        fileId === originalStorage.storageFileId
+          ? bytes
+          : fileId === compact.web.storageFileId
+            ? mobileBytes
+            : webBytes;
       assert.equal(options.maxBytes, selected.length);
       await duringRead();
       return {
@@ -335,6 +360,8 @@ async function webFixture(
     reads,
     bytes,
     webBytes,
+    mobileBytes,
+    compact,
     file: `web-v1-${ready.web.checksumSha256}.webp`,
     setDuringRead(value: () => Promise<void>) {
       duringRead = value;
@@ -578,4 +605,65 @@ test('an own constructor media entry serves its ready image but an empty ready m
   x.f.put('articleWebMedia', x.draft.id, { schemaVersion: 1, articleId: x.draft.id, media: {} });
   assert.equal(await x.reader.media(x.image.id, x.file), null);
   assert.equal(x.reads.length, 1);
+});
+
+test('registered mobile hero uses a single sidecar read and keeps legacy delivery and withdrawal intact', async (t) => {
+  const x = await webFixture(t, false, 'web-image-one', true);
+  const mobileUrl = articleMobileMediaPath(x.image.id, x.compact.web.checksumSha256);
+  const mobileFile = mobileUrl.split('/').at(-1) ?? '';
+  const initial = await x.reader.getRender('web-image-guide', undefined, true);
+  assert.equal(initial?.schemaVersion, 1);
+  assert.equal(await x.reader.media(x.image.id, mobileFile), null);
+
+  const transaction = articleTransaction(x.f.db);
+  assert.equal(await registerArticleResponsiveMedia(transaction, x.compact), 'registered');
+  assert.equal(await registerArticleResponsiveMedia(transaction, x.compact), 'unchanged');
+  const start = x.f.calls.length;
+  const render = await x.reader.getRender('web-image-guide', undefined, true);
+  assert.equal(render?.schemaVersion, 2);
+  assert(render?.schemaVersion === 2);
+  assert.equal(render.mobile.url, mobileUrl);
+  assert.deepEqual(render.article, initial?.article);
+  assert.deepEqual(render.presentation, initial?.presentation);
+  assert.deepEqual(
+    x.f.calls
+      .slice(start)
+      .filter((c) => c.api === 'database.getDocument')
+      .map((c) => c.params.collectionName),
+    ['articleSlugs', 'articleAccepted', 'articleWebMedia'],
+  );
+  assert.deepEqual(await x.reader.getRender('web-image-guide'), initial);
+  const registryKey = [...x.f.rows.keys()].find((key) =>
+    key.startsWith('articleWebMedia/_responsive_'),
+  );
+  assert(registryKey);
+  const validRecord = x.f.rows.get(registryKey);
+  assert(validRecord);
+  x.f.rows.set(registryKey, { ...validRecord, mobile: { broken: true } });
+  assert.deepEqual(await x.reader.getRender('web-image-guide', undefined, true), initial);
+  await assert.rejects(x.reader.media(x.image.id, mobileFile));
+  x.f.rows.set(registryKey, validRecord);
+  assert.equal((await x.reader.media(x.image.id, x.file))?.body, x.webBytes.toString('base64'));
+  assert.equal(
+    (await x.reader.media(x.image.id, mobileFile))?.body,
+    x.mobileBytes.toString('base64'),
+  );
+
+  // Withdraw between the first reference read and bytes being ready to return.
+  const cold = createCloudBasePublicArticles(x.f.db, {
+    async getObjectAsBase64() {
+      await x.repo.releases.request('admin', {
+        operation: 'withdraw',
+        articleId: x.draft.id,
+        expectedRevision: 1,
+        requestId: 'withdraw-responsive-while-reading',
+      });
+      return { body: x.mobileBytes.toString('base64') };
+    },
+  });
+  assert.equal(await cold.media(x.image.id, mobileFile), null);
+  assert.equal(await x.reader.media(x.image.id, mobileFile), null, 'hot bytes are also revoked');
+  assert.equal(await x.reader.media(x.image.id, x.file), null);
+  assert.equal(await x.reader.getRender('web-image-guide', undefined, true), null);
+  await assert.rejects(registerArticleResponsiveMedia(transaction, x.compact));
 });

@@ -87,6 +87,35 @@ export const ArticleWebMediaDocumentSchema = z
   );
 export type ArticleWebMediaDocument = z.infer<typeof ArticleWebMediaDocumentSchema>;
 
+export const articleMobileWidth = 768;
+export const ArticleResponsiveMediaDocumentSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    desktop: ArticleWebMediaDocumentSchema,
+    mobile: z.record(mediaId, ArticleWebMediaReadySchema),
+  })
+  .strict()
+  .refine(
+    ({ desktop, mobile }) =>
+      Object.keys(mobile).length <= 20 &&
+      Object.entries(mobile).every(([id, compact]) => {
+        const standard = Object.hasOwn(desktop.media, id) ? desktop.media[id] : undefined;
+        return (
+          standard !== undefined &&
+          compact.source.mediaId === id &&
+          compact.sourceDigest === standard.sourceDigest &&
+          compact.web.width === articleMobileWidth &&
+          compact.web.width < standard.web.width &&
+          Math.abs(
+            compact.web.height -
+              Math.round((standard.web.height * compact.web.width) / standard.web.width),
+          ) <= 1 &&
+          compact.web.byteSize < standard.web.byteSize
+        );
+      }),
+  );
+export type ArticleResponsiveMediaDocument = z.infer<typeof ArticleResponsiveMediaDocumentSchema>;
+
 const descriptorSchema = z
   .object({
     sourceSha256: hash,
@@ -115,6 +144,47 @@ export const ArticleWebPresentationSchema = z
   );
 export type ArticleWebPresentation = z.infer<typeof ArticleWebPresentationSchema>;
 export type ArticleWebPresentationArticle = Pick<PublishedArticle, 'articleId' | 'media'>;
+
+export const ArticleMobileWebPresentationSchema = z
+  .object({
+    mediaId,
+    sourceSha256: hash,
+    url: z.string().max(512),
+    width: z.literal(articleMobileWidth),
+    sha256: hash,
+  })
+  .strict();
+export type ArticleMobileWebPresentation = z.infer<typeof ArticleMobileWebPresentationSchema>;
+
+export const publicArticleMediaFile =
+  /^(?:[a-f0-9]{64}\.(?:jpg|png|webp)|web-v[12]-[a-f0-9]{64}\.webp)$/;
+
+export function articleMobileMediaPath(id: string, checksum: string): string {
+  return `/media/articles/${mediaId.parse(id)}/web-v2-${hash.parse(checksum)}.webp`;
+}
+
+export function parseArticleMobileWebPresentation(
+  article: ArticleWebPresentationArticle,
+  desktop: ArticleWebPresentation,
+  input: unknown,
+): ArticleMobileWebPresentation {
+  const mobile = ArticleMobileWebPresentationSchema.parse(input);
+  const standard = Object.hasOwn(desktop.media, mobile.mediaId)
+    ? desktop.media[mobile.mediaId]
+    : undefined;
+  const original = Object.hasOwn(article.media, mobile.mediaId)
+    ? article.media[mobile.mediaId]
+    : undefined;
+  if (
+    !original ||
+    !standard ||
+    original.sha256 !== mobile.sourceSha256 ||
+    standard.width <= mobile.width ||
+    mobile.url !== articleMobileMediaPath(mobile.mediaId, mobile.sha256)
+  )
+    throw Error('Article mobile image differs from the published source');
+  return mobile;
+}
 
 /** Only original file facts enter the digest; editing text, alt or dates does not replace a file. */
 export function articleWebMediaSource(input: unknown): ArticleWebMediaSource {

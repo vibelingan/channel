@@ -25,6 +25,27 @@ test('public article routes are read-only, bounded and explicitly disabled until
   assert.deepEqual(JSON.parse(response.body), { ok: true, data: { articles: [], next: null } });
 });
 
+test('responsive article mode is explicit and cannot modify a legacy request', async () => {
+  const modes: boolean[] = [];
+  const reader: PublicArticles = {
+    ...articles,
+    getRender: async (_slug, _timings, responsive) => {
+      modes.push(responsive === true);
+      return null;
+    },
+  };
+  const path = '/api/articles/slug/missing';
+  assert.equal((await call(`${path}?view=render-web-v1`, reader)).statusCode, 404);
+  assert.equal((await call(`${path}?view=render-web-v1&responsive=1`, reader)).statusCode, 404);
+  for (const query of [
+    'responsive=1',
+    'view=render-web-v1&responsive=0',
+    'view=render-web-v1&responsive=1&responsive=1',
+  ])
+    assert.equal((await call(`${path}?${query}`, reader)).statusCode, 400);
+  assert.deepEqual(modes, [false, true]);
+});
+
 test('render-web-v1 is explicit and rejects unknown or duplicate views before reading articles', async () => {
   const calls: string[] = [];
   const reader: PublicArticles = {

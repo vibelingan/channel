@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { ArticleContentSchema } from './article.ts';
 import { articlePageDataShape, parsePublishedArticle } from './publication.ts';
-import { ArticleWebPresentationSchema, parseArticleWebPresentation } from './web-media.ts';
+import {
+  ArticleMobileWebPresentationSchema,
+  ArticleWebPresentationSchema,
+  parseArticleMobileWebPresentation,
+  parseArticleWebPresentation,
+} from './web-media.ts';
 
 /** A public list never needs the document body, storage location or editor identity. */
 export const ArticleSummarySchema = z
@@ -53,6 +58,23 @@ export type ArticleRenderWebV1 = z.infer<typeof ArticleRenderWebV1Schema>;
 export function parseArticleRenderWebV1(input: unknown): ArticleRenderWebV1 {
   return ArticleRenderWebV1Schema.parse(input);
 }
+const ArticleRenderWebV2Schema = z
+  .object({
+    schemaVersion: z.literal(2),
+    article: z.unknown().transform(parsePublishedArticle),
+    presentation: ArticleWebPresentationSchema,
+    mobile: ArticleMobileWebPresentationSchema,
+  })
+  .strict()
+  .transform((value) => {
+    const presentation = parseArticleWebPresentation(value.article, value.presentation);
+    const mobile = parseArticleMobileWebPresentation(value.article, presentation, value.mobile);
+    return { ...value, presentation, mobile };
+  });
+export type ArticleRenderWebV2 = z.infer<typeof ArticleRenderWebV2Schema>;
+export function parseArticleRenderWebV2(input: unknown): ArticleRenderWebV2 {
+  return ArticleRenderWebV2Schema.parse(input);
+}
 /** Numeric diagnostics for one successful public image read, not stored article data. */
 export interface ArticleMediaTimings {
   referenceBeforeMs: number;
@@ -78,7 +100,8 @@ export interface PublicArticles {
   getRender(
     slug: string,
     onTiming?: (timings: ArticleRenderTimings) => void,
-  ): Promise<ArticleRenderWebV1 | null>;
+    responsive?: boolean,
+  ): Promise<ArticleRenderWebV1 | ArticleRenderWebV2 | null>;
   media(
     id: string,
     file: string,

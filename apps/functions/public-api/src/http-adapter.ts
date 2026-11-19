@@ -389,7 +389,13 @@ async function routeGet(
       }
       if (segments.length === 3 && segments[1] === 'slug') {
         const views = params.getAll('view');
-        if (views.length > 1 || (views.length === 1 && views[0] !== 'render-web-v1'))
+        const responsive = params.getAll('responsive');
+        if (
+          views.length > 1 ||
+          (views.length === 1 && views[0] !== 'render-web-v1') ||
+          (responsive.length > 0 &&
+            (views.length !== 1 || responsive.length !== 1 || responsive[0] !== '1'))
+        )
           return jsonResponse(
             event,
             config,
@@ -400,9 +406,13 @@ async function routeGet(
         const slug = decodeSegment(segments[2] ?? '');
         let timings: ArticleRenderTimings | undefined;
         const article = views.length
-          ? await config.articles.getRender(slug, (measured) => {
-              timings = measured;
-            })
+          ? await config.articles.getRender(
+              slug,
+              (measured) => {
+                timings = measured;
+              },
+              responsive.length === 1,
+            )
           : await config.articles.get(slug);
         return jsonResponse(
           event,

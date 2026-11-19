@@ -21,6 +21,10 @@ const mediaSchema = z
     mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']),
     width: z.number().int().min(1).max(16384),
     height: z.number().int().min(1).max(16384),
+    mobile: z
+      .object({ url: z.string().min(1).max(4096), width: z.literal(768) })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -32,14 +36,7 @@ export function renderArticle(
   checkJsonBudget(doc);
   if (!['public', 'preview'].includes(options.mode))
     throw new Error('Explicit article render mode required');
-  const firstBlock =
-    options.mode === 'public'
-      ? doc.document.content.find(
-          (node) =>
-            (node.type !== 'paragraph' && node.type !== 'heading') ||
-            node.content.some((child) => child.type === 'hardBreak' || !!child.text.trim()),
-        )
-      : undefined;
+  const firstBlock = options.mode === 'public' ? firstArticleContentBlock(doc) : undefined;
   const mediaIds = new Set<string>();
   const children = (nodes: ArticleNode[]) => nodes.map(html).join('');
   const alignment = (value: string | null) => (value ? ` class="article-align-${value}"` : '');
@@ -86,12 +83,35 @@ export function renderArticle(
         } else if (!safeArticleHref(media.url) || media.url.startsWith('#'))
           throw new Error('Invalid public article image URL');
         mediaIds.add(id);
+        if (
+          media.mobile &&
+          (options.mode !== 'public' ||
+            media.kind !== 'public' ||
+            !media.mobile.url.startsWith('/') ||
+            !safeArticleHref(media.mobile.url) ||
+            /[\s,]/u.test(media.mobile.url) ||
+            /[\s,]/u.test(media.url) ||
+            media.mobile.width >= media.width)
+        )
+          throw new Error('Invalid responsive article image');
         const priority = media.kind === 'public' && node === firstBlock;
-        return `<figure class="article-image article-image-${node.attrs.align}"><img src="${escapeHtml(media.url)}" alt="${escapeHtml(node.attrs.alt)}" width="${media.width}" height="${media.height}" loading="${priority ? 'eager' : 'lazy'}"${priority ? ' fetchpriority="high"' : ''} decoding="async">${node.attrs.caption ? `<figcaption>${escapeHtml(node.attrs.caption)}</figcaption>` : ''}</figure>`;
+        const responsive =
+          priority && media.mobile
+            ? ` srcset="${escapeHtml(media.mobile.url)} ${media.mobile.width}w, ${escapeHtml(media.url)} ${media.width}w" sizes="(min-width: 1024px) 704px, (min-width: 768px) 720px, (min-width: 640px) calc(100vw - 48px), calc(100vw - 32px)"`
+            : '';
+        return `<figure class="article-image article-image-${node.attrs.align}"><img src="${escapeHtml(media.url)}" alt="${escapeHtml(node.attrs.alt)}" width="${media.width}" height="${media.height}" loading="${priority ? 'eager' : 'lazy'}"${priority ? ' fetchpriority="high"' : ''} decoding="async"${responsive}>${node.attrs.caption ? `<figcaption>${escapeHtml(node.attrs.caption)}</figcaption>` : ''}</figure>`;
       }
     }
   }
   return { html: html(doc.document), text: articleTextFromDocument(doc), mediaIds: [...mediaIds] };
+}
+
+export function firstArticleContentBlock(doc: ArticleDocument) {
+  return doc.document.content.find(
+    (node) =>
+      (node.type !== 'paragraph' && node.type !== 'heading') ||
+      node.content.some((child) => child.type === 'hardBreak' || !!child.text.trim()),
+  );
 }
 
 export function articleText(input: unknown): string {

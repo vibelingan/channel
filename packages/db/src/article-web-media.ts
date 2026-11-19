@@ -1,11 +1,15 @@
+import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { firstArticleContentBlock } from '@vibelingan-channel/articles';
 import { articleIdentity } from '@vibelingan-channel/articles/media';
+import { parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 import type {
   ArticleStore,
   ArticleStoreTransaction,
 } from '@vibelingan-channel/articles/transaction-store';
 import { z } from 'zod';
 import {
+  ArticleResponsiveMediaDocumentSchema,
   ArticleWebMediaDocumentSchema,
   type ArticleWebMediaReady,
   ArticleWebMediaReadySchema,
@@ -51,6 +55,67 @@ export async function registerArticleWebMedia(
       media: { ...(current?.media ?? {}), [entry.source.mediaId]: entry },
     });
     await store.write('articleWebMedia', next.articleId, next);
+    return 'registered';
+  });
+}
+function responsiveKey(articleId: string) {
+  // Starts with an underscore, outside the alphabet for the existing article IDs.
+  return `_responsive_${createHash('sha256').update(articleIdentity.parse(articleId)).digest('hex')}`;
+}
+
+export async function readArticleResponsiveMedia(
+  store: Pick<ArticleStore, 'read'>,
+  articleId: string,
+) {
+  const key = responsiveKey(articleId);
+  const raw = await store.read('articleWebMedia', key);
+  if (raw === null) return null;
+  const value = ArticleResponsiveMediaDocumentSchema.parse(document(raw, key));
+  if (value.desktop.articleId !== articleId)
+    throw Error('Responsive article media identity mismatch');
+  for (const entry of [...Object.values(value.desktop.media), ...Object.values(value.mobile)])
+    assertStoragePath(entry);
+  return value;
+}
+
+export async function registerArticleResponsiveMedia(
+  transaction: ArticleStoreTransaction,
+  input: unknown,
+): Promise<'registered' | 'unchanged'> {
+  const entry = ArticleWebMediaReadySchema.parse(input);
+  assertStoragePath(entry);
+  const { articleId, mediaId } = entry.source;
+  return transaction(async (store) => {
+    const raw = await store.read('articleMedia', mediaId);
+    if (raw === null) throw Error('Article web image original is missing');
+    assertArticleWebMediaSource(entry, document(raw, mediaId));
+    const published = await store.read('articleAccepted', articleId);
+    if (published === null) throw Error('Responsive image needs a published article');
+    const article = parsePublishedArticle(document(published, articleId).publication);
+    const front = firstArticleContentBlock(article.content.body);
+    if (
+      article.articleId !== articleId ||
+      front?.type !== 'articleImage' ||
+      front.attrs.mediaId !== mediaId ||
+      !Object.hasOwn(article.media, mediaId) ||
+      article.media[mediaId]?.sha256 !== entry.source.checksumSha256
+    )
+      throw Error('Responsive image is no longer the published first image');
+    const desktop = await readArticleWebMedia(store, articleId);
+    if (!desktop || !Object.keys(article.media).every((id) => Object.hasOwn(desktop.media, id)))
+      throw Error('All original v1 article image records must be ready');
+    const current = await readArticleResponsiveMedia(store, articleId);
+    const previous =
+      current && Object.hasOwn(current.mobile, mediaId) ? current.mobile[mediaId] : undefined;
+    if (previous && !isDeepStrictEqual(previous, entry))
+      throw Error('An existing responsive article image must not be replaced');
+    const next = ArticleResponsiveMediaDocumentSchema.parse({
+      schemaVersion: 2,
+      desktop,
+      mobile: { ...(current?.mobile ?? {}), [mediaId]: entry },
+    });
+    if (isDeepStrictEqual(current, next)) return 'unchanged';
+    await store.write('articleWebMedia', responsiveKey(articleId), next);
     return 'registered';
   });
 }

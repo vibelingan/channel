@@ -4,6 +4,7 @@ import type { ArticlePageData } from '@vibelingan-channel/articles/build';
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
 import { articleMediaPath } from '@vibelingan-channel/articles/publication';
 import {
+  type ArticleMobileWebPresentation,
   type ArticleWebPresentation,
   parseArticleWebPresentation,
 } from '@vibelingan-channel/articles/web-media';
@@ -60,6 +61,7 @@ function displayMedia(
   article: ArticlePageData,
   location: typeof publicBlogLocation,
   presentation?: ArticleWebPresentation,
+  mobile?: ArticleMobileWebPresentation,
 ) {
   const prepared = presentation ? parseArticleWebPresentation(article, presentation).media : {};
   return Object.fromEntries(
@@ -73,6 +75,9 @@ function displayMedia(
           mimeType: web?.mimeType ?? original.mimeType,
           width: web?.width ?? original.width,
           height: web?.height ?? original.height,
+          ...(mobile?.mediaId === id
+            ? { mobile: { url: mediaUrl(mobile.url, location), width: mobile.width } }
+            : {}),
         },
       ];
     }),
@@ -83,10 +88,11 @@ export function articleBody(
   article: ArticlePageData,
   location = publicBlogLocation,
   presentation?: ArticleWebPresentation,
+  mobile?: ArticleMobileWebPresentation,
 ): string {
   return renderArticle(article.content.body, {
     mode: 'public',
-    media: displayMedia(article, location, presentation),
+    media: displayMedia(article, location, presentation, mobile),
   }).html;
 }
 

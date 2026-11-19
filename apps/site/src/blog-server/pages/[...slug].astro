@@ -1,12 +1,16 @@
 ---
 import type { ArticleSummary } from '@vibelingan-channel/articles/public-read';
-import type { ArticleWebPresentation } from '@vibelingan-channel/articles/web-media';
+import type {
+  ArticleMobileWebPresentation,
+  ArticleWebPresentation,
+} from '@vibelingan-channel/articles/web-media';
 import BlogView from '../../components/BlogView.astro';
 import { publicArticleForRender, publicArticleList } from '../../lib/blog/server-client.ts';
 import NotFound from '../../pages/404.astro';
 const slug = Astro.params.slug;
 let article = null;
 let presentation: ArticleWebPresentation | undefined;
+let mobile: ArticleMobileWebPresentation | undefined;
 let articles: ArticleSummary[] = [];
 let next = null;
 let unavailable = false;
@@ -21,6 +25,7 @@ try {
     );
     article = rendered?.article ?? null;
     presentation = rendered?.presentation;
+    if (rendered?.format === 'render-web-v2') mobile = rendered.mobile;
     if (rendered) Astro.response.headers.set('X-Article-Presentation', rendered.format);
   } else if (slug) article = null;
   else {
@@ -40,4 +45,4 @@ if (unavailable) {
   Astro.response.headers.set('X-Robots-Tag', 'noindex');
 } else if (slug && !article) Astro.response.status = 404;
 ---
-{unavailable ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : slug && !article ? <NotFound /> : <BlogView articles={articles} article={article} presentation={presentation} next={next} server />}
+{unavailable ? <html lang="en"><head><title>Insights temporarily unavailable</title><meta name="robots" content="noindex" /></head><body><h1>Insights temporarily unavailable</h1><p>Please try again shortly.</p></body></html> : slug && !article ? <NotFound /> : <BlogView articles={articles} article={article} presentation={presentation} mobile={mobile} next={next} server />}

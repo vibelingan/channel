@@ -1,13 +1,11 @@
+import { publicArticleMediaFile } from '@vibelingan-channel/articles/web-media';
 import type { APIRoute } from 'astro';
 import { publicArticleImage } from '../../../../../lib/blog/server-client.ts';
 export const GET: APIRoute = async ({ params }) => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   const id = params.id ?? '';
   const file = params.file ?? '';
-  if (
-    !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id) ||
-    !/^(?:[a-f0-9]{64}\.(?:jpg|png|webp)|web-v1-[a-f0-9]{64}\.webp)$/.test(file)
-  )
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id) || !publicArticleMediaFile.test(file))
     return new Response('Not found', { status: 404, headers });
   try {
     const result = await publicArticleImage(id, file);

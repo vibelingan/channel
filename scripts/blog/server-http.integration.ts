@@ -21,7 +21,10 @@ import {
   createCloudBaseArticleRepository,
 } from '../../packages/db/src/article-repository.ts';
 import { articleSdkFixture } from '../../packages/db/src/article-sdk-fixture.test-helper.ts';
-import { registerArticleWebMedia } from '../../packages/db/src/article-web-media.ts';
+import {
+  registerArticleResponsiveMedia,
+  registerArticleWebMedia,
+} from '../../packages/db/src/article-web-media.ts';
 import {
   type StoredMediaObject,
   objectStoragePath,
@@ -73,6 +76,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     },
   });
   let offline = false;
+  let oldApi = false;
   let serverOrigin = '';
   let mediaProxyRequests = 0;
   const api = createServer(async (req, res) => {
@@ -120,7 +124,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       return;
     }
     const result = await handlePublicApiEvent(
-      { httpMethod: req.method, path: req.url, headers: {} },
+      {
+        httpMethod: req.method,
+        path: oldApi ? req.url?.replace('&responsive=1', '') : req.url,
+        headers: {},
+      },
       { articles },
     );
     res.writeHead(result.statusCode, result.headers);
@@ -148,6 +156,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       PORT: String(address.port),
       BLOG_API_ORIGIN: `http://127.0.0.1:${apiAddress.port}`,
       BLOG_WEB_IMAGES_ENABLED: '1',
+      BLOG_RESPONSIVE_ARTICLE: content.slug,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -223,11 +232,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
         document: {
           type: 'doc',
           content: [
-            ...content.body.document.content,
             {
               type: 'articleImage',
               attrs: { mediaId: imageId, alt: 'Factory HTTP image', caption: '' },
             },
+            ...content.body.document.content,
           ],
         },
       },
@@ -325,7 +334,7 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.match(html, /index,follow/);
   const acceptedBeforePreparation = structuredClone(f.rows.get(`articleAccepted/${draft.id}`));
   const checkpoints: StoredMediaObject[] = [];
-  const prepared = await prepareArticleWebMedia({
+  const prepare: Parameters<typeof prepareArticleWebMedia>[0] = {
     active: activeImage,
     storage: {
       async getObjectAsBase64(id) {
@@ -353,7 +362,8 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
       checkpoints.push({ ...target });
     },
     register: (entry) => registerArticleWebMedia(articleTransaction(f.db), entry),
-  });
+  };
+  const prepared = await prepareArticleWebMedia(prepare);
   assert.equal(checkpoints.length, 1);
   assert.deepEqual(f.rows.get(`articleAccepted/${draft.id}`), acceptedBeforePreparation);
   const rendered = await get('/blog/manufacturing-guide/');
@@ -395,6 +405,47 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     404,
     'A logical backend media path must not be mistaken for a website image URL',
   );
+  const prepareMobile = {
+    ...prepare,
+    mobileWithStandard: prepared.entry,
+    register: (entry: typeof prepared.entry) =>
+      registerArticleResponsiveMedia(articleTransaction(f.db), entry),
+  };
+  const mobile = await prepareArticleWebMedia(prepareMobile);
+  assert.equal(mobile.entry.web.width, 768);
+  assert(mobile.entry.web.byteSize < prepared.entry.web.byteSize);
+  assert.equal(checkpoints.length, 2);
+  assert.equal(
+    (await prepareArticleWebMedia({ ...prepareMobile, existing: mobile.entry })).objectWrites,
+    0,
+  );
+  assert.equal(checkpoints.length, 2);
+  assert.deepEqual(f.rows.get(`articleAccepted/${draft.id}`), acceptedBeforePreparation);
+  const responsive = await get('/blog/manufacturing-guide/');
+  assert.equal(responsive.headers.get('x-article-presentation'), 'render-web-v2');
+  const responsiveHtml = await responsive.text();
+  const mobilePath = webPath.replace(
+    /web-v1-[a-f0-9]+\.webp$/,
+    `web-v2-${mobile.entry.web.checksumSha256}.webp`,
+  );
+  assert.match(responsiveHtml, /alt="Factory HTTP image"/);
+  assert.equal(renderedArticleImagePath(responsiveHtml), webPath);
+  assert(responsiveHtml.includes(`srcset="${mobilePath} 768w, ${webPath} 1228w"`));
+  assertArticleSchemaImage(responsiveHtml, webPath);
+  const mobileResponse = await get(mobilePath);
+  assert.equal(mobileResponse.status, 200);
+  assert.equal(mobileResponse.headers.get('content-type'), 'image/webp');
+  assert.equal(
+    createHash('sha256')
+      .update(Buffer.from(await mobileResponse.arrayBuffer()))
+      .digest('hex'),
+    mobile.entry.web.checksumSha256,
+  );
+  oldApi = true;
+  const fallback = await get('/blog/manufacturing-guide/');
+  assert.equal(fallback.headers.get('x-article-presentation'), 'render-web-v1');
+  assert(!(await fallback.text()).includes('web-v2-'));
+  oldApi = false;
   if (process.env.BLOG_SSR_BROWSER === '1') {
     const { chromium } = await import('@playwright/test');
     const browser = await chromium.launch({
@@ -404,6 +455,38 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     try {
       const evidence = new URL('../../output/blog-server-http/', import.meta.url);
       await mkdir(evidence, { recursive: true });
+      for (const [width, expectedPath] of [
+        [390, mobilePath],
+        [1440, webPath],
+      ] as const) {
+        const check = await browser.newPage({
+          viewport: { width, height: 844 },
+          deviceScaleFactor: 2,
+        });
+        try {
+          const requests: string[] = [];
+          check.on('request', (req) => {
+            const path = new URL(req.url()).pathname;
+            if (path === webPath || path === mobilePath) requests.push(path);
+          });
+          await check.goto(`${origin}/blog/manufacturing-guide/`);
+          const hero = check.locator('[data-blog-article] img[fetchpriority=high]');
+          assert.equal(
+            await hero.evaluate(async (img) => {
+              if (!(img instanceof HTMLImageElement)) throw Error('No first article image');
+              await img.decode();
+              return new URL(img.currentSrc).pathname;
+            }),
+            expectedPath,
+          );
+          assert.deepEqual(requests, [expectedPath]);
+          await hero.screenshot({
+            path: new URL(`article-responsive-${width}.png`, evidence).pathname,
+          });
+        } finally {
+          await check.close();
+        }
+      }
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
       await page.addInitScript(
         "addEventListener('pageshow',event=>{const key='blog-bfcache-observation';const entries=JSON.parse(sessionStorage.getItem(key)||'[]');entries.push({persisted:event.persisted,path:location.pathname});sessionStorage.setItem(key,JSON.stringify(entries));})",
@@ -541,6 +624,11 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     (await get(webPath)).status,
     404,
     'Removing the published image must revoke its web copy',
+  );
+  assert.equal(
+    (await get(mobilePath)).status,
+    404,
+    'Removing the published image also revokes its 768px URL',
   );
   const revokedProxy = await get(compatibleProxy);
   assert.equal(revokedProxy.status, 404, 'Old URLs retain the same withdrawal gate');

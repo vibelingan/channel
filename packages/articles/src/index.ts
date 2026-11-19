@@ -9,4 +9,9 @@ export {
   type ArticleBlock,
   type ArticleInline,
 } from './document.ts';
-export { articleText, renderArticle, type RenderOptions } from './render.ts';
+export {
+  articleText,
+  firstArticleContentBlock,
+  renderArticle,
+  type RenderOptions,
+} from './render.ts';

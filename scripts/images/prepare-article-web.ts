@@ -5,9 +5,12 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ArticleMediaRecordSchema, articleIdentity } from '../../packages/articles/src/media.ts';
 import { parsePublishedArticle } from '../../packages/articles/src/publication.ts';
+import { firstArticleContentBlock } from '../../packages/articles/src/render.ts';
 import { articleTransaction } from '../../packages/db/src/article-repository.ts';
 import {
+  readArticleResponsiveMedia,
   readArticleWebMedia,
+  registerArticleResponsiveMedia,
   registerArticleWebMedia,
 } from '../../packages/db/src/article-web-media.ts';
 import { createCloudBaseMediaStorage } from '../../packages/media-storage/src/cloudbase.ts';
@@ -25,6 +28,7 @@ const PlanSchema = z
         z
           .object({
             id: articleIdentity,
+            responsive: z.literal(true).optional(),
             sha256: z.string().regex(/^[a-f0-9]{64}$/),
           })
           .strict(),
@@ -98,22 +102,47 @@ export async function runArticleWebPreparation(input: Input) {
         throw Error('Selected original differs from the current published article');
       return { active, article };
     });
-    const existing = await transaction((store) => readArticleWebMedia(store, plan.articleId));
+    const { existing, standard } = await transaction(async (store) => {
+      const registration = await readArticleWebMedia(store, plan.articleId);
+      if (!target.responsive)
+        return { existing: registration?.media[target.id], standard: undefined };
+      const front = firstArticleContentBlock(state.article.content.body);
+      if (
+        front?.type !== 'articleImage' ||
+        front.attrs.mediaId !== target.id ||
+        !registration ||
+        !Object.keys(state.article.media).every((id) => Object.hasOwn(registration.media, id))
+      )
+        throw Error(
+          'Responsive preparation requires an existing first image and all v1 registrations',
+        );
+      const responsive = await readArticleResponsiveMedia(store, plan.articleId);
+      return {
+        existing: responsive?.mobile[target.id],
+        standard: registration.media[target.id],
+      };
+    });
     await save(`${target.id}-before.json`, {
       active: state.active,
       publication: state.article,
-      ready: existing?.media[target.id] ?? null,
+      ready: existing ?? null,
+      ...(standard ? { standard } : {}),
     });
     const result = await prepareArticleWebMedia({
       active: state.active,
-      existing: existing?.media[target.id],
+      existing,
+      mobileWithStandard: standard,
       storage,
       checkpoint: (object) => save(`${target.id}-upload-target.json`, object),
-      register: (entry) => registerArticleWebMedia(transaction, entry),
+      register: (entry) =>
+        target.responsive
+          ? registerArticleResponsiveMedia(transaction, entry)
+          : registerArticleWebMedia(transaction, entry),
     });
     await save(`${target.id}-ready.json`, result.entry);
     results.push({
       mediaId: target.id,
+      ...(target.responsive ? { responsive: true } : {}),
       status: result.status,
       sourceBytes: result.entry.source.byteSize,
       webBytes: result.entry.web.byteSize,

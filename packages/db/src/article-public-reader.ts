@@ -1,22 +1,28 @@
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { firstArticleContentBlock } from '@vibelingan-channel/articles';
 import { ArticleMediaRecordSchema, articleIdentity } from '@vibelingan-channel/articles/media';
 import {
   ArticleListSchema,
   type ArticleRenderTimings,
   type ArticleRenderWebV1,
+  type ArticleRenderWebV2,
   ArticleSummarySchema,
   type PublicArticles,
 } from '@vibelingan-channel/articles/public-read';
 import { articleMediaPath, parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 import type { ArticleStore } from '@vibelingan-channel/articles/transaction-store';
 import {
+  articleMobileMediaPath,
+  articleMobileWidth,
+  articleWebMediaPath,
   assertArticleWebMediaSource,
   buildArticleWebPresentation,
+  publicArticleMediaFile,
 } from '@vibelingan-channel/articles/web-media';
 import { z } from 'zod';
 import { type ArticleDatabase, articleTransaction } from './article-repository.ts';
-import { readArticleWebMedia } from './article-web-media.ts';
+import { readArticleResponsiveMedia, readArticleWebMedia } from './article-web-media.ts';
 
 const webByteLimit = 256 * 1024;
 const webByteEntries = 16;
@@ -109,17 +115,23 @@ export function createCloudBasePublicArticles(
           storage: image.storage,
         },
       };
-      if (file.startsWith('web-v1-')) {
-        const sidecar = await readArticleWebMedia(store, image.articleId);
-        const presentation = buildArticleWebPresentation(article, sidecar);
-        const descriptor = Object.hasOwn(presentation.media, id)
-          ? presentation.media[id]
-          : undefined;
-        if (!descriptor || descriptor.url !== `/media/articles/${id}/${file}`) return null;
-        const registered =
-          sidecar && Object.hasOwn(sidecar.media, id) ? sidecar.media[id] : undefined;
-        if (!registered) return null;
-        const ready = assertArticleWebMediaSource(registered, image);
+      if (file.startsWith('web-v')) {
+        const mobile = file.startsWith('web-v2-');
+        const record = mobile ? await readArticleResponsiveMedia(store, image.articleId) : null;
+        const sidecar = mobile
+          ? (record?.desktop ?? null)
+          : await readArticleWebMedia(store, image.articleId);
+        const registered = mobile ? record?.mobile : sidecar?.media;
+        if (!registered || !Object.hasOwn(registered, id)) return null;
+        if (!mobile) {
+          const presentation = buildArticleWebPresentation(article, sidecar);
+          if (!Object.hasOwn(presentation.media, id)) return null;
+        }
+        const ready = assertArticleWebMediaSource(registered[id], image);
+        const expected = mobile
+          ? articleMobileMediaPath(id, ready.web.checksumSha256)
+          : articleWebMediaPath(id, ready.web.checksumSha256);
+        if (expected !== `/media/articles/${id}/${file}`) return null;
         return {
           storageFileId: ready.web.storageFileId,
           byteSize: ready.web.byteSize,
@@ -143,17 +155,48 @@ export function createCloudBasePublicArticles(
       if (!validSlug(slug)) return null;
       return transaction((store) => bySlug(store, slug));
     },
-    getRender: async (slug, onTiming): Promise<ArticleRenderWebV1 | null> => {
+    getRender: async (
+      slug,
+      onTiming,
+      responsive,
+    ): Promise<ArticleRenderWebV1 | ArticleRenderWebV2 | null> => {
       if (!validSlug(slug)) return null;
       const started = performance.now();
       const result = await transaction(async (store) => {
         const timings: Omit<ArticleRenderTimings, 'totalMs'> = { slugMs: 0, publicationMs: 0 };
         const article = await bySlug(store, slug, timings);
         if (!article) return null;
-        const hasMedia = Object.keys(article.media).length > 0;
+        const ids = Object.keys(article.media);
         const mediaStarted = performance.now();
-        const sidecar = hasMedia ? await readArticleWebMedia(store, article.articleId) : null;
-        if (hasMedia) timings.webMediaMs = performance.now() - mediaStarted;
+        const front =
+          responsive && ids.length ? firstArticleContentBlock(article.content.body) : null;
+        if (front?.type === 'articleImage') {
+          // A failed optional registration must not take down an otherwise readable article.
+          // Requests for the actual small bytes still fail closed in mediaReference.
+          const record = await readArticleResponsiveMedia(store, article.articleId).catch(
+            () => null,
+          );
+          const id = front.attrs.mediaId;
+          const mobile = record && Object.hasOwn(record.mobile, id) ? record.mobile[id] : undefined;
+          if (record && mobile && ids.every((id) => Object.hasOwn(record.desktop.media, id))) {
+            const value: ArticleRenderWebV2 = {
+              schemaVersion: 2,
+              article,
+              presentation: buildArticleWebPresentation(article, record.desktop),
+              mobile: {
+                mediaId: id,
+                sourceSha256: mobile.source.checksumSha256,
+                width: articleMobileWidth,
+                url: articleMobileMediaPath(id, mobile.web.checksumSha256),
+                sha256: mobile.web.checksumSha256,
+              },
+            };
+            timings.webMediaMs = performance.now() - mediaStarted;
+            return { value, timings };
+          }
+        }
+        const sidecar = ids.length ? await readArticleWebMedia(store, article.articleId) : null;
+        if (ids.length) timings.webMediaMs = performance.now() - mediaStarted;
         const value: ArticleRenderWebV1 = {
           schemaVersion: 1,
           article,
@@ -209,17 +252,13 @@ export function createCloudBasePublicArticles(
       });
     },
     media: async (id, file, options) => {
-      if (
-        !articleIdentity.safeParse(id).success ||
-        !/^(?:[a-f0-9]{64}\.(?:jpg|png|webp)|web-v1-[a-f0-9]{64}\.webp)$/.test(file)
-      )
-        return null;
+      if (!articleIdentity.safeParse(id).success || !publicArticleMediaFile.test(file)) return null;
       const started = performance.now();
       const ref = await mediaReference(id, file);
       const referenceBeforeMs = performance.now() - started;
       if (!ref) return null;
       const key =
-        file.startsWith('web-v1-') && ref.byteSize <= webByteLimit
+        file.startsWith('web-v') && ref.byteSize <= webByteLimit
           ? JSON.stringify([ref.storageFileId, ref.sha256, ref.byteSize])
           : null;
       let cached = key === null ? undefined : webBytes.get(key);

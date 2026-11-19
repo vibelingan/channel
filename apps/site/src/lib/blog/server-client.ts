@@ -1,6 +1,7 @@
 import {
   ArticleListSchema,
   parseArticleRenderWebV1,
+  parseArticleRenderWebV2,
 } from '@vibelingan-channel/articles/public-read';
 import { parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 
@@ -123,12 +124,23 @@ export async function publicArticleForRender(slug: string) {
     const article = await publicArticle(slug);
     return article ? { article, presentation: { media: {} }, format: 'legacy' as const } : null;
   }
+  const responsive = process.env.BLOG_RESPONSIVE_ARTICLE === slug;
   const data = await json(
-    `/api/articles/slug/${encodeURIComponent(slug)}?view=render-web-v1`,
+    `/api/articles/slug/${encodeURIComponent(slug)}?view=render-web-v1${responsive ? '&responsive=1' : ''}`,
     512 * 1024,
   );
   if (data === null) return null;
   if (typeof data === 'object' && 'schemaVersion' in data) {
+    if (responsive && data.schemaVersion === 2) {
+      const result = parseArticleRenderWebV2(data);
+      if (result.article.content.slug !== slug) throw Error('Article API returned a different URL');
+      return {
+        article: result.article,
+        presentation: result.presentation,
+        mobile: result.mobile,
+        format: 'render-web-v2' as const,
+      };
+    }
     const result = parseArticleRenderWebV1(data);
     if (result.article.content.slug !== slug) throw Error('Article API returned a different URL');
     return {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   type ArticleWebMediaReady,
   ArticleWebMediaReadySchema,
+  articleMobileWidth,
   articleWebMediaObjectInput,
   articleWebMediaSource,
   articleWebMediaSourceDigest,
@@ -13,11 +14,15 @@ import {
   objectStoragePath,
 } from '../../packages/media-storage/src/index.ts';
 import { decodeCatalogImagePixels } from '../../packages/media-storage/src/pixels.ts';
-import { createCatalogWebImage } from '../../packages/media-storage/src/web-image.ts';
+import {
+  createArticleMobileWebImage,
+  createCatalogWebImage,
+} from '../../packages/media-storage/src/web-image.ts';
 
 interface PrepareInput {
   active: unknown;
   existing?: unknown;
+  mobileWithStandard?: unknown;
   storage: Pick<MediaStorageAdapter, 'getObjectAsBase64' | 'putObject'>;
   checkpoint(target: Readonly<StoredMediaObject>): Promise<void>;
   register(entry: ArticleWebMediaReady): Promise<'registered' | 'unchanged'>;
@@ -26,8 +31,19 @@ interface PrepareInput {
 /** Prepare only explicitly selected media. Publishing and original records are outside this function. */
 export async function prepareArticleWebMedia(input: PrepareInput) {
   const source = articleWebMediaSource(input.active);
+  const standard =
+    input.mobileWithStandard === undefined
+      ? undefined
+      : assertArticleWebMediaSource(input.mobileWithStandard, input.active);
+  if (standard && standard.web.width <= articleMobileWidth)
+    throw Error('The existing article image is already small enough');
   if (input.existing !== undefined && input.existing !== null) {
     const entry = assertArticleWebMediaSource(input.existing, input.active);
+    if (
+      standard &&
+      (entry.web.width !== articleMobileWidth || entry.web.byteSize >= standard.web.byteSize)
+    )
+      throw Error('Existing mobile article image differs from its expected size');
     return { status: await input.register(entry), entry, byteReads: 0, objectWrites: 0 };
   }
   if (typeof input.checkpoint !== 'function') throw Error('Durable image checkpoint required');
@@ -37,7 +53,14 @@ export async function prepareArticleWebMedia(input: PrepareInput) {
   });
   const bytes = verifiedBytes(original.body, source.byteSize, source.checksumSha256, 'source');
   await verifyPixels(bytes, source.mimeType, source.width, source.height, 'source');
-  const generated = await createCatalogWebImage(bytes, source.mimeType);
+  const generated = standard
+    ? await createArticleMobileWebImage(bytes, source.mimeType)
+    : await createCatalogWebImage(bytes, source.mimeType);
+  if (
+    standard &&
+    (generated.width !== articleMobileWidth || generated.byteSize >= standard.web.byteSize)
+  )
+    throw Error('Mobile article image does not reduce the width and byte count');
   if (generated.sourceSha256 !== source.checksumSha256)
     throw Error('Prepared article source differs');
   const object = articleWebMediaObjectInput(source, generated.checksumSha256);
