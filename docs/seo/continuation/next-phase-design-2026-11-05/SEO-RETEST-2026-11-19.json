@@ -4130,5 +4130,314 @@
       ],
       "renderOrigin": "ProductPublicVersion.changedAt"
     }
+  },
+  "searchConsoleFollowup": {
+    "observedAt": "2026-11-19T05:35:33.980034+00:00",
+    "property": "https://supplychainsai.com/",
+    "pageIndexing": {
+      "date": "2026-11-13",
+      "indexed": 528,
+      "excluded": 988,
+      "other4xx": 5,
+      "other4xxValidation": "Started"
+    },
+    "sitemaps": {
+      "index": {
+        "path": "/sitemap-index.xml",
+        "status": "Success",
+        "lastRead": "2026-11-19",
+        "discovered": 541
+      },
+      "blog": {
+        "path": "/blog/sitemap.xml",
+        "status": "Success",
+        "lastRead": "2026-11-19",
+        "discovered": 4,
+        "liveEntries": 4
+      },
+      "static": {
+        "path": "/sitemap-0.xml",
+        "status": "Success",
+        "lastRead": "2026-11-15",
+        "discovered": 537,
+        "liveEntries": 580,
+        "submittedDirectly": "2026-11-19",
+        "accepted": true,
+        "readBackAsStandaloneRow": true,
+        "gatewayFetch": {
+          "path": "/sitemap-0.xml",
+          "t": "2026-11-19T05:31:24.337Z",
+          "status": 200,
+          "bytes": 55383,
+          "matchesGooglePublishedCrawlerRange": true,
+          "completePublicReadback": {
+            "status": 200,
+            "mime": "application/xml",
+            "urls": 580,
+            "bytes": 55383,
+            "sha256": "9205094c85aa7c67e040c75c7245714f346f726eb4437b4f4e0f11f8d0a50463"
+          }
+        }
+      }
+    },
+    "performance": {
+      "type": "Web (text)",
+      "rangeStart": "2026-10-14",
+      "rangeEnd": "2026-11-17",
+      "impressions": 85,
+      "clicks": 3,
+      "ctrPercent": 3.5,
+      "averagePosition": 26.4
+    },
+    "videoIndexing": {
+      "date": "2026-11-16",
+      "indexed": 0,
+      "excluded": 2
+    },
+    "coreWebVitals": {
+      "date": "2026-11-13",
+      "mobileSufficientSamples": false,
+      "desktopSufficientSamples": false
+    }
+  },
+  "redirectReadOnlyFollowup": {
+    "rootDNS": {
+      "authority": ["ns3.dnsv4.com", "ns4.dnsv4.com"],
+      "cname": "supplychainsai.com.tcbaccess.tencentcloudbase.com",
+      "observedTTL": 600
+    },
+    "publicTLS": {
+      "hostnames": ["supplychainsai.com", "www.supplychainsai.com"],
+      "notAfter": "2027-01-17T00:59:59Z"
+    },
+    "cloudBase": {
+      "accessType": "DIRECT",
+      "protocol": "HTTP_AND_HTTPS",
+      "sku": "baas_pf_standard",
+      "payment": "prepayment",
+      "deductionMode": "credits",
+      "observedCurrentPeriodEdgeUsageCredits": 0
+    }
+  },
+  "categoryAndArticleGatewayPairedSamples": {
+    "method": "Unthrottled HTTP/1.1 over TLS. Alternate actual earphone category and article navigations. For each pair open a fresh connection, read HTML in full, then read the hero selected from the actual HTML using the same connection. For 12 responses match on x-request-id, path and status to CloudBase gateway access logs.",
+    "rows": [
+      {
+        "sample": 1,
+        "group": "category",
+        "kind": "page",
+        "at": "2026-11-19T05:28:42.326771+00:00",
+        "path": "/headphones/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 121130,
+        "clientFirstByteApproxMs": 1753.72,
+        "clientAfterSendHeadersMs": 830.77,
+        "clientSendPlusConnectionMs": 922.94,
+        "clientBodyMs": 4029.58,
+        "gatewayMs": 393,
+        "applicationTiming": null,
+        "upstreamMs": 366
+      },
+      {
+        "sample": 1,
+        "group": "category",
+        "kind": "image",
+        "at": "2026-11-19T05:28:42.326771+00:00",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 63062,
+        "clientFirstByteApproxMs": 1830.14,
+        "clientAfterSendHeadersMs": 1829.92,
+        "clientSendPlusConnectionMs": 0.22,
+        "clientBodyMs": 238.02,
+        "gatewayMs": 862,
+        "applicationTiming": "ci-record;dur=56.2, ci-storage;dur=512.4, ci-total;dur=569.2",
+        "upstreamMs": 851
+      },
+      {
+        "sample": 2,
+        "group": "article",
+        "kind": "page",
+        "at": "2026-11-19T05:28:49.108551+00:00",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 37099,
+        "clientFirstByteApproxMs": 2418.54,
+        "clientAfterSendHeadersMs": 1013.07,
+        "clientSendPlusConnectionMs": 1405.47,
+        "clientBodyMs": 833.29,
+        "gatewayMs": 621,
+        "applicationTiming": "article-read;dur=401.3, blog-handler;dur=407.3",
+        "upstreamMs": 547
+      },
+      {
+        "sample": 2,
+        "group": "article",
+        "kind": "image",
+        "at": "2026-11-19T05:28:49.108551+00:00",
+        "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 91902,
+        "clientFirstByteApproxMs": 1898.06,
+        "clientAfterSendHeadersMs": 1897.8,
+        "clientSendPlusConnectionMs": 0.26,
+        "clientBodyMs": 1613.58,
+        "gatewayMs": 1079,
+        "applicationTiming": "blog-handler;dur=835.7",
+        "upstreamMs": 957
+      },
+      {
+        "sample": 3,
+        "group": "article",
+        "kind": "page",
+        "at": "2026-11-19T05:28:57.262480+00:00",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 37099,
+        "clientFirstByteApproxMs": 3811.06,
+        "clientAfterSendHeadersMs": 901.85,
+        "clientSendPlusConnectionMs": 2909.21,
+        "clientBodyMs": 925.71,
+        "gatewayMs": 509,
+        "applicationTiming": "article-read;dur=297.2, blog-handler;dur=301.9",
+        "upstreamMs": 436
+      },
+      {
+        "sample": 3,
+        "group": "article",
+        "kind": "image",
+        "at": "2026-11-19T05:28:57.262480+00:00",
+        "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 91902,
+        "clientFirstByteApproxMs": 1813.01,
+        "clientAfterSendHeadersMs": 1812.76,
+        "clientSendPlusConnectionMs": 0.26,
+        "clientBodyMs": 1588.06,
+        "gatewayMs": 1006,
+        "applicationTiming": "blog-handler;dur=806.2",
+        "upstreamMs": 874
+      },
+      {
+        "sample": 4,
+        "group": "category",
+        "kind": "page",
+        "at": "2026-11-19T05:29:04.921169+00:00",
+        "path": "/headphones/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 121130,
+        "clientFirstByteApproxMs": 3433.82,
+        "clientAfterSendHeadersMs": 1188.07,
+        "clientSendPlusConnectionMs": 2245.75,
+        "clientBodyMs": 1915.45,
+        "gatewayMs": 283,
+        "applicationTiming": null,
+        "upstreamMs": 214
+      },
+      {
+        "sample": 4,
+        "group": "category",
+        "kind": "image",
+        "at": "2026-11-19T05:29:04.921169+00:00",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 63062,
+        "clientFirstByteApproxMs": 1922.28,
+        "clientAfterSendHeadersMs": 1922.05,
+        "clientSendPlusConnectionMs": 0.23,
+        "clientBodyMs": 422.78,
+        "gatewayMs": 504,
+        "applicationTiming": "ci-record;dur=51.3, ci-storage;dur=148.5, ci-total;dur=200.0",
+        "upstreamMs": 503
+      },
+      {
+        "sample": 5,
+        "group": "category",
+        "kind": "page",
+        "at": "2026-11-19T05:29:12.019926+00:00",
+        "path": "/headphones/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 121130,
+        "clientFirstByteApproxMs": 3568.39,
+        "clientAfterSendHeadersMs": 1135.47,
+        "clientSendPlusConnectionMs": 2432.92,
+        "clientBodyMs": 1528.53,
+        "gatewayMs": 220,
+        "applicationTiming": null,
+        "upstreamMs": 194
+      },
+      {
+        "sample": 5,
+        "group": "category",
+        "kind": "image",
+        "at": "2026-11-19T05:29:12.019926+00:00",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 63062,
+        "clientFirstByteApproxMs": 1551.56,
+        "clientAfterSendHeadersMs": 1551.29,
+        "clientSendPlusConnectionMs": 0.28,
+        "clientBodyMs": 435.08,
+        "gatewayMs": 565,
+        "applicationTiming": "ci-record;dur=44.5, ci-storage;dur=220.6, ci-total;dur=265.2",
+        "upstreamMs": 564
+      },
+      {
+        "sample": 6,
+        "group": "article",
+        "kind": "page",
+        "at": "2026-11-19T05:29:21.760486+00:00",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "protocol": 11,
+        "reused": false,
+        "bytes": 37099,
+        "clientFirstByteApproxMs": 5040.49,
+        "clientAfterSendHeadersMs": 1462.54,
+        "clientSendPlusConnectionMs": 3577.95,
+        "clientBodyMs": 1555,
+        "gatewayMs": 503,
+        "applicationTiming": "article-read;dur=304.7, blog-handler;dur=309.2",
+        "upstreamMs": 434
+      },
+      {
+        "sample": 6,
+        "group": "article",
+        "kind": "image",
+        "at": "2026-11-19T05:29:21.760486+00:00",
+        "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+        "status": 200,
+        "protocol": 11,
+        "reused": true,
+        "bytes": 91902,
+        "clientFirstByteApproxMs": 1477.74,
+        "clientAfterSendHeadersMs": 1477.62,
+        "clientSendPlusConnectionMs": 0.12,
+        "clientBodyMs": 1646.71,
+        "gatewayMs": 1135,
+        "applicationTiming": "blog-handler;dur=889.5",
+        "upstreamMs": 1014
+      }
+    ]
   }
 }

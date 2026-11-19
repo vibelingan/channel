@@ -41,6 +41,8 @@ www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核
 
 本次复核了两个域名的实际路由。www 的请求由专用跳转函数返回 301，路径和查询参数都保留。裸域的网页由腾讯静态托管直接回复，Blog 有独立入口，二者的 HTTP 和 HTTPS 共用路由。就现行的按域名和路径转发规则，把 www 的函数直接挂到裸域也会影响现有 HTTPS 页面。继续保留当前入口，通过腾讯现有能力或隔离入口验证永久跳转后再切换。 [腾讯域名管理接口](https://docs.cloudbase.net/en/api-reference/manager/node/domain) · [Google 永久跳转处理](https://developers.google.com/search/docs/crawling-indexing/301-redirects)
 
+随后确认了 DNS 和计费前置条件。裸域由 DNSPod 解析，实际 CNAME 指向现用 CloudBase 网关。DNSPod 的显性 URL 转发虽然能返回 301，但会与同名同线路的 CNAME 冲突。更换这条记录会把 HTTPS 官网也切到另一个入口。CloudBase 只读查询显示该环境已是预付费标准版，计费模式为资源点，11 月当期边缘加速用量为零。因此若采用 CloudBase 边缘加速，现有计费模式符合要求，仍会新增请求和流量消耗。官网在用证书只包含裸域与 www。如果需要隔离子域演练，须给那个子域单独准备证书。现阶段在原直连入口仍无法确认可返回 301 的开关，域名接入及账单均只读核查。 [DNSPod 同名记录限制](https://cloud.tencent.com/document/product/302/38661) · [CloudBase 边缘加速条件](https://docs.cloudbase.net/service/custom-domain)
+
 同轮又从官网读取 `/favicon.ico`，得到 404，页面明确引用的 `/favicon.svg` 可以打开。Google 早期抓取统计列出的两个 404 样例都指向这个 ICO 地址。兼容文件直接用现有 SVG 生成 16、32、48、64 像素四档。浏览器原有 SVG 引用保留。这项修复对应图标请求，网站正文、收录和排名另看各自的报告。 [原始抓取统计记录](../audit-2026-11-05/01-indexing-and-discovery.zh-CN.md) · [Google 网站图标说明](https://developers.google.com/search/docs/appearance/favicon-in-search)
 
 官网现已返回 200 和 `image/vnd.microsoft.icon`，3,332 字节与候选产物逐字节相同，四档图像均能识别。原 SVG 及独立测试的未知页面地址分别返回 200、404。Google 的历史抓取统计何时刷新另看平台。 [官网图标](https://supplychainsai.com/favicon.ico) · [发布回执](https://github.com/vibelingan/channel/actions/runs/44458542492)
