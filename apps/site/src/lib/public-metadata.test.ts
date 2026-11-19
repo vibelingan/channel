@@ -92,24 +92,25 @@ const extractPageMetadata = (relativePath: string, brandName: string) => {
   return { title, description };
 };
 
-const assertBaseLayoutBindings = async (
+const assertLayoutBindings = async (
   relativePath: string,
   expected: { title: string; description: string },
+  layout = 'BaseLayout',
 ) => {
   const { ast, diagnostics } = await parse(read(relativePath));
   assert.deepEqual(diagnostics, []);
   const layouts: ComponentNode[] = [];
   const visit = (node: AstroNode) => {
-    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if (node.type === 'component' && node.name === layout) layouts.push(node);
     if ('children' in node) {
       for (const child of node.children) visit(child);
     }
   };
   visit(ast);
-  assert.equal(layouts.length, 1, `${relativePath} renders one BaseLayout`);
+  assert.equal(layouts.length, 1, `${relativePath} renders one ${layout}`);
   assert.ok(
     layouts[0].attributes.every((attribute) => attribute.kind !== 'spread'),
-    `${relativePath} BaseLayout does not allow attribute spreads`,
+    `${relativePath} ${layout} does not allow attribute spreads`,
   );
   const attributes = new Map(
     layouts[0].attributes.map((attribute) => [
@@ -236,43 +237,44 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
   assert.equal(new Set(metadata.map(({ description }) => description)).size, metadata.length);
 
   await Promise.all([
-    assertBaseLayoutBindings('../pages/index.astro', {
+    assertLayoutBindings('../pages/index.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/headphones.astro', {
+    assertLayoutBindings(
+      '../pages/headphones.astro',
+      { title: 'seoTitle', description: 'seoDescription' },
+      'DocumentLayout',
+    ),
+    assertLayoutBindings('../pages/electronics-toys.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/electronics-toys.astro', {
+    assertLayoutBindings('../pages/ai-gadgets.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/ai-gadgets.astro', {
+    assertLayoutBindings('../pages/toys.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/toys.astro', {
+    assertLayoutBindings('../pages/misc.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/misc.astro', {
+    assertLayoutBindings('../pages/products/item.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/products/item.astro', {
+    assertLayoutBindings('../pages/privacy.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertBaseLayoutBindings('../pages/privacy.astro', {
-      title: 'seoTitle',
-      description: 'seoDescription',
-    }),
-    assertBaseLayoutBindings('../pages/oem.astro', {
+    assertLayoutBindings('../pages/oem.astro', {
       title: '`${meta.title} — ${brand.name}`',
       description: 'meta.description',
     }),
-    assertBaseLayoutBindings('../pages/portfolio.astro', {
+    assertLayoutBindings('../pages/portfolio.astro', {
       title: '`${meta.title} — ${brand.name}`',
       description: 'meta.description',
     }),

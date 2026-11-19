@@ -9,6 +9,6 @@ const pageSource = readFileSync(
 );
 
 test('headphones pins its canonical override to the trailing-slash path', () => {
-  assert.match(pageSource, /<BaseLayout[\s\S]*?canonicalPath="\/headphones\/"/);
-  assert.doesNotMatch(pageSource, /<BaseLayout[\s\S]*?canonicalPath="\/headphones"/);
+  assert.match(pageSource, /<DocumentLayout[\s\S]*?canonicalPath="\/headphones\/"/);
+  assert.doesNotMatch(pageSource, /<DocumentLayout[\s\S]*?canonicalPath="\/headphones"/);
 });

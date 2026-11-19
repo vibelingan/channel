@@ -39,6 +39,10 @@ www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核
 
 任何新的入口都先在隔离地址验证。用首页、带查询参数的分类路径及商品页验 HTTP GET/HEAD 一跳 301 并保留地址，同时读回原有 HTTPS 页面、文章、地图、真实 404、公开图片和受保护入口。涉及写入的接口和回调维持原有 HTTPS 合同，只在隔离环境验证请求方法及正文。测试失败时保留原入口，先确认恢复前的证书、DNS 和源站路由都可用。视频分段按自己的 206 与播放器拖动检查验收。海外静态子域的工作仍按原顺序排期。
 
+本次复核了两个域名的实际路由。www 的请求由专用跳转函数返回 301，路径和查询参数都保留。裸域的网页由腾讯静态托管直接回复，Blog 有独立入口，二者的 HTTP 和 HTTPS 共用路由。就现行的按域名和路径转发规则，把 www 的函数直接挂到裸域也会影响现有 HTTPS 页面。继续保留当前入口，通过腾讯现有能力或隔离入口验证永久跳转后再切换。 [腾讯域名管理接口](https://docs.cloudbase.net/en/api-reference/manager/node/domain) · [Google 永久跳转处理](https://developers.google.com/search/docs/crawling-indexing/301-redirects)
+
+同轮又从官网读取 `/favicon.ico`，得到 404，页面明确引用的 `/favicon.svg` 可以打开。Google 早期抓取统计列出的两个 404 样例都指向这个 ICO 地址。兼容文件直接用现有 SVG 生成 16、32、48、64 像素四档。浏览器原有 SVG 引用保留。这项修复对应图标请求，网站正文、收录和排名另看各自的报告。 [原始抓取统计记录](../audit-2026-11-05/01-indexing-and-discovery.zh-CN.md) · [Google 网站图标说明](https://developers.google.com/search/docs/appearance/favicon-in-search)
+
 补一个真实可用的 `/favicon.ico`，保留 SVG；不把其他未知路径转首页。OEM、Toys 的待收录需要核对真实内容和相关内链，不能断言分页就是它们未收录的唯一原因。
 
 ## 分段验收与恢复
