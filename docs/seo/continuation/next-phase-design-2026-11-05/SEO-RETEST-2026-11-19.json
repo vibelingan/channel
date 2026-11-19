@@ -5996,5 +5996,483 @@
       "desktopAvailable": false,
       "mobileAvailable": false
     }
+  },
+  "responsiveBlogHeroExperiment": {
+    "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+    "chrome": "149.0.7827.55",
+    "articlePath": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+    "imageSource": {
+      "sha256": "f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e",
+      "bytes": 2209843
+    },
+    "hero": {
+      "currentBytes": 91902,
+      "responsiveBytes": 33460
+    },
+    "fixedDelayMs": 650,
+    "cpuRate": 4,
+    "policy": "no site scripts; browser resource scheduling unchanged",
+    "samples": [
+      {
+        "condition": "mobile-128k",
+        "run": 1,
+        "markup": "original",
+        "heroPaintMs": 2584,
+        "lcpMs": 2584,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1604,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 953,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-128k",
+        "run": 2,
+        "markup": "responsive",
+        "heroPaintMs": 2128,
+        "lcpMs": 2128,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1157,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 505,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-128k",
+        "run": 3,
+        "markup": "responsive",
+        "heroPaintMs": 2124,
+        "lcpMs": 2124,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1160,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 508,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-128k",
+        "run": 4,
+        "markup": "original",
+        "heroPaintMs": 2572,
+        "lcpMs": 2572,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1604,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 951,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-128k",
+        "run": 5,
+        "markup": "original",
+        "heroPaintMs": 2572,
+        "lcpMs": 2572,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1604,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 953,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-128k",
+        "run": 6,
+        "markup": "responsive",
+        "heroPaintMs": 2124,
+        "lcpMs": 2124,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1159,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 506,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 1,
+        "markup": "original",
+        "heroPaintMs": 1812,
+        "lcpMs": 1812,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1013,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 360,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 2,
+        "markup": "responsive",
+        "heroPaintMs": 1568,
+        "lcpMs": 1568,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 785,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 134,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 3,
+        "markup": "responsive",
+        "heroPaintMs": 1564,
+        "lcpMs": 1564,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 785,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 134,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 4,
+        "markup": "original",
+        "heroPaintMs": 1812,
+        "lcpMs": 1812,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1014,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 362,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 5,
+        "markup": "original",
+        "heroPaintMs": 1816,
+        "lcpMs": 1816,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1013,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 362,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 358,
+        "displayHeight": 238.5625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "mobile-256k",
+        "run": 6,
+        "markup": "responsive",
+        "heroPaintMs": 1564,
+        "lcpMs": 1564,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 784,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 131,
+        "bytes": 33460,
+        "selection": "768",
+        "displayWidth": 358,
+        "displayHeight": 238.65625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "desktop-256k",
+        "run": 1,
+        "markup": "original",
+        "heroPaintMs": 1808,
+        "lcpMs": 1808,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1013,
+        "imageWaitMs": 651,
+        "imageDownloadMs": 362,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 704,
+        "displayHeight": 469.140625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      },
+      {
+        "condition": "desktop-256k",
+        "run": 2,
+        "markup": "responsive",
+        "heroPaintMs": 1792,
+        "lcpMs": 1792,
+        "lcpElement": "img",
+        "isImageLcp": true,
+        "imageMs": 1011,
+        "imageWaitMs": 652,
+        "imageDownloadMs": 359,
+        "bytes": 91902,
+        "selection": "original",
+        "displayWidth": 704,
+        "displayHeight": 469.140625,
+        "alt": "A pair of unbranded headphones, a plain cardboard box, a notebook and a checklist arranged on a desk for sample inspection",
+        "canonical": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+      }
+    ],
+    "scope": "website assets replayed locally on a controlled connection; no production changes",
+    "pilotObservation": "LCP was first recorded before the candidate image actually painted; final comparison gathered buffered paint entries after decode for both arms"
+  },
+  "apexRedirectAcceptance": {
+    "checkedAt": "2026-11-19T10:25:55.176Z",
+    "productionChanges": 0,
+    "passed": false,
+    "expectedFailureCount": 8,
+    "results": [
+      {
+        "method": "GET",
+        "url": "http://supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "http://supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "http://supplychainsai.com/headphones/?page=2",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "http://supplychainsai.com/headphones/?page=2",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "http://supplychainsai.com/blog/?seo_probe=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "http://supplychainsai.com/blog/?seo_probe=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "http://supplychainsai.com/__channel_seo_missing__/",
+        "status": 404,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "http://supplychainsai.com/__channel_seo_missing__/",
+        "status": 404,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "https://supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "https://supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "https://supplychainsai.com/headphones/?page=2",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "https://supplychainsai.com/headphones/?page=2",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "https://supplychainsai.com/blog/?seo_probe=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "https://supplychainsai.com/blog/?seo_probe=1",
+        "status": 200,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "https://supplychainsai.com/__channel_seo_missing__/",
+        "status": 404,
+        "location": null
+      },
+      {
+        "method": "HEAD",
+        "url": "https://supplychainsai.com/__channel_seo_missing__/",
+        "status": 404,
+        "location": null
+      },
+      {
+        "method": "GET",
+        "url": "http://www.supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/?seo_probe=one%20two&keep=1"
+      },
+      {
+        "method": "HEAD",
+        "url": "http://www.supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/?seo_probe=one%20two&keep=1"
+      },
+      {
+        "method": "GET",
+        "url": "http://www.supplychainsai.com/headphones/?page=2",
+        "status": 301,
+        "location": "https://supplychainsai.com/headphones/?page=2"
+      },
+      {
+        "method": "HEAD",
+        "url": "http://www.supplychainsai.com/headphones/?page=2",
+        "status": 301,
+        "location": "https://supplychainsai.com/headphones/?page=2"
+      },
+      {
+        "method": "GET",
+        "url": "http://www.supplychainsai.com/blog/?seo_probe=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/blog/?seo_probe=1"
+      },
+      {
+        "method": "HEAD",
+        "url": "http://www.supplychainsai.com/blog/?seo_probe=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/blog/?seo_probe=1"
+      },
+      {
+        "method": "GET",
+        "url": "http://www.supplychainsai.com/__channel_seo_missing__/",
+        "status": 301,
+        "location": "https://supplychainsai.com/__channel_seo_missing__/"
+      },
+      {
+        "method": "HEAD",
+        "url": "http://www.supplychainsai.com/__channel_seo_missing__/",
+        "status": 301,
+        "location": "https://supplychainsai.com/__channel_seo_missing__/"
+      },
+      {
+        "method": "GET",
+        "url": "https://www.supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/?seo_probe=one%20two&keep=1"
+      },
+      {
+        "method": "HEAD",
+        "url": "https://www.supplychainsai.com/?seo_probe=one%20two&keep=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/?seo_probe=one%20two&keep=1"
+      },
+      {
+        "method": "GET",
+        "url": "https://www.supplychainsai.com/headphones/?page=2",
+        "status": 301,
+        "location": "https://supplychainsai.com/headphones/?page=2"
+      },
+      {
+        "method": "HEAD",
+        "url": "https://www.supplychainsai.com/headphones/?page=2",
+        "status": 301,
+        "location": "https://supplychainsai.com/headphones/?page=2"
+      },
+      {
+        "method": "GET",
+        "url": "https://www.supplychainsai.com/blog/?seo_probe=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/blog/?seo_probe=1"
+      },
+      {
+        "method": "HEAD",
+        "url": "https://www.supplychainsai.com/blog/?seo_probe=1",
+        "status": 301,
+        "location": "https://supplychainsai.com/blog/?seo_probe=1"
+      },
+      {
+        "method": "GET",
+        "url": "https://www.supplychainsai.com/__channel_seo_missing__/",
+        "status": 301,
+        "location": "https://supplychainsai.com/__channel_seo_missing__/"
+      },
+      {
+        "method": "HEAD",
+        "url": "https://www.supplychainsai.com/__channel_seo_missing__/",
+        "status": 301,
+        "location": "https://supplychainsai.com/__channel_seo_missing__/"
+      }
+    ],
+    "fixtureControls": {
+      "allCorrect": true,
+      "rejectTemporaryRedirect": true,
+      "rejectLostQuery": true,
+      "rejectSoftMissingPage": true
+    }
   }
 }
