@@ -4505,11 +4505,7 @@
     },
     "confirmedLiveRelease": {
       "run": 44486733817,
-      "fullGate": [
-        44485654089,
-        44485654059,
-        44485654106
-      ],
+      "fullGate": [44485654089, 44485654059, 44485654106],
       "transferRequestWrittenMs": 30702,
       "transferHttpResponseMs": 41086,
       "transferStatus": 200,
