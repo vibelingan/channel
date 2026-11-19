@@ -7422,5 +7422,77 @@
       "htmlFirstByteMs": 2714,
       "source": "4252bca4024f1b452c11bf0fbffd67ae8318c3d6"
     }
+  },
+  "eveningSearchAndBranchReadback": {
+    "observedAt": "2026-11-19T12:02:59.341944+00:00",
+    "pageIndexing": {
+      "reportDate": "2026-11-13",
+      "indexed": 528,
+      "excluded": 988
+    },
+    "other4xx": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0,
+      "reportedLastCrawlDateRange": ["2026-11-03", "2026-11-07"]
+    },
+    "performance": {
+      "reportThrough": "2026-11-17",
+      "impressions": 85,
+      "clicks": 3
+    },
+    "video": {
+      "reportDate": "2026-11-16",
+      "indexed": 0,
+      "excluded": 2
+    },
+    "verifiedGoogleCrawlerTraffic": {
+      "summary": {
+        "received": 2,
+        "verified": 2,
+        "statusCounts": {
+          "200": 2
+        },
+        "startTime": "2026-11-19 13:00:00",
+        "endTime": "2026-11-19 19:58:09",
+        "matchedHistorical": 0,
+        "matchedWatch": 0,
+        "rangePublishedAt": "2026-11-18T15:45:52.000000",
+        "incompleteIfLimitReached": false
+      },
+      "verified": [
+        {
+          "kind": "other",
+          "path": "/robots.txt",
+          "status": 200,
+          "bytes": 557,
+          "timestamp": 1795066283454,
+          "imageBot": false
+        },
+        {
+          "kind": "/sitemap-0.xml",
+          "path": "/sitemap-0.xml",
+          "status": 200,
+          "bytes": 55383,
+          "timestamp": 1795066284337,
+          "imageBot": false
+        }
+      ]
+    },
+    "branchReadback": {
+      "previousSEOHead": "aea75550f612f3e72b6bafe9c89e425b89b7517e",
+      "main": "e698674fae2796db0e401f1839452a85a158f406",
+      "test": "2adb5d7abeada5c4786e6a6447c751d1dcbe7f21",
+      "lastStandardDeployment": 44241826949,
+      "runningPublicApi": "1b23c7edc4ad35c35bfff0fb031b9dc023f7c033",
+      "runningBlog": "4252bca4024f1b452c11bf0fbffd67ae8318c3d6",
+      "nonDocumentationFileChanges": 0
+    },
+    "gatewayTopology": {
+      "entries": 13,
+      "customNames": 2,
+      "customNamesOnDirect": 2,
+      "edgeBackedCustomNames": 0
+    }
   }
 }
