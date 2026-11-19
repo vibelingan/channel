@@ -258,7 +258,19 @@ try {
     );
     results.browser.push('existing gallery thumbnail changes the displayed photo');
   }
-  await live.goto(`${origin}/headphones/`);
+  // The server-rendered card works as a link before React attaches the inline detail handler.
+  // Wait for the mounted list to refresh; visibility alone only proves the link is present.
+  await Promise.all([
+    live.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === '/api/products' &&
+        url.searchParams.get('productFamily') === 'headphones' &&
+        response.ok()
+      );
+    }),
+    live.goto(`${origin}/headphones/`),
+  ]);
   const card = live.locator(`[data-product-card="${id}"]`);
   await card.waitFor();
   const listUrl = live.url();
