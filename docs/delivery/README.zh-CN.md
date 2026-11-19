@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 20 日（东京时间），工厂观看页已交付精简样式和按需加载的商品菜单。官网样式从 102,058 降到 27,021 字节，访客首次打开网页时少发四个分类请求。五次对五次的手机慢网实测，内容首次显示中位数 5.22→3.91 秒，海报显示中位数 6.06→5.31 秒。手机、电脑的菜单和视频跳到第 80 秒均实测通过。528 件商品公开版本、三篇文章正文及五张历史故障图已独立比对。Google 对历史 4xx 的复查仍显示已开始、5 项。 [正式发布回执](https://github.com/vibelingan/channel/actions/runs/44554929661/attempts/2) · [性能证据](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md#工厂观看页先下载自己需要的样式和数据) · [搜索复查](../seo/continuation/next-phase-design-2026-11-05/08-search-and-outcomes.zh-CN.md)
+
 11 月 19 日晚间，官网地图已改为使用工厂观看页实际播放的首选视频地址，按范围读取 1,024 字节返回 206。手机与电脑实际播放、跳到第 80 秒和首选出错时使用后备地址均已验证。独立核对 528 件商品版本、三篇文章正文和五张历史故障图，本次临时函数均已清理。Google 视频报告仍有待复查。观看页的手机慢网首屏为 6.16–7.89 秒，已用 Chrome 找到网页、海报、样式等待，并在本机隔离对照中测出压缩样式的收益。官网侧压缩还没有启用。 [官网发布回执](https://github.com/vibelingan/channel/actions/runs/44543334463) · [视频交付与索引状态](../seo/continuation/next-phase-design-2026-11-05/05-video-and-content.zh-CN.md#视频地图与播放器共用正式地址) · [性能证据](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md#11-月-19-日观看页首屏在等什么)
 
 11月19日SEO复查与性能复盘见[同一份执行记录](../seo/continuation/next-phase-design-2026-11-05/EXECUTION.zh-CN.md)。官网五张历史4xx图片再次完整读取成功，Google旧记录仍在复查；主域HTTP永久跳转、视频正式索引和整体手机性能尚未完成。文章首图的减重和优先加载已用历史Lighthouse与新增同条件Chrome对照分别验证；本轮六张商品图候选还在本地，未交付官网。
