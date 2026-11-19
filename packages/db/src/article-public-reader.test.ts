@@ -426,19 +426,14 @@ test('a warm public web image reuses only the bytes and still checks withdrawal'
   const warm = await x.reader.media(x.image.id, x.file, { measure: true });
   assert.equal(warm?.body, cold?.body);
   assert.equal(warm?.timings?.storageMs, 0);
+  assert.equal(warm?.timings?.referenceBeforeMs, 0);
+  assert.ok(warm?.timings && warm.timings.referenceAfterMs > 0);
   assert.equal(warm?.timings?.downloadMs, undefined);
   assert.deepEqual(x.reads, [x.ready.web.storageFileId]);
   const checks = x.f.calls.slice(start).filter((c) => c.api === 'database.getDocument');
   assert.deepEqual(
     checks.map((c) => c.params.collectionName),
-    [
-      'articleMedia',
-      'articleAccepted',
-      'articleWebMedia',
-      'articleMedia',
-      'articleAccepted',
-      'articleWebMedia',
-    ],
+    ['articleMedia', 'articleAccepted', 'articleWebMedia'],
   );
 
   await x.repo.releases.request('admin', {
@@ -647,6 +642,18 @@ test('registered mobile hero uses a single sidecar read and keeps legacy deliver
   assert.equal(
     (await x.reader.media(x.image.id, mobileFile))?.body,
     x.mobileBytes.toString('base64'),
+  );
+
+  const warmStart = x.f.calls.length;
+  const warmMobile = await x.reader.media(x.image.id, mobileFile, { measure: true });
+  assert.equal(warmMobile?.body, x.mobileBytes.toString('base64'));
+  assert.equal(warmMobile?.timings?.storageMs, 0);
+  assert.deepEqual(
+    x.f.calls
+      .slice(warmStart)
+      .filter((c) => c.api === 'database.getDocument')
+      .map((c) => c.params.collectionName),
+    ['articleMedia', 'articleAccepted', 'articleWebMedia'],
   );
 
   // Withdraw between the first reference read and bytes being ready to return.

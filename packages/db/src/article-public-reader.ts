@@ -63,7 +63,7 @@ export function createCloudBasePublicArticles(
 ): PublicArticles {
   const transaction = articleTransaction(db);
   // Hold only verified, immutable bytes for this function instance. Authorization stays live.
-  const webBytes = new Map<string, { body: string; expiresAt: number }>();
+  const webBytes = new Map<string, { body: string; expiresAt: number; storageFileId: string }>();
   const validSlug = (slug: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length <= 200;
   async function bySlug(
     store: ArticleStore,
@@ -254,18 +254,19 @@ export function createCloudBasePublicArticles(
     media: async (id, file, options) => {
       if (!articleIdentity.safeParse(id).success || !publicArticleMediaFile.test(file)) return null;
       const started = performance.now();
+      const key = file.startsWith('web-v') ? `${id}/${file}` : null;
+      const candidate = key === null ? undefined : webBytes.get(key);
+      // Read any in-memory candidate before checking the current public reference.
       const ref = await mediaReference(id, file);
-      const referenceBeforeMs = performance.now() - started;
+      const referenceMs = performance.now() - started;
       if (!ref) return null;
-      const key =
-        file.startsWith('web-v') && ref.byteSize <= webByteLimit
-          ? JSON.stringify([ref.storageFileId, ref.sha256, ref.byteSize])
-          : null;
-      let cached = key === null ? undefined : webBytes.get(key);
-      if (key !== null && cached && cached.expiresAt <= Date.now()) {
-        webBytes.delete(key);
-        cached = undefined;
-      }
+      const cached =
+        candidate &&
+        candidate.expiresAt > Date.now() &&
+        candidate.storageFileId === ref.storageFileId &&
+        ref.byteSize <= webByteLimit
+          ? candidate
+          : undefined;
       const storageStarted = performance.now();
       const result = cached
         ? { body: cached.body }
@@ -284,17 +285,24 @@ export function createCloudBasePublicArticles(
       )
         throw Error('Public article image bytes mismatch');
       const validationMs = performance.now() - validationStarted;
-      // A withdrawal while storage was reading must not release private bytes.
-      const referenceAfterStarted = performance.now();
-      const current = await mediaReference(id, file);
-      if (!current || !isDeepStrictEqual(current.authorization, ref.authorization)) return null;
-      const referenceAfterMs = performance.now() - referenceAfterStarted;
-      if (key !== null && !cached) {
-        if (!webBytes.has(key) && webBytes.size === webByteEntries) {
-          const oldest = webBytes.keys().next();
-          if (!oldest.done) webBytes.delete(oldest.value);
+      let referenceAfterMs = referenceMs;
+      if (!cached) {
+        // Recheck after the storage network request, which can overlap a withdrawal.
+        const referenceAfterStarted = performance.now();
+        const current = await mediaReference(id, file);
+        if (!current || !isDeepStrictEqual(current.authorization, ref.authorization)) return null;
+        referenceAfterMs = performance.now() - referenceAfterStarted;
+        if (key !== null && ref.byteSize <= webByteLimit) {
+          if (!webBytes.has(key) && webBytes.size === webByteEntries) {
+            const oldest = webBytes.keys().next();
+            if (!oldest.done) webBytes.delete(oldest.value);
+          }
+          webBytes.set(key, {
+            body: result.body,
+            expiresAt: Date.now() + webByteLifetimeMs,
+            storageFileId: ref.storageFileId,
+          });
         }
-        webBytes.set(key, { body: result.body, expiresAt: Date.now() + webByteLifetimeMs });
       }
       return {
         body: result.body,
@@ -302,7 +310,7 @@ export function createCloudBasePublicArticles(
         ...(options?.measure
           ? {
               timings: {
-                referenceBeforeMs,
+                referenceBeforeMs: cached ? 0 : referenceMs,
                 storageMs,
                 validationMs,
                 referenceAfterMs,
