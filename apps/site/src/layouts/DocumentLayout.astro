@@ -178,6 +178,7 @@ const serializedSchemaGraph = JSON.stringify(schemaGraph).replaceAll('<', '\\u00
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <title>{title}</title>
+    <slot name="head" />
   </head>
   <body class="h-full antialiased">
     <slot />
