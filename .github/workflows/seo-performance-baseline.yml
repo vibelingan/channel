@@ -9,16 +9,16 @@ on:
         default: before
         options: [before, after]
       scope:
-        description: Page loading or a separate image transport diagnosis
+        description: Page loading or an HTTP transport diagnosis
         type: choice
         required: true
         default: all
-        options: [all, image-pages, article, image-transport]
+        options: [all, image-pages, article, image-transport, document-transport]
 permissions:
   contents: read
 jobs:
   baseline:
-    if: ${{ inputs.scope != 'image-transport' }}
+    if: ${{ inputs.scope != 'image-transport' && inputs.scope != 'document-transport' }}
     runs-on: ubuntu-latest
     timeout-minutes: 65
     strategy:
@@ -65,4 +65,22 @@ jobs:
         with:
           name: seo-${{ inputs.phase }}-image-transport-${{ github.run_id }}
           path: performance-evidence/transport/
+          retention-days: 30
+
+  document_transport:
+    if: ${{ inputs.scope == 'document-transport' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Time public HTML from verified US egress
+        run: python3 scripts/performance/document-transport.py US performance-evidence/documents/result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-document-transport-${{ github.run_id }}
+          path: performance-evidence/documents/result.json
           retention-days: 30
