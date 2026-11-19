@@ -7494,5 +7494,1249 @@
       "customNamesOnDirect": 2,
       "edgeBackedCustomNames": 0
     }
+  },
+  "oemAndPortfolioScopedCss": {
+    "independentReadback": {
+      "readBackProductRevisionsUnchanged": 528,
+      "publishedArticlesUnchanged": 3,
+      "historicImageBodiesUnchanged": 5,
+      "sitemapAndRobotsUnchanged": true,
+      "publicApiAndBlogServiceSameVersion": true
+    },
+    "release": {
+      "source": "c66c3e660e8adb6b6230f075af147e50346a0c79",
+      "site": "site-44529516227-1",
+      "acceptedAtUtc": "2026-11-19T13:45:11.015Z",
+      "siteJobDurationSeconds": 2959,
+      "rendererArchiveRun": 44528501234,
+      "offlineChecksRun": 44527516283,
+      "helperFunctionsAbsent": 2
+    },
+    "liveAfter": {
+      "browser": "149.0.7827.55",
+      "phase": "after",
+      "samples": [
+        {
+          "name": "oem",
+          "number": 1,
+          "fp": 6000,
+          "fcp": 6000,
+          "lcp": {
+            "value": 6120,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 638.9000000059605,
+            "receive": 2574.199999988079,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 1960.3999999910593,
+            "serverWait": 1035.5,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 1,
+          "fp": 4520,
+          "fcp": 4520,
+          "lcp": {
+            "value": 4568,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 665.7999999970198,
+            "receive": 1503.7999999970198,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2214.0999999940395,
+            "serverWait": 645.5999999940395,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "oem",
+          "number": 2,
+          "fp": 5916,
+          "fcp": 5916,
+          "lcp": {
+            "value": 5976,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 661.1000000089407,
+            "receive": 1439,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 3138.300000011921,
+            "serverWait": 1552,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 2,
+          "fp": 4576,
+          "fcp": 4576,
+          "lcp": {
+            "value": 4632,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 608.5999999940395,
+            "receive": 1799.2999999970198,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 1502.2000000029802,
+            "serverWait": 620,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "oem",
+          "number": 3,
+          "fp": 4888,
+          "fcp": 4888,
+          "lcp": {
+            "value": 4960,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 585.7999999970198,
+            "receive": 2084.2000000029802,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2155.5,
+            "serverWait": 1030.5999999940395,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 3,
+          "fp": 7392,
+          "fcp": 7392,
+          "lcp": {
+            "value": 7392,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/oem-portfolio.CjBL_z5_.css",
+            "bytes": 68198,
+            "wire": 68198,
+            "wait": 649.0999999940395,
+            "receive": 4306.600000008941,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2264.2999999970198,
+            "serverWait": 1109.7999999970198,
+            "protocol": "http/1.1"
+          }
+        }
+      ]
+    },
+    "liveMatchedCss": {
+      "networkLatencyMs": 150,
+      "downloadBytesPerSecond": 200000,
+      "cpuSlowdown": 4,
+      "onlyCssUrlChangedByHarness": true,
+      "otherHostsExcluded": true,
+      "chrome": "149.0.7827.55",
+      "live": [
+        {
+          "route": "/oem/",
+          "width": 412,
+          "checks": ["navigation", "enquiry dropdown", "assistant panel"],
+          "style": "/_astro/oem-portfolio.CjBL_z5_.css",
+          "bytes": 68198,
+          "sameBytes": true
+        },
+        {
+          "route": "/oem/",
+          "width": 1440,
+          "checks": ["navigation", "enquiry dropdown", "assistant panel"],
+          "style": "/_astro/oem-portfolio.CjBL_z5_.css",
+          "bytes": 68198,
+          "sameBytes": true
+        },
+        {
+          "route": "/portfolio/",
+          "width": 412,
+          "checks": ["navigation", "certificate zoom dialog"],
+          "style": "/_astro/oem-portfolio.CjBL_z5_.css",
+          "bytes": 68198,
+          "sameBytes": true
+        },
+        {
+          "route": "/portfolio/",
+          "width": 1440,
+          "checks": ["navigation", "certificate zoom dialog"],
+          "style": "/_astro/oem-portfolio.CjBL_z5_.css",
+          "bytes": 68198,
+          "sameBytes": true
+        }
+      ],
+      "samples": [
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 5904,
+          "lcp": {
+            "value": 5960,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2567.2000000029802,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 684.5,
+            "download": 2584,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 4716,
+          "lcp": {
+            "value": 4768,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2206.2999999970198,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 1810.2999999970198,
+            "download": 624.7999999970198,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 5932,
+          "lcp": {
+            "value": 6028,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 3926.7000000029802,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 660,
+            "download": 1259.2000000029802,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 8948,
+          "lcp": {
+            "value": 9012,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 3040.1000000089407,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 603.1999999880791,
+            "download": 3565.2000000029802,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 5844,
+          "lcp": {
+            "value": 5924,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2254,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1426.699999988079,
+            "download": 1661,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 5052,
+          "lcp": {
+            "value": 5116,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 1757.3999999910593,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 649.9000000059605,
+            "download": 1765.2999999970198,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 4488,
+          "lcp": {
+            "value": 4556,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 1942.1000000089407,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 1427,
+            "download": 1040.7000000029802,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 4220,
+          "lcp": {
+            "value": 4292,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 1726.2000000029802,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 629.3999999910593,
+            "download": 1777.300000011921,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 5816,
+          "lcp": {
+            "value": 5896,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2492,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 618.4000000059605,
+            "download": 1753.2999999970198,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 4940,
+          "lcp": {
+            "value": 5016,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2635.6000000089407,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 654,
+            "download": 1571.3999999910593,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "after",
+          "fcp": 5116,
+          "lcp": {
+            "value": 5176,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 1792.0999999940395,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 1087.2000000029802,
+            "download": 864.7999999970198,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/oem/",
+          "variant": "before",
+          "fcp": 5364,
+          "lcp": {
+            "value": 5436,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "ttfb": 2560.1000000089407,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1098.6000000089407,
+            "download": 1633.7000000029802,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 5468,
+          "lcp": {
+            "value": 5524,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2956.2000000029802,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1077.4000000059605,
+            "download": 1365.7000000029802,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 4972,
+          "lcp": {
+            "value": 5028,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2276,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 632.9000000059605,
+            "download": 1996.7999999821186,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 4556,
+          "lcp": {
+            "value": 4612,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 1981.9000000059605,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 1100.6000000238419,
+            "download": 1404.7999999821186,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 5256,
+          "lcp": {
+            "value": 5312,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2963.4000000059605,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 624.4000000059605,
+            "download": 1601,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 5232,
+          "lcp": {
+            "value": 5288,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 1670.699999988079,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1080.2999999821186,
+            "download": 1523.5999999940395,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 4796,
+          "lcp": {
+            "value": 4852,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2000.2000000178814,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 569,
+            "download": 1715.300000011921,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 5392,
+          "lcp": {
+            "value": 5448,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2750.5999999940395,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 1061.800000011921,
+            "download": 1493.5,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 5512,
+          "lcp": {
+            "value": 5564,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2395.5999999940395,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1130.800000011921,
+            "download": 1780.4000000059605,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 6064,
+          "lcp": {
+            "value": 6120,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 3065.5,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1058.5,
+            "download": 1864.0999999940395,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 5492,
+          "lcp": {
+            "value": 5544,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2358.4000000059605,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 657.2999999821186,
+            "download": 2407.5,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "after",
+          "fcp": 4932,
+          "lcp": {
+            "value": 4988,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 2645.2000000178814,
+          "css": {
+            "bytes": 68198,
+            "wire": 68198,
+            "requestWait": 697.1999999880791,
+            "download": 1521.699999988079,
+            "scheme": "http/1.1"
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "variant": "before",
+          "fcp": 5348,
+          "lcp": {
+            "value": 5396,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "ttfb": 1484.0999999940395,
+          "css": {
+            "bytes": 102058,
+            "wire": 102058,
+            "requestWait": 1502,
+            "download": 1614,
+            "scheme": "http/1.1"
+          }
+        }
+      ]
+    },
+    "liveBefore": {
+      "browser": "149.0.7827.55",
+      "phase": "before",
+      "samples": [
+        {
+          "name": "oem",
+          "number": 1,
+          "fp": 9512,
+          "fcp": 9512,
+          "lcp": {
+            "value": 9612,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 653.6000000089407,
+            "receive": 3869.3999999910593,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 4848.5,
+            "serverWait": 1520.4000000059605,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 1,
+          "fp": 4588,
+          "fcp": 4588,
+          "lcp": {
+            "value": 4644,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 627.8000000119209,
+            "receive": 2005.5,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 1888.5,
+            "serverWait": 1037.5,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "oem",
+          "number": 2,
+          "fp": 4728,
+          "fcp": 4728,
+          "lcp": {
+            "value": 4800,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 648.7999999970198,
+            "receive": 2004.2999999970198,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 1477,
+            "serverWait": 617.2999999970198,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 2,
+          "fp": 7724,
+          "fcp": 7724,
+          "lcp": {
+            "value": 7776,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 637.1000000089407,
+            "receive": 4587.5,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2425.0999999940395,
+            "serverWait": 1538.5,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "oem",
+          "number": 3,
+          "fp": 4876,
+          "fcp": 4876,
+          "lcp": {
+            "value": 4936,
+            "tag": "H1",
+            "text": "One-stop OEM development, from idea to shipment"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 567.2999999970198,
+            "receive": 1566.2999999970198,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2673.8999999910593,
+            "serverWait": 1092.2000000029802,
+            "protocol": "http/1.1"
+          }
+        },
+        {
+          "name": "portfolio",
+          "number": 3,
+          "fp": 4844,
+          "fcp": 4844,
+          "lcp": {
+            "value": 4892,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer products for brands wor"
+          },
+          "labLayoutShiftObserved": 0,
+          "css": {
+            "path": "/_astro/BaseLayout.mfjaJzIa.css",
+            "bytes": 102058,
+            "wire": 102058,
+            "wait": 600.6000000089407,
+            "receive": 1956.5999999940395,
+            "protocol": "http/1.1"
+          },
+          "html": {
+            "ttfb": 2213.3999999910593,
+            "serverWait": 1068.5999999940395,
+            "protocol": "http/1.1"
+          }
+        }
+      ]
+    },
+    "pixelMatchingScreenshots": 6,
+    "affectedBuiltHtml": 2,
+    "checkedBuiltHtml": 589,
+    "indexableBuiltHtml": 580,
+    "controlled": {
+      "networkLatencyMs": 150,
+      "downloadBytesPerSecond": 200000,
+      "cpuSlowdown": 4,
+      "viewport": [412, 823],
+      "sameDocument": true,
+      "onlyCssChanged": true,
+      "scriptsAndOtherResourcesExcluded": true,
+      "browserVersion": "149.0.7827.55",
+      "samples": [
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1368,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1368,
+          "css": {
+            "bytes": 102058,
+            "download": 1060.3999999910593
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1136,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1136,
+          "css": {
+            "bytes": 68198,
+            "download": 851.5999999940395
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1140,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1140,
+          "css": {
+            "bytes": 68198,
+            "download": 852.2000000029802
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1372,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1372,
+          "css": {
+            "bytes": 102058,
+            "download": 1062.2000000029802
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1372,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1372,
+          "css": {
+            "bytes": 102058,
+            "download": 1062.5
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1164,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1164,
+          "css": {
+            "bytes": 68198,
+            "download": 850.5
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1184,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1184,
+          "css": {
+            "bytes": 68198,
+            "download": 851.5
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1408,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1408,
+          "css": {
+            "bytes": 102058,
+            "download": 1058.9000000059605
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1416,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1416,
+          "css": {
+            "bytes": 102058,
+            "download": 1060.0999999940395
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1164,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1164,
+          "css": {
+            "bytes": 68198,
+            "download": 852.2999999970198
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "after",
+          "lcp": {
+            "time": 1160,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1160,
+          "css": {
+            "bytes": 68198,
+            "download": 849.2000000029802
+          }
+        },
+        {
+          "route": "/oem/",
+          "version": "before",
+          "lcp": {
+            "time": 1396,
+            "tag": "H1",
+            "text": " One-stop OEM development, from idea to shipment "
+          },
+          "fcp": 1396,
+          "css": {
+            "bytes": 102058,
+            "download": 1062.5
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1184,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1184,
+          "css": {
+            "bytes": 102058,
+            "download": 903.7000000029802
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1008,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1008,
+          "css": {
+            "bytes": 68198,
+            "download": 727.0999999940395
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1012,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1012,
+          "css": {
+            "bytes": 68198,
+            "download": 732.7999999970198
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1188,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1188,
+          "css": {
+            "bytes": 102058,
+            "download": 906.2000000029802
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1180,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1180,
+          "css": {
+            "bytes": 102058,
+            "download": 903.2000000029802
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1012,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1012,
+          "css": {
+            "bytes": 68198,
+            "download": 730.5
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1012,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1012,
+          "css": {
+            "bytes": 68198,
+            "download": 730.5
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1204,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1204,
+          "css": {
+            "bytes": 102058,
+            "download": 901.7999999970198
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1184,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1184,
+          "css": {
+            "bytes": 102058,
+            "download": 905.2000000029802
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1012,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1012,
+          "css": {
+            "bytes": 68198,
+            "download": 732.1000000089407
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "after",
+          "lcp": {
+            "time": 1020,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1020,
+          "css": {
+            "bytes": 68198,
+            "download": 729.5
+          }
+        },
+        {
+          "route": "/portfolio/",
+          "version": "before",
+          "lcp": {
+            "time": 1164,
+            "tag": "P",
+            "text": "For 20+ years we've engineered and manufactured consumer pro"
+          },
+          "fcp": 1164,
+          "css": {
+            "bytes": 102058,
+            "download": 905.1000000089407
+          }
+        }
+      ]
+    },
+    "builtBrowserJourney": [
+      {
+        "route": "/oem/",
+        "width": 412,
+        "build": "before",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/oem/",
+        "width": 412,
+        "build": "after",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/oem/",
+        "width": 768,
+        "build": "before",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/oem/",
+        "width": 768,
+        "build": "after",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/oem/",
+        "width": 1440,
+        "build": "before",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/oem/",
+        "width": 1440,
+        "build": "after",
+        "interactions": ["menu", "form", "assistant"],
+        "elementCount": 92
+      },
+      {
+        "route": "/portfolio/",
+        "width": 412,
+        "build": "before",
+        "interactions": ["menu", "certificate", "carousel"],
+        "elementCount": 72
+      },
+      {
+        "route": "/portfolio/",
+        "width": 412,
+        "build": "after",
+        "interactions": ["menu", "certificate", "carousel"],
+        "elementCount": 72
+      },
+      {
+        "route": "/portfolio/",
+        "width": 768,
+        "build": "before",
+        "interactions": ["menu", "certificate", "carousel"],
+        "elementCount": 72
+      },
+      {
+        "route": "/portfolio/",
+        "width": 768,
+        "build": "after",
+        "interactions": ["menu", "certificate", "carousel"],
+        "elementCount": 72
+      },
+      {
+        "route": "/portfolio/",
+        "width": 1440,
+        "build": "before",
+        "interactions": ["menu", "certificate"],
+        "elementCount": 72
+      },
+      {
+        "route": "/portfolio/",
+        "width": 1440,
+        "build": "after",
+        "interactions": ["menu", "certificate"],
+        "elementCount": 72
+      }
+    ]
   }
 }
