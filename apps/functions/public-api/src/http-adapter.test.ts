@@ -1817,8 +1817,8 @@ test('width requests serve only exact ready sizes and preserve publication gates
     checksumSha256: 'a'.repeat(64),
   });
   const files = new Map<string, Buffer>();
-  const descriptor = (width: number) => {
-    const bytes = Buffer.from(`verified-webp-width-${width}`);
+  const descriptor = (width: number, suffix = '') => {
+    const bytes = Buffer.from(`verified-webp-width-${width}${suffix}`);
     const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
     const storagePath = catalogWebImagePath(
       source._id,
@@ -1866,8 +1866,6 @@ test('width requests serve only exact ready sizes and preserve publication gates
   for (const [query, expected] of [
     ['', original],
     ['?w=1280', original],
-    ['?w=640', medium],
-    ['?w=160', small],
   ] as const) {
     const response = await request(query);
     assert.equal(response.statusCode, 200, query);
@@ -1875,13 +1873,22 @@ test('width requests serve only exact ready sizes and preserve publication gates
     assert.equal(response.body, files.get(expected.storageFileId)?.toString('base64'));
     assert.equal(reads.at(-1), expected.storageFileId);
   }
-  assert.equal(reads.length, 4);
+  assert.equal(reads.length, 2);
   const overlapping = await Promise.all([request('?w=160'), request('?w=640')]);
   assert.match(overlapping[0]?.headers['Server-Timing'] ?? '', /ci-url;dur=2\.0/);
   assert.match(overlapping[1]?.headers['Server-Timing'] ?? '', /ci-url;dur=3\.0/);
   assert.equal(overlapping[0]?.body, files.get(small.storageFileId)?.toString('base64'));
   assert.equal(overlapping[1]?.body, files.get(medium.storageFileId)?.toString('base64'));
-  assert.equal(reads.length, 6, 'Overlapping requests retain their own measurements and bytes');
+  assert.equal(reads.length, 4, 'Cold requests retain their own measurements and bytes');
+
+  const reused = await request('?w=640');
+  assert.equal(reused.statusCode, 200);
+  assert.equal(reused.body, overlapping[1]?.body);
+  assert.equal(reused.headers['Cache-Control'], overlapping[1]?.headers['Cache-Control']);
+  assert.equal(reads.length, 4, 'A repeat of the same verified variant skips object storage');
+  assert.match(reused.headers['Server-Timing'] ?? '', /ci-storage;dur=0\.0/);
+  assert.doesNotMatch(reused.headers['Server-Timing'] ?? '', /ci-url|ci-download/);
+
   for (const query of [
     '?w=320',
     '?w=0',
@@ -1892,16 +1899,22 @@ test('width requests serve only exact ready sizes and preserve publication gates
     '?w=160.0',
   ])
     assert.equal((await request(query)).statusCode, 400, query);
-  assert.equal(reads.length, 6, 'Invalid sizes do not fetch any image bytes');
+  assert.equal(reads.length, 4, 'Invalid sizes do not fetch any image bytes');
   source.catalogWebVariants = { '160': small };
   const unavailable = await request('?w=640');
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.headers['Retry-After'], '30');
-  assert.equal(reads.length, 6, 'An unprepared size never falls back to a larger body');
+  assert.equal(reads.length, 4, 'An unprepared size never falls back to a larger body');
   source.publishedRefCount = 0;
   assert.equal((await request('?w=160')).statusCode, 404);
-  assert.equal(reads.length, 6, 'Knowing a ready size does not expose a private image');
+  assert.equal(reads.length, 4, 'Knowing a ready size does not expose a private image');
   source.publishedRefCount = 1;
+  const replacement = descriptor(640, '-replaced');
+  source.catalogWebVariants = { '160': small, '640': replacement };
+  const updated = await request('?w=640');
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.body, files.get(replacement.storageFileId)?.toString('base64'));
+  assert.equal(reads.length, 5, 'A changed source does not reuse prior bytes');
   source.catalogWebVariants = { '160': small, '640': medium };
   store.products ??= [];
   store.products.push({
@@ -1934,5 +1947,5 @@ test('width requests serve only exact ready sizes and preserve publication gates
   );
   assert.equal(enhancedResponse.body.includes('cloud://'), false);
   assert.equal((await product('?media=responsive-v1&media=responsive-v1')).statusCode, 400);
-  assert.equal(reads.length, 6, 'Product metadata does not download any original/derivative bytes');
+  assert.equal(reads.length, 5, 'Product metadata does not download any original/derivative bytes');
 });

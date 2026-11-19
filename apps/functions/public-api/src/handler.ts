@@ -51,6 +51,10 @@ const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
 const IMAGE_SCAN_PAGE_SIZE = 100;
 const PLACEHOLDER_IMAGE_ID = '_placeholder';
+const WEB_VARIANT_CACHE_LIMIT = 32;
+const WEB_VARIANT_CACHE_MAX_FILE_BYTES = 64 * 1024;
+const WEB_VARIANT_CACHE_TTL_MS = 60_000;
+const webVariantBytes = new Map<string, { body: string; expiresAt: number }>();
 
 export type PublicCatalog = (typeof CATALOGS)[number];
 
@@ -546,6 +550,20 @@ export async function getCatalogImage(
     return err('INTERNAL_ERROR', 'Requested image size is not prepared');
   if (!web && typeof doc.byteSize === 'number' && doc.byteSize > 4_400_000)
     return err('INTERNAL_ERROR', 'Image delivery preparation is required');
+  // The current record, publication and ready variant checks above also run on a cache hit.
+  // Only the verified response bytes are reusable within this function instance.
+  const cacheKey =
+    width !== undefined &&
+    web &&
+    provider === 'cloudbase-storage' &&
+    web.byteSize <= WEB_VARIANT_CACHE_MAX_FILE_BYTES
+      ? JSON.stringify([web.storageFileId, web.checksumSha256, web.byteSize])
+      : undefined;
+  const cached = cacheKey === undefined ? undefined : webVariantBytes.get(cacheKey);
+  if (web && cached && cached.expiresAt > performance.now()) {
+    if (started !== undefined) timings.storageMs = 0;
+    return finish(binaryImage({ ...doc, mimeType: web.mimeType }, cached.body));
+  }
   try {
     const storageStarted = started === undefined ? undefined : performance.now();
     const object = await mediaStorage().getObjectAsBase64(
@@ -573,6 +591,16 @@ export async function getCatalogImage(
         createHash('sha256').update(bytes).digest('hex') !== web.checksumSha256
       )
         throw Error('Web image bytes do not match the prepared version');
+      if (cacheKey !== undefined && object.body.length === 4 * Math.ceil(web.byteSize / 3)) {
+        if (!webVariantBytes.has(cacheKey) && webVariantBytes.size === WEB_VARIANT_CACHE_LIMIT) {
+          const oldest = webVariantBytes.keys().next().value;
+          if (oldest !== undefined) webVariantBytes.delete(oldest);
+        }
+        webVariantBytes.set(cacheKey, {
+          body: object.body,
+          expiresAt: performance.now() + WEB_VARIANT_CACHE_TTL_MS,
+        });
+      }
     }
     if (web && validationStarted !== undefined)
       timings.validationMs = performance.now() - validationStarted;
