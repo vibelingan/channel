@@ -6267,7 +6267,57 @@
       }
     ],
     "scope": "website assets replayed locally on a controlled connection; no production changes",
-    "pilotObservation": "LCP was first recorded before the candidate image actually painted; final comparison gathered buffered paint entries after decode for both arms"
+    "pilotObservation": "LCP was first recorded before the candidate image actually painted; final comparison gathered buffered paint entries after decode for both arms",
+    "productionV1ArticleReadTiming": [
+      {
+        "attempt": 1,
+        "descriptors": 2,
+        "timingsMs": {
+          "ar-url": 39.0,
+          "ar-publication": 54.0,
+          "ar-pub-read": 44.0,
+          "ar-pub-check": 9.9,
+          "ar-web-media": 44.8,
+          "ar-total": 333.8
+        }
+      },
+      {
+        "attempt": 2,
+        "descriptors": 2,
+        "timingsMs": {
+          "ar-url": 37.0,
+          "ar-publication": 61.7,
+          "ar-pub-read": 54.7,
+          "ar-pub-check": 7.0,
+          "ar-web-media": 40.6,
+          "ar-total": 242.0
+        }
+      },
+      {
+        "attempt": 3,
+        "descriptors": 2,
+        "timingsMs": {
+          "ar-url": 47.2,
+          "ar-publication": 61.7,
+          "ar-pub-read": 45.7,
+          "ar-pub-check": 16.0,
+          "ar-web-media": 46.1,
+          "ar-total": 244.6
+        }
+      },
+      {
+        "attempt": 4,
+        "descriptors": 2,
+        "timingsMs": {
+          "ar-url": 49.5,
+          "ar-publication": 56.5,
+          "ar-pub-read": 42.6,
+          "ar-pub-check": 13.8,
+          "ar-web-media": 69.1,
+          "ar-total": 288.5
+        }
+      }
+    ]
   },
   "apexRedirectAcceptance": {
     "checkedAt": "2026-11-19T10:25:55.176Z",
