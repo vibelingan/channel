@@ -155,6 +155,7 @@ test('the read-only workflow is manual and forwards phase/scope without a push t
     'image-pages',
     'article',
     'image-transport',
+    'document-transport',
   ]);
   assert.equal(workflow.on.workflow_dispatch.inputs.scope.default, 'all');
   const steps = workflow.jobs.baseline.steps;

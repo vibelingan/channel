@@ -84,7 +84,10 @@ test('transport measurements use fixed reviewed resources and a manual workflow 
   const { parse } = createRequire(import.meta.url)('yaml');
   const workflow = parse(await readFile('.github/workflows/seo-performance-baseline.yml', 'utf8'));
   assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
-  assert.equal(workflow.jobs.baseline.if, "${{ inputs.scope != 'image-transport' }}");
+  assert.equal(
+    workflow.jobs.baseline.if,
+    "${{ inputs.scope != 'image-transport' && inputs.scope != 'document-transport' }}",
+  );
   const job = workflow.jobs.transport;
   assert.equal(job.if, "${{ inputs.scope == 'image-transport' }}");
   assert.equal(job.permissions, undefined);
