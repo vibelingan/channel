@@ -473,7 +473,13 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
           const hero = check.locator('[data-blog-article] img[fetchpriority=high]');
           assert.equal(
             await hero.evaluate(async (img) => {
-              if (!(img instanceof HTMLImageElement)) throw Error('No first article image');
+              if (
+                !('decode' in img) ||
+                typeof img.decode !== 'function' ||
+                !('currentSrc' in img) ||
+                typeof img.currentSrc !== 'string'
+              )
+                throw Error('No first article image');
               await img.decode();
               return new URL(img.currentSrc).pathname;
             }),
