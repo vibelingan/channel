@@ -1975,18 +1975,9 @@
     ],
     "conditions": "Local paced HTTP with exact public image and compiled CSS. Same-origin image in both pages. Resource fetches other than the HTML, CSS and selected hero were stopped for this test.",
     "buildHtmlBytes": {
-      "003a": [
-        103201,
-        94085
-      ],
-      "804e": [
-        107418,
-        98284
-      ],
-      "ffc8": [
-        93361,
-        85470
-      ]
+      "003a": [103201, 94085],
+      "804e": [107418, 98284],
+      "ffc8": [93361, 85470]
     }
   }
 }
