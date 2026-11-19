@@ -6524,5 +6524,316 @@
       "rejectLostQuery": true,
       "rejectSoftMissingPage": true
     }
+  },
+  "responsiveBlogHeroProduction": {
+    "scope": "One existing article, public Blog and API only",
+    "apiRun": 44512417806,
+    "blogRun": 44513022057,
+    "settingsTask": 2688538,
+    "blogVersion": "blog-pages-028",
+    "apiRestoreArtifact": 14522219151,
+    "unchangedPublicArticleCount": 3,
+    "unchangedProductCount": 528,
+    "unchangedHistorical4xxImages": 5,
+    "blogSitemapAndRobotsMatch": true,
+    "browser": "149.0.7827.55",
+    "profile": {
+      "viewport": [390, 844],
+      "dpr": 2,
+      "network": {
+        "offline": false,
+        "latency": 120,
+        "downloadThroughput": 256000,
+        "uploadThroughput": 128000,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4
+    },
+    "before": {
+      "release": "014862bc253b440c0375c128a96e83fe7601b9d9",
+      "medians": {
+        "lcpMs": 6372,
+        "fcpMs": 4296,
+        "imageBytes": 91902,
+        "imageRequestToFirstByteMs": 1502.6,
+        "imageFirstByteToCompleteMs": 1214.0,
+        "htmlWait": 2636.3,
+        "imageDiscovery": 474.1,
+        "imageLoad": 3543.8,
+        "renderWait": 18.7
+      },
+      "visits": [
+        {
+          "lcpMs": 7420,
+          "fcpMs": 4596,
+          "phaseMs": {
+            "htmlWait": 3251.4,
+            "imageDiscovery": 481.9,
+            "imageLoad": 3663.1,
+            "renderWait": 23.6
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 91902,
+          "imageRequestToFirstByteMs": 2102.2,
+          "imageFirstByteToCompleteMs": 1142.1,
+          "imageServerTimingMs": {
+            "am-ref1": 205,
+            "am-storage": 465.6,
+            "am-url": 207.9,
+            "am-download": 256.7,
+            "am-check": 0.4,
+            "am-ref2": 231.2,
+            "am-total": 902.3,
+            "blog-image-headers": 1064.6,
+            "blog-image-body": 6.9,
+            "blog-handler": 1071.8
+          }
+        },
+        {
+          "lcpMs": 6712,
+          "fcpMs": 4296,
+          "phaseMs": {
+            "htmlWait": 2636.3,
+            "imageDiscovery": 508.1,
+            "imageLoad": 3543.8,
+            "renderWait": 23.8
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 91902,
+          "imageRequestToFirstByteMs": 2074.7,
+          "imageFirstByteToCompleteMs": 1108.1,
+          "imageServerTimingMs": {
+            "am-ref1": 409.3,
+            "am-storage": 0,
+            "am-check": 2.9,
+            "am-ref2": 287.4,
+            "am-total": 699.7,
+            "blog-image-headers": 816.7,
+            "blog-image-body": 7.2,
+            "blog-handler": 824.2
+          }
+        },
+        {
+          "lcpMs": 5436,
+          "fcpMs": 2968,
+          "phaseMs": {
+            "htmlWait": 1821.7,
+            "imageDiscovery": 474.1,
+            "imageLoad": 3121.5,
+            "renderWait": 18.7
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 91902,
+          "imageRequestToFirstByteMs": 1502.6,
+          "imageFirstByteToCompleteMs": 1214.0,
+          "imageServerTimingMs": {
+            "am-ref1": 214.6,
+            "am-storage": 0,
+            "am-check": 0.5,
+            "am-ref2": 195.4,
+            "am-total": 410.6,
+            "blog-image-headers": 477.9,
+            "blog-image-body": 6.5,
+            "blog-handler": 484.7
+          }
+        },
+        {
+          "lcpMs": 5660,
+          "fcpMs": 2980,
+          "phaseMs": {
+            "htmlWait": 1735.9,
+            "imageDiscovery": 71.1,
+            "imageLoad": 3844.2,
+            "renderWait": 8.8
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 91902,
+          "imageRequestToFirstByteMs": 1254.3,
+          "imageFirstByteToCompleteMs": 1453.2,
+          "imageServerTimingMs": {
+            "am-ref1": 254.1,
+            "am-storage": 0,
+            "am-check": 0.4,
+            "am-ref2": 269.1,
+            "am-total": 523.7,
+            "blog-image-headers": 691.1,
+            "blog-image-body": 6.6,
+            "blog-handler": 698.1
+          }
+        },
+        {
+          "lcpMs": 6372,
+          "fcpMs": 4616,
+          "phaseMs": {
+            "htmlWait": 3176.2,
+            "imageDiscovery": 33.7,
+            "imageLoad": 3151.7,
+            "renderWait": 10.4
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 91902,
+          "imageRequestToFirstByteMs": 1105.5,
+          "imageFirstByteToCompleteMs": 1437.4,
+          "imageServerTimingMs": {
+            "am-ref1": 218.4,
+            "am-storage": 0,
+            "am-check": 0.5,
+            "am-ref2": 219.2,
+            "am-total": 438.2,
+            "blog-image-headers": 523.6,
+            "blog-image-body": 6.5,
+            "blog-handler": 530.5
+          }
+        }
+      ]
+    },
+    "after": {
+      "release": "4252bca4024f1b452c11bf0fbffd67ae8318c3d6",
+      "medians": {
+        "lcpMs": 5544,
+        "fcpMs": 3716,
+        "imageBytes": 33460,
+        "imageRequestToFirstByteMs": 1568.9,
+        "imageFirstByteToCompleteMs": 281,
+        "htmlWait": 2413.4,
+        "imageDiscovery": 74.3,
+        "imageLoad": 2484.9,
+        "renderWait": 8
+      },
+      "visits": [
+        {
+          "lcpMs": 5664,
+          "fcpMs": 4628,
+          "phaseMs": {
+            "htmlWait": 2348.8,
+            "imageDiscovery": 72.1,
+            "imageLoad": 3237,
+            "renderWait": 6.1
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 33460,
+          "imageRequestToFirstByteMs": 1479.9,
+          "imageFirstByteToCompleteMs": 873.5,
+          "imageServerTimingMs": {
+            "am-ref1": 233.2,
+            "am-storage": 361.4,
+            "am-url": 104.4,
+            "am-download": 255.6,
+            "am-check": 0.3,
+            "am-ref2": 262.5,
+            "am-total": 857.5,
+            "blog-image-headers": 910.8,
+            "blog-image-body": 3.1,
+            "blog-handler": 914.5
+          }
+        },
+        {
+          "lcpMs": 5544,
+          "fcpMs": 3620,
+          "phaseMs": {
+            "htmlWait": 2599.2,
+            "imageDiscovery": 468.6,
+            "imageLoad": 2464.7,
+            "renderWait": 11.5
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 33460,
+          "imageRequestToFirstByteMs": 1801.3,
+          "imageFirstByteToCompleteMs": 226.3,
+          "imageServerTimingMs": {
+            "am-ref1": 254.5,
+            "am-storage": 178.9,
+            "am-url": 88.3,
+            "am-download": 89.9,
+            "am-check": 0.2,
+            "am-ref2": 227.4,
+            "am-total": 661.1,
+            "blog-image-headers": 741.6,
+            "blog-image-body": 3.3,
+            "blog-handler": 745.2
+          }
+        },
+        {
+          "lcpMs": 4340,
+          "fcpMs": 2908,
+          "phaseMs": {
+            "htmlWait": 1803.9,
+            "imageDiscovery": 80.3,
+            "imageLoad": 2447.8,
+            "renderWait": 8
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 33460,
+          "imageRequestToFirstByteMs": 1568.9,
+          "imageFirstByteToCompleteMs": 281,
+          "imageServerTimingMs": {
+            "am-ref1": 245.1,
+            "am-storage": 0,
+            "am-check": 0.2,
+            "am-ref2": 221.7,
+            "am-total": 467.2,
+            "blog-image-headers": 525,
+            "blog-image-body": 3.2,
+            "blog-handler": 528.5
+          }
+        },
+        {
+          "lcpMs": 6344,
+          "fcpMs": 3840,
+          "phaseMs": {
+            "htmlWait": 2413.4,
+            "imageDiscovery": 74.3,
+            "imageLoad": 3825.7,
+            "renderWait": 30.6
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 33460,
+          "imageRequestToFirstByteMs": 1327.3,
+          "imageFirstByteToCompleteMs": 1889.5,
+          "imageServerTimingMs": {
+            "am-ref1": 275.6,
+            "am-storage": 249.4,
+            "am-url": 119.3,
+            "am-download": 85.1,
+            "am-check": 0.2,
+            "am-ref2": 229,
+            "am-total": 754.2,
+            "blog-image-headers": 819.8,
+            "blog-image-body": 3.3,
+            "blog-handler": 823.3
+          }
+        },
+        {
+          "lcpMs": 5264,
+          "fcpMs": 3716,
+          "phaseMs": {
+            "htmlWait": 2722.7,
+            "imageDiscovery": 51.5,
+            "imageLoad": 2484.9,
+            "renderWait": 4.9
+          },
+          "httpProtocol": "http/1.1",
+          "imageBytes": 33460,
+          "imageRequestToFirstByteMs": 1726.4,
+          "imageFirstByteToCompleteMs": 155.3,
+          "imageServerTimingMs": {
+            "am-ref1": 287.4,
+            "am-storage": 0,
+            "am-check": 0.2,
+            "am-ref2": 261.5,
+            "am-total": 549.2,
+            "blog-image-headers": 666.1,
+            "blog-image-body": 5.3,
+            "blog-handler": 671.8
+          }
+        }
+      ]
+    },
+    "desktop": {
+      "widthPx": 704,
+      "chosenBytes": 91902,
+      "imageRequests": 1
+    },
+    "limitations": "Sequential before and after visits on the public website can include network and cloud variation. Compare the paired local experiment to isolate the image size. Public product data and article content were kept unchanged. Withdrawal was covered in integration without withdrawing a live article."
   }
 }
