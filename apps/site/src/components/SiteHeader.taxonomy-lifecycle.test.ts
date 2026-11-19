@@ -81,7 +81,7 @@ function registry(
   };
 }
 
-function headerHarness() {
+function headerHarness(options: { defer?: boolean; open?: boolean } = {}) {
   const source = readFileSync(new URL('./SiteHeader.astro', import.meta.url), 'utf8');
   const script = source.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, 'Missing header script');
@@ -107,7 +107,12 @@ function headerHarness() {
     new MenuGroup(family),
     new MenuGroup(family),
   ]);
+  const catalogDisclosures = [
+    Object.assign(new ListenerTarget(), { open: options.open ?? false }),
+    Object.assign(new ListenerTarget(), { open: false }),
+  ];
   const header = Object.assign(new ListenerTarget(), {
+    dataset: options.defer ? { deferCatalogTaxonomy: '' } : {},
     querySelectorAll(selector: string) {
       if (selector === '[data-taxonomy-family]') return groups;
       const family = selector.match(/^\[data-taxonomy-family="([^"]+)"\]$/)?.[1];
@@ -133,6 +138,7 @@ function headerHarness() {
   });
   runInNewContext(outputText, {
     header,
+    catalogDisclosures,
     window,
     document,
     AbortController,
@@ -150,7 +156,7 @@ function headerHarness() {
     Object.defineProperty(event, 'persisted', { value: persisted });
     window.dispatchEvent(event);
   }
-  return { header, window, document, groups, requests, show };
+  return { header, catalogDisclosures, window, document, groups, requests, show };
 }
 
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -231,4 +237,28 @@ test('a failed restored menu exposes retry without keeping obsolete child links'
     assert.equal(group.retry.hidden, false);
     assert.equal(group.retry.disabled, false);
   }
+});
+
+test('articles load category details once when the catalog menu first opens', async () => {
+  const harness = headerHarness({ defer: true });
+  const [desktop, mobile] = harness.catalogDisclosures;
+  assert.ok(desktop && mobile);
+  assert.equal(harness.requests.length, 0);
+  harness.show(true);
+  assert.equal(harness.requests.length, 0);
+
+  mobile.open = true;
+  mobile.dispatchEvent(new Event('toggle'));
+  assert.equal(harness.requests.length, PRODUCT_FAMILY_OPTIONS.length);
+  mobile.open = false;
+  mobile.dispatchEvent(new Event('toggle'));
+  desktop.open = true;
+  desktop.dispatchEvent(new Event('toggle'));
+  assert.equal(harness.requests.length, PRODUCT_FAMILY_OPTIONS.length);
+  for (const request of harness.requests) request.resolve(registry(request.family));
+  await settle();
+  assert.ok(harness.groups.every((group) => group.children.links.length === 1));
+
+  const alreadyOpen = headerHarness({ defer: true, open: true });
+  assert.equal(alreadyOpen.requests.length, PRODUCT_FAMILY_OPTIONS.length);
 });

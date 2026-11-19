@@ -10,9 +10,10 @@ interface Props {
   /** Retained for hidden legacy route compatibility. */
   showName?: boolean;
   includeBlog?: boolean;
+  deferCatalogTaxonomy?: boolean;
 }
 
-const { brand, nav, includeBlog = false } = Astro.props;
+const { brand, nav, includeBlog = false, deferCatalogTaxonomy = false } = Astro.props;
 const catalog = getCatalogContent();
 const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 
@@ -44,6 +45,7 @@ const afterCatalog = orderedMenuItems
 <header
   class="fixed inset-x-0 top-0 z-50 border-b-2 border-brand-700 bg-white/95 backdrop-blur-md shadow-[var(--shadow-header)]"
   data-site-header
+  data-defer-catalog-taxonomy={deferCatalogTaxonomy ? '' : undefined}
 >
   <div
     class="mx-auto flex h-[var(--spacing-header)] max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
@@ -299,7 +301,22 @@ const afterCatalog = orderedMenuItems
   }
 
   const menuFamilies = new Set([...header?.querySelectorAll<HTMLElement>('[data-taxonomy-family]') ?? []].map((group) => group.dataset.taxonomyFamily));
-  for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  let taxonomyStarted = false;
+  function refreshMenuTaxonomy() {
+    taxonomyStarted = true;
+    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  }
+
+  // Blog pages already include the family links. Fetch the child links when
+  // a reader opens that menu, while catalog pages keep their initial fetch.
+  if (header?.dataset.deferCatalogTaxonomy === undefined || catalogDisclosures.some(({ open }) => open)) {
+    refreshMenuTaxonomy();
+  }
+  for (const disclosure of catalogDisclosures) {
+    disclosure.addEventListener('toggle', () => {
+      if (disclosure.open && !taxonomyStarted) refreshMenuTaxonomy();
+    });
+  }
   header?.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     const family = event.target.closest('[data-taxonomy-retry]')?.closest<HTMLElement>('[data-taxonomy-family]')?.dataset.taxonomyFamily;
@@ -310,8 +327,7 @@ const afterCatalog = orderedMenuItems
   };
   window.addEventListener('pagehide', abortTaxonomies);
   window.addEventListener('pageshow', (event) => {
-    if (!event.persisted) return;
-    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+    if (event.persisted && taxonomyStarted) refreshMenuTaxonomy();
   });
   document.addEventListener('astro:before-swap', abortTaxonomies);
 
