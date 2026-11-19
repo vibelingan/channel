@@ -75,3 +75,40 @@ test('prioritizes the main mirror without losing the runner fallback sources', (
   assert.equal(readFileSync(path, 'utf8'), expected);
   assert.match(run().stdout, /updated: 0/);
 });
+
+test('Azure release tests use the same reachable archive for fresh main and security lists', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'ci-ubuntu-azure-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'sources.list.d'));
+  const path = join(root, 'sources.list.d', 'ubuntu.sources');
+  const sources = [
+    'Types: deb',
+    'URIs: mirror+file:/etc/apt/apt-mirrors.txt',
+    'Suites: noble noble-updates noble-backports',
+    'Components: main universe',
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg',
+    '',
+    'Types: deb',
+    'URIs: http://security.ubuntu.com/ubuntu',
+    'Suites: noble-security',
+    'Components: main universe',
+    'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg',
+    '',
+  ].join('\n');
+  writeFileSync(path, sources);
+  const vendor = join(root, 'sources.list.d', 'vendor.list');
+  const vendorSource = 'deb https://packages.microsoft.com/repos/code stable main\n';
+  writeFileSync(vendor, vendorSource);
+  const run = () =>
+    spawnSync('python3', [script, '--apt-dir', root, '--azure-runner'], { encoding: 'utf8' });
+  const result = run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    readFileSync(path, 'utf8'),
+    sources
+      .replace('mirror+file:/etc/apt/apt-mirrors.txt', 'https://azure.archive.ubuntu.com/ubuntu')
+      .replace('http://security.ubuntu.com/ubuntu', 'https://azure.archive.ubuntu.com/ubuntu'),
+  );
+  assert.equal(readFileSync(vendor, 'utf8'), vendorSource);
+  assert.match(run().stdout, /updated: 0/);
+});

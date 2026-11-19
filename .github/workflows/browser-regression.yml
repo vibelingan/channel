@@ -44,10 +44,6 @@ jobs:
   browser:
     name: Catalog checks (formal=${{ matrix.formal }}, group=${{ matrix.group }})
     runs-on: ubuntu-24.04
-    container:
-      # Match pnpm-lock.yaml so Chromium, WebKit and their system libraries are ready.
-      image: mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
-      options: --init --ipc=host
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -77,6 +73,17 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: Use the Ubuntu archive for browser dependencies
+        run: |
+          sudo python3 scripts/ci-ubuntu-archive.py --azure-runner
+          sudo apt-get -o APT::Update::Error-Mode=any -o Acquire::Retries=2 update
+      # Browser downloads (~45 s) come from the cache; system packages are still installed.
+      - name: Restore Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-ubuntu24.04-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Exercise the built site and isolated local services
         run: pnpm test:e2e:catalog-admin-local
       - name: Preserve failed local browser evidence
