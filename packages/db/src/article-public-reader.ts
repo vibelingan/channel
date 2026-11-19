@@ -18,6 +18,10 @@ import { z } from 'zod';
 import { type ArticleDatabase, articleTransaction } from './article-repository.ts';
 import { readArticleWebMedia } from './article-web-media.ts';
 
+const webByteLimit = 256 * 1024;
+const webByteEntries = 16;
+const webByteLifetimeMs = 60_000;
+
 async function row(store: ArticleStore, collection: string, id: string) {
   const raw = await store.read(collection, id);
   if (raw === null) return null;
@@ -52,6 +56,8 @@ export function createCloudBasePublicArticles(
   },
 ): PublicArticles {
   const transaction = articleTransaction(db);
+  // Hold only verified, immutable bytes for this function instance. Authorization stays live.
+  const webBytes = new Map<string, { body: string; expiresAt: number }>();
   const validSlug = (slug: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length <= 200;
   async function bySlug(
     store: ArticleStore,
@@ -212,13 +218,24 @@ export function createCloudBasePublicArticles(
       const ref = await mediaReference(id, file);
       const referenceBeforeMs = performance.now() - started;
       if (!ref) return null;
+      const key =
+        file.startsWith('web-v1-') && ref.byteSize <= webByteLimit
+          ? JSON.stringify([ref.storageFileId, ref.sha256, ref.byteSize])
+          : null;
+      let cached = key === null ? undefined : webBytes.get(key);
+      if (key !== null && cached && cached.expiresAt <= Date.now()) {
+        webBytes.delete(key);
+        cached = undefined;
+      }
       const storageStarted = performance.now();
-      const result = await storage.getObjectAsBase64(ref.storageFileId, {
-        maxBytes: ref.byteSize,
-        timeoutMs: 10_000,
-        ...(options?.measure ? { measure: true } : {}),
-      });
-      const storageMs = performance.now() - storageStarted;
+      const result = cached
+        ? { body: cached.body }
+        : await storage.getObjectAsBase64(ref.storageFileId, {
+            maxBytes: ref.byteSize,
+            timeoutMs: 10_000,
+            ...(options?.measure ? { measure: true } : {}),
+          });
+      const storageMs = cached ? 0 : performance.now() - storageStarted;
       const validationStarted = performance.now();
       const bytes = Buffer.from(result.body, 'base64');
       if (
@@ -233,6 +250,13 @@ export function createCloudBasePublicArticles(
       const current = await mediaReference(id, file);
       if (!current || !isDeepStrictEqual(current.authorization, ref.authorization)) return null;
       const referenceAfterMs = performance.now() - referenceAfterStarted;
+      if (key !== null && !cached) {
+        if (!webBytes.has(key) && webBytes.size === webByteEntries) {
+          const oldest = webBytes.keys().next();
+          if (!oldest.done) webBytes.delete(oldest.value);
+        }
+        webBytes.set(key, { body: result.body, expiresAt: Date.now() + webByteLifetimeMs });
+      }
       return {
         body: result.body,
         mimeType: ref.mimeType,

@@ -4726,5 +4726,191 @@
       "historic4xxImages": 5
     },
     "firstUploadSpeedAfter": null
+  },
+  "articleMediaByteReuse": {
+    "publicApiBefore": "9d23fe1bb21e4db3d9ee7d35b79a0dc676ddbea7",
+    "searchConsole": {
+      "indexReportDate": "2026-11-13",
+      "indexed": 528,
+      "excluded": 988,
+      "historical4xxPending": 5,
+      "historical4xxFailed": 0,
+      "impressionsThroughNovember17": 85,
+      "clicksThroughNovember17": 3
+    },
+    "sameImageHttpPairs": [
+      {
+        "sample": 1,
+        "entry": "proxy",
+        "status": 200,
+        "headersMs": 4483.6,
+        "bodyMs": 1531.5,
+        "timing": "am-ref1;dur=193.2, am-storage;dur=284.4, am-url;dur=126.6, am-download;dur=156.8, am-check;dur=0.5, am-ref2;dur=303.7, am-total;dur=781.9, blog-image-headers;dur=1027.0, blog-image-body;dur=4.2, blog-handler;dur=1031.9",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 2,
+        "entry": "api",
+        "status": 200,
+        "headersMs": 1902.3,
+        "bodyMs": 525.0,
+        "timing": "am-ref1;dur=204.4, am-storage;dur=616.2, am-url;dur=541.7, am-download;dur=73.3, am-check;dur=0.5, am-ref2;dur=238.0, am-total;dur=1059.1",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 3,
+        "entry": "api",
+        "status": 200,
+        "headersMs": 1565.2,
+        "bodyMs": 677.4,
+        "timing": "am-ref1;dur=232.7, am-storage;dur=195.6, am-url;dur=94.5, am-download;dur=100.7, am-check;dur=0.7, am-ref2;dur=266.6, am-total;dur=695.6",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 4,
+        "entry": "proxy",
+        "status": 200,
+        "headersMs": 1888.4,
+        "bodyMs": 203.1,
+        "timing": "am-ref1;dur=219.4, am-storage;dur=208.0, am-url;dur=102.7, am-download;dur=104.2, am-check;dur=1.4, am-ref2;dur=281.0, am-total;dur=709.9, blog-image-headers;dur=863.4, blog-image-body;dur=4.3, blog-handler;dur=867.9",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 5,
+        "entry": "proxy",
+        "status": 200,
+        "headersMs": 2730.2,
+        "bodyMs": 526.5,
+        "timing": "am-ref1;dur=332.8, am-storage;dur=326.4, am-url;dur=107.4, am-download;dur=218.1, am-check;dur=0.4, am-ref2;dur=209.7, am-total;dur=869.3, blog-image-headers;dur=2138.8, blog-image-body;dur=7.9, blog-handler;dur=2146.9",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 6,
+        "entry": "api",
+        "status": 200,
+        "headersMs": 1593.3,
+        "bodyMs": 961.2,
+        "timing": "am-ref1;dur=271.6, am-storage;dur=162.3, am-url;dur=109.6, am-download;dur=52.5, am-check;dur=1.0, am-ref2;dur=329.2, am-total;dur=764.1",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 7,
+        "entry": "api",
+        "status": 200,
+        "headersMs": 1907.7,
+        "bodyMs": 699.1,
+        "timing": "am-ref1;dur=222.2, am-storage;dur=179.5, am-url;dur=107.3, am-download;dur=71.5, am-check;dur=0.4, am-ref2;dur=212.3, am-total;dur=614.5",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      },
+      {
+        "sample": 8,
+        "entry": "proxy",
+        "status": 200,
+        "headersMs": 1855.2,
+        "bodyMs": 441.4,
+        "timing": "am-ref1;dur=232.9, am-storage;dur=188.7, am-url;dur=113.2, am-download;dur=75.3, am-check;dur=0.4, am-ref2;dur=210.2, am-total;dur=632.3, blog-image-headers;dur=746.7, blog-image-body;dur=4.9, blog-handler;dur=752.1",
+        "bytes": 91902,
+        "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+        "cacheControl": "no-cache"
+      }
+    ],
+    "matchedMobileChromium": {
+      "browser": "149.0.7827.55",
+      "viewportCssWidth": 390,
+      "dpr": 2,
+      "latencyMs": 120,
+      "downloadBytesPerSecond": 256000,
+      "docResponseReplayedLocally": true,
+      "rows": [
+        {
+          "arm": "proxy",
+          "firstByteMs": 1906,
+          "bodyMs": 1188,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 6520,
+          "lcpImage": true,
+          "fcpMs": 4224,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        },
+        {
+          "arm": "api",
+          "firstByteMs": 1636,
+          "bodyMs": 1055,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 5044,
+          "lcpImage": true,
+          "fcpMs": 3108,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        },
+        {
+          "arm": "api",
+          "firstByteMs": 1779,
+          "bodyMs": 1179,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 5320,
+          "lcpImage": true,
+          "fcpMs": 3468,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        },
+        {
+          "arm": "proxy",
+          "firstByteMs": 1559,
+          "bodyMs": 1141,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 4612,
+          "lcpImage": true,
+          "fcpMs": 3256,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        },
+        {
+          "arm": "proxy",
+          "firstByteMs": 1554,
+          "bodyMs": 986,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 5512,
+          "lcpImage": true,
+          "fcpMs": 3124,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        },
+        {
+          "arm": "api",
+          "firstByteMs": 1988,
+          "bodyMs": 746,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 4712,
+          "lcpImage": true,
+          "fcpMs": 2980,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477"
+        }
+      ]
+    },
+    "cache": {
+      "maxAgeMs": 60000,
+      "maxEntriesPerInstance": 16,
+      "maxDecodedBytesPerEntry": 262144,
+      "coordinatedPublicChecksPerServedRequest": 2,
+      "localValidationPassed": true,
+      "liveDeliveryVerified": false
+    }
   }
 }

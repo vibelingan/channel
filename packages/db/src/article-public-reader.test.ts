@@ -315,7 +315,7 @@ async function webFixture(
   const reader = createCloudBasePublicArticles(f.db, {
     getObjectAsBase64: async (fileId, options) => {
       reads.push(fileId);
-      const selected = fileId === ready.web.storageFileId ? webBytes : bytes;
+      const selected = fileId === originalStorage.storageFileId ? bytes : webBytes;
       assert.equal(options.maxBytes, selected.length);
       await duringRead();
       return {
@@ -390,6 +390,61 @@ test('web media reads exactly the ready bytes and rechecks the current source, p
   assert.equal(x.reads.length, 1);
 });
 
+test('a warm public web image reuses only the bytes and still checks withdrawal', async (t) => {
+  const x = await webFixture(t);
+  const cold = await x.reader.media(x.image.id, x.file, { measure: true });
+  assert.equal(cold?.timings?.downloadMs, 19);
+
+  const start = x.f.calls.length;
+  const warm = await x.reader.media(x.image.id, x.file, { measure: true });
+  assert.equal(warm?.body, cold?.body);
+  assert.equal(warm?.timings?.storageMs, 0);
+  assert.equal(warm?.timings?.downloadMs, undefined);
+  assert.deepEqual(x.reads, [x.ready.web.storageFileId]);
+  const checks = x.f.calls.slice(start).filter((c) => c.api === 'database.getDocument');
+  assert.deepEqual(
+    checks.map((c) => c.params.collectionName),
+    [
+      'articleMedia',
+      'articleAccepted',
+      'articleWebMedia',
+      'articleMedia',
+      'articleAccepted',
+      'articleWebMedia',
+    ],
+  );
+
+  await x.repo.releases.request('admin', {
+    operation: 'withdraw',
+    articleId: x.draft.id,
+    expectedRevision: 1,
+    requestId: 'withdraw-warm-image',
+  });
+  assert.equal(await x.reader.media(x.image.id, x.file, { measure: true }), null);
+  assert.equal(x.reads.length, 1);
+});
+
+test('web byte reuse expires and changes to the ready object force a new read', async (t) => {
+  const x = await webFixture(t);
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  await x.reader.media(x.image.id, x.file);
+  now += 60_001;
+  await x.reader.media(x.image.id, x.file);
+  assert.equal(x.reads.length, 2);
+  const storagePath = x.ready.web.storagePath.replace('/2026/11/', '/2026/12/');
+  const storageFileId = `cloud://private/${storagePath}`;
+  x.f.put('articleWebMedia', x.draft.id, {
+    ...x.sidecar,
+    media: {
+      [x.image.id]: { ...x.ready, web: { ...x.ready.web, storagePath, storageFileId } },
+    },
+  });
+  assert.equal((await x.reader.media(x.image.id, x.file))?.body, x.webBytes.toString('base64'));
+  assert.equal(x.reads.at(-1), storageFileId);
+  assert.equal(x.reads.length, 3);
+});
+
 test('withdrawal during a web object read prevents returning its bytes', async (t) => {
   const x = await webFixture(t);
   x.setDuringRead(async () => {
@@ -408,9 +463,10 @@ test('requested public media diagnostics preserve bytes and reauthorization with
   const plainStart = x.f.calls.length;
   await x.reader.media(x.image.id, x.file);
   const plainReads = x.f.calls.slice(plainStart).filter((c) => c.api === 'database.getDocument');
-  const before = x.f.calls.length;
-  const result = await x.reader.media(x.image.id, x.file, { measure: true });
-  assert.equal(result?.body, x.webBytes.toString('base64'));
+  const measured = await webFixture(t);
+  const before = measured.f.calls.length;
+  const result = await measured.reader.media(measured.image.id, measured.file, { measure: true });
+  assert.equal(result?.body, measured.webBytes.toString('base64'));
   assert.equal(result?.mimeType, 'image/webp');
   assert.ok(result?.timings, 'The reader must return requested public phase timings');
   assert.equal(result.timings.lookupMs, 11);
@@ -424,7 +480,7 @@ test('requested public media diagnostics preserve bytes and reauthorization with
   ] as const)
     assert.ok(Number.isFinite(result.timings[key]) && result.timings[key] >= 0);
   assert.doesNotMatch(JSON.stringify(result.timings), /cloud:|private|storageFileId|articleId/);
-  const reads = x.f.calls.slice(before).filter((c) => c.api === 'database.getDocument');
+  const reads = measured.f.calls.slice(before).filter((c) => c.api === 'database.getDocument');
   assert.equal(reads.length, plainReads.length, 'Measuring must not change the read budget');
 });
 
