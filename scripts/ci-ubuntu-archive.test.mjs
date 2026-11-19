@@ -25,10 +25,12 @@ test('actual CI source preparation handles AWS, Azure and both APT formats witho
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /updated: 3/);
   for (const [name, text] of Object.entries(sources)) {
-    const expected = text
-      .replaceAll('us-east-2.ec2.archive.ubuntu.com', 'archive.ubuntu.com')
-      .replaceAll('us-west-2.ec2.archive.ubuntu.com', 'archive.ubuntu.com')
-      .replaceAll('azure.archive.ubuntu.com', 'archive.ubuntu.com');
+    const expected =
+      name === 'apt-mirrors.txt'
+        ? `https://archive.ubuntu.com/ubuntu/\tpriority:0\n${text}`
+        : text
+            .replaceAll('us-east-2.ec2.archive.ubuntu.com', 'archive.ubuntu.com')
+            .replaceAll('us-west-2.ec2.archive.ubuntu.com', 'archive.ubuntu.com');
     assert.equal(readFileSync(join(root, name), 'utf8'), expected);
   }
   const second = run();
@@ -48,4 +50,28 @@ test('source preparation refuses a missing directory or linked file before chang
     assert.notEqual(run.status, 0);
   }
   assert.equal(readFileSync(external, 'utf8'), original);
+});
+
+test('prioritizes the main mirror without losing the runner fallback sources', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'ci-ubuntu-mirrors-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const path = join(root, 'apt-mirrors.txt');
+  const original = [
+    'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1',
+    'https://archive.ubuntu.com/ubuntu/\tpriority:2',
+    'https://security.ubuntu.com/ubuntu/\tpriority:3',
+    '',
+  ].join('\n');
+  writeFileSync(path, original);
+  const run = () => spawnSync('python3', [script, '--apt-dir', root], { encoding: 'utf8' });
+  const result = run();
+  assert.equal(result.status, 0, result.stderr);
+  const expected = [
+    'https://archive.ubuntu.com/ubuntu/\tpriority:0',
+    'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1',
+    'https://security.ubuntu.com/ubuntu/\tpriority:3',
+    '',
+  ].join('\n');
+  assert.equal(readFileSync(path, 'utf8'), expected);
+  assert.match(run().stdout, /updated: 0/);
 });
