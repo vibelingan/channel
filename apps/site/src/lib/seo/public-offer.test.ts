@@ -253,9 +253,7 @@ test('initial buyer HTML and JSON-LD show the same website amount even when the 
   ).toJS();
   const html = renderToStaticMarkup(
     createElement(ProductLanding, {
-      product: e.product,
       bootstrap: e.detail,
-      content,
       copy: content.sharedDetail,
       canonicalPath: '/products/p-canonical-product/',
     }),

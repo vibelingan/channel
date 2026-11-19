@@ -6,6 +6,7 @@ import SiteHeader from '../../components/SiteHeader.astro';
 import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
+import { LegacySkuDetailPage } from '../../islands/shop/SkuDetailPage.tsx';
 import DocumentLayout from '../../layouts/DocumentLayout.astro';
 import { productKey, productPath } from '../../lib/seo/product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from '../../lib/seo/product-page.ts';
@@ -27,8 +28,7 @@ interface Props {
 }
 const { entry, duplicateName } = Astro.props;
 const site = getSiteContent(DEFAULT_LOCALE);
-const content = getCatalogContent(DEFAULT_LOCALE);
-const copy = getSharedDetailContent(DEFAULT_LOCALE);
+const canonicalPath = productPath(entry.product._id);
 // This storefront's existing /api/images route serves the same public API.
 const heroImageApiOrigin = publicCatalogImageApiOrigin(
   Astro.site?.origin,
@@ -44,7 +44,11 @@ const page = productPageDescriptor(
 <DocumentLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
-    <ProductLanding product={entry.product} bootstrap={entry.detail} content={content} copy={copy} canonicalPath={productPath(entry.product._id)} heroImageApiOrigin={heroImageApiOrigin} client:load />
+    {entry.detail ? (
+      <ProductLanding bootstrap={entry.detail} imagePresentation={entry.product.imagePresentation} copy={getSharedDetailContent(DEFAULT_LOCALE)} canonicalPath={canonicalPath} heroImageApiOrigin={heroImageApiOrigin} client:load />
+    ) : (
+      <LegacySkuDetailPage initialProduct={entry.product} productId={entry.product._id} content={getCatalogContent(DEFAULT_LOCALE)} canonicalPath={canonicalPath} client:load />
+    )}
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
   <AssistantHost />

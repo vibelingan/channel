@@ -9,7 +9,7 @@ import { parseDocument } from 'yaml';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts';
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
-import { SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
+import { LegacySkuDetailPage, SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
 import { isPlainProductClick, productPath } from './product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from './product-page.ts';
 import {
@@ -34,15 +34,16 @@ test('initial HTML uses the existing detail view for both canonical and no-slug 
     undefined,
     { ...detailFixture(), revision: 'approved-r1', descriptionText: 'Approved public body.' },
   ]) {
-    const html = renderToStaticMarkup(
-      createElement(ProductLanding, {
-        product,
-        bootstrap,
-        content,
-        copy: content.sharedDetail,
-        canonicalPath: productPath(product._id),
-      }),
-    );
+    const canonicalPath = productPath(product._id);
+    const view = bootstrap
+      ? createElement(ProductLanding, { bootstrap, copy: content.sharedDetail, canonicalPath })
+      : createElement(LegacySkuDetailPage, {
+          initialProduct: product,
+          productId: product._id,
+          content,
+          canonicalPath,
+        });
+    const html = renderToStaticMarkup(view);
     assert.match(html, /<h1[^>]*>Headset<\/h1>/);
     assert.match(html, bootstrap ? /Approved public body\./ : /Legacy public body\./);
     assert.doesNotMatch(html, /Loading product|data-catalog-schema/);
@@ -108,12 +109,11 @@ test('capture, save and initial HTML retain configuration-photo sizes separately
   writeFileSync(`${file}.images.json`, JSON.stringify(capture.images));
   process.env.SEO_CATALOG_SNAPSHOT = file;
   const rendered = (await readProductSnapshot('https://example.com')).products[0];
-  assert.ok(rendered);
+  assert.ok(rendered?.detail);
   const html = renderToStaticMarkup(
     createElement(ProductLanding, {
-      product: rendered.product,
       bootstrap: rendered.detail,
-      content,
+      imagePresentation: rendered.product.imagePresentation,
       copy: content.sharedDetail,
       canonicalPath: productPath(product._id),
     }),
@@ -237,10 +237,10 @@ test('the real long imported name and summary fit display budgets without changi
   assert.doesNotMatch(page.description, /we exp(?:…|$)/u);
   assert.ok(summary.includes(page.description.slice(name.length + 2, -1)));
   const html = renderToStaticMarkup(
-    createElement(ProductLanding, {
-      product: entry.product,
+    createElement(LegacySkuDetailPage, {
+      initialProduct: entry.product,
+      productId: entry.product._id,
       content,
-      copy: content.sharedDetail,
       canonicalPath: productPath(entry.product._id),
     }),
   );
