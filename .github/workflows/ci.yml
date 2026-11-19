@@ -112,6 +112,10 @@ jobs:
   unit:
     name: Unit tests (${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     runs-on: ubuntu-24.04
+    container:
+      # Only site shards launch browsers. Match the browser revision in pnpm-lock.yaml.
+      image: ${{ matrix.suite == 'site' && 'mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48' || '' }}
+      options: --init --ipc=host
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -148,29 +152,6 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - name: Use the Ubuntu archive for browser dependencies
-        if: ${{ matrix.suite == 'site' }}
-        run: sudo python3 scripts/ci-ubuntu-archive.py
-      - name: Restore Playwright browsers
-        if: ${{ matrix.suite == 'site' }}
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-ubuntu24.04-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install browsers for component unit tests
-        if: ${{ matrix.suite == 'site' }}
-        run: pnpm exec playwright install --with-deps chromium webkit
-      # Playwright's WebKit helper (WPEWebProcess) sometimes segfaults when a browser test
-      # navigates. The test is unaffected, but the runner pipes every crash to
-      # systemd-coredump, which writes gigabytes for about 20 seconds; the disk stalls and
-      # whichever test is waiting on file writes times out (docs/agents/ci-test-flakes.md).
-      # The runner's piped core_pattern ignores the core limit. A plain file pattern makes the
-      # kernel honour it, and the unit group sets the limit to 0 itself (the runner image
-      # stopped starting jobs with 0 on 2026-11-16), so no dump is written; the crash is still
-      # in the kernel log.
-      - name: Keep crashed browser helpers from writing core dumps
-        if: ${{ matrix.suite == 'site' }}
-        run: sudo sysctl -w kernel.core_pattern=core
       - name: Run unit group
         run: |
           ulimit -c 0
@@ -180,9 +161,13 @@ jobs:
         if: ${{ failure() }}
         run: |
           echo "--- processes that crashed during this job (kernel log):"
-          sudo dmesg | grep -iE 'segfault|traps:|general protection' | tail -20 || true
-          echo "--- core dumps written during this job (expected: none):"
-          coredumpctl list --no-pager 2>&1 | tail -10 || true
+          if command -v sudo >/dev/null; then
+            sudo dmesg | grep -iE 'segfault|traps:|general protection' | tail -20 || true
+          fi
+          if command -v coredumpctl >/dev/null; then
+            echo "--- core dumps written during this job:"
+            coredumpctl list --no-pager 2>&1 | tail -10 || true
+          fi
           echo "--- pressure stall information (share of time tasks waited, 10/60/300 s):"
           grep -H . /proc/pressure/cpu /proc/pressure/io /proc/pressure/memory || true
 
