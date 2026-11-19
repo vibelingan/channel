@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { publicArticleForRender } from './server-client.ts';
+import { publicArticleForRender, publicArticleImage } from './server-client.ts';
 import { publishedArticleFixture } from './testing.ts';
 
 function setup(t: TestContext, enabled: string | undefined, data: unknown, status = 200) {
@@ -23,6 +23,7 @@ function setup(t: TestContext, enabled: string | undefined, data: unknown, statu
   const calls: string[] = [];
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
     calls.push(String(input));
+    if (data instanceof Response) return data.clone();
     return new Response(JSON.stringify({ ok: true, data }), {
       status,
       headers: { 'Content-Type': 'application/json' },
@@ -95,4 +96,33 @@ test('an invalid deployment flag fails before making requests', async (t) => {
   const calls = setup(t, 'yes', publishedArticleFixture());
   await assert.rejects(publicArticleForRender('manufacturing-guide'), /BLOG_WEB_IMAGES_ENABLED/);
   assert.equal(calls.length, 0);
+});
+
+test('a successful image forwards only supported numeric timings and reads the API once', async (t) => {
+  const calls = setup(
+    t,
+    undefined,
+    new Response('image bytes', {
+      headers: {
+        'Content-Type': 'image/webp',
+        'Server-Timing': [
+          'am-ref1;dur=12.3',
+          'am-storage;dur=42.0',
+          'am-storage;dur=999.0',
+          'am-ref2;dur=16',
+          'unknown;dur=8',
+          'am-total;dur=120001',
+          'am-url;dur=6;desc="internal address"',
+        ].join(', '),
+      },
+    }),
+  );
+  const result = await publicArticleImage('photo', 'photo.webp');
+  assert.equal(result?.bytes.toString(), 'image bytes');
+  assert.equal(result?.contentType, 'image/webp');
+  assert.match(
+    result?.serverTiming ?? '',
+    /^am-ref1;dur=12\.3, am-storage;dur=42\.0, am-ref2;dur=16\.0, blog-image-headers;dur=\d+\.\d, blog-image-body;dur=\d+\.\d$/,
+  );
+  assert.deepEqual(calls, ['https://articles.example/api/articles/media/photo/photo.webp']);
 });

@@ -13,7 +13,11 @@ export const GET: APIRoute = async ({ params }) => {
     const result = await publicArticleImage(id, file);
     if (!result) return new Response('Not found', { status: 404, headers });
     return new Response(new Uint8Array(result.bytes), {
-      headers: { ...headers, 'Content-Type': result.contentType },
+      headers: {
+        ...headers,
+        'Content-Type': result.contentType,
+        ...(result.serverTiming ? { 'Server-Timing': result.serverTiming } : {}),
+      },
     });
   } catch {
     return new Response('Image temporarily unavailable', {

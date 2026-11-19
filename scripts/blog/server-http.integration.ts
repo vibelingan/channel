@@ -375,11 +375,18 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   );
   assert.equal(mediaProxyRequests - webProxyBefore, mediaDelivery === 'api' ? 0 : 1);
   const compatibleProxy = `/blog/media/articles/${imageId}/web-v1-${prepared.entry.web.checksumSha256}.webp`;
-  assert.equal(
-    (await get(compatibleProxy)).status,
-    200,
-    'Old web image proxy URLs stay compatible',
-  );
+  const proxyImage = await get(compatibleProxy);
+  assert.equal(proxyImage.status, 200, 'Old web image proxy URLs stay compatible');
+  const proxyTiming = proxyImage.headers.get('server-timing') ?? '';
+  for (const metric of [
+    'am-ref1',
+    'am-storage',
+    'am-ref2',
+    'blog-image-headers',
+    'blog-image-body',
+  ]) {
+    assert.match(proxyTiming, new RegExp(`\\b${metric};dur=\\d+\\.\\d`));
+  }
   assertArticleSchemaImage(renderedHtml, webPath);
   t.diagnostic(JSON.stringify({ mode: 'web-v1', renderedSrc: webPath, status: 200 }));
   assert.equal(
@@ -535,11 +542,9 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
     404,
     'Removing the published image must revoke its web copy',
   );
-  assert.equal(
-    (await get(compatibleProxy)).status,
-    404,
-    'Old URLs retain the same withdrawal gate',
-  );
+  const revokedProxy = await get(compatibleProxy);
+  assert.equal(revokedProxy.status, 404, 'Old URLs retain the same withdrawal gate');
+  assert.doesNotMatch(revokedProxy.headers.get('server-timing') ?? '', /am-|blog-image-/);
   await repo.releases.request('admin', {
     operation: 'withdraw',
     articleId: draft.id,
@@ -555,6 +560,10 @@ test('built SSR server publishes, updates and withdraws without a rebuild; real 
   assert.equal(failed.status, 503);
   assert.equal(failed.headers.get('retry-after'), '30');
   assert.match(await failed.text(), /temporarily unavailable/);
+  const failedImage = await get(compatibleProxy);
+  assert.equal(failedImage.status, 503);
+  assert.equal(failedImage.headers.get('retry-after'), '30');
+  assert.doesNotMatch(failedImage.headers.get('server-timing') ?? '', /am-|blog-image-/);
   assert.equal((await get('/blog/sitemap.xml')).status, 503);
 });
 

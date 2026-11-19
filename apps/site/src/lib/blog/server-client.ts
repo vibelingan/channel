@@ -4,6 +4,33 @@ import {
 } from '@vibelingan-channel/articles/public-read';
 import { parsePublishedArticle } from '@vibelingan-channel/articles/publication';
 
+const articleImageMetrics = new Set([
+  'am-ref1',
+  'am-storage',
+  'am-url',
+  'am-download',
+  'am-check',
+  'am-ref2',
+  'am-total',
+]);
+
+function articleImageTiming(header: string | null, headersMs: number, bodyMs: number) {
+  // Accept only the numeric metrics emitted by the public image API.
+  const metrics = new Map<string, number>();
+  for (const part of header?.split(',') ?? []) {
+    const match = /^([a-z0-9-]+);dur=(\d{1,6}(?:\.\d)?)$/.exec(part.trim());
+    if (!match) continue;
+    const [, name, value] = match;
+    const duration = Number(value);
+    if (name && articleImageMetrics.has(name) && duration <= 120_000 && !metrics.has(name)) {
+      metrics.set(name, duration);
+    }
+  }
+  metrics.set('blog-image-headers', headersMs);
+  metrics.set('blog-image-body', bodyMs);
+  return Array.from(metrics, ([name, duration]) => `${name};dur=${duration.toFixed(1)}`).join(', ');
+}
+
 /** Fixed deployment configuration only; article input cannot choose another host. */
 function apiOrigin() {
   const url = new URL(process.env.BLOG_API_ORIGIN ?? '');
@@ -20,12 +47,14 @@ function apiOrigin() {
   return url.origin;
 }
 async function read(path: string, maxBytes: number, binary = false) {
+  const started = binary ? performance.now() : 0;
   const response = await fetch(`${apiOrigin()}${path}`, {
     signal: AbortSignal.timeout(12_000),
     redirect: 'error',
     cache: 'no-store',
     headers: { Accept: binary ? 'image/png,image/jpeg,image/webp' : 'application/json' },
   });
+  const headersAt = binary ? performance.now() : 0;
   if (response.status === 404) {
     await response.body?.cancel();
     return null;
@@ -60,7 +89,14 @@ async function read(path: string, maxBytes: number, binary = false) {
     throw error;
   }
   const bytes = Buffer.concat(chunks);
-  return { bytes, contentType };
+  const serverTiming = binary
+    ? articleImageTiming(
+        response.headers.get('server-timing'),
+        headersAt - started,
+        performance.now() - headersAt,
+      )
+    : undefined;
+  return { bytes, contentType, serverTiming };
 }
 async function json(path: string, maxBytes: number) {
   const response = await read(path, maxBytes);
