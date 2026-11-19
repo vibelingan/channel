@@ -3907,5 +3907,228 @@
       "wwwLocation": "https://supplychainsai.com/headphones/?page=2",
       "directModeForceHttpsObservedPreviously": 307
     }
+  },
+  "fullPublicSitemapAndGatewayCrawl": {
+    "audit": {
+      "startedAt": "2026-11-19T05:00:16.633514+00:00",
+      "finishedAt": "2026-11-19T05:09:41.966389+00:00",
+      "mapCounts": {
+        "https://supplychainsai.com/blog/sitemap.xml": 4,
+        "https://supplychainsai.com/sitemap-0.xml": 580
+      },
+      "uniquePages": 584,
+      "status": {
+        "200": 584
+      },
+      "retried": [],
+      "duplicateBodyGroups": [],
+      "issues": [],
+      "productPages": 528,
+      "publicAPIProducts": 528,
+      "missingFromSitemap": [],
+      "retiredInSitemap": [],
+      "duplicatedTitles": 0
+    },
+    "historicImageReadback": [
+      {
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 51178,
+        "expectedBytes": 51178,
+        "sameBytesAsLastRelease": true
+      },
+      {
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 65170,
+        "expectedBytes": 65170,
+        "sameBytesAsLastRelease": true
+      },
+      {
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 69280,
+        "expectedBytes": 69280,
+        "sameBytesAsLastRelease": true
+      },
+      {
+        "path": "/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 87330,
+        "expectedBytes": 87330,
+        "sameBytesAsLastRelease": true
+      },
+      {
+        "path": "/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 135494,
+        "expectedBytes": 135494,
+        "sameBytesAsLastRelease": true
+      }
+    ],
+    "absentRenditionReferences": {
+      "pages": [
+        {
+          "page": "/headphones/",
+          "imageId": "0e0afdc26a68209e00523aa031e56460",
+          "status": 200,
+          "refs": 2,
+          "requestsSizeVariant": false
+        },
+        {
+          "page": "/products/p-2070fd75-8df6-4f2d-a4e9-9393c4722887/",
+          "imageId": "3fbe8b166ac87e450039454138dca332",
+          "status": 200,
+          "refs": 5,
+          "requestsSizeVariant": false
+        },
+        {
+          "page": "/products/p-4a83658d-56ea-4586-a806-325fa747d08a/",
+          "imageId": "3fbe8b166ac87e450039454138dca332",
+          "status": 200,
+          "refs": 5,
+          "requestsSizeVariant": false
+        },
+        {
+          "page": "/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+          "imageId": "3fbe8b166ac87e450039454138dca332",
+          "status": 200,
+          "refs": 13,
+          "requestsSizeVariant": false
+        }
+      ],
+      "publicSourceImages": [
+        {
+          "imageId": "0e0afdc26a68209e00523aa031e56460",
+          "status": 200,
+          "mime": "image/jpeg",
+          "bytes": 63062
+        },
+        {
+          "imageId": "3fbe8b166ac87e450039454138dca332",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 21164
+        }
+      ]
+    },
+    "gateway": {
+      "windowLocal": "2026-11-18 00:00:00 through 2026-11-19 13:00:00 (Asia/Shanghai)",
+      "platform": "Tencent CloudBase HTTP gateway access logs",
+      "site": "supplychainsai.com",
+      "matching": {
+        "requiredMethod": "GET",
+        "candidateUserAgentToken": "Googlebot",
+        "verificationField": "sourceIp",
+        "officialIPv4Ranges": "https://developers.google.com/static/crawling/ipranges/common-crawlers.json",
+        "verified": 87,
+        "pathKinds": {
+          "sitemap": 2,
+          "robots": 10,
+          "scriptOrStyle": 62,
+          "other": 10,
+          "productPage": 1,
+          "productImage": 2
+        },
+        "matchedHistoricImages": 0,
+        "selected": [
+          {
+            "path": "/blog/sitemap.xml",
+            "utc": "2026-11-19T00:25:01.270Z",
+            "status": 200
+          },
+          {
+            "path": "/sitemap-index.xml",
+            "utc": "2026-11-18T18:10:59.911Z",
+            "status": 200
+          }
+        ],
+        "earliestActualResponse": "2026-11-17T16:32:42.260Z",
+        "latestActualResponse": "2026-11-19T00:25:01.270Z",
+        "rangesCreationTime": "2026-11-18T15:45:52.000000",
+        "logLimit": 100,
+        "listOver": true,
+        "otherStatusByClaimOnly": {
+          "404": 1,
+          "405": 1
+        },
+        "statusVerified": {
+          "200": 87
+        }
+      },
+      "productImageStatus": {
+        "200": 788,
+        "400": 3,
+        "404": 4,
+        "499": 72,
+        "503": 3
+      },
+      "imageGatewayTimingMs": {
+        "http200": {
+          "p50": 594,
+          "p90": 1073
+        },
+        "http499": {
+          "p50": 15,
+          "p90": 628
+        }
+      },
+      "status400": [
+        {
+          "path": "/api/images/96d9cd126ac88460006e1c2f6fe3d0a4",
+          "time": "2026-11-18T17:28:36.560Z",
+          "params": [["w", "200"]]
+        },
+        {
+          "path": "/api/images/3fbe8b166ac87e450039454138dca332",
+          "time": "2026-11-18T06:05:11.571Z",
+          "params": [["w", "160"], ["w", "640"]]
+        },
+        {
+          "path": "/api/images/3fbe8b166ac87e450039454138dca332",
+          "time": "2026-11-18T06:05:10.961Z",
+          "params": [["w", "333"]]
+        }
+      ],
+      "status503": [
+        {
+          "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+          "time": "2026-11-19T04:03:01.872Z",
+          "params": [["w", "1280"]]
+        },
+        {
+          "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+          "time": "2026-11-19T04:02:59.520Z",
+          "params": [["w", "640"]]
+        },
+        {
+          "path": "/api/images/3fbe8b166ac87e450039454138dca332",
+          "time": "2026-11-18T06:05:09.222Z",
+          "params": [["w", "640"]]
+        }
+      ]
+    },
+    "modificationDates": {
+      "staticRecorded": 0,
+      "blogArticleDates": 3,
+      "publishedProductSnapshots": [
+        {
+          "run": 44446131607,
+          "versions": 528,
+          "knownDates": 0
+        },
+        {
+          "run": 44451413234,
+          "versions": 528,
+          "knownDates": 0
+        }
+      ],
+      "renderOrigin": "ProductPublicVersion.changedAt"
+    }
   }
 }
