@@ -4679,5 +4679,52 @@
       "looksAtFullArticleHTML": true,
       "matchingCatalogAndPublicFileBytes": true
     }
+  },
+  "privateUploadRecovery": {
+    "originalRun": 44487251177,
+    "originalBytes": 4808831,
+    "providerFailure": {
+      "httpStatus": 400,
+      "code": "UserNetworkTooSlow",
+      "elapsedMs": 203266,
+      "browserSendMs": 195596.304,
+      "waitAfterSendMs": 6338.099
+    },
+    "originalRunRetryReachedStorageButReplyDropped": true,
+    "originalRunCleaned": true,
+    "recoveryRelease": {
+      "codeSha": "f5ad6bd4cf4c802c94dcca0da61a728bbc825969",
+      "requiredChecks": [44491036896, 44491036894, 44491036916],
+      "archiveRun": 44492548787,
+      "siteRun": 44493077427,
+      "siteDeliveryId": "site-44493077427-1",
+      "temporaryFunctionsAbsent": 2
+    },
+    "controlledLostReply": {
+      "run": 44495550172,
+      "originalBytes": 200514,
+      "firstStorageHttpStatus": 200,
+      "intentCount": 1,
+      "retryClicks": 1,
+      "actualUploadCount": 1,
+      "imageRecordCount": 1,
+      "previewWidth": 1280,
+      "previewHeight": 800,
+      "previewBytes": 26054,
+      "completeReplays": 2,
+      "anonymousStatus": 404,
+      "loggedOutPreviewStatus": 401,
+      "productsCreated": 0,
+      "productsPublished": 0,
+      "cleanupDatabaseReadback": true,
+      "independentEmptyStorageDirectories": 2
+    },
+    "matchingPublicContentAfterSiteRelease": {
+      "productRevisions": 528,
+      "articleBodies": 3,
+      "sitemaps": 2,
+      "historic4xxImages": 5
+    },
+    "firstUploadSpeedAfter": null
   }
 }
