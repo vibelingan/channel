@@ -4910,7 +4910,233 @@
       "maxDecodedBytesPerEntry": 262144,
       "coordinatedPublicChecksPerServedRequest": 2,
       "localValidationPassed": true,
-      "liveDeliveryVerified": false
+      "liveDeliveryVerified": true
+    },
+    "productionAccepted": {
+      "release": "fef83f3d0ece39b52b6ecc04a003f5b015213e23",
+      "blogRelease": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+      "deploymentRun": 44499475494,
+      "archiveId": 14517340069,
+      "checks": [44498329446, 44498329387, 44498329431],
+      "publicImageBytes": 91902,
+      "warmResponses": 5,
+      "samples": [
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 384.8,
+            "am-storage": 233.8,
+            "am-url": 109.8,
+            "am-download": 122.9,
+            "am-check": 1.1,
+            "am-ref2": 627.2,
+            "am-total": 1247.1
+          },
+          "version": null,
+          "htMs": 2162.72,
+          "bodyMs": 904.96,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "api"
+        },
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 312.1,
+            "am-storage": 0.0,
+            "am-check": 0.3,
+            "am-ref2": 205.5,
+            "am-total": 518.0,
+            "blog-image-headers": 664.4,
+            "blog-image-body": 5.3,
+            "blog-handler": 669.9
+          },
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "htMs": 1245.47,
+          "bodyMs": 562.23,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "proxy"
+        },
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 187.5,
+            "am-storage": 0.0,
+            "am-check": 0.2,
+            "am-ref2": 290.8,
+            "am-total": 478.6
+          },
+          "version": null,
+          "htMs": 1429.3,
+          "bodyMs": 673.05,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "api"
+        },
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 219.0,
+            "am-storage": 0.0,
+            "am-check": 0.2,
+            "am-ref2": 230.4,
+            "am-total": 449.6,
+            "blog-image-headers": 559.2,
+            "blog-image-body": 10.5,
+            "blog-handler": 570.0
+          },
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "htMs": 1089.11,
+          "bodyMs": 757.25,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "proxy"
+        },
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 204.6,
+            "am-storage": 0.0,
+            "am-check": 0.3,
+            "am-ref2": 226.4,
+            "am-total": 431.4
+          },
+          "version": null,
+          "htMs": 1714.54,
+          "bodyMs": 351.55,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "api"
+        },
+        {
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "no-cache",
+          "timings": {
+            "am-ref1": 205.7,
+            "am-storage": 0.0,
+            "am-check": 0.3,
+            "am-ref2": 278.0,
+            "am-total": 484.1,
+            "blog-image-headers": 568.9,
+            "blog-image-body": 10.6,
+            "blog-handler": 579.7
+          },
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "htMs": 1172.79,
+          "bodyMs": 732.7,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb",
+          "entry": "proxy"
+        },
+        {
+          "entry": "missing",
+          "pathType": "/api/articles/media",
+          "status": 404,
+          "internalTimings": false
+        },
+        {
+          "entry": "missing",
+          "pathType": "/blog/media/articles",
+          "status": 404,
+          "internalTimings": false
+        }
+      ],
+      "matchedMobileProxyAfter": [
+        {
+          "arm": "proxy",
+          "firstByteMs": 1518,
+          "bodyMs": 1792,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 6452,
+          "lcpImage": true,
+          "fcpMs": 4132,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "serviceTimings": {
+            "am-ref1": 300.9,
+            "am-storage": 219.3,
+            "am-url": 97.7,
+            "am-download": 120.3,
+            "am-check": 1.1,
+            "am-ref2": 367.8,
+            "am-total": 889.2,
+            "blog-image-headers": 1000.4,
+            "blog-image-body": 6.1,
+            "blog-handler": 1006.8
+          }
+        },
+        {
+          "arm": "proxy",
+          "firstByteMs": 1144,
+          "bodyMs": 1189,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 4168,
+          "lcpImage": true,
+          "fcpMs": 3156,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "serviceTimings": {
+            "am-ref1": 225.8,
+            "am-storage": 0,
+            "am-check": 0.2,
+            "am-ref2": 187.6,
+            "am-total": 413.7,
+            "blog-image-headers": 492.2,
+            "blog-image-body": 6.2,
+            "blog-handler": 498.7
+          }
+        },
+        {
+          "arm": "proxy",
+          "firstByteMs": 1628,
+          "bodyMs": 983,
+          "imageBytes": 91902,
+          "protocol": "http/1.1",
+          "lcpMs": 4564,
+          "lcpImage": true,
+          "fcpMs": 3012,
+          "version": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "serviceTimings": {
+            "am-ref1": 256.3,
+            "am-storage": 327.9,
+            "am-url": 113.4,
+            "am-download": 213.6,
+            "am-check": 0.5,
+            "am-ref2": 211.4,
+            "am-total": 796.1,
+            "blog-image-headers": 878.8,
+            "blog-image-body": 6.2,
+            "blog-handler": 885.4
+          }
+        }
+      ],
+      "unchangedContent": {
+        "products": 528,
+        "publishedArticleBodies": 3,
+        "repairedProductImages": 5,
+        "sitemaps": 2,
+        "robots": true
+      },
+      "searchConsole": {
+        "discoveredPages": 584,
+        "staticSitemapPages": 580,
+        "sitemapsReadDate": "2026-11-19",
+        "videoIndexed": 0,
+        "mobileFieldDataAvailable": false,
+        "desktopFieldDataAvailable": false
+      }
     }
   }
 }
