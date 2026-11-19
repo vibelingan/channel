@@ -4464,10 +4464,11 @@
   "blogMediaProxyTiming": {
     "firstTimingCommit": "1eee56a522b4cecdfc0ced19cb06ad15337cdab1",
     "uploadDeadlineCommit": "ae952d1fa23c896cbe287f16fec10fe14d6cfcef",
-    "result": "local packaged acceptance passed; two submissions timed out, a third received HTTP 400 before any new version was observed; old production program independently rechecked",
-    "activeRelease": "62b71cbe3453807ad3c430262be216082b2944f2",
-    "providerVersion": "blog-pages-023",
-    "candidateOnly": true,
+    "result": "failed prior uploads preserved the old version; the smaller upload built and the production Blog passed public HTML, media and timing checks",
+    "previousRelease": "62b71cbe3453807ad3c430262be216082b2944f2",
+    "activeRelease": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+    "providerVersion": "blog-pages-024",
+    "candidateOnly": false,
     "ciRuns": [44469588679, 44469588757, 44469588687],
     "deploymentAttempts": [
       {
@@ -4500,7 +4501,162 @@
       "videoBytes": 7201197,
       "videoSha256": "3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d",
       "reconstructedWithProdVideoBytesInLocalProcess": true,
-      "providerBuildVerified": false
+      "providerBuildVerified": true
+    },
+    "confirmedLiveRelease": {
+      "run": 44486733817,
+      "fullGate": [
+        44485654089,
+        44485654059,
+        44485654106
+      ],
+      "transferRequestWrittenMs": 30702,
+      "transferHttpResponseMs": 41086,
+      "transferStatus": 200,
+      "buildId": 2613251829,
+      "providerBuildSeconds": 74,
+      "providerTrafficPercent": 100,
+      "sawMixedVersionsDuringCutover": true,
+      "matchingSubsequentRouteReads": 8,
+      "routes": [
+        {
+          "hostType": "public",
+          "resource": "article",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "article-read;dur=415.7, blog-handler;dur=421.1"
+        },
+        {
+          "hostType": "public",
+          "resource": "image",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "am-ref1;dur=206.9, am-storage;dur=190.7, am-url;dur=97.0, am-download;dur=93.5, am-check;dur=0.4, am-ref2;dur=245.0, am-total;dur=643.1, blog-image-headers;dur=1986.9, blog-image-body;dur=3.3, blog-handler;dur=1990.5"
+        },
+        {
+          "hostType": "public",
+          "resource": "article",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": true,
+          "timing": "article-read;dur=500.3, blog-handler;dur=505.3"
+        },
+        {
+          "hostType": "public",
+          "resource": "image",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": true,
+          "timing": "am-ref1;dur=231.9, am-storage;dur=272.0, am-url;dur=112.3, am-download;dur=159.4, am-check;dur=0.6, am-ref2;dur=207.2, am-total;dur=711.6, blog-image-headers;dur=3208.3, blog-image-body;dur=3.8, blog-handler;dur=3212.6"
+        },
+        {
+          "hostType": "direct",
+          "resource": "article",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "article-read;dur=519.5, blog-handler;dur=524.2"
+        },
+        {
+          "hostType": "direct",
+          "resource": "image",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "am-ref1;dur=235.0, am-storage;dur=202.6, am-url;dur=103.2, am-download;dur=99.1, am-check;dur=0.5, am-ref2;dur=240.1, am-total;dur=678.1, blog-image-headers;dur=814.6, blog-image-body;dur=6.7, blog-handler;dur=821.6"
+        },
+        {
+          "hostType": "public",
+          "resource": "article",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "article-read;dur=303.7, blog-handler;dur=310.1"
+        },
+        {
+          "hostType": "public",
+          "resource": "image",
+          "status": 200,
+          "version": "16f3d03b",
+          "usedQuery": false,
+          "timing": "am-ref1;dur=324.9, am-storage;dur=211.0, am-url;dur=105.7, am-download;dur=104.8, am-check;dur=1.6, am-ref2;dur=312.8, am-total;dur=850.4, blog-image-headers;dur=944.1, blog-image-body;dur=6.8, blog-handler;dur=951.2"
+        }
+      ],
+      "reusedConnectionSamples": [
+        {
+          "firstByteMs": 2350.22,
+          "remainingBodyMs": 1186.44,
+          "metrics": {
+            "am-ref1": 222.6,
+            "am-storage": 213.8,
+            "am-url": 103.0,
+            "am-download": 110.5,
+            "am-check": 0.5,
+            "am-ref2": 195.7,
+            "am-total": 632.6,
+            "blog-image-headers": 748.5,
+            "blog-image-body": 6.6,
+            "blog-handler": 755.4
+          }
+        },
+        {
+          "firstByteMs": 1560.37,
+          "remainingBodyMs": 1746.05,
+          "metrics": {
+            "am-ref1": 249.6,
+            "am-storage": 224.4,
+            "am-url": 114.6,
+            "am-download": 109.6,
+            "am-check": 0.5,
+            "am-ref2": 271.5,
+            "am-total": 746.0,
+            "blog-image-headers": 948.7,
+            "blog-image-body": 5.7,
+            "blog-handler": 954.8
+          }
+        }
+      ],
+      "chromium": {
+        "chrome": "149.0.7827.55",
+        "width": 358,
+        "naturalWidth": 1280,
+        "encodedBodySize": 91902,
+        "protocol": "http/1.1",
+        "latencyAfterRequestMs": 2676,
+        "bodyReadMs": 2500.699999988079,
+        "metrics": {
+          "am-ref1": 308.4,
+          "am-storage": 276.4,
+          "am-url": 127.5,
+          "am-download": 148.6,
+          "am-check": 0.4,
+          "am-ref2": 215.8,
+          "am-total": 801,
+          "blog-image-headers": 914.6,
+          "blog-image-body": 6.5,
+          "blog-handler": 921.6
+        }
+      },
+      "missingImage": {
+        "status": 404,
+        "noindex": true,
+        "internalMediaTiming": false
+      },
+      "contentParity": {
+        "articleBodies": 3,
+        "publicProductRevisions": 528,
+        "historic4xxImages": 5,
+        "sitemaps": 2,
+        "robots": true
+      },
+      "factoryVideo": {
+        "partialStatus": 206,
+        "identicalBytes": 16384,
+        "mobileBrowserSeekSeconds": 80,
+        "seekElapsedMs": 5992
+      }
     },
     "previousSuccessfulSubmission": {
       "run": 44414982239,

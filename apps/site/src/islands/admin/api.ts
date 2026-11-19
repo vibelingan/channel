@@ -1147,9 +1147,10 @@ type ImageUploadProgress = {
   imageId: string | undefined;
   intent: UploadIntentResponse | undefined;
   pending: Promise<string> | undefined;
+  verifyOriginalBeforeRetry: boolean;
 };
-// An uncertain PUT retries the same temporary credential and immutable file.
-// Keep it only in memory until PUT succeeds; never persist or log the credential.
+// Keep the same image and credential until the original is confirmed.
+// The credential only lives in memory, including after an interrupted response.
 const imageUploads = new WeakMap<File, ImageUploadProgress>();
 
 export async function uploadImage(file: File): Promise<string> {
@@ -1171,6 +1172,7 @@ export async function uploadImage(file: File): Promise<string> {
           imageId: undefined,
           intent: undefined,
           pending: undefined,
+          verifyOriginalBeforeRetry: false,
         };
   if (state.pending) return state.pending;
   if (actorId !== null) imageUploads.set(file, state);
@@ -1182,9 +1184,35 @@ export async function uploadImage(file: File): Promise<string> {
         undefined,
         guard,
       );
+      const intent = state.intent;
       guard();
-      await putImageUpload(file, state.intent);
-      state.imageId = state.intent.imageId;
+      if (state.verifyOriginalBeforeRetry) {
+        const finalized = await call(
+          'completeUpload',
+          { imageId: intent.imageId },
+          undefined,
+          guard,
+        ).then(
+          () => true,
+          (error: unknown) => {
+            if (!(error instanceof AdminApiError && error.code === 'NOT_FOUND')) throw error;
+            return false;
+          },
+        );
+        if (finalized) {
+          state.imageId = intent.imageId;
+          state.intent = undefined;
+          return intent.imageId;
+        }
+      }
+      try {
+        await putImageUpload(file, intent);
+      } catch (error) {
+        state.verifyOriginalBeforeRetry = !(error instanceof AdminApiError);
+        throw error;
+      }
+      state.verifyOriginalBeforeRetry = false;
+      state.imageId = intent.imageId;
       state.intent = undefined;
       guard();
     }

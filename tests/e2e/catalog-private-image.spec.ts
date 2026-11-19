@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { largeCatalogPng } from '../../packages/media-storage/src/catalog-image-fixtures.test-helper.ts';
+import {
+  largeCatalogPng,
+  retryCatalogPng,
+} from '../../packages/media-storage/src/catalog-image-fixtures.test-helper.ts';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireAdminCredentialsWhenEnabled } from './helpers/env';
 
@@ -35,10 +38,14 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     'health',
   );
   expect(health.releaseId === release || health.deployedReleaseId === release).toBe(true);
-  const bytes = await largeCatalogPng();
-  expect(bytes.length).toBeGreaterThan(4_500_000);
+  const forceDroppedReply = e2e.catalogPrivateImageDropReply;
+  const bytes = await (forceDroppedReply ? retryCatalogPng() : largeCatalogPng());
+  if (forceDroppedReply) {
+    expect(bytes.length).toBeGreaterThan(100 * 1024);
+    expect(bytes.length).toBeLessThan(512 * 1024);
+  } else expect(bytes.length).toBeGreaterThan(4_500_000);
   const checksum = hash(bytes);
-  const name = `${e2e.runId}-large-private.png`;
+  const name = `${e2e.runId}-${forceDroppedReply ? 'retry' : 'large'}-private.png`;
   const list = () =>
     adminAction<ListResult<CollectionDoc>>(
       request,
@@ -221,12 +228,13 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     await expect(page.getByRole('heading', { name: 'Products', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^New / }).click();
     const gallery = page.locator('[data-image-manager="gallery"]');
-    if (e2e.catalogPrivateImageDropReply) {
+    if (forceDroppedReply) {
       // Let Chromium send the real PUT. Hide only the first successful storage response.
       network.on('Fetch.requestPaused', ({ requestId, request: paused, responseStatusCode }) => {
         const continueRequest = () => network.send('Fetch.continueRequest', { requestId });
         if (
           droppedStorageStatus === undefined &&
+          retryAttempts === 0 &&
           paused.method === 'PUT' &&
           responseStatusCode !== undefined &&
           responseStatusCode >= 200 &&
@@ -354,11 +362,13 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     expect(replayed.items).toHaveLength(1);
     expect(replayed.items[0]?.catalogWebImage).toEqual(web);
     expect(replayed.items[0]?.catalogWebVariants).toEqual(variants);
-    expect(putCount).toBe(1 + retryAttempts);
-    if (e2e.catalogPrivateImageDropReply) {
+    expect(putCount).toBeGreaterThanOrEqual(1);
+    expect(putCount).toBeLessThanOrEqual(1 + retryAttempts);
+    if (forceDroppedReply) {
       expect(faultInjectionFailed).toBe(false);
       expect(droppedStorageStatus).toBeGreaterThanOrEqual(200);
       expect(retryAttempts).toBe(1);
+      expect(putCount, 'The saved original should be reused after the reply is lost.').toBe(1);
       expect(putDestinations.size).toBe(1);
     }
     expect(uiAdminRequestCounts.get('createUploadIntent')).toBe(1);
@@ -433,7 +443,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     } finally {
       await Promise.allSettled([...errorReads]);
       receipt.uploadTransport = uploadTransport;
-      if (e2e.catalogPrivateImageDropReply) {
+      if (forceDroppedReply) {
         receipt.droppedStorageStatus = droppedStorageStatus ?? null;
         receipt.faultInjectionFailed = faultInjectionFailed;
         receipt.distinctPutDestinations = putDestinations.size;

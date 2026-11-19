@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 
 let large: Promise<Buffer> | undefined;
@@ -9,6 +10,16 @@ export function largeCatalogPng() {
     .png({ compressionLevel: 0 })
     .toBuffer();
   return large;
+}
+
+// Exceed the web-image preparation threshold without testing WAN capacity at the same time.
+export async function retryCatalogPng() {
+  const width = 1600;
+  const height = 1000;
+  const channels = 3;
+  const pixels = Buffer.alloc(width * height * channels, 0x34);
+  randomBytes(width * 40 * channels).copy(pixels);
+  return sharp(pixels, { raw: { width, height, channels } }).png().toBuffer();
 }
 
 /** Padding is a standards-compliant GIF comment; both real animation frames remain intact. */

@@ -25,6 +25,8 @@ function fixture(t: TestContext) {
   const completed: { imageId: string; token: string }[] = [];
   let loseCompleteReply = false;
   let losePutReply = false;
+  let objectMissingAfterReplyLoss = false;
+  let rejectPut = false;
   let afterPut: (() => void) | undefined;
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     if (init.method === 'PUT') {
@@ -32,6 +34,10 @@ function fixture(t: TestContext) {
       if (losePutReply) {
         losePutReply = false;
         throw new TypeError('The upload reply was lost');
+      }
+      if (rejectPut) {
+        rejectPut = false;
+        return new Response(null, { status: 400 });
       }
       afterPut?.();
       return new Response(null, { status: 204 });
@@ -55,6 +61,16 @@ function fixture(t: TestContext) {
     assert.equal(request.action, 'completeUpload');
     counts.complete++;
     completed.push({ imageId: request.data.imageId, token: request.token });
+    if (objectMissingAfterReplyLoss) {
+      objectMissingAfterReplyLoss = false;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: { code: 'NOT_FOUND', message: 'Original file not readable' },
+        }),
+        { status: 404 },
+      );
+    }
     if (loseCompleteReply) {
       loseCompleteReply = false;
       throw new TypeError('The completion reply was lost');
@@ -69,8 +85,12 @@ function fixture(t: TestContext) {
     loseReply() {
       loseCompleteReply = true;
     },
-    loseUploadReply() {
+    loseUploadReply({ objectMissing = false } = {}) {
       losePutReply = true;
+      objectMissingAfterReplyLoss = objectMissing;
+    },
+    rejectUpload() {
+      rejectPut = true;
     },
     afterPut(fn: () => void) {
       afterPut = fn;
@@ -103,11 +123,29 @@ test('retry after an unknown completion outcome reuses the received image id and
   );
 });
 
-test('an unknown storage result retries the same file and object without minting another image', async (t) => {
+test('retry after a saved PUT loses its response finalizes the same object before sending more bytes', async (t) => {
   const f = fixture(t);
   const file = new File(['fixture'], 'photo.png', { type: 'image/png' });
   f.loseUploadReply();
   await assert.rejects(uploadImage(file), /upload reply was lost/);
+  assert.equal(await uploadImage(file), 'fixture-image-1');
+  assert.deepEqual(f.counts, { intents: 1, puts: 1, complete: 1 });
+});
+
+test('retry sends the same file again if the earlier PUT had an unknown outcome and the object is missing', async (t) => {
+  const f = fixture(t);
+  const file = new File(['fixture'], 'photo.png', { type: 'image/png' });
+  f.loseUploadReply({ objectMissing: true });
+  await assert.rejects(uploadImage(file), /upload reply was lost/);
+  assert.equal(await uploadImage(file), 'fixture-image-1');
+  assert.deepEqual(f.counts, { intents: 1, puts: 2, complete: 2 });
+});
+
+test('a storage rejection retries the same PUT without first checking completion', async (t) => {
+  const f = fixture(t);
+  const file = new File(['fixture'], 'photo.png', { type: 'image/png' });
+  f.rejectUpload();
+  await assert.rejects(uploadImage(file), /Storage upload failed \(400\)/);
   assert.equal(await uploadImage(file), 'fixture-image-1');
   assert.deepEqual(f.counts, { intents: 1, puts: 2, complete: 1 });
 });
