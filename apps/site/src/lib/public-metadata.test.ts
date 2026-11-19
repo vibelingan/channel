@@ -360,12 +360,14 @@ test('watch pages bind their audited descriptor and keep unique concise metadata
   }
 });
 
-test('standard product route binds the validated public page descriptor to BaseLayout', async () => {
-  const { ast, diagnostics } = await parse(read('../pages/products/[publicKey].astro'));
+test('standard product route binds the validated public page descriptor to the document layout', async () => {
+  const source = read('../pages/products/[publicKey].astro');
+  assert.match(source, /import DocumentLayout from '..\/..\/layouts\/DocumentLayout\.astro';/);
+  const { ast, diagnostics } = await parse(source);
   assert.deepEqual(diagnostics, []);
   const layouts: ComponentNode[] = [];
   const visit = (node: AstroNode) => {
-    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if (node.type === 'component' && node.name === 'DocumentLayout') layouts.push(node);
     if ('children' in node) for (const child of node.children) visit(child);
   };
   visit(ast);
