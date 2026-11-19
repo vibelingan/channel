@@ -15,7 +15,7 @@ permissions:
   contents: read
 jobs:
   server-http:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
       SITE_URL: https://supplychainsai.com

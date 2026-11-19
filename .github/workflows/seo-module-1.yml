@@ -22,7 +22,7 @@ jobs:
     uses: ./.github/workflows/browser-regression.yml
   blog:
     name: Blog editor and public pages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4

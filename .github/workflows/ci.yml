@@ -199,7 +199,7 @@ jobs:
   # deploys waits for the whole workflow, so both must pass before anything is released.
   checks:
     name: Build and smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     env:
