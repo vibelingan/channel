@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { parseDocument } from 'yaml';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts';
-import { ProductLanding, initialProductImagePreload } from '../../islands/shop/ProductLanding.tsx';
+import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import { SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
 import { isPlainProductClick, productPath } from './product-identity.ts';
 import { duplicateProductTitleIds, productPageDescriptor } from './product-page.ts';
@@ -121,52 +121,6 @@ test('capture, save and initial HTML retain configuration-photo sizes separately
   assert.match(html, /srcSet="[^"]*configuration-photo\?w=640 640w/);
   assert.doesNotMatch(html, /general-photo\?w=160/);
 });
-test('the product preload matches the rendered default configuration and uses a verified site route', () => {
-  const apiOrigin = 'https://approved.example.com';
-  const source = '/api/images/configuration-photo';
-  const general = '/api/images/general-photo';
-  const variant = detailFixture(2);
-  const detail = {
-    ...variant,
-    revision: 'approved-r1',
-    images: [general],
-    variants: {
-      ...variant.variants,
-      items: variant.variants.items.map((item, index) => ({
-        ...item,
-        images: index === 0 ? [source] : [general],
-      })),
-    },
-  };
-  const publicProduct = {
-    ...product,
-    imagePresentation: {
-      [source]: [{ url: `${source}?w=640`, width: 640, height: 480 }],
-      [general]: [{ url: `${general}?w=640`, width: 640, height: 480 }],
-    },
-  };
-  const hint = initialProductImagePreload(publicProduct, detail, apiOrigin);
-  assert.ok(hint);
-  assert.equal(hint.srcSet, '/api/images/configuration-photo?w=640 640w');
-  const html = renderToStaticMarkup(
-    createElement(ProductLanding, {
-      product: publicProduct,
-      bootstrap: detail,
-      content,
-      copy: content.sharedDetail,
-      canonicalPath: productPath(product._id),
-      heroImageApiOrigin: apiOrigin,
-    }),
-  );
-  const hero = html.match(/<img[^>]*fetchPriority="high"[^>]*>/)?.[0];
-  assert.ok(hero);
-  assert.ok(hero.includes(`srcSet="${hint.srcSet}"`));
-  assert.ok(hero.includes(`sizes="${hint.sizes}"`));
-  assert.equal(initialProductImagePreload(publicProduct, detail, undefined), undefined);
-  assert.equal(initialProductImagePreload(publicProduct, undefined, apiOrigin), undefined);
-  assert.equal(initialProductImagePreload(product, detail, apiOrigin), undefined);
-});
-
 test('one stable identity drives metadata schema and breadcrumbs without inferring variant-wide offers', () => {
   const detail = {
     ...detailFixture(51),

@@ -463,5 +463,168 @@
       "lastCrawlInConsole": "2026-11-07",
       "urlsDiscovered": 0
     }
+  },
+  "compiledHeroPreloadPublicResult": {
+    "publisherRunId": 44424201310,
+    "rendererSha": "53e478b66dd444589eabb0d27f522c30d08962c5",
+    "chrome": "149.0.7827.55",
+    "egress": "JP/NRT",
+    "screen": "412x823 DPR1.75",
+    "latencyMs": 150,
+    "downloadBytesPerSec": 200000,
+    "cpuSlowdown": 4,
+    "judgement": "Live performance regression. The image reused the existing connection and the stylesheet had to open a new one.",
+    "publicBeforeAfterPayloadsIdentical": 9,
+    "catalogRevisionsMatched": 528,
+    "observations": {
+      "before": [
+        {
+          "product": "product",
+          "repeat": 1,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 3460,
+          "lcpMs": 3868,
+          "imageDiscoveryAfterHtmlFirstByteMs": 777,
+          "imagePaintAfterReadMs": 8,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 717
+        },
+        {
+          "product": "legacy",
+          "repeat": 1,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3360,
+          "lcpMs": 4196,
+          "imageDiscoveryAfterHtmlFirstByteMs": 846,
+          "imagePaintAfterReadMs": 6,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 635
+        },
+        {
+          "product": "legacy",
+          "repeat": 2,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3308,
+          "lcpMs": 6228,
+          "imageDiscoveryAfterHtmlFirstByteMs": 785,
+          "imagePaintAfterReadMs": 4,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 634
+        },
+        {
+          "product": "product",
+          "repeat": 2,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 3372,
+          "lcpMs": 3644,
+          "imageDiscoveryAfterHtmlFirstByteMs": 803,
+          "imagePaintAfterReadMs": 8,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 628
+        },
+        {
+          "product": "product",
+          "repeat": 3,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 0,
+          "fcpMs": 3328,
+          "lcpMs": 3672,
+          "imageDiscoveryAfterHtmlFirstByteMs": 817,
+          "imagePaintAfterReadMs": 6,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 637
+        },
+        {
+          "product": "legacy",
+          "repeat": 3,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3324,
+          "lcpMs": 3956,
+          "imageDiscoveryAfterHtmlFirstByteMs": 878,
+          "imagePaintAfterReadMs": 6,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 640
+        }
+      ],
+      "after": [
+        {
+          "product": "product",
+          "repeat": 1,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 1,
+          "fcpMs": 4896,
+          "lcpMs": 4960,
+          "imageDiscoveryAfterHtmlFirstByteMs": 56,
+          "imagePaintAfterReadMs": 1571,
+          "stylesheetConnectionCompleteMs": 893,
+          "stylesheetResponseStartMs": 1533
+        },
+        {
+          "product": "legacy",
+          "repeat": 1,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3744,
+          "lcpMs": 4788,
+          "imageDiscoveryAfterHtmlFirstByteMs": 1136,
+          "imagePaintAfterReadMs": 6,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 643
+        },
+        {
+          "product": "legacy",
+          "repeat": 2,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3604,
+          "lcpMs": 4232,
+          "imageDiscoveryAfterHtmlFirstByteMs": 1130,
+          "imagePaintAfterReadMs": 5,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 634
+        },
+        {
+          "product": "product",
+          "repeat": 2,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 1,
+          "fcpMs": 4244,
+          "lcpMs": 4296,
+          "imageDiscoveryAfterHtmlFirstByteMs": 11,
+          "imagePaintAfterReadMs": 1696,
+          "stylesheetConnectionCompleteMs": 886,
+          "stylesheetResponseStartMs": 1508
+        },
+        {
+          "product": "product",
+          "repeat": 3,
+          "unchangedRevision": "653938e3-5962-4868-bc84-37dbf01a44ca",
+          "preloadHints": 1,
+          "fcpMs": 4208,
+          "lcpMs": 4252,
+          "imageDiscoveryAfterHtmlFirstByteMs": 20,
+          "imagePaintAfterReadMs": 1613,
+          "stylesheetConnectionCompleteMs": 892,
+          "stylesheetResponseStartMs": 1549
+        },
+        {
+          "product": "legacy",
+          "repeat": 3,
+          "unchangedRevision": "2ea32864-0cae-45fe-a196-a1f9088c36bd",
+          "preloadHints": 0,
+          "fcpMs": 3736,
+          "lcpMs": 4008,
+          "imageDiscoveryAfterHtmlFirstByteMs": 874,
+          "imagePaintAfterReadMs": 5,
+          "stylesheetConnectionCompleteMs": -1,
+          "stylesheetResponseStartMs": 646
+        }
+      ]
+    }
   }
 }

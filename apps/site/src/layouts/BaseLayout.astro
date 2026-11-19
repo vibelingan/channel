@@ -6,7 +6,4 @@ import DocumentLayout from './DocumentLayout.astro';
 type Props = ComponentProps<typeof import('./DocumentLayout.astro').default>;
 ---
 
-<DocumentLayout {...Astro.props}>
-  <slot name="resource-hints" slot="resource-hints" />
-  <slot />
-</DocumentLayout>
+<DocumentLayout {...Astro.props}><slot /></DocumentLayout>
