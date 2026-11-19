@@ -86,6 +86,9 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   await mkdir('output/catalog-private-image', { recursive: true });
   let putCount = 0;
   let retryAttempts = 0;
+  let droppedStorageStatus: number | undefined;
+  let faultInjectionFailed = false;
+  const putDestinations = new Set<string>();
   let failure: unknown;
   let cleanupFailure: unknown;
   const uploadTransport: Array<Record<string, unknown>> = [];
@@ -182,7 +185,13 @@ test('private large image: real UI upload, backend preview, same-id replay and e
   ]);
   page.on('request', (req) => {
     if (req.method() === 'PUT') uploadStarts.set(req.url(), Date.now());
-    if (req.method() === 'PUT' && new URL(req.url()).hostname.endsWith('.myqcloud.com')) putCount++;
+    if (req.method() === 'PUT') {
+      const target = new URL(req.url());
+      if (target.hostname.endsWith('.myqcloud.com')) {
+        putCount++;
+        putDestinations.add(target.origin + target.pathname);
+      }
+    }
     if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/admin') {
       try {
         const body: unknown = req.postDataJSON();
@@ -212,6 +221,34 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     await expect(page.getByRole('heading', { name: 'Products', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^New / }).click();
     const gallery = page.locator('[data-image-manager="gallery"]');
+    if (e2e.catalogPrivateImageDropReply) {
+      // Let Chromium send the real PUT. Hide only the first successful storage response.
+      network.on('Fetch.requestPaused', ({ requestId, request: paused, responseStatusCode }) => {
+        const continueRequest = () => network.send('Fetch.continueRequest', { requestId });
+        if (
+          droppedStorageStatus === undefined &&
+          paused.method === 'PUT' &&
+          responseStatusCode !== undefined &&
+          responseStatusCode >= 200 &&
+          responseStatusCode < 300
+        ) {
+          droppedStorageStatus = responseStatusCode;
+          void network
+            .send('Fetch.failRequest', { requestId, errorReason: 'ConnectionClosed' })
+            .catch(async () => {
+              faultInjectionFailed = true;
+              await continueRequest().catch(() => {});
+            });
+        } else {
+          void continueRequest().catch(() => {
+            faultInjectionFailed = true;
+          });
+        }
+      });
+      await network.send('Fetch.enable', {
+        patterns: [{ urlPattern: 'https://*.myqcloud.com/*', requestStage: 'Response' }],
+      });
+    }
     await gallery.locator('input[type="file"]').setInputFiles({
       name,
       mimeType: 'image/png',
@@ -318,6 +355,12 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     expect(replayed.items[0]?.catalogWebImage).toEqual(web);
     expect(replayed.items[0]?.catalogWebVariants).toEqual(variants);
     expect(putCount).toBe(1 + retryAttempts);
+    if (e2e.catalogPrivateImageDropReply) {
+      expect(faultInjectionFailed).toBe(false);
+      expect(droppedStorageStatus).toBeGreaterThanOrEqual(200);
+      expect(retryAttempts).toBe(1);
+      expect(putDestinations.size).toBe(1);
+    }
     expect(uiAdminRequestCounts.get('createUploadIntent')).toBe(1);
     const anonymous = await request.get(`${e2e.apiUrl}/api/images/${imageId}`);
     expect(anonymous.status()).toBe(404);
@@ -366,6 +409,7 @@ test('private large image: real UI upload, backend preview, same-id replay and e
         expect(image.byteSize).toBe(bytes.length);
         expect(
           image.status !== 'pending' ||
+            droppedStorageStatus !== undefined ||
             uploadTransport.some(
               (result) =>
                 typeof result.status === 'number' && result.status >= 200 && result.status < 300,
@@ -389,6 +433,11 @@ test('private large image: real UI upload, backend preview, same-id replay and e
     } finally {
       await Promise.allSettled([...errorReads]);
       receipt.uploadTransport = uploadTransport;
+      if (e2e.catalogPrivateImageDropReply) {
+        receipt.droppedStorageStatus = droppedStorageStatus ?? null;
+        receipt.faultInjectionFailed = faultInjectionFailed;
+        receipt.distinctPutDestinations = putDestinations.size;
+      }
       receipt.uploadNetwork = uploadNetwork;
       receipt.userRetryAttempts = retryAttempts;
       receipt.uiAdminRequestCounts = Object.fromEntries(uiAdminRequestCounts);

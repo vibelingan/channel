@@ -21,6 +21,10 @@ on:
         required: false
         type: string
         default: ''
+      drop_first_private_upload_reply:
+        description: For media-private only, drop the first successful COS reply and test the Retry button
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -80,6 +84,7 @@ jobs:
         if: ${{ inputs.suite == 'admin' || inputs.suite == 'mutation' || inputs.suite == 'media-upload' || inputs.suite == 'media-private' }}
         env:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_CATALOG_PRIVATE_IMAGE_DROP_REPLY: ${{ inputs.suite == 'media-private' && inputs.drop_first_private_upload_reply && '1' || '0' }}
         run: |
           if [ -z "$E2E_ADMIN_PASSWORD" ]; then
             echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
