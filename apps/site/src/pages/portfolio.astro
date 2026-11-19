@@ -8,7 +8,8 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getPortfolioContent } from '../i18n/portfolio.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DocumentLayout from '../layouts/DocumentLayout.astro';
+import '../styles/oem-portfolio.css';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const portfolio = getPortfolioContent(DEFAULT_LOCALE);
@@ -16,7 +17,7 @@ const { brand, nav, footer } = site;
 const { meta, hero, stats, customers, cases, certificates } = portfolio;
 ---
 
-<BaseLayout
+<DocumentLayout
   title={`${meta.title} — ${brand.name}`}
   description={meta.description}
   lang="en"
@@ -87,4 +88,4 @@ const { meta, hero, stats, customers, cases, certificates } = portfolio;
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
-</BaseLayout>
+</DocumentLayout>

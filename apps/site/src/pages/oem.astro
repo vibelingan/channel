@@ -17,7 +17,8 @@ import SiteHeader from '../components/SiteHeader.astro';
 import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DocumentLayout from '../layouts/DocumentLayout.astro';
+import '../styles/oem-portfolio.css';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const oem = getOemContent(DEFAULT_LOCALE);
@@ -37,7 +38,7 @@ const {
 const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
 ---
 
-<BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
+<DocumentLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
@@ -108,4 +109,4 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
 
   <SiteFooter brand={brand} footer={footer} />
   <AssistantHost />
-</BaseLayout>
+</DocumentLayout>
