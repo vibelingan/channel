@@ -3122,5 +3122,790 @@
       "804e": [112379, 103211],
       "ffc8": [98813, 90889]
     }
+  },
+  "categoryStylesAndFavicon": {
+    "rendererCommit": "13b637302425b5fddeded544801bf170fdfebe5c",
+    "checksRun": 44456966315,
+    "rendererArchiveRun": 44458097335,
+    "websiteDeliveryRun": 44458542492,
+    "websiteDelivery": "site-44458542492-1",
+    "liveAssets": {
+      "iconBytes": 3332,
+      "iconSha256": "1ab3fdd21a673954bd8353b1e170e14b88a9dc1850eb5686e3e8c7038833d8e4",
+      "iconMime": "image/vnd.microsoft.icon",
+      "svgBytes": 466,
+      "missingStatus": 404,
+      "stylesheet": "/_astro/headphones.DrnLVrv5.css",
+      "cssBytes": 60000,
+      "cssSha256": "fc5a8bf54702989895e172fca93a8066f06633817c2699fd8b2f908737c091d6"
+    },
+    "faviconSizes": [16, 32, 48, 64],
+    "liveParity": {
+      "publicProductVersions": 528,
+      "publicArticleBodies": 3,
+      "historic4xxImages": 5,
+      "sitemapsAndRobotsMatch": true,
+      "temporaryFunctionsRemoved": 2
+    },
+    "conditions": {
+      "viewport": [412, 823],
+      "networkLatencyMs": 150,
+      "downloadBytesPerSecond": 200000,
+      "cpuSlowdown": 4,
+      "liveComparison": "Alternated two live stylesheets on the same current website HTML, fresh context for each load and third-party requests blocked in both arms."
+    },
+    "categoryLayoutParity": [
+      {
+        "width": 412,
+        "candidate": false,
+        "layoutSha256": "9c45ea598cb713d00be6c4ac66b8d73ffb6b7e5ede4db6ca3af8b59d7e39388b"
+      },
+      {
+        "width": 412,
+        "candidate": true,
+        "layoutSha256": "9c45ea598cb713d00be6c4ac66b8d73ffb6b7e5ede4db6ca3af8b59d7e39388b"
+      },
+      {
+        "width": 768,
+        "candidate": false,
+        "layoutSha256": "d8cc345f20c71a932acab82046aa44fe08b26cad0084f5d9fd2cdefb54695e96"
+      },
+      {
+        "width": 768,
+        "candidate": true,
+        "layoutSha256": "d8cc345f20c71a932acab82046aa44fe08b26cad0084f5d9fd2cdefb54695e96"
+      },
+      {
+        "width": 1440,
+        "candidate": false,
+        "layoutSha256": "c9575289acd935f98204119c2d8288fa94953d6577486b74e29b17385985dbdb"
+      },
+      {
+        "width": 1440,
+        "candidate": true,
+        "layoutSha256": "c9575289acd935f98204119c2d8288fa94953d6577486b74e29b17385985dbdb"
+      }
+    ],
+    "fixedNetworkReplay": {
+      "chrome": "149.0.7827.55",
+      "samples": [
+        {
+          "index": 0,
+          "fcp": 1716,
+          "lcp": 1716,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1175.699999988079
+        },
+        {
+          "index": 1,
+          "fcp": 1224,
+          "lcp": 1228,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 921.4000000059605
+        },
+        {
+          "index": 1,
+          "fcp": 1220,
+          "lcp": 1228,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 925.9000000059605
+        },
+        {
+          "index": 0,
+          "fcp": 1488,
+          "lcp": 1488,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1195.9000000059605
+        },
+        {
+          "index": 0,
+          "fcp": 1500,
+          "lcp": 1500,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1196.5
+        },
+        {
+          "index": 1,
+          "fcp": 1220,
+          "lcp": 1220,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 926.9000000059605
+        },
+        {
+          "index": 1,
+          "fcp": 1204,
+          "lcp": 1204,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 925.3999999910593
+        },
+        {
+          "index": 0,
+          "fcp": 1480,
+          "lcp": 1480,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1197
+        },
+        {
+          "index": 0,
+          "fcp": 1472,
+          "lcp": 1472,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1196.0999999940395
+        },
+        {
+          "index": 1,
+          "fcp": 1204,
+          "lcp": 1204,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 926.6999999880791
+        },
+        {
+          "index": 1,
+          "fcp": 1236,
+          "lcp": 1240,
+          "lcpTag": "IMG",
+          "cssBytes": 60000,
+          "cssDownload": 926.7000000029802
+        },
+        {
+          "index": 0,
+          "fcp": 1488,
+          "lcp": 1488,
+          "lcpTag": "IMG",
+          "cssBytes": 102058,
+          "cssDownload": 1197.4000000059605
+        }
+      ]
+    },
+    "websiteComparison": {
+      "browser": "149.0.7827.55",
+      "egress": "colo=NRT loc=JP",
+      "samples": [
+        {
+          "kind": "original",
+          "fcp": 6920,
+          "lcp": {
+            "tag": "IMG",
+            "value": 6976
+          },
+          "htmlFirstByte": 2389.3999999910593,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 6844.0999999940395,
+            "time": 4399.5999999940395
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 4488,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8876
+          },
+          "htmlFirstByte": 1574.7000000029802,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 4452.5,
+            "time": 2339.6000000089407
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 6372,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8732
+          },
+          "htmlFirstByte": 2077.6000000089407,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 6334.300000011921,
+            "time": 3336.1000000089407
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 4756,
+          "lcp": {
+            "tag": "IMG",
+            "value": 6956
+          },
+          "htmlFirstByte": 2080.2000000029802,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 4715.4000000059605,
+            "time": 2579
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 7220,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8572
+          },
+          "htmlFirstByte": 3098.0999999940395,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 7190.399999991059,
+            "time": 2962.0999999940395
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 5064,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7112
+          },
+          "htmlFirstByte": 2721.9000000059605,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 5030.300000011921,
+            "time": 2263.800000011921
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 7928,
+          "lcp": {
+            "tag": "IMG",
+            "value": 9436
+          },
+          "htmlFirstByte": 3785.1000000089407,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 7894.100000008941,
+            "time": 4063.5
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 7228,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7648
+          },
+          "htmlFirstByte": 2254.4000000059605,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 7197.9000000059605,
+            "time": 4334.29999999702
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 7636,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8552
+          },
+          "htmlFirstByte": 3294.2000000029802,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 7602.70000000298,
+            "time": 4190.79999999702
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 6220,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8192
+          },
+          "htmlFirstByte": 1816.1000000089407,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 6185.600000008941,
+            "time": 3457.7000000029802
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 5408,
+          "lcp": {
+            "tag": "IMG",
+            "value": 6672
+          },
+          "htmlFirstByte": 2524.1000000089407,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 5374.4000000059605,
+            "time": 2802.9000000059605
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 7904,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8460
+          },
+          "htmlFirstByte": 2390.1000000089407,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 7871.5,
+            "time": 5046.29999999702
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        }
+      ],
+      "failures": []
+    },
+    "websiteImageWaterfall": {
+      "browser": "149.0.7827.55",
+      "egress": "colo=NRT loc=JP",
+      "samples": [
+        {
+          "kind": "original",
+          "fcp": 7056,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8468
+          },
+          "htmlFirstByte": 3693.1000000089407,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 6897.100000008941,
+            "time": 3143.2000000029802
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 4204.4000000059605,
+            "request": 5585.9000000059605,
+            "firstByte": 7319.70000000298,
+            "end": 8464.20000000298,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": false,
+              "connect": 1380.888,
+              "receiveHeaders": 3114.658,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 5176,
+          "lcp": {
+            "tag": "IMG",
+            "value": 6136
+          },
+          "htmlFirstByte": 2261.7000000029802,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 5142.79999999702,
+            "time": 2811.4000000059605
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 3156.2000000029802,
+            "request": 4056.0999999940395,
+            "firstByte": 5501,
+            "end": 6132.899999991059,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": true,
+              "connect": -1,
+              "receiveHeaders": 2344.231,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 4880,
+          "lcp": {
+            "tag": "IMG",
+            "value": 6924
+          },
+          "htmlFirstByte": 2008.7000000029802,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 4850,
+            "time": 2794.9000000059605
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 2510,
+            "request": 4378.0999999940395,
+            "firstByte": 5811.5999999940395,
+            "end": 6919.70000000298,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": true,
+              "connect": -1,
+              "receiveHeaders": 3301.146,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 5540,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7508
+          },
+          "htmlFirstByte": 2100.5,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 5509.79999999702,
+            "time": 3351.2000000029802
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 3298.3999999910593,
+            "request": 4196.699999988079,
+            "firstByte": 5667.5,
+            "end": 7497.5999999940395,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": false,
+              "connect": 897.569,
+              "receiveHeaders": 2368.341,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 5460,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7100
+          },
+          "htmlFirstByte": 2504.0999999940395,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 5427.5,
+            "time": 2878.7000000029802
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 2846.7999999970198,
+            "request": 4323.699999988079,
+            "firstByte": 6398.5,
+            "end": 7077.899999991059,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": false,
+              "connect": 1476.335,
+              "receiveHeaders": 3551.188,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 4272,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7288
+          },
+          "htmlFirstByte": 2063.2000000029802,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 4235.4000000059605,
+            "time": 2130
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 2217.5,
+            "request": 3725.6000000089407,
+            "firstByte": 5605.800000011921,
+            "end": 7280.600000008941,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": true,
+              "connect": -1,
+              "receiveHeaders": 3387.005,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "current",
+          "fcp": 5304,
+          "lcp": {
+            "tag": "IMG",
+            "value": 7600
+          },
+          "htmlFirstByte": 1554.7000000029802,
+          "css": {
+            "size": 60000,
+            "body": 60000,
+            "end": 5270.4000000059605,
+            "time": 3172.1000000089407
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 2908.2999999970198,
+            "request": 4262.9000000059605,
+            "firstByte": 6614.5,
+            "end": 7565.5,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": false,
+              "connect": 1354.01,
+              "receiveHeaders": 3705.663,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        },
+        {
+          "kind": "original",
+          "fcp": 6168,
+          "lcp": {
+            "tag": "IMG",
+            "value": 8740
+          },
+          "htmlFirstByte": 3301,
+          "css": {
+            "size": 102058,
+            "body": 102058,
+            "end": 6131.5999999940395,
+            "time": 2786.7999999970198
+          },
+          "title": "OEM Headphone Manufacturer | Diversity Innovations Limited",
+          "image": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "size": 63062,
+            "start": 3455.8999999910593,
+            "request": 4342.29999999702,
+            "firstByte": 5798.5,
+            "end": 8734.59999999404,
+            "nextHop": "http/1.1",
+            "connection": {
+              "protocol": "http/1.1",
+              "reused": false,
+              "connect": 885.651,
+              "receiveHeaders": 2341.939,
+              "status": 200
+            }
+          },
+          "hero": ["OEM Headphones, Built for Your Brand", "34px", 85]
+        }
+      ],
+      "failures": []
+    },
+    "publicCrux": {
+      "homepage": [
+        {
+          "requestedOrigin": null,
+          "selectedKey": null,
+          "formFactor": "PHONE",
+          "http": 404,
+          "error": "NOT_FOUND",
+          "message": "chrome ux report data not found",
+          "latestWindow": null,
+          "metricKeys": []
+        },
+        {
+          "requestedOrigin": null,
+          "selectedKey": null,
+          "formFactor": "DESKTOP",
+          "http": 404,
+          "error": "NOT_FOUND",
+          "message": "chrome ux report data not found",
+          "latestWindow": null,
+          "metricKeys": []
+        },
+        {
+          "requestedOrigin": null,
+          "selectedKey": {
+            "formFactor": "PHONE",
+            "url": "https://web.dev/"
+          },
+          "formFactor": "PHONE",
+          "http": 200,
+          "error": null,
+          "message": null,
+          "latestWindow": {
+            "firstDate": {
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "lastDate": {
+              "year": 2026,
+              "month": 11,
+              "day": 14
+            }
+          },
+          "metricKeys": [
+            "experimental_interaction_to_next_paint_with_softnavs",
+            "experimental_time_to_first_byte",
+            "largest_contentful_paint_image_time_to_first_byte",
+            "navigation_types",
+            "experimental_cumulative_layout_shift_with_softnavs",
+            "experimental_navigation_types_with_softnavs",
+            "largest_contentful_paint_image_resource_load_duration",
+            "cumulative_layout_shift",
+            "experimental_first_contentful_paint_with_softnavs",
+            "first_contentful_paint",
+            "interaction_to_next_paint",
+            "largest_contentful_paint_image_element_render_delay",
+            "largest_contentful_paint_image_resource_load_delay",
+            "experimental_largest_contentful_paint_with_softnavs",
+            "largest_contentful_paint",
+            "largest_contentful_paint_resource_type",
+            "round_trip_time"
+          ]
+        }
+      ],
+      "origin": [
+        {
+          "requestedOrigin": "https://supplychainsai.com",
+          "selectedKey": null,
+          "formFactor": "PHONE",
+          "http": 404,
+          "error": "NOT_FOUND",
+          "message": "chrome ux report data not found",
+          "latestWindow": null,
+          "metricKeys": []
+        },
+        {
+          "requestedOrigin": "https://supplychainsai.com",
+          "selectedKey": null,
+          "formFactor": "DESKTOP",
+          "http": 404,
+          "error": "NOT_FOUND",
+          "message": "chrome ux report data not found",
+          "latestWindow": null,
+          "metricKeys": []
+        },
+        {
+          "requestedOrigin": "https://web.dev",
+          "selectedKey": {
+            "formFactor": "PHONE",
+            "origin": "https://web.dev"
+          },
+          "formFactor": "PHONE",
+          "http": 200,
+          "error": null,
+          "message": null,
+          "latestWindow": {
+            "firstDate": {
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "lastDate": {
+              "year": 2026,
+              "month": 11,
+              "day": 14
+            }
+          },
+          "metricKeys": [
+            "experimental_cumulative_layout_shift_with_softnavs",
+            "experimental_interaction_to_next_paint_with_softnavs",
+            "experimental_navigation_types_with_softnavs",
+            "first_contentful_paint",
+            "interaction_to_next_paint",
+            "experimental_first_contentful_paint_with_softnavs",
+            "experimental_largest_contentful_paint_with_softnavs",
+            "largest_contentful_paint",
+            "largest_contentful_paint_image_resource_load_duration",
+            "largest_contentful_paint_image_time_to_first_byte",
+            "navigation_types",
+            "round_trip_time",
+            "cumulative_layout_shift",
+            "experimental_time_to_first_byte",
+            "largest_contentful_paint_image_element_render_delay",
+            "largest_contentful_paint_image_resource_load_delay",
+            "largest_contentful_paint_resource_type"
+          ]
+        }
+      ]
+    },
+    "domain": {
+      "path": "/headphones/?page=2",
+      "rootHttp": 200,
+      "wwwHttp": 301,
+      "wwwHttps": 301,
+      "wwwLocation": "https://supplychainsai.com/headphones/?page=2",
+      "directModeForceHttpsObservedPreviously": 307
+    }
   }
 }

@@ -43,6 +43,8 @@ www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核
 
 同轮又从官网读取 `/favicon.ico`，得到 404，页面明确引用的 `/favicon.svg` 可以打开。Google 早期抓取统计列出的两个 404 样例都指向这个 ICO 地址。兼容文件直接用现有 SVG 生成 16、32、48、64 像素四档。浏览器原有 SVG 引用保留。这项修复对应图标请求，网站正文、收录和排名另看各自的报告。 [原始抓取统计记录](../audit-2026-11-05/01-indexing-and-discovery.zh-CN.md) · [Google 网站图标说明](https://developers.google.com/search/docs/appearance/favicon-in-search)
 
+官网现已返回 200 和 `image/vnd.microsoft.icon`，3,332 字节与候选产物逐字节相同，四档图像均能识别。原 SVG 及独立测试的未知页面地址分别返回 200、404。Google 的历史抓取统计何时刷新另看平台。 [官网图标](https://supplychainsai.com/favicon.ico) · [发布回执](https://github.com/vibelingan/channel/actions/runs/44458542492)
+
 补一个真实可用的 `/favicon.ico`，保留 SVG；不把其他未知路径转首页。OEM、Toys 的待收录需要核对真实内容和相关内链，不能断言分页就是它们未收录的唯一原因。
 
 ## 分段验收与恢复
