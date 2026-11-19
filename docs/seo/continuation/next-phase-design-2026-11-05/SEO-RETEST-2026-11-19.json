@@ -5138,5 +5138,863 @@
         "desktopFieldDataAvailable": false
       }
     }
+  },
+  "blogFirstVisitCatalogMenu": {
+    "recordedAtUtc": "2026-11-19T10:15:30Z",
+    "scope": "real production page; Chrome network throttling; a sequential, non-paired comparison, with no interception",
+    "before": {
+      "browser": "149.0.7827.55",
+      "profile": {
+        "viewport": [390, 844],
+        "dpr": 2,
+        "network": {
+          "offline": false,
+          "latency": 120,
+          "downloadThroughput": 256000,
+          "uploadThroughput": 128000,
+          "connectionType": "cellular4g"
+        },
+        "cpuRate": 4
+      },
+      "visits": [
+        {
+          "run": 1,
+          "source": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "html": {
+            "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+            "initiator": "navigation",
+            "start": 0,
+            "request": 4588.6,
+            "firstByte": 5740.2,
+            "end": 5829.7,
+            "encodedBytes": 9674,
+            "wireBytes": 9974,
+            "timing": {
+              "article-read": 545.4,
+              "blog-handler": 551.6
+            }
+          },
+          "fcp": 6952,
+          "lcp": {
+            "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+            "time": 9320,
+            "size": 85562,
+            "element": "img",
+            "hero": true
+          },
+          "hero": {
+            "naturalWidth": 1280,
+            "displayWidth": 358,
+            "altPresent": true
+          },
+          "lcpPhases": {
+            "htmlWait": 5740.2,
+            "imageDiscovery": 81.5,
+            "imageLoad": 3485.7,
+            "renderWait": 12.6
+          },
+          "requests": {
+            "hero": {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "initiator": "img",
+              "start": 5821.7,
+              "request": 6430.2,
+              "firstByte": 8617.5,
+              "end": 9307.4,
+              "encodedBytes": 91902,
+              "wireBytes": 92202,
+              "timing": {
+                "am-ref1": 284.5,
+                "am-storage": 376.7,
+                "am-url": 206.9,
+                "am-download": 168.8,
+                "am-check": 1.1,
+                "am-ref2": 317.4,
+                "am-total": 979.8,
+                "blog-image-headers": 1182,
+                "blog-image-body": 9.3,
+                "blog-handler": 1191.6
+              }
+            },
+            "stylesheetEnds": [6863.8],
+            "taxonomyStarts": [8033.2, 8033.4, 8034, 8034.1]
+          }
+        },
+        {
+          "run": 2,
+          "source": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "html": {
+            "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+            "initiator": "navigation",
+            "start": 0,
+            "request": 851.9,
+            "firstByte": 1733.5,
+            "end": 1818.6,
+            "encodedBytes": 9674,
+            "wireBytes": 9974,
+            "timing": {
+              "article-read": 284.9,
+              "blog-handler": 385.3
+            }
+          },
+          "fcp": 2720,
+          "lcp": {
+            "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+            "time": 4820,
+            "size": 85562,
+            "element": "img",
+            "hero": true
+          },
+          "hero": {
+            "naturalWidth": 1280,
+            "displayWidth": 358,
+            "altPresent": true
+          },
+          "lcpPhases": {
+            "htmlWait": 1733.5,
+            "imageDiscovery": 68.5,
+            "imageLoad": 2987.8,
+            "renderWait": 30.2
+          },
+          "requests": {
+            "hero": {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "initiator": "img",
+              "start": 1802,
+              "request": 2410.7,
+              "firstByte": 4161.1,
+              "end": 4789.8,
+              "encodedBytes": 91902,
+              "wireBytes": 92202,
+              "timing": {
+                "am-ref1": 309.5,
+                "am-storage": 0,
+                "am-check": 1,
+                "am-ref2": 282.9,
+                "am-total": 593.6,
+                "blog-image-headers": 706.5,
+                "blog-image-body": 9.4,
+                "blog-handler": 716.1
+              }
+            },
+            "stylesheetEnds": [2685.6],
+            "taxonomyStarts": [4391.3, 4391.4, 4391.4, 4392]
+          }
+        },
+        {
+          "run": 3,
+          "source": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "html": {
+            "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+            "initiator": "navigation",
+            "start": 0,
+            "request": 1139.6,
+            "firstByte": 2063.2,
+            "end": 2153.5,
+            "encodedBytes": 9696,
+            "wireBytes": 9996,
+            "timing": {
+              "article-read": 324,
+              "blog-handler": 330
+            }
+          },
+          "fcp": 3216,
+          "lcp": {
+            "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+            "time": 5348,
+            "size": 85562,
+            "element": "img",
+            "hero": true
+          },
+          "hero": {
+            "naturalWidth": 1280,
+            "displayWidth": 358,
+            "altPresent": true
+          },
+          "lcpPhases": {
+            "htmlWait": 2063.2,
+            "imageDiscovery": 85.1,
+            "imageLoad": 3169.2,
+            "renderWait": 30.5
+          },
+          "requests": {
+            "hero": {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "initiator": "img",
+              "start": 2148.3,
+              "request": 2768.4,
+              "firstByte": 3940.6,
+              "end": 5317.5,
+              "encodedBytes": 91902,
+              "wireBytes": 92202,
+              "timing": {
+                "am-ref1": 212.4,
+                "am-storage": 0,
+                "am-check": 1.1,
+                "am-ref2": 220.3,
+                "am-total": 433.9,
+                "blog-image-headers": 517.8,
+                "blog-image-body": 9.2,
+                "blog-handler": 527.3
+              }
+            },
+            "stylesheetEnds": [3184.7],
+            "taxonomyStarts": [5092.2, 5092.3, 5092.3, 5092.4]
+          }
+        },
+        {
+          "run": 4,
+          "source": "16f3d03b5c53feb0c0589a93bf4c147688aeb477",
+          "html": {
+            "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+            "initiator": "navigation",
+            "start": 0,
+            "request": 869.8,
+            "firstByte": 1722.4,
+            "end": 1808.4,
+            "encodedBytes": 9674,
+            "wireBytes": 9974,
+            "timing": {
+              "article-read": 278.9,
+              "blog-handler": 285.4
+            }
+          },
+          "fcp": 2724,
+          "lcp": {
+            "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+            "time": 5308,
+            "size": 85562,
+            "element": "img",
+            "hero": true
+          },
+          "hero": {
+            "naturalWidth": 1280,
+            "displayWidth": 358,
+            "altPresent": true
+          },
+          "lcpPhases": {
+            "htmlWait": 1722.4,
+            "imageDiscovery": 78.8,
+            "imageLoad": 3498.3,
+            "renderWait": 8.5
+          },
+          "requests": {
+            "hero": {
+              "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "initiator": "img",
+              "start": 1801.2,
+              "request": 2628.9,
+              "firstByte": 4029,
+              "end": 5299.5,
+              "encodedBytes": 91902,
+              "wireBytes": 92202,
+              "timing": {
+                "am-ref1": 191.3,
+                "am-storage": 212.8,
+                "am-url": 114.3,
+                "am-download": 98.2,
+                "am-check": 0.4,
+                "am-ref2": 229.6,
+                "am-total": 634.2,
+                "blog-image-headers": 717.3,
+                "blog-image-body": 9.4,
+                "blog-handler": 726.9
+              }
+            },
+            "stylesheetEnds": [2692.7],
+            "taxonomyStarts": [4518.3, 4518.9, 4518.9, 4519]
+          }
+        }
+      ]
+    },
+    "afterAttempts": [
+      {
+        "visits": [
+          {
+            "run": 1,
+            "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '16f3d03b5c53feb0c0589a93bf4c147688aeb477'\n- '014862bc253b440c0375c128a96e83fe7601b9d9'\n"
+          },
+          {
+            "run": 2,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 1137,
+              "firstByte": 2983.8,
+              "end": 3019.8,
+              "encodedBytes": 9695,
+              "wireBytes": 9995,
+              "timing": {
+                "article-read": 532.7,
+                "blog-handler": 734.5
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 0.3,
+              "dnsEnd": 1,
+              "tcpStart": 1,
+              "tlsStart": 593.6,
+              "tcpAndTlsEnd": 1137
+            },
+            "fcp": 3964,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 7064,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 2983.8,
+              "imageDiscovery": 31.2,
+              "imageLoad": 4041.6,
+              "renderWait": 7.4
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 3015,
+                "request": 3884.1,
+                "firstByte": 5976.9,
+                "end": 7056.6,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 265.9,
+                  "am-storage": 783.8,
+                  "am-url": 102.7,
+                  "am-download": 680,
+                  "am-check": 0.9,
+                  "am-ref2": 233.5,
+                  "am-total": 1284.2,
+                  "blog-image-headers": 1456.7,
+                  "blog-image-body": 12.4,
+                  "blog-handler": 1470.6
+                }
+              },
+              "stylesheetEnds": [3928.8],
+              "taxonomyStarts": []
+            }
+          },
+          {
+            "run": 3,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 862.2,
+              "firstByte": 1796.7,
+              "end": 1871.8,
+              "encodedBytes": 9695,
+              "wireBytes": 9995,
+              "timing": {
+                "article-read": 347.5,
+                "blog-handler": 370.3
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 0.3,
+              "dnsEnd": 1.1,
+              "tcpStart": 1.1,
+              "tlsStart": 350.3,
+              "tcpAndTlsEnd": 862.1
+            },
+            "fcp": 2940,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 4808,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 1796.7,
+              "imageDiscovery": 70.6,
+              "imageLoad": 2928.6,
+              "renderWait": 12.1
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 1867.3,
+                "request": 2458,
+                "firstByte": 3695.8,
+                "end": 4795.9,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 234.7,
+                  "am-storage": 0,
+                  "am-check": 0.4,
+                  "am-ref2": 247.5,
+                  "am-total": 482.7,
+                  "blog-image-headers": 559.5,
+                  "blog-image-body": 11.5,
+                  "blog-handler": 571.6
+                }
+              },
+              "stylesheetEnds": [2909.5],
+              "taxonomyStarts": []
+            }
+          },
+          {
+            "run": 4,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 1128.1,
+              "firstByte": 2075.6,
+              "end": 2153.5,
+              "encodedBytes": 9677,
+              "wireBytes": 9977,
+              "timing": {
+                "article-read": 356.8,
+                "blog-handler": 364.5
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 0.4,
+              "dnsEnd": 1,
+              "tcpStart": 1,
+              "tlsStart": 610.1,
+              "tcpAndTlsEnd": 1128.1
+            },
+            "fcp": 2864,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 5652,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 2075.6,
+              "imageDiscovery": 66.1,
+              "imageLoad": 3486.4,
+              "renderWait": 23.9
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 2141.7,
+                "request": 2751.3,
+                "firstByte": 4780.5,
+                "end": 5628.1,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 220.1,
+                  "am-storage": 334.3,
+                  "am-url": 95.3,
+                  "am-download": 238,
+                  "am-check": 0.4,
+                  "am-ref2": 288.6,
+                  "am-total": 843.4,
+                  "blog-image-headers": 1000.1,
+                  "blog-image-body": 11.6,
+                  "blog-handler": 1012.4
+                }
+              },
+              "stylesheetEnds": [2833.7],
+              "taxonomyStarts": []
+            }
+          }
+        ]
+      },
+      {
+        "visits": [
+          {
+            "run": 1,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 894.9,
+              "firstByte": 1886.8,
+              "end": 1964.5,
+              "encodedBytes": 9677,
+              "wireBytes": 9977,
+              "timing": {
+                "article-read": 410,
+                "blog-handler": 415.9
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 1.8,
+              "dnsEnd": 3.2,
+              "tcpStart": 3.2,
+              "tlsStart": 356.1,
+              "tcpAndTlsEnd": 894.9
+            },
+            "fcp": 4096,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 5964,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 1886.8,
+              "imageDiscovery": 67.5,
+              "imageLoad": 4001,
+              "renderWait": 8.7
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 1954.3,
+                "request": 2574.4,
+                "firstByte": 4786.4,
+                "end": 5955.3,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 271.1,
+                  "am-storage": 426.9,
+                  "am-url": 103.6,
+                  "am-download": 322.3,
+                  "am-check": 0.4,
+                  "am-ref2": 238.8,
+                  "am-total": 937.3,
+                  "blog-image-headers": 1541.7,
+                  "blog-image-body": 11,
+                  "blog-handler": 1553.2
+                }
+              },
+              "stylesheetEnds": [4062.2],
+              "taxonomyStarts": []
+            }
+          },
+          {
+            "run": 2,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 868,
+              "firstByte": 1723.6,
+              "end": 2257.5,
+              "encodedBytes": 9677,
+              "wireBytes": 9977,
+              "timing": {
+                "article-read": 279.9,
+                "blog-handler": 287
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 0.3,
+              "dnsEnd": 1.2,
+              "tcpStart": 1.2,
+              "tlsStart": 351.1,
+              "tcpAndTlsEnd": 868
+            },
+            "fcp": 2548,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 5492,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 1723.6,
+              "imageDiscovery": 528.7,
+              "imageLoad": 3228.6,
+              "renderWait": 11.1
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 2252.3,
+                "request": 2515.8,
+                "firstByte": 4437,
+                "end": 5480.9,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 438.1,
+                  "am-storage": 0,
+                  "am-check": 1.5,
+                  "am-ref2": 542.8,
+                  "am-total": 982.5,
+                  "blog-image-headers": 1231.6,
+                  "blog-image-body": 10.8,
+                  "blog-handler": 1242.6
+                }
+              },
+              "stylesheetEnds": [2515.5],
+              "taxonomyStarts": []
+            }
+          },
+          {
+            "run": 3,
+            "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '16f3d03b5c53feb0c0589a93bf4c147688aeb477'\n- '014862bc253b440c0375c128a96e83fe7601b9d9'\n"
+          },
+          {
+            "run": 4,
+            "source": "014862bc253b440c0375c128a96e83fe7601b9d9",
+            "html": {
+              "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+              "initiator": "navigation",
+              "start": 0,
+              "request": 894.3,
+              "firstByte": 1803.6,
+              "end": 1889.9,
+              "encodedBytes": 9695,
+              "wireBytes": 9995,
+              "timing": {
+                "article-read": 313.9,
+                "blog-handler": 319.4
+              },
+              "protocol": "http/1.1",
+              "dnsStart": 0.4,
+              "dnsEnd": 1,
+              "tcpStart": 1,
+              "tlsStart": 354,
+              "tcpAndTlsEnd": 894.3
+            },
+            "fcp": 2604,
+            "lcp": {
+              "url": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+              "time": 4656,
+              "size": 85562,
+              "element": "img",
+              "hero": true
+            },
+            "hero": {
+              "naturalWidth": 1280,
+              "displayWidth": 358,
+              "altPresent": true
+            },
+            "lcpPhases": {
+              "htmlWait": 1803.6,
+              "imageDiscovery": 79.7,
+              "imageLoad": 2736.9,
+              "renderWait": 35.8
+            },
+            "requests": {
+              "hero": {
+                "path": "/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v1-8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb.webp",
+                "initiator": "img",
+                "start": 1883.3,
+                "request": 2486.7,
+                "firstByte": 3772.8,
+                "end": 4620.2,
+                "encodedBytes": 91902,
+                "wireBytes": 92202,
+                "timing": {
+                  "am-ref1": 310.2,
+                  "am-storage": 0,
+                  "am-check": 2.2,
+                  "am-ref2": 246,
+                  "am-total": 558.5,
+                  "blog-image-headers": 648.1,
+                  "blog-image-body": 9.1,
+                  "blog-handler": 657.7
+                }
+              },
+              "stylesheetEnds": [2568.5],
+              "taxonomyStarts": []
+            }
+          }
+        ]
+      }
+    ],
+    "validNewSourceSampleCount": 6,
+    "excludedOldResponseCount": 2,
+    "publicVersionReadback": [
+      [
+        {
+          "kind": "health",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        },
+        {
+          "kind": "html",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        }
+      ],
+      [
+        {
+          "kind": "health",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        },
+        {
+          "kind": "html",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        }
+      ],
+      [
+        {
+          "kind": "health",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        },
+        {
+          "kind": "html",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        }
+      ],
+      [
+        {
+          "kind": "health",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        },
+        {
+          "kind": "html",
+          "version": "014862bc253b440c0375c128a96e83fe7601b9d9",
+          "edge": "c837db5b",
+          "success": true,
+          "cache": {
+            "cache-control": "no-cache"
+          }
+        }
+      ]
+    ],
+    "liveMenu": [
+      {
+        "width": 390,
+        "article": 200,
+        "beforeOpen": 0,
+        "requests": ["headphones", "ai-gadgets", "toys", "misc"],
+        "menuFirstChildMs": 1288,
+        "child": "/headphones/?category=headphones-wired&page=1"
+      },
+      {
+        "width": 1600,
+        "article": 200,
+        "beforeOpen": 0,
+        "requests": ["headphones", "ai-gadgets", "toys", "misc"],
+        "menuFirstChildMs": 800,
+        "child": "/headphones/?category=headphones-wired&page=1"
+      }
+    ],
+    "deployments": [
+      {
+        "workflow": "44502294936",
+        "phase": "preload",
+        "reportedBuild": 2613251829,
+        "confirmedCloudBuild": 2613266517,
+        "version": "blog-pages-025",
+        "backupArchive": {
+          "artifactId": "14517348029",
+          "sha256": "79c114c8c2c46b1f143650766cd875dbad52195fc4fd4245b53896f344ff0a9c"
+        }
+      },
+      {
+        "workflow": "44502914849",
+        "phase": "candidate",
+        "reportedBuild": 2613266517,
+        "confirmedCloudBuild": 2613261862,
+        "version": "blog-pages-026",
+        "backupArchive": {
+          "artifactId": "14516919719",
+          "sha256": "2605bfa1777155799408037d4367037fef781941b776fdde5b9e9e00aac27892"
+        }
+      }
+    ],
+    "uploadedScript": {
+      "bytes": 5752,
+      "sha256": "a9aedf8c919ab89e0e9f67b3fede588c5b89e4e40075338568435395ea7e7dd2"
+    },
+    "matchingReadback": {
+      "articleBodies": 3,
+      "catalogRevisions": 528,
+      "historic4xxImages": 5,
+      "sitemaps": 2,
+      "robots": true
+    },
+    "responsiveSizeProbe": {
+      "widths": [
+        {
+          "width": 768,
+          "height": 512,
+          "bytes": 33460,
+          "sha256": "30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2"
+        },
+        {
+          "width": 1280,
+          "height": 853,
+          "bytes": 91902,
+          "sha256": "8569a35011bef32cf1dccd62cebde3c2338ea28224e9c403c45d480a674aa0eb"
+        }
+      ],
+      "originalBytes": 2209843,
+      "originalSha256": "f06ad20498172a01aee6468ded4174ebd95aa238fa18aeee63489af58f194a1e",
+      "mobileObservedCssPixels": 358,
+      "mobileDevicePixelRatio": 2,
+      "published": false
+    },
+    "realUserData": {
+      "searchConsoleReportDate": "2026-11-13",
+      "desktopAvailable": false,
+      "mobileAvailable": false
+    }
   }
 }
