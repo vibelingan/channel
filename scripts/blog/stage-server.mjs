@@ -5,6 +5,7 @@ import { createGithubReadClient } from '../release/github-read.mjs';
 import { fetchFully } from '../smoke-http.mjs';
 import { connectBlogMcp } from './mcp-client.mjs';
 import { selectBlogTransitionProgram } from './prepare-asset-transition.mjs';
+import { prepareBlogUploadContext } from './prepare-upload-context.mjs';
 import { checkBlogServerPackage } from './server-package-check.mjs';
 import { submitBlogServer } from './server-stage.mjs';
 
@@ -62,8 +63,9 @@ try {
     prepareUpdate:
       operation === 'update'
         ? async () => {
+            const currentDirectory = resolve('output/blog-server-current');
             const selected = await selectBlogTransitionProgram({
-              current: { directory: resolve('output/blog-server-current'), codeSha: currentSha },
+              current: { directory: currentDirectory, codeSha: currentSha },
               candidate: { directory, codeSha },
               destination: resolve('output/blog-server-transition'),
               siteOrigin,
@@ -85,9 +87,21 @@ try {
               codeSha: selectedSha,
               siteOrigin,
             });
-            record.packageBytes = verified.totalBytes;
+            const current = await checkBlogServerPackage(currentDirectory, {
+              codeSha: currentSha,
+              siteOrigin,
+            });
+            const upload = await prepareBlogUploadContext({
+              directory: selected.directory,
+              manifest: verified,
+              current,
+              destination: resolve('output/blog-server-upload'),
+            });
+            record.packageBytes = verified.totalBytes - (upload.reusedAsset?.bytes ?? 0);
+            record.runtimeBytes = verified.totalBytes;
+            record.reusedAsset = upload.reusedAsset;
             record.submittedCodeSha = selectedSha;
-            return selected;
+            return { ...selected, directory: upload.directory };
           }
         : undefined,
     archiveBefore: async () => {

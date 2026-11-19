@@ -4464,7 +4464,7 @@
   "blogMediaProxyTiming": {
     "firstTimingCommit": "1eee56a522b4cecdfc0ced19cb06ad15337cdab1",
     "uploadDeadlineCommit": "ae952d1fa23c896cbe287f16fec10fe14d6cfcef",
-    "result": "local packaged acceptance passed; both production submissions timed out; old production program independently rechecked",
+    "result": "local packaged acceptance passed; two submissions timed out, a third received HTTP 400 before any new version was observed; old production program independently rechecked",
     "activeRelease": "62b71cbe3453807ad3c430262be216082b2944f2",
     "providerVersion": "blog-pages-023",
     "candidateOnly": true,
@@ -4479,8 +4479,29 @@
         "run": 44470966736,
         "requestTimeoutSeconds": 360,
         "result": "outcome-unknown on the caller; no new deployment later observed"
+      },
+      {
+        "run": 44482768619,
+        "phase": "transfer-package",
+        "senderRequestWriteMs": 306896,
+        "responseMs": 311015,
+        "status": 400,
+        "result": "the provider did not return a usable deployment receipt; no new release observed"
       }
     ],
+    "smallerUploadLocalProof": {
+      "sourceRelease": "ae952d1fa23c896cbe287f16fec10fe14d6cfcef",
+      "beforeZipBytes": 8050306,
+      "afterZipBytes": 886380,
+      "beforeLogicalBytes": 10593135,
+      "afterTransferLogicalBytes": 3391938,
+      "restoredRuntimeBytes": 10593135,
+      "verifiedFiles": 28,
+      "videoBytes": 7201197,
+      "videoSha256": "3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d",
+      "reconstructedWithProdVideoBytesInLocalProcess": true,
+      "providerBuildVerified": false
+    },
     "previousSuccessfulSubmission": {
       "run": 44414982239,
       "observedStepSeconds": 26
