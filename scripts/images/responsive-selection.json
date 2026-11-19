@@ -1,40 +1,28 @@
 {
-  "publicApiProgramSha": "ea42e885a1b819b00ed39bb11eb02b4a95887932",
+  "publicApiProgramSha": "1b23c7edc4ad35c35bfff0fb031b9dc023f7c033",
   "images": [
     {
-      "imageId": "3fbe8b166ac8845f003b0fc91a26d52c",
-      "sourceDigest": "10be6860698cd76a81ab5e82370bdeb19c27a1e203dfa2bc9490b5c4753846e7",
-      "sourceSha256": "1ad911327ba90bf35a7bb79b0875faf83eddb5ed8a7d75f1d91624a0b1683f76",
+      "imageId": "4db8df016ac8845b00078da06c459c57",
+      "sourceDigest": "d63da41c28bed32d28fcc02b01cd12c8b887a098d10b64d5a47fab17e28a1f3b",
+      "sourceSha256": "05813c0c6b64f2783b68a698a0129b51567eb02c53541985b632f9a90ec19f8c",
       "defaultSha256": null
     },
     {
-      "imageId": "66baec6f6ac8845c0072bce85d8637b6",
-      "sourceDigest": "7aa84269502a14ffa891c883d88ac6935bc73b4ccf0c6036179a75f34935bd5c",
-      "sourceSha256": "c8a72d2adc3d2bcc7a0579ad3202950c5437eba130151a91131e8ca9ac98c72f",
+      "imageId": "4db8df016ac8845b00078d9f430a9b5b",
+      "sourceDigest": "6aba86160bf2b708e7e83836d136ff7028c79b40ea9de39a670105207e2ff4e3",
+      "sourceSha256": "788c5b5bc28a579091c4576aa8b7b6fe6f88de20595f521971479a422b26432f",
       "defaultSha256": null
     },
     {
-      "imageId": "66baec6f6ac8845d0072bcf02f751473",
-      "sourceDigest": "1430cfc76b20b59a07126e9d225724d543582dbb2c9d8121b4d125cea97a31e8",
-      "sourceSha256": "5480b0d04008e49c9e4cda6fb1419d092364531267dbd5b2574cd1724e5c1d41",
+      "imageId": "4db8df016ac8845b00078da3520c69f1",
+      "sourceDigest": "6163b3e236d1e0f602ec0e1ce54209e426782f4b7af7e61993d16312d398986a",
+      "sourceSha256": "c5c095224f533ee5be79ec9320bcff151bd6b8d187baa1e47b8c0f6ff4ce25ca",
       "defaultSha256": null
     },
     {
-      "imageId": "96d9cd126ac8845b006e1b7849fc4605",
-      "sourceDigest": "92cb7ad0ffda708cd0950ebb22976f18eb06282d5e23e0513356cb1af8be399c",
-      "sourceSha256": "555619ce4c454bd69d9a5c9c7df386d2e55c3d9412a575c2fa6834a8d9e02f17",
-      "defaultSha256": null
-    },
-    {
-      "imageId": "96d9cd126ac8845d006e1b8c5ca0ba9c",
-      "sourceDigest": "14e527c9d46236c699655270cce14dacee6317c5fdcb923b8b88b2e8781af0e4",
-      "sourceSha256": "f60fae355ded839e02588af954f1cd472c3f1a42b1a3eaef2f95629672aed595",
-      "defaultSha256": null
-    },
-    {
-      "imageId": "96d9cd126ac88460006e1bbd4acbfa79",
-      "sourceDigest": "c4d08a82aa9334896db727a32ea94f53e4bdaf238b56f533ee4d25adec4b8324",
-      "sourceSha256": "f1e647c252ad656ff96f1e9a75c58bd965e0547431e4b4e9e5dde5610e52ade7",
+      "imageId": "66baec6f6ac8845c0072bce419e045fd",
+      "sourceDigest": "411b5fb7f338e0f8ec5a415528bfaf2947272251cfef3322b7f31ab4967d8a4a",
+      "sourceSha256": "1f5beebfb28a7e51e9808fcb80578aa4a90df7b252ee87be272a4e5c77d154bb",
       "defaultSha256": null
     }
   ]
