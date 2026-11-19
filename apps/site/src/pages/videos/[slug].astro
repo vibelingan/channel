@@ -2,13 +2,14 @@
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
-import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocumentLayout from '../../layouts/DocumentLayout.astro';
 import {
   type WatchVideo,
   publicWatchVideos,
   watchPageDescriptor,
   watchVideoSources,
 } from '../../lib/seo/video-record.ts';
+import '../../styles/watch.css';
 
 export function getStaticPaths() {
   return publicWatchVideos().map((video) => ({ params: { slug: video.id }, props: { video } }));
@@ -25,10 +26,10 @@ const page = watchPageDescriptor(video, origin, brand.name, blogServer);
 const sources = watchVideoSources(video, blogServer);
 ---
 
-<BaseLayout page={page} lang="en" socialImage={{ path: video.poster.src,
+<DocumentLayout page={page} lang="en" socialImage={{ path: video.poster.src,
   alt: 'Factory premises shown in the opening scene of the tour',
   width: video.poster.width, height: video.poster.height, mimeType: 'image/webp' }}>
-  <SiteHeader brand={brand} nav={nav} />
+  <SiteHeader brand={brand} nav={nav} deferCatalogTaxonomy />
   <main class="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
     <header class="mb-5">
       <nav aria-label="Breadcrumb" class="mb-3 text-sm text-ink-soft">
@@ -64,4 +65,4 @@ const sources = watchVideoSources(video, blogServer);
     </section>
   </main>
   <SiteFooter brand={brand} footer={footer} />
-</BaseLayout>
+</DocumentLayout>

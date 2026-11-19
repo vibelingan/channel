@@ -15,6 +15,7 @@
       "apps/site/src/styles/headphones.css",
       "apps/site/src/styles/oem-portfolio.css",
       "apps/site/src/styles/product.css",
+      "apps/site/src/styles/watch.css",
       "packages/db/src/cloudbase-adapter.ts",
       "packages/sales-contracts/schemas",
       "packages/sales-contracts/fixtures",
