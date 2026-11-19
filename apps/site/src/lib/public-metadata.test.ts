@@ -270,14 +270,16 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       title: 'seoTitle',
       description: 'seoDescription',
     }),
-    assertLayoutBindings('../pages/oem.astro', {
-      title: '`${meta.title} — ${brand.name}`',
-      description: 'meta.description',
-    }),
-    assertLayoutBindings('../pages/portfolio.astro', {
-      title: '`${meta.title} — ${brand.name}`',
-      description: 'meta.description',
-    }),
+    assertLayoutBindings(
+      '../pages/oem.astro',
+      { title: '`${meta.title} — ${brand.name}`', description: 'meta.description' },
+      'DocumentLayout',
+    ),
+    assertLayoutBindings(
+      '../pages/portfolio.astro',
+      { title: '`${meta.title} — ${brand.name}`', description: 'meta.description' },
+      'DocumentLayout',
+    ),
   ]);
 });
 
