@@ -7,7 +7,7 @@ import { blogMcpEnvironment } from './mcp-environment.mjs';
 const requireTools = createRequire(
   new URL('../../tools/cloud-handoff/package.json', import.meta.url),
 );
-export async function connectBlogMcp() {
+export async function connectBlogMcp({ tracePath } = {}) {
   const { Client } = await import(
     pathToFileURL(requireTools.resolve('@modelcontextprotocol/sdk/client/index.js')).href
   );
@@ -27,11 +27,17 @@ export async function connectBlogMcp() {
     { name: 'channel-blog-isolated-test', version: '1.0.0' },
     { capabilities: {} },
   );
+  const mcpEnv = blogMcpEnvironment(process.env);
+  const args = [resolve(packagePath, bin)];
+  if (tracePath) {
+    mcpEnv.CHANNEL_BLOG_TRACE_PATH = tracePath;
+    args.unshift('--import', fileURLToPath(new URL('./cloudrun-http-trace.mjs', import.meta.url)));
+  }
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [resolve(packagePath, bin)],
+    args,
     stderr: 'pipe',
-    env: blogMcpEnvironment(process.env),
+    env: mcpEnv,
   });
   transport.stderr?.resume();
   try {

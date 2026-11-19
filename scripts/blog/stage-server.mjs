@@ -49,7 +49,9 @@ const record = {
 const save = () =>
   writeFile('output/blog-server-stage/result.json', `${JSON.stringify(record, null, 2)}\n`);
 await save();
-const client = await connectBlogMcp();
+const tracePath = resolve('output/blog-server-stage/provider-http.jsonl');
+await writeFile(tracePath, '', { flag: 'wx', mode: 0o600 });
+const client = await connectBlogMcp({ tracePath });
 try {
   await submitBlogServer({
     client,
