@@ -42,7 +42,7 @@ export function decodeCatalogTaxonomy(
   };
 }
 
-export async function fetchCatalogTaxonomy(
+async function readCatalogTaxonomy(
   family: ProductFamily,
   signal?: AbortSignal,
 ): Promise<PublicCatalogTaxonomy> {
@@ -51,6 +51,69 @@ export async function fetchCatalogTaxonomy(
   const envelope = await readApiEnvelope<unknown>(response);
   if (!envelope?.ok) throw new Error('Unable to load catalog categories.');
   return decodeCatalogTaxonomy(envelope.data, family);
+}
+
+type TaxonomyRead = {
+  request: Promise<PublicCatalogTaxonomy>;
+  controller: AbortController;
+  subscribers: number;
+  expiresAt?: number;
+};
+
+const recentTaxonomy = new Map<ProductFamily, TaxonomyRead>();
+// The header can complete before the catalog island hydrates. Share that short-lived
+// snapshot in this document so both use the same public revision.
+const taxonomyReuseMs = 5_000;
+
+export async function fetchCatalogTaxonomy(
+  family: ProductFamily,
+  signal?: AbortSignal,
+  mode: 'network' | 'reuse' | 'refresh' = 'network',
+): Promise<PublicCatalogTaxonomy> {
+  signal?.throwIfAborted();
+  if (mode === 'network') return readCatalogTaxonomy(family, signal);
+
+  let read = recentTaxonomy.get(family);
+  if (
+    !read ||
+    (read.expiresAt !== undefined && (mode === 'refresh' || read.expiresAt <= performance.now()))
+  ) {
+    const controller = new AbortController();
+    const request = readCatalogTaxonomy(family, controller.signal);
+    const entry: TaxonomyRead = { request, controller, subscribers: 0 };
+    recentTaxonomy.set(family, entry);
+    void request.then(
+      () => {
+        entry.expiresAt = performance.now() + taxonomyReuseMs;
+      },
+      () => {
+        if (recentTaxonomy.get(family) === entry) recentTaxonomy.delete(family);
+      },
+    );
+    read = entry;
+  }
+
+  read.subscribers++;
+  let onAbort: (() => void) | undefined;
+  try {
+    if (!signal) return await read.request;
+    const cancelled = new Promise<never>((_, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    return await Promise.race([read.request, cancelled]);
+  } finally {
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
+    read.subscribers--;
+    if (
+      read.subscribers === 0 &&
+      read.expiresAt === undefined &&
+      recentTaxonomy.get(family) === read
+    ) {
+      recentTaxonomy.delete(family);
+      read.controller.abort();
+    }
+  }
 }
 
 export function parseTaxonomyCatalogQuery(

@@ -177,7 +177,11 @@ function CatalogFamilyList(props: ListProps) {
             pending: true,
           },
     );
-    void fetchCatalogTaxonomy(family.key, controller.signal).then(
+    void fetchCatalogTaxonomy(
+      family.key,
+      controller.signal,
+      attempt === 0 ? 'reuse' : 'refresh',
+    ).then(
       (registry) => {
         if (controller.signal.aborted || taxonomyGenerationRef.current !== attempt) return;
         setLoaded({

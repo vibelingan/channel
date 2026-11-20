@@ -258,7 +258,7 @@ const afterCatalog = orderedMenuItems
   let fitFrame = 0;
   const taxonomyRequests = new Map<ProductFamily, AbortController>();
 
-  async function loadMenuTaxonomy(family: ProductFamily) {
+  async function loadMenuTaxonomy(family: ProductFamily, mode: 'reuse' | 'refresh' = 'reuse') {
     taxonomyRequests.get(family)?.abort();
     const controller = new AbortController();
     taxonomyRequests.set(family, controller);
@@ -268,7 +268,7 @@ const afterCatalog = orderedMenuItems
       if (retry) retry.disabled = true;
     }
     try {
-      const registry = await fetchCatalogTaxonomy(family, controller.signal);
+      const registry = await fetchCatalogTaxonomy(family, controller.signal, mode);
       if (controller.signal.aborted) return;
       for (const group of groups) {
         const name = group.querySelector<HTMLElement>('[data-taxonomy-name]');
@@ -302,9 +302,9 @@ const afterCatalog = orderedMenuItems
 
   const menuFamilies = new Set([...header?.querySelectorAll<HTMLElement>('[data-taxonomy-family]') ?? []].map((group) => group.dataset.taxonomyFamily));
   let taxonomyStarted = false;
-  function refreshMenuTaxonomy() {
+  function refreshMenuTaxonomy(mode: 'reuse' | 'refresh' = 'reuse') {
     taxonomyStarted = true;
-    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family, mode);
   }
 
   // Blog pages already include the family links. Fetch the child links when
@@ -320,14 +320,14 @@ const afterCatalog = orderedMenuItems
   header?.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     const family = event.target.closest('[data-taxonomy-retry]')?.closest<HTMLElement>('[data-taxonomy-family]')?.dataset.taxonomyFamily;
-    if (isProductFamily(family)) void loadMenuTaxonomy(family);
+    if (isProductFamily(family)) void loadMenuTaxonomy(family, 'refresh');
   });
   const abortTaxonomies = () => {
     for (const controller of taxonomyRequests.values()) controller.abort();
   };
   window.addEventListener('pagehide', abortTaxonomies);
   window.addEventListener('pageshow', (event) => {
-    if (event.persisted && taxonomyStarted) refreshMenuTaxonomy();
+    if (event.persisted && taxonomyStarted) refreshMenuTaxonomy('refresh');
   });
   document.addEventListener('astro:before-swap', abortTaxonomies);
 

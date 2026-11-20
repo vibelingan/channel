@@ -1,0 +1,396 @@
+{
+  "executedAt": "2026-11-20T18:14:56.349Z",
+  "browser": "157.0.8103.79",
+  "source": "archived and candidate assets replayed in a clean browser, real website category API",
+  "samples": [
+    {
+      "phase": "before",
+      "filterVisibleMs": 2906,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc", "headphones"],
+      "paginationAndBack": true
+    },
+    {
+      "phase": "candidate",
+      "filterVisibleMs": 1880,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc"],
+      "paginationAndBack": true
+    },
+    {
+      "phase": "candidate",
+      "filterVisibleMs": 1862,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc"],
+      "paginationAndBack": true
+    },
+    {
+      "phase": "before",
+      "filterVisibleMs": 2373,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc", "headphones"],
+      "paginationAndBack": true
+    },
+    {
+      "phase": "before",
+      "filterVisibleMs": 1864,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc", "headphones"],
+      "paginationAndBack": true
+    },
+    {
+      "phase": "candidate",
+      "filterVisibleMs": 1863,
+      "requestsBeforeNavigation": ["headphones", "ai-gadgets", "toys", "misc"],
+      "paginationAndBack": true
+    }
+  ],
+  "originalProductionTrace": {
+    "observedAt": "2026-11-20T18:09:53.343Z",
+    "browser": "157.0.8103.79",
+    "site": "https://supplychainsai.com",
+    "profile": "Pixel 7, clean context and disabled cache, unthrottled",
+    "actions": [
+      {
+        "name": "Category pagination and back",
+        "finalPath": "/headphones/",
+        "errors": [],
+        "calls": [
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1762,
+            "durationMs": 1762,
+            "encodedBytes": 1182,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "ai-gadgets"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1767,
+            "durationMs": 1767,
+            "encodedBytes": 936,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "toys"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1764,
+            "durationMs": 1764,
+            "encodedBytes": 925,
+            "startOffsetMs": 1
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "misc"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1764,
+            "durationMs": 1764,
+            "encodedBytes": 934,
+            "startOffsetMs": 1
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/products",
+            "parameters": {
+              "page": "1",
+              "pageSize": "12",
+              "media": "responsive-v1"
+            },
+            "initiator": "/_astro/api.CFG3-3vw.js",
+            "status": 200,
+            "firstByteMs": 1604,
+            "durationMs": 2056,
+            "encodedBytes": 32594,
+            "startOffsetMs": 2282
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1428,
+            "durationMs": 1427,
+            "encodedBytes": 1183,
+            "startOffsetMs": 2282
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 531,
+            "durationMs": 531,
+            "encodedBytes": 1182,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "ai-gadgets"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1491,
+            "durationMs": 1491,
+            "encodedBytes": 936,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "toys"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1001,
+            "durationMs": 997,
+            "encodedBytes": 925,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "misc"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1407,
+            "durationMs": 1406,
+            "encodedBytes": 934,
+            "startOffsetMs": 1
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/products",
+            "parameters": {
+              "page": "2",
+              "pageSize": "12",
+              "media": "responsive-v1"
+            },
+            "initiator": "/_astro/api.CFG3-3vw.js",
+            "canceled": true,
+            "error": "net::ERR_ABORTED",
+            "startOffsetMs": 2205
+          },
+          {
+            "stage": "Navigate to page 2",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 469,
+            "durationMs": 469,
+            "encodedBytes": 1182,
+            "startOffsetMs": 2206
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 631,
+            "durationMs": 631,
+            "encodedBytes": 1183,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "ai-gadgets"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 587,
+            "durationMs": 586,
+            "encodedBytes": 936,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "toys"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 587,
+            "durationMs": 586,
+            "encodedBytes": 924,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "misc"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1108,
+            "durationMs": 1107,
+            "encodedBytes": 933,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/products",
+            "parameters": {
+              "page": "1",
+              "pageSize": "12",
+              "media": "responsive-v1"
+            },
+            "initiator": "/_astro/api.CFG3-3vw.js",
+            "status": 200,
+            "firstByteMs": 994,
+            "durationMs": 1327,
+            "encodedBytes": 32579,
+            "startOffsetMs": 795
+          },
+          {
+            "stage": "Return to the first page",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 469,
+            "durationMs": 468,
+            "encodedBytes": 1182,
+            "startOffsetMs": 796
+          }
+        ]
+      },
+      {
+        "name": "Product initial and photo selection",
+        "finalPath": "/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+        "errors": [],
+        "calls": [
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "headphones"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1462,
+            "durationMs": 1460,
+            "encodedBytes": 1182,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "ai-gadgets"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1471,
+            "durationMs": 1470,
+            "encodedBytes": 936,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "toys"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 1472,
+            "durationMs": 1471,
+            "encodedBytes": 924,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/catalog-taxonomy",
+            "parameters": {
+              "family": "misc"
+            },
+            "initiator": "/_astro/catalog-taxonomy.BEFo31S7.js",
+            "status": 200,
+            "firstByteMs": 2055,
+            "durationMs": 2055,
+            "encodedBytes": 933,
+            "startOffsetMs": 0
+          },
+          {
+            "stage": "Initial load",
+            "endpoint": "CloudBase",
+            "path": "/api/products/f15a8e4f-3f48-4021-ac3d-67bd1060836a/detail",
+            "parameters": {
+              "page": "1",
+              "pageSize": "50",
+              "view": "sections-media",
+              "pagination": "byte-budget-v1",
+              "media": "responsive-v1"
+            },
+            "initiator": "/_astro/public-quote-transport.BQBdUQxH.js",
+            "status": 200,
+            "firstByteMs": 1044,
+            "durationMs": 1052,
+            "encodedBytes": 7626,
+            "startOffsetMs": 1176
+          }
+        ]
+      }
+    ]
+  },
+  "releaseCandidateSource": "9d550ce7bce7b4533ff88a26004b08f846ee39ef"
+}

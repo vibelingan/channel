@@ -229,6 +229,53 @@ test('taxonomy requests use apiUrl, forward cancellation and reject invalid enve
   await assert.rejects(fetchCatalogTaxonomy('headphones'));
 });
 
+test('the menu and filter share a public category read and can abort independently', async (context) => {
+  let finish: (value: Response) => void = () => {};
+  const waiting = new Promise<Response>((resolve) => {
+    finish = resolve;
+  });
+  const fetch = context.mock.method(globalThis, 'fetch', () => waiting);
+  const menu = new AbortController();
+  const filter = new AbortController();
+  const menuRead = fetchCatalogTaxonomy('toys', menu.signal, 'reuse');
+  const filterRead = fetchCatalogTaxonomy('toys', filter.signal, 'reuse');
+  assert.equal(fetch.mock.callCount(), 1);
+  menu.abort();
+  await assert.rejects(menuRead, { name: 'AbortError' });
+  finish(Response.json({ ok: true, data: taxonomy({ family: 'toys' }) }));
+  assert.equal((await filterRead).family, 'toys');
+  assert.equal((await fetchCatalogTaxonomy('toys', undefined, 'reuse')).family, 'toys');
+  assert.equal(fetch.mock.callCount(), 1);
+  fetch.mock.mockImplementation(async () =>
+    Response.json({ ok: true, data: taxonomy({ family: 'toys', name: 'Updated' }) }),
+  );
+  assert.equal((await fetchCatalogTaxonomy('toys', undefined, 'refresh')).name, 'Updated');
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test('an abandoned or failed category read cannot block a fresh retry', async (context) => {
+  let transportSignal: AbortSignal | null | undefined;
+  const fetch = context.mock.method(globalThis, 'fetch', (_url: string, init?: RequestInit) => {
+    transportSignal = init?.signal;
+    return new Promise<Response>((_, reject) => {
+      const signal = init?.signal;
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  });
+  const abandoned = new AbortController();
+  const read = fetchCatalogTaxonomy('misc', abandoned.signal, 'reuse');
+  abandoned.abort();
+  await assert.rejects(read, { name: 'AbortError' });
+  assert.equal(transportSignal?.aborted, true);
+  fetch.mock.mockImplementation(async () => new Response(null, { status: 503 }));
+  await assert.rejects(fetchCatalogTaxonomy('misc', undefined, 'reuse'));
+  fetch.mock.mockImplementation(async () =>
+    Response.json({ ok: true, data: taxonomy({ family: 'misc', children: [] }) }),
+  );
+  assert.deepEqual((await fetchCatalogTaxonomy('misc', undefined, 'reuse')).children, []);
+  assert.equal(fetch.mock.callCount(), 3);
+});
+
 test('catalog subcategory requests preserve the legacy API contract but never combine filters', async (context) => {
   const urls: string[] = [];
   context.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
