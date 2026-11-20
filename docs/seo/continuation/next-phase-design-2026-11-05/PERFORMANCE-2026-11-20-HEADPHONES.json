@@ -726,63 +726,20 @@
       "connectionType": "cellular4g"
     },
     "cpuRate": 4,
-    "egress": [
-      "colo=NRT",
-      "loc=JP"
-    ],
+    "egress": ["colo=NRT", "loc=JP"],
     "before": {
-      "headingLargestPaintMs": [
-        2460,
-        2032,
-        1888,
-        2192
-      ],
+      "headingLargestPaintMs": [2460, 2032, 1888, 2192],
       "headingLargestPaintMedianMs": 2112.0,
-      "imageRequests": [
-        2,
-        2,
-        2,
-        2
-      ],
-      "thumbnailBodyBytes": [
-        87160,
-        87160,
-        87160,
-        87160
-      ],
-      "otherPendingImageRequests": [
-        5,
-        5,
-        5,
-        5
-      ]
+      "imageRequests": [2, 2, 2, 2],
+      "thumbnailBodyBytes": [87160, 87160, 87160, 87160],
+      "otherPendingImageRequests": [5, 5, 5, 5]
     },
     "after": {
-      "headingLargestPaintMs": [
-        2140,
-        2120,
-        2852,
-        2436
-      ],
+      "headingLargestPaintMs": [2140, 2120, 2852, 2436],
       "headingLargestPaintMedianMs": 2288.0,
-      "imageRequests": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "thumbnailBodyBytes": [
-        6570,
-        6570,
-        6570,
-        6570
-      ],
-      "otherPendingImageRequests": [
-        5,
-        5,
-        5,
-        5
-      ]
+      "imageRequests": [1, 1, 1, 1],
+      "thumbnailBodyBytes": [6570, 6570, 6570, 6570],
+      "otherPendingImageRequests": [5, 5, 5, 5]
     },
     "probeCorrection": "A first production sample used a lowercase-only srcset text check, while the accepted initial HTML used srcSet. Retained all original network readings and repeated the four samples with an HTML case-insensitive check.",
     "galleryDiagnosis": {
@@ -796,58 +753,15 @@
     "beforeReleaseRun": 44734452775,
     "observationBudgetMs": 40000,
     "sameProfileAsInitialThumbnailRollout": true,
-    "egress": [
-      "colo=NRT",
-      "loc=JP"
-    ],
-    "mainImageReadyMs": [
-      33705,
-      35307,
-      29948,
-      30924
-    ],
-    "lcpMs": [
-      33704,
-      35164,
-      29912,
-      30880
-    ],
-    "lcpElement": [
-      "IMG",
-      "IMG",
-      "IMG",
-      "IMG"
-    ],
-    "visibleStripReadyMs": [
-      null,
-      null,
-      null,
-      null
-    ],
-    "visibleThumbnails": [
-      5,
-      5,
-      5,
-      5
-    ],
-    "visibleThumbnailsReadyAtBudget": [
-      2,
-      2,
-      2,
-      2
-    ],
-    "imageRequests": [
-      7,
-      7,
-      7,
-      7
-    ],
-    "galleryBodyBytesAtBudget": [
-      6003874,
-      6282284,
-      6441988,
-      6260874
-    ]
+    "egress": ["colo=NRT", "loc=JP"],
+    "mainImageReadyMs": [33705, 35307, 29948, 30924],
+    "lcpMs": [33704, 35164, 29912, 30880],
+    "lcpElement": ["IMG", "IMG", "IMG", "IMG"],
+    "visibleStripReadyMs": [null, null, null, null],
+    "visibleThumbnails": [5, 5, 5, 5],
+    "visibleThumbnailsReadyAtBudget": [2, 2, 2, 2],
+    "imageRequests": [7, 7, 7, 7],
+    "galleryBodyBytesAtBudget": [6003874, 6282284, 6441988, 6260874]
   },
   "hx10GalleryProductionSizes": {
     "imagePreparationRun": 44744319321,
@@ -873,66 +787,16 @@
     },
     "sameEgress": true,
     "observationBudgetMs": 40000,
-    "observedMs": [
-      40217,
-      40225,
-      40180,
-      40229
-    ],
-    "mainImageReadyMs": [
-      5473,
-      2532,
-      2778,
-      2667
-    ],
-    "lcpMs": [
-      5376,
-      2408,
-      2768,
-      2668
-    ],
-    "lcpElement": [
-      "IMG",
-      "IMG",
-      "IMG",
-      "IMG"
-    ],
-    "visibleStripReadyMs": [
-      11894,
-      10988,
-      11397,
-      10315
-    ],
-    "visibleThumbnails": [
-      5,
-      5,
-      5,
-      5
-    ],
-    "visibleThumbnailsReadyAtBudget": [
-      5,
-      5,
-      5,
-      5
-    ],
-    "imageRequests": [
-      7,
-      7,
-      7,
-      6
-    ],
-    "completeImageRequests": [
-      7,
-      7,
-      7,
-      6
-    ],
-    "galleryBodyBytesAtBudget": [
-      69126,
-      69126,
-      69126,
-      62670
-    ]
+    "observedMs": [40217, 40225, 40180, 40229],
+    "mainImageReadyMs": [5473, 2532, 2778, 2667],
+    "lcpMs": [5376, 2408, 2768, 2668],
+    "lcpElement": ["IMG", "IMG", "IMG", "IMG"],
+    "visibleStripReadyMs": [11894, 10988, 11397, 10315],
+    "visibleThumbnails": [5, 5, 5, 5],
+    "visibleThumbnailsReadyAtBudget": [5, 5, 5, 5],
+    "imageRequests": [7, 7, 7, 6],
+    "completeImageRequests": [7, 7, 7, 6],
+    "galleryBodyBytesAtBudget": [69126, 69126, 69126, 62670]
   },
   "hx10ThumbnailPlainGetProbe": {
     "samePublicImages": true,
@@ -1106,10 +970,7 @@
       "uploadThroughput": 93750,
       "connectionType": "cellular4g"
     },
-    "egress": [
-      "colo=NRT",
-      "loc=JP"
-    ],
+    "egress": ["colo=NRT", "loc=JP"],
     "samples": [
       {
         "condition": "shaped",
@@ -1206,10 +1067,7 @@
   "hx10GalleryPriorityLocalExperiment": {
     "change": "Only fetchpriority on six existing 80px thumbnail tags, from low to auto",
     "source": "Same live document in both arms, intercepted for the document only and real image requests",
-    "egress": [
-      "colo=NRT",
-      "loc=JP"
-    ],
+    "egress": ["colo=NRT", "loc=JP"],
     "samples": [
       {
         "condition": "current",
@@ -1222,9 +1080,7 @@
         "stripReadyMs": 8191,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1682
-        ]
+        "styleResponseMs": [1682]
       },
       {
         "condition": "auto",
@@ -1237,9 +1093,7 @@
         "stripReadyMs": 4353,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1278
-        ]
+        "styleResponseMs": [1278]
       },
       {
         "condition": "auto",
@@ -1252,9 +1106,7 @@
         "stripReadyMs": 4304,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1216
-        ]
+        "styleResponseMs": [1216]
       },
       {
         "condition": "current",
@@ -1267,9 +1119,7 @@
         "stripReadyMs": 10920,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1424
-        ]
+        "styleResponseMs": [1424]
       },
       {
         "condition": "current",
@@ -1282,9 +1132,7 @@
         "stripReadyMs": 9171,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1279
-        ]
+        "styleResponseMs": [1279]
       },
       {
         "condition": "auto",
@@ -1297,9 +1145,7 @@
         "stripReadyMs": 5421,
         "visibleThumbnails": 5,
         "galleryBytes": 69126,
-        "styleResponseMs": [
-          1548
-        ]
+        "styleResponseMs": [1548]
       }
     ]
   }
