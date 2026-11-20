@@ -148,7 +148,68 @@
     "crawledNotIndexed": 960,
     "imageUrlsInFullCrawledExport": 960,
     "discoveredNotIndexed": 12,
-    "observedAt": "2026-11-21T00:41:34+09:00"
+    "observedAt": "2026-11-21T00:41:34+09:00",
+    "verifiedGatewayWindow": {
+      "timezone": "Asia/Shanghai",
+      "window": ["2026-11-20 22:34:01", "2026-11-21 00:01:00"],
+      "ipListDate": "2026-11-20T15:45:50.000000",
+      "returned": 8,
+      "verifiedOfficialOnCanonicalHost": 7,
+      "statusCounts": {
+        "200": 7
+      },
+      "routes": {
+        "other": 6,
+        "product image": 1
+      },
+      "historical4xx": [],
+      "discovered": [],
+      "watchPage": 0
+    },
+    "webPerformanceReadback": {
+      "rangeStart": "2026-10-14",
+      "rangeEnd": "2026-11-18",
+      "type": "Web (text)",
+      "impressions": 93,
+      "clicks": 3,
+      "ctrPercent": 3.2,
+      "averagePosition": 26.5
+    },
+    "urlRechecks": [
+      {
+        "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "status": 200,
+        "canonical": [
+          "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/"
+        ],
+        "metaRobots": [],
+        "headerRobots": null,
+        "hasHeading": true,
+        "google": ["Page indexing Page is not indexed: URL is unknown to Google"]
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "canonical": [
+          "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+        ],
+        "metaRobots": [],
+        "headerRobots": null,
+        "hasHeading": true,
+        "google": ["Page indexing Page is not indexed: Excluded by ‘noindex’ tag"],
+        "googleLiveTest": {
+          "observedAt": "2026-11-21T01:25:35+09:00",
+          "availability": "URL is available to Google",
+          "indexingEligibility": "Page can be indexed"
+        }
+      }
+    ],
+    "historical4xxAfterThumbnailRelease": {
+      "fullResponses": 5,
+      "status": 200,
+      "totalBodyBytes": 408452,
+      "allMatchPriorSha256": true
+    }
   },
   "wh3LocalConversion": {
     "productId": "p-f15a8e4f-3f48-4021-ac3d-67bd1060836a",
@@ -160,5 +221,437 @@
       "1280": 659388
     }
   },
-  "browserCaptureCompletedAt": "2026-11-21T00:39:50+09:00"
+  "browserCaptureCompletedAt": "2026-11-21T00:39:50+09:00",
+  "nextGalleryBatch": {
+    "scope": "Verified production originals with locally generated and read-back WebP derivatives. No production writes in this phase.",
+    "originals": 20,
+    "originalBytes": 48518680,
+    "localWebBytesByWidth": {
+      "160": 84216,
+      "640": 530910,
+      "1280": 1444234
+    },
+    "distinctLocalVariants": 60,
+    "localReplayVerified": 20,
+    "knownOriginalSizeFloor": 500000,
+    "productsWithKnownLargeUnpreparedImagesBeforeWh3": 144,
+    "productsOver5MBBeforeWh3": 33,
+    "productsWithKnownLargeUnpreparedImagesAfterProjectedWh3": 143,
+    "productsOver5MBAfterProjectedWh3": 30,
+    "productsReferencingWh3": [
+      "p-028f12d4-9b6e-4896-ae56-8774edf6bc45",
+      "p-ebd73631-6c47-41b5-ab40-973d9b1a76f3",
+      "p-f15a8e4f-3f48-4021-ac3d-67bd1060836a"
+    ],
+    "productsReferencingNextBatch": [
+      "p-52d6e7c2-8fc7-4e4f-a7a1-204d051f9425",
+      "p-59211754-9027-479c-af38-0b2dc5f63883",
+      "p-62824f25-8305-4248-a77a-6b9bb56a52e5",
+      "p-7be5e4a7-588c-472b-af12-fa27259a963d",
+      "p-8c009835-7801-4c11-a0dc-4f4bfd96dd05",
+      "p-95c799f6-0191-4044-a1f8-a6bb3895df85",
+      "p-973c8584-c9d4-4ff6-a46a-387db3f9087d",
+      "p-ebd9c3bd-75ef-44cf-a8f0-66370723da99"
+    ],
+    "highestRankedCompleteGalleries": [
+      {
+        "productId": "p-59211754-9027-479c-af38-0b2dc5f63883",
+        "sumKnownUnpreparedBytes": 14817232
+      },
+      {
+        "productId": "p-95c799f6-0191-4044-a1f8-a6bb3895df85",
+        "sumKnownUnpreparedBytes": 13659603
+      },
+      {
+        "productId": "p-62824f25-8305-4248-a77a-6b9bb56a52e5",
+        "sumKnownUnpreparedBytes": 13264352
+      },
+      {
+        "productId": "p-7be5e4a7-588c-472b-af12-fa27259a963d",
+        "sumKnownUnpreparedBytes": 6777493
+      }
+    ],
+    "formalWebsiteBaseline": {
+      "browser": "157.0.8103.79",
+      "egress": ["colo=NRT", "loc=JP"],
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "cpuRate": 4,
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "observations": [
+        {
+          "url": "https://supplychainsai.com/products/p-59211754-9027-479c-af38-0b2dc5f63883/",
+          "windowMs": 40128,
+          "mainReadyMs": 6518,
+          "stripReadyMs": null,
+          "visible": 5,
+          "visibleReady": 2,
+          "trackedImageBytes": 5686927,
+          "lastLcp": {
+            "ms": 6464,
+            "tag": "IMG"
+          }
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/",
+          "windowMs": 40203,
+          "mainReadyMs": null,
+          "stripReadyMs": null,
+          "visible": 5,
+          "visibleReady": 2,
+          "trackedImageBytes": 6744684,
+          "lastLcp": {
+            "ms": 2540,
+            "tag": "H1"
+          }
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/",
+          "windowMs": 40033,
+          "mainReadyMs": 31793,
+          "stripReadyMs": null,
+          "visible": 5,
+          "visibleReady": 1,
+          "trackedImageBytes": 6794302,
+          "lastLcp": {
+            "ms": 31788,
+            "tag": "IMG"
+          }
+        }
+      ]
+    }
+  },
+  "newCandidate": {
+    "run": 44765827808,
+    "artifact": 14644617699,
+    "verifiedManifestFiles": 2101,
+    "publicFiles": 2098,
+    "publicFileTypes": {
+      ".js": 1348,
+      ".css": 70,
+      ".html": 589,
+      ".json": 3,
+      ".ico": 1,
+      ".svg": 3,
+      ".webp": 26,
+      ".jpg": 42,
+      ".png": 9,
+      ".mp4": 4,
+      ".txt": 1,
+      ".xml": 2
+    },
+    "flagged": [],
+    "comparedToPrevious": {
+      "new": 17,
+      "dropped": 0,
+      "changed": {
+        ".html": 576
+      }
+    },
+    "htmlReferenceDiff": {
+      "onlyHashedAssetNames": 569,
+      "otherChanges": 7
+    },
+    "acceptedRelease": {
+      "run": 44765827808,
+      "source": "add4397a5a8ae36f26550f943c7a700395cf9be8",
+      "products": 528,
+      "autoThumbnails": 6,
+      "priorityHero": 1,
+      "businessWrites": 0,
+      "cleanup": true,
+      "receiptArtifact": 14649455481,
+      "wallSeconds": 2992,
+      "privateBackupSeconds": 748.429,
+      "privateBackupNewParts": 33,
+      "privateBackupUploadedBytes": 40090045,
+      "deliveryBatchCalls": 48,
+      "pageAcceptanceReads": 264
+    }
+  },
+  "videoFollowup": {
+    "liveReadback": {
+      "page": "https://supplychainsai.com/videos/factory-overview/",
+      "status": 200,
+      "canonical": "https://supplychainsai.com/videos/factory-overview/",
+      "initialSources": [
+        "/blog/media/factory/oem-factory.3cd89b386c1d.mp4",
+        "/media/oem-factory.mp4"
+      ],
+      "mapContent": "https://supplychainsai.com/blog/media/factory/oem-factory.3cd89b386c1d.mp4",
+      "posterStatus": 200,
+      "posterSha256": "c215171947e5ae04aa2c6a24281be781b90f49526a6b62f6cb2249a6f4d42e39",
+      "videoStatus": 206,
+      "range": "bytes 1024-2047/7201197",
+      "sourceBytesVerified": 1024,
+      "noindex": false
+    },
+    "searchConsole": {
+      "reportThrough": "2026-11-19",
+      "indexedVideos": 0,
+      "excludedVideos": 2,
+      "reason": "Video is not on a watch page",
+      "inspectedUrl": "https://supplychainsai.com/videos/factory-overview/",
+      "pageStatus": "URL is not on Google",
+      "pageReason": "URL is unknown to Google",
+      "observedAt": "2026-11-21T01:17:18+09:00"
+    },
+    "uploadDate": {
+      "status": "unverified",
+      "repositoryFirstAddition": "1445dc286019f7a46636b3dd4b21893f1a0fc378",
+      "earliestMatchedCloudBaseTestRun": 28585512776,
+      "firstMatchedTestDeployFinishedAt": "2026-07-02T11:13:13Z",
+      "historicalRunLogStatus": 410,
+      "currentSiteUrlVariableUpdatedAt": "2026-07-21T08:16:55Z",
+      "publicFileMatchesHistoricalGitSha256": "3cd89b386c1d4abff155e36a47b57c418916d90a289e95d0a5b3873faf3a1e8d"
+    },
+    "gateway": {
+      "rangeStart": "2026-11-18T00:00:00+08:00",
+      "rangeEnd": "2026-11-21T00:17:00+08:00",
+      "providerHitListComplete": true,
+      "matches": [
+        {
+          "kind": "InspectionTool",
+          "officialLists": ["common-crawlers"],
+          "status": "200",
+          "time": "2026-11-18T09:43:37.486000+08:00"
+        },
+        {
+          "kind": "InspectionTool",
+          "officialLists": ["common-crawlers"],
+          "status": "200",
+          "time": "2026-11-18T09:43:38.039000+08:00"
+        }
+      ]
+    }
+  },
+  "hx10ScriptCoverage": {
+    "browser": "157.0.8103.79",
+    "mobileViewport": [412, 823],
+    "cpuSlowdownFactor": 4,
+    "cacheDisabled": true,
+    "page": "/products/p-f5e72d34-1c75-40a5-a7a0-4208e7c6477a/",
+    "scope": "Alternating cold navigation and real gallery, option and quote-form interactions; first-party JavaScript only; no quote sent",
+    "samples": [
+      {
+        "interaction": false,
+        "completedActions": [],
+        "scriptCount": 22,
+        "decodedBytes": 642516,
+        "usedByChromeBytes": 255447,
+        "transferBytesIncludingHeaders": 655742,
+        "contentEncodings": ["identity"]
+      },
+      {
+        "interaction": true,
+        "completedActions": [
+          "second thumbnail changes the large photo",
+          "product radio selected",
+          "quote form opened and closed"
+        ],
+        "scriptCount": 22,
+        "decodedBytes": 642516,
+        "usedByChromeBytes": 269730,
+        "transferBytesIncludingHeaders": 655742,
+        "contentEncodings": ["identity"]
+      },
+      {
+        "interaction": false,
+        "completedActions": [],
+        "scriptCount": 22,
+        "decodedBytes": 642516,
+        "usedByChromeBytes": 256634,
+        "transferBytesIncludingHeaders": 655742,
+        "contentEncodings": ["identity"]
+      },
+      {
+        "interaction": true,
+        "completedActions": [
+          "second thumbnail changes the large photo",
+          "product radio selected",
+          "quote form opened and closed"
+        ],
+        "scriptCount": 22,
+        "decodedBytes": 642516,
+        "usedByChromeBytes": 270604,
+        "transferBytesIncludingHeaders": 655742,
+        "contentEncodings": ["identity"]
+      }
+    ]
+  },
+  "hx10GalleryLive": {
+    "acceptedRun": 44765827808,
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "browser": "157.0.8103.79",
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "cpuRate": 4,
+    "egress": "NRT, Japan",
+    "before": [
+      {
+        "mainReadyMs": 4518,
+        "visibleStripReadyMs": 11372
+      },
+      {
+        "mainReadyMs": 2408,
+        "visibleStripReadyMs": 9903
+      },
+      {
+        "mainReadyMs": 2760,
+        "visibleStripReadyMs": 11802
+      }
+    ],
+    "after": [
+      {
+        "mainReadyMs": 2859,
+        "visibleStripReadyMs": 5266,
+        "documentResponseHeadersAtMs": 1237,
+        "lcpMs": 2784
+      },
+      {
+        "mainReadyMs": 3116,
+        "visibleStripReadyMs": 5332,
+        "documentResponseHeadersAtMs": 1100,
+        "lcpMs": 3004
+      },
+      {
+        "mainReadyMs": 15311,
+        "visibleStripReadyMs": 19523,
+        "documentResponseHeadersAtMs": 8082,
+        "lcpMs": 15200
+      }
+    ],
+    "beforeMedianMs": 11372,
+    "afterMedianMs": 5332
+  },
+  "hx10ImageHostExperimentSetup": {
+    "images": 5,
+    "matchedHTTPBodies": 20,
+    "allStatus200": true,
+    "widths": [160, 640],
+    "sameSha256PerImageSize": true,
+    "median160Bytes": 6196
+  },
+  "wh3ProductionSizes": {
+    "preservedOriginals": 7,
+    "verifiedPublicResponses": 21,
+    "originalBytes": 16504142,
+    "bytesByWidth": {
+      "160": 52802,
+      "640": 291928,
+      "1280": 659222
+    },
+    "imagePreparationRun": 44774544323,
+    "siteDelivery": {
+      "runId": 44775284450,
+      "source": "8c54de49a32012e627e9369501693329e2357a52"
+    }
+  },
+  "hx10ImageHostExperiment": {
+    "strategy": "Replay identical accepted document in both conditions, changing only five thumbnail image host references. Media and other browser requests use live endpoints.",
+    "siteDeployed": false,
+    "browser": "157.0.8103.79",
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "cpuRate": 4,
+    "egress": "NRT, Japan",
+    "samples": [
+      {
+        "condition": "current",
+        "thumbnailTagsChanged": 0,
+        "hosts": 2,
+        "visibleStripReadyMs": 5243,
+        "mainReadyMs": 2020,
+        "reusedImageConnections": 3
+      },
+      {
+        "condition": "canonical",
+        "thumbnailTagsChanged": 5,
+        "hosts": 1,
+        "visibleStripReadyMs": 3226,
+        "mainReadyMs": 1622,
+        "reusedImageConnections": 5
+      },
+      {
+        "condition": "canonical",
+        "thumbnailTagsChanged": 5,
+        "hosts": 1,
+        "visibleStripReadyMs": 11648,
+        "mainReadyMs": 7037,
+        "reusedImageConnections": 4
+      },
+      {
+        "condition": "current",
+        "thumbnailTagsChanged": 0,
+        "hosts": 2,
+        "visibleStripReadyMs": 4424,
+        "mainReadyMs": 1616,
+        "reusedImageConnections": 2
+      },
+      {
+        "condition": "current",
+        "thumbnailTagsChanged": 0,
+        "hosts": 2,
+        "visibleStripReadyMs": 8092,
+        "mainReadyMs": 1846,
+        "reusedImageConnections": 3
+      },
+      {
+        "condition": "canonical",
+        "thumbnailTagsChanged": 5,
+        "hosts": 1,
+        "visibleStripReadyMs": 5484,
+        "mainReadyMs": 1873,
+        "reusedImageConnections": 6
+      }
+    ],
+    "medianMsByCondition": {
+      "current": 5243,
+      "canonical": 5484
+    },
+    "decision": "Retain existing paths. Connection reuse increased but gallery delivery speed did not improve consistently."
+  }
 }

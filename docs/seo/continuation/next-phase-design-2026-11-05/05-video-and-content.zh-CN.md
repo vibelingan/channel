@@ -174,3 +174,13 @@ GEO 继续依靠真实可引用事实、清晰来源和普通 SEO。当前 Googl
 官网已接受 `site-44543334463-1`。正式任务运行 20 分 11 秒，其中从开始到官网登记接受约 14 分 15 秒，随后完成商品交付确认、辅助函数清理和回执保存。官网地图完整取回后按 XML 逐项比较，唯一变化是工厂观看页的视频文件地址。观看页正式网址、封面和两个播放器地址通过读回。浏览器 412 与 1440 像素宽度下关闭网页脚本，点击前均未请求 MP4。点击后均能播放、暂停并跳到 80 秒，分别用约 3.39 与 2.35 秒完成跳转。只在测试浏览器模拟首选地址返回 503 后，后备视频仍能播放。 [观看页](https://supplychainsai.com/videos/factory-overview/) · [官网静态地图](https://supplychainsai.com/sitemap-0.xml)
 
 从官网比对了 528 件商品的公开版本、三篇已发布文章的正文与结构化数据、五张历史错误图片的完整字节，以及 robots 和 Blog 地图。腾讯管理入口分别确认两只本次辅助函数不存在。本次是网站发布，未执行恢复。11 月 19 日查看的视频报告仍以 11 月 16 日为截至日期，0 个视频已收录。先前对新观看页的单独检查显示 Google 尚未知这个地址，11 月 18 日已提交过一次收录请求。等待新的 Google 抓取和视频报告再判断索引效果。 [Google 视频资格说明](https://developers.google.com/search/docs/appearance/video#ensure-your-videos-can-be-indexed) · [观看页首屏性能基准](06-page-performance.zh-CN.md#11-月-19-日观看页首屏在等什么)
+
+### 11 月 21 日回查首次公开日期
+
+7 月 2 日的源码提交已加入与目前官网逐字节相同的工厂视频。当天较早的 `test` 部署源码没有该文件。当日 11:13 UTC，包含该视频的提交完成 `Deploy to CloudBase test`。当时工作流的目标网址由环境变量决定，原始日志现已过期，部署记录没有保存有效的公开网址。官网当前的 `SITE_URL` 值最后更新于 7 月 21 日。7 月 21 日的交付记录支持官网当时已经发布这一版素材，但无法确定品牌网址何时首次开始对外提供这段视频，也没有素材提供方在其他渠道首次公开的记录。文件同一、源码入库和某次测试环境发布分别只能证明各自的事实。保留现有视频地图，不填猜测的 `VideoObject.uploadDate`。 [加入视频的提交](https://github.com/vibelingan/channel/commit/1445dc286019f7a46636b3dd4b21893f1a0fc378) · [7 月 2 日测试发布](https://github.com/vibelingan/channel/actions/runs/28585512776) · [7 月 21 日发布](https://github.com/vibelingan/channel/actions/runs/29801125323) · [Google 视频标记要求](https://developers.google.com/search/docs/appearance/structured-data/video)
+
+再从官网独立读取观看页和静态地图。观看页返回 200，允许收录且声明自身为正式网址。地图指向浏览器首选的同一视频，封面返回 200。请求首选视频的第 1,024 至 2,047 字节，真实收到 206 和 1,024 字节，与仓库原视频对应部分逐字节相同。这个检查证明站点当前还能为观看者和爬虫提供视频。是否进入索引继续以 Google 报告为准。 [观看页](https://supplychainsai.com/videos/factory-overview/) · [官网静态地图](https://supplychainsai.com/sitemap-0.xml)
+
+Search Console 视频报告更新到 11 月 19 日，仍显示收录 0 个、排除 2 个，报表列出的原因是视频未处于观看页。另用网址检查读取新增的独立观看页，Google 仍显示“尚不知道这个网址”，尚未进入网页索引。官网技术条件与平台当前记录分别保留。 [脱敏证据](evidence/package-browser-2026-11-21.json) · [Google 视频收录条件](https://developers.google.com/search/docs/appearance/video#ensure-your-videos-can-be-indexed)
+
+按观看页的准确路径查了腾讯网关从北京时间 11 月 18 日 00:00 到 21 日 00:17 的完整匹配记录。普通 Googlebot 和网址实时检查工具是这次查询的两个来源类型。只有两次符合查询条件，均发生在 11 月 18 日 09:43，均匹配 Google 官方爬虫 IP 清单，官网都返回 200。请求标识显示它们来自 Google 的测试工具。日志中还没有看到普通 Googlebot 来抓这一个网址。这也解释了为什么此前的实时检查可以成功，正式索引报告仍显示未知。 [Google 对 InspectionTool 的说明](https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers#google-inspectiontool) · [脱敏记录](evidence/package-browser-2026-11-21.json)
