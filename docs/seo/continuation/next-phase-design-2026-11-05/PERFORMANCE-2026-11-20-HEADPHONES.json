@@ -791,5 +791,74 @@
       "initiator": "parser",
       "combinedOriginalBytes": 7609383
     }
+  },
+  "hx10FullGalleryBefore": {
+    "beforeReleaseRun": 44734452775,
+    "observationBudgetMs": 40000,
+    "sameProfileAsInitialThumbnailRollout": true,
+    "egress": [
+      "colo=NRT",
+      "loc=JP"
+    ],
+    "mainImageReadyMs": [
+      33705,
+      35307,
+      29948,
+      30924
+    ],
+    "lcpMs": [
+      33704,
+      35164,
+      29912,
+      30880
+    ],
+    "lcpElement": [
+      "IMG",
+      "IMG",
+      "IMG",
+      "IMG"
+    ],
+    "visibleStripReadyMs": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "visibleThumbnails": [
+      5,
+      5,
+      5,
+      5
+    ],
+    "visibleThumbnailsReadyAtBudget": [
+      2,
+      2,
+      2,
+      2
+    ],
+    "imageRequests": [
+      7,
+      7,
+      7,
+      7
+    ],
+    "galleryBodyBytesAtBudget": [
+      6003874,
+      6282284,
+      6441988,
+      6260874
+    ]
+  },
+  "hx10GalleryProductionSizes": {
+    "imagePreparationRun": 44744319321,
+    "siteDeliveryRun": 44744797796,
+    "preservedOriginals": 5,
+    "verifiedPublicResponses": 15,
+    "originalBytes": 7609383,
+    "productionBytesByWidth": {
+      "160": 28058,
+      "640": 146938,
+      "1280": 349586
+    }
   }
 }
