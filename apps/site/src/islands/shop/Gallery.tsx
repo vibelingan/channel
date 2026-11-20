@@ -1,5 +1,5 @@
 import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
 import { catalogGalleryImageSizes } from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
@@ -42,9 +42,11 @@ interface GalleryThumbnailListProps {
   onSelect: (index: number) => void;
   onToggle: () => void;
   layout?: 'legacy' | 'detail';
+  interactive?: boolean;
 }
 
 const INITIAL_PREVIEW_COUNT = 4;
+const subscribeToHydration = () => () => undefined;
 
 export interface VisibleGalleryThumbnail {
   image: string;
@@ -99,6 +101,7 @@ export function GalleryThumbnailList({
   onSelect,
   onToggle,
   layout = 'legacy',
+  interactive = true,
 }: GalleryThumbnailListProps) {
   const visibleThumbnails = visibleGalleryThumbnails(
     images,
@@ -117,14 +120,16 @@ export function GalleryThumbnailList({
             ? 'flex min-w-0 gap-3 overflow-x-auto px-1 py-2'
             : 'flex min-w-0 flex-wrap justify-center gap-3'
         }
+        aria-busy={!interactive || undefined}
       >
         {visibleThumbnails.map(({ image, index, key }) => (
           <button
             key={key}
             type="button"
             data-gallery-thumbnail={index}
+            disabled={!interactive}
             onClick={() => onSelect(index)}
-            className={`h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 bg-surface-alt transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 ${
+            className={`h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 bg-surface-alt transition-colors disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 ${
               index === activeIndex ? 'border-brand-600' : 'border-slate-200 hover:border-slate-400'
             }`}
             aria-label={`View image ${index + 1}${imageLabels?.[index] ? `: ${imageLabels[index]}` : ''}`}
@@ -152,10 +157,11 @@ export function GalleryThumbnailList({
           <button
             type="button"
             data-gallery-view-all
+            disabled={!interactive}
             onClick={onToggle}
             aria-expanded={expanded}
             aria-controls="gallery-thumbnails"
-            className="min-h-11 cursor-pointer rounded-md px-4 text-sm font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors motion-reduce:transition-none hover:text-brand-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+            className="min-h-11 cursor-pointer rounded-md px-4 text-sm font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none hover:text-brand-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
           >
             {expanded ? showLessLabel : viewAllLabel}
           </button>
@@ -188,6 +194,13 @@ function GallerySession({
     mainImagePriority === 'high' ? images[Math.max(0, initialIndex)] : undefined;
   const [active, setActive] = useState(Math.max(0, initialIndex));
   const [expanded, setExpanded] = useState(false);
+  // Server-rendered controls must wait for their handlers. Client-only galleries
+  // have handlers from their first render, including configuration changes.
+  const interactive = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   const root = useRef<HTMLDivElement>(null);
   // Keep a keyboard user's place when the tap redrew the gallery.
   useEffect(() => {
@@ -250,6 +263,7 @@ function GallerySession({
         showLessLabel={showLessLabel}
         unavailableLabel={unavailableLabel}
         layout={layout}
+        interactive={interactive}
         onSelect={(index) => {
           const source = images[index];
           if (!source) return;

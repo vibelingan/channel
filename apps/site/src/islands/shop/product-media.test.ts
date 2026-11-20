@@ -26,6 +26,17 @@ const SOURCES = [
   'https://media.example.test/three.jpg',
 ] as const;
 
+test('initial product HTML shows the photos and waits to enable their controls', () => {
+  const html = renderToStaticMarkup(
+    createElement(Gallery, { images: SOURCES, alt: 'Product photo', layout: 'detail' }),
+  );
+  const thumbnails = [...html.matchAll(/<button\b[^>]*data-gallery-thumbnail="\d+"[^>]*>/g)];
+  assert.equal(thumbnails.length, SOURCES.length);
+  assert.ok(thumbnails.every(([button]) => /\sdisabled=""/.test(button)));
+  assert.match(html, /id="gallery-thumbnails"[^>]*aria-busy="true"/);
+  assert.match(html, /alt="Product photo"/);
+});
+
 test('responsive SSR preserves photo identity and alt and uses actual widths and thumbnail slot sizes', () => {
   const source = '/api/images/ready';
   const mediumOnly = '/api/images/medium-only';
