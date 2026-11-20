@@ -28,16 +28,18 @@ const SOURCES = [
 
 test('responsive SSR preserves photo identity and alt and uses actual widths and thumbnail slot sizes', () => {
   const source = '/api/images/ready';
+  const mediumOnly = '/api/images/medium-only';
   const imagePresentation = {
     [source]: [
       { url: `${source}?w=160`, width: 160, height: 100 },
       { url: `${source}?w=640`, width: 640, height: 400 },
       { url: `${source}?w=1280`, width: 800, height: 500 },
     ],
+    [mediumOnly]: [{ url: `${mediumOnly}?w=640`, width: 640, height: 400 }],
   };
   const html = renderToStaticMarkup(
     createElement(Gallery, {
-      images: [source, '/api/images/other'],
+      images: [source, mediumOnly, '/api/images/other'],
       alt: 'Human caption',
       layout: 'detail',
       imagePresentation,
@@ -48,6 +50,13 @@ test('responsive SSR preserves photo identity and alt and uses actual widths and
   assert.match(html, /srcSet="[^"]*\?w=160 160w[^\"]*\?w=640 640w[^\"]*\?w=1280 800w"/);
   assert.equal(html.includes('1280w'), false, 'A maximum request is not the actual pixel width');
   assert.match(html, /sizes="80px"/);
+  const thumbnails = [
+    ...html.matchAll(/<button[^>]*data-gallery-thumbnail="\d+"[\s\S]*?<\/button>/g),
+  ];
+  assert.equal(thumbnails.length, 3);
+  assert.match(thumbnails[0]?.[0] ?? '', /loading="lazy" fetchPriority="auto"/);
+  assert.match(thumbnails[1]?.[0] ?? '', /loading="lazy" fetchPriority="low"/);
+  assert.match(thumbnails[2]?.[0] ?? '', /loading="lazy" fetchPriority="low"/);
   const fallback = renderToStaticMarkup(
     createElement(ProductMedia, {
       sources: ['/api/images/other'],

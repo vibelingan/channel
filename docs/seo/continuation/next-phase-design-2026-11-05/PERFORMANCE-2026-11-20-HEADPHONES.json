@@ -1085,5 +1085,222 @@
         "functionMs": 213.5
       }
     ]
+  },
+  "hx10GalleryWaterfall": {
+    "browser": "157.0.8103.79",
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "cpuRate": 4,
+    "shapedNetwork": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "egress": [
+      "colo=NRT",
+      "loc=JP"
+    ],
+    "samples": [
+      {
+        "condition": "shaped",
+        "mainReadyMs": 4518,
+        "galleryReadyMs": 11372,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 6196,
+          "discoveryToNetworkMs": 5265,
+          "networkToSendMs": 1184,
+          "sendToFirstHeaderMs": 1000,
+          "functionMs": 280.9,
+          "headersToBodyCompleteMs": 61
+        }
+      },
+      {
+        "condition": "native",
+        "mainReadyMs": 2173,
+        "galleryReadyMs": 8629,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 6196,
+          "discoveryToNetworkMs": 4022,
+          "networkToSendMs": 1257,
+          "sendToFirstHeaderMs": 1590,
+          "functionMs": 260.8,
+          "headersToBodyCompleteMs": 6
+        }
+      },
+      {
+        "condition": "native",
+        "mainReadyMs": 2139,
+        "galleryReadyMs": 8369,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 6570,
+          "discoveryToNetworkMs": 2955,
+          "networkToSendMs": 1669,
+          "sendToFirstHeaderMs": 1948,
+          "functionMs": 295.6,
+          "headersToBodyCompleteMs": 6
+        }
+      },
+      {
+        "condition": "shaped",
+        "mainReadyMs": 2408,
+        "galleryReadyMs": 9903,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 6196,
+          "discoveryToNetworkMs": 4935,
+          "networkToSendMs": 805,
+          "sendToFirstHeaderMs": 1874,
+          "functionMs": 265.7,
+          "headersToBodyCompleteMs": 31
+        }
+      },
+      {
+        "condition": "shaped",
+        "mainReadyMs": 2760,
+        "galleryReadyMs": 11802,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 6570,
+          "discoveryToNetworkMs": 5910,
+          "networkToSendMs": 1160,
+          "sendToFirstHeaderMs": 2029,
+          "functionMs": 223.7,
+          "headersToBodyCompleteMs": 37
+        }
+      },
+      {
+        "condition": "native",
+        "mainReadyMs": 2133,
+        "galleryReadyMs": 7773,
+        "lastVisibleThumbnail": {
+          "protocol": "http/1.1",
+          "priority": "Low",
+          "bodyBytes": 7256,
+          "discoveryToNetworkMs": 3948,
+          "networkToSendMs": 909,
+          "sendToFirstHeaderMs": 1212,
+          "functionMs": 321.5,
+          "headersToBodyCompleteMs": 0
+        }
+      }
+    ]
+  },
+  "hx10GalleryPriorityLocalExperiment": {
+    "change": "Only fetchpriority on six existing 80px thumbnail tags, from low to auto",
+    "source": "Same live document in both arms, intercepted for the document only and real image requests",
+    "egress": [
+      "colo=NRT",
+      "loc=JP"
+    ],
+    "samples": [
+      {
+        "condition": "current",
+        "replacedAttributes": 0,
+        "heroReadyMs": 4163,
+        "largestContentPaint": {
+          "ms": 3992,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 8191,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1682
+        ]
+      },
+      {
+        "condition": "auto",
+        "replacedAttributes": 6,
+        "heroReadyMs": 2347,
+        "largestContentPaint": {
+          "ms": 2220,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 4353,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1278
+        ]
+      },
+      {
+        "condition": "auto",
+        "replacedAttributes": 6,
+        "heroReadyMs": 2902,
+        "largestContentPaint": {
+          "ms": 2792,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 4304,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1216
+        ]
+      },
+      {
+        "condition": "current",
+        "replacedAttributes": 0,
+        "heroReadyMs": 3185,
+        "largestContentPaint": {
+          "ms": 3064,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 10920,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1424
+        ]
+      },
+      {
+        "condition": "current",
+        "replacedAttributes": 0,
+        "heroReadyMs": 2340,
+        "largestContentPaint": {
+          "ms": 2252,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 9171,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1279
+        ]
+      },
+      {
+        "condition": "auto",
+        "replacedAttributes": 6,
+        "heroReadyMs": 2403,
+        "largestContentPaint": {
+          "ms": 2304,
+          "tag": "IMG"
+        },
+        "stripReadyMs": 5421,
+        "visibleThumbnails": 5,
+        "galleryBytes": 69126,
+        "styleResponseMs": [
+          1548
+        ]
+      }
+    ]
   }
 }

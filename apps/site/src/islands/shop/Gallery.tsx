@@ -139,6 +139,7 @@ export function GalleryThumbnailList({
               width={80}
               height={80}
               fetchPriority="low"
+              autoPriorityForSmallVariant={layout === 'detail'}
               preferSiteImage={image === siteImageSource}
               imageClassName="h-full w-full object-contain"
             />

@@ -13,7 +13,10 @@ import {
   catalogMediaSourceId,
   createCatalogMediaState,
 } from '../../catalog/application/catalog-media.ts';
-import { responsiveImageAttributes } from '../../catalog/presentation/responsive-images.ts';
+import {
+  imageCandidateAttributes,
+  responsiveImageCandidates,
+} from '../../catalog/presentation/responsive-images.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export const CatalogHeroImageApiOrigin = createContext<string | undefined>(undefined);
@@ -42,6 +45,7 @@ export interface ProductMediaProps {
   height?: number;
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
+  autoPriorityForSmallVariant?: boolean;
   onLoad?: () => void;
   preferSiteImage?: boolean;
   siteImageApiOrigin?: string | undefined;
@@ -99,6 +103,7 @@ function ProductMediaSession({
   height = 800,
   loading = 'lazy',
   fetchPriority = 'auto',
+  autoPriorityForSmallVariant = false,
   preferSiteImage = false,
   siteImageApiOrigin,
   onLoad,
@@ -118,13 +123,19 @@ function ProductMediaSession({
       ? siteCatalogImagePath(source, apiOrigin)
       : undefined;
   const renderedSource = siteSource ?? source;
-  const responsive = responsiveImageAttributes(
-    source,
-    imagePresentation,
+  const candidates = responsiveImageCandidates(source, imagePresentation);
+  const responsive = imageCandidateAttributes(
+    candidates,
     sizes,
     siteSource && apiOrigin ? (url) => siteCatalogImagePath(url, apiOrigin) ?? url : undefined,
   );
   const useResponsive = !!responsive.srcSet && !failedResponsiveSources.includes(source ?? '');
+  const renderedPriority =
+    autoPriorityForSmallVariant &&
+    useResponsive &&
+    candidates?.some((candidate) => candidate.url.endsWith('?w=160'))
+      ? 'auto'
+      : fetchPriority;
   const activeIndex = state.activeIndex;
   const handleFailure = useCallback(() => {
     if (source === undefined) return;
@@ -190,7 +201,7 @@ function ProductMediaSession({
           width={width}
           height={height}
           loading={loading}
-          fetchPriority={fetchPriority}
+          fetchPriority={renderedPriority}
           decoding="async"
           onLoad={onLoad}
           referrerPolicy="no-referrer"

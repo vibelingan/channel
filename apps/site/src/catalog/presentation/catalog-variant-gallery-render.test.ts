@@ -454,6 +454,11 @@ test(
         );
         const thumbnail = page.locator('[data-gallery-thumbnail="0"] img');
         await expect(thumbnail).toHaveAttribute('sizes', '80px');
+        await expect(thumbnail).toHaveAttribute('fetchpriority', 'auto');
+        await expect(page.locator('[data-gallery-thumbnail="1"] img')).toHaveAttribute(
+          'fetchpriority',
+          'low',
+        );
         await expect(thumbnail).toHaveJSProperty(
           'currentSrc',
           `${origin}api/images/responsive-20261118?w=160`,
@@ -483,7 +488,7 @@ test(
         const fallbackSource = '/api/images/responsive-fallback';
         await mount(
           galleryProps({
-            images: [fallbackSource],
+            images: [fallbackSource, '/api/images/unprepared'],
             imagePresentation: {
               [fallbackSource]: imagePresentation[source].map((candidate) => ({
                 ...candidate,
@@ -501,6 +506,12 @@ test(
           null,
           'A failed size retries the same photo at its working default URL',
         );
+        const fallbackThumbnail = page.locator('[data-gallery-thumbnail="0"] img');
+        await expect(fallbackThumbnail).toHaveJSProperty(
+          'currentSrc',
+          `${origin}api/images/responsive-fallback`,
+        );
+        await expect(fallbackThumbnail).toHaveAttribute('fetchpriority', 'low');
         assert.deepEqual(errors, []);
       } finally {
         await browser.close();
