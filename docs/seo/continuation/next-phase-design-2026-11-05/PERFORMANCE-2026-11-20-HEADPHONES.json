@@ -502,5 +502,206 @@
       "rangePublishedAt": "2026-11-19T15:46:05.000000",
       "incompleteIfLimitReached": false
     }
+  },
+  "smallOriginalCacheRollout": {
+    "runId": 44715810485,
+    "previousRunSHA": "f70e3fab51c7705a89a2a962c25430132a3e79ae",
+    "releaseSHA": "5d3c9f41daf49fe51a95e895336359c53fe3ee8a",
+    "archiveId": 14619821351,
+    "assetBytes": 63062,
+    "imageWrites": 0,
+    "samePublicProductRevisions": 528,
+    "samePublishedArticles": 3,
+    "buyerChecks": [
+      {
+        "width": 412,
+        "heroReads": 1,
+        "previousStylesheet": 1,
+        "quoteOpened": true
+      },
+      {
+        "width": 1440,
+        "heroReads": 1,
+        "previousStylesheet": 1,
+        "quoteOpened": true
+      }
+    ],
+    "observations": {
+      "matchedConditions": true,
+      "browserBefore": {
+        "at": "2026-11-20T09:24:02.211Z",
+        "chrome": "149.0.7827.55",
+        "device": {
+          "viewport": {
+            "width": 412,
+            "height": 823
+          },
+          "deviceScaleFactor": 1.75,
+          "isMobile": true,
+          "hasTouch": true,
+          "locale": "en-US"
+        },
+        "cpu": 4,
+        "egress": {
+          "colo": "NRT",
+          "loc": "JP"
+        },
+        "network": {
+          "offline": false,
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "browserAfter": {
+        "at": "2026-11-20T10:04:17.586Z",
+        "chrome": "149.0.7827.55",
+        "device": {
+          "viewport": {
+            "width": 412,
+            "height": 823
+          },
+          "deviceScaleFactor": 1.75,
+          "isMobile": true,
+          "hasTouch": true,
+          "locale": "en-US"
+        },
+        "cpu": 4,
+        "egress": {
+          "colo": "NRT",
+          "loc": "JP"
+        },
+        "network": {
+          "offline": false,
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "before": {
+        "lcp": {
+          "allMs": [4424, 2764, 2652, 2664],
+          "medianMs": 2714.0,
+          "minMs": 2652,
+          "maxMs": 4424
+        },
+        "fcp": {
+          "allMs": [2316, 2368, 2060, 2020],
+          "medianMs": 2188.0,
+          "minMs": 2020,
+          "maxMs": 2368
+        },
+        "photoBrowserWait": {
+          "allMs": [1393.1, 691.7, 747.6, 705.4],
+          "medianMs": 726.5,
+          "minMs": 691.7,
+          "maxMs": 1393.1
+        },
+        "photoGateway": {
+          "allMs": [1232, 550, 531, 547],
+          "medianMs": 548.5,
+          "minMs": 531,
+          "maxMs": 1232
+        },
+        "photoApplication": {
+          "allMs": [834.7, 169.4, 207.8, 221],
+          "medianMs": 214.4,
+          "minMs": 169.4,
+          "maxMs": 834.7
+        },
+        "photoStorage": {
+          "allMs": [685.3, 120.2, 162.2, 172.8],
+          "medianMs": 167.5,
+          "minMs": 120.2,
+          "maxMs": 685.3
+        },
+        "photoHits": 0,
+        "gatewayEntriesMatched": 8,
+        "repeatRead": {
+          "header": {
+            "allMs": [1330, 624, 1072, 834, 1217, 760],
+            "medianMs": 953.0,
+            "minMs": 624,
+            "maxMs": 1330
+          },
+          "application": {
+            "allMs": [248.7, 156.4, 165.4, 166.7, 182.9, 201.2],
+            "medianMs": 174.8,
+            "minMs": 156.4,
+            "maxMs": 248.7
+          },
+          "storage": {
+            "allMs": [197.7, 106.8, 118.6, 119.6, 126.5, 160.1],
+            "medianMs": 123.0,
+            "minMs": 106.8,
+            "maxMs": 197.7
+          },
+          "hits": 0
+        }
+      },
+      "after": {
+        "lcp": {
+          "allMs": [3136, 2808, 2340, 2544],
+          "medianMs": 2676.0,
+          "minMs": 2340,
+          "maxMs": 3136
+        },
+        "fcp": {
+          "allMs": [1960, 2700, 2148, 2476],
+          "medianMs": 2312.0,
+          "minMs": 1960,
+          "maxMs": 2700
+        },
+        "photoBrowserWait": {
+          "allMs": [852.4, 590.5, 575.3, 616.1],
+          "medianMs": 603.3,
+          "minMs": 575.3,
+          "maxMs": 852.4
+        },
+        "photoGateway": {
+          "allMs": [604, 372, 345, 372],
+          "medianMs": 372.0,
+          "minMs": 345,
+          "maxMs": 604
+        },
+        "photoApplication": {
+          "allMs": [263.2, 37.2, 39.5, 37.8],
+          "medianMs": 38.6,
+          "minMs": 37.2,
+          "maxMs": 263.2
+        },
+        "photoStorage": {
+          "allMs": [218.2, 0, 0, 0],
+          "medianMs": 0.0,
+          "minMs": 0,
+          "maxMs": 218.2
+        },
+        "photoHits": 3,
+        "gatewayEntriesMatched": 8,
+        "repeatRead": {
+          "header": {
+            "allMs": [1097, 504, 1521, 491, 850, 544],
+            "medianMs": 697.0,
+            "minMs": 491,
+            "maxMs": 1521
+          },
+          "application": {
+            "allMs": [159.9, 39.0, 515.6, 41.8, 53.6, 39.6],
+            "medianMs": 47.7,
+            "minMs": 39.0,
+            "maxMs": 515.6
+          },
+          "storage": {
+            "allMs": [116.3, 0.0, 465.8, 0.0, 0.0, 0.0],
+            "medianMs": 0.0,
+            "minMs": 0.0,
+            "maxMs": 465.8
+          },
+          "hits": 4
+        }
+      }
+    }
   }
 }
