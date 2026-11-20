@@ -1,0 +1,467 @@
+{
+  "release": {
+    "branch": "feat/seo-foundation",
+    "source": "0f849971d56926cdb30cc015dd6b28920fb3cfbb",
+    "renderer": "7810cea67bfc8d10d4add2b673a425060d586adf",
+    "reference": "https://github.com/vibelingan/channel/actions/runs/44810600669",
+    "acceptedAt": "2026-11-20T20:31:49.596Z",
+    "elapsedSeconds": 972,
+    "acceptedBeforeCleanupAndEvidenceSeconds": 628
+  },
+  "batches": [
+    {
+      "run": 44799773133,
+      "photos": 20,
+      "responses": 60,
+      "originalBytes": 34863016,
+      "variantBytes": {
+        "160": 106020,
+        "640": 765004,
+        "1280": 1708464
+      }
+    },
+    {
+      "run": 44801280464,
+      "photos": 19,
+      "responses": 57,
+      "originalBytes": 28412616,
+      "variantBytes": {
+        "160": 93338,
+        "640": 674416,
+        "1280": 1796472
+      }
+    },
+    {
+      "run": 44802401188,
+      "photos": 20,
+      "responses": 60,
+      "originalBytes": 24898500,
+      "variantBytes": {
+        "160": 92422,
+        "640": 730282,
+        "1280": 1914330
+      }
+    },
+    {
+      "run": 44803493923,
+      "photos": 15,
+      "responses": 45,
+      "originalBytes": 14543608,
+      "variantBytes": {
+        "160": 58694,
+        "640": 408192,
+        "1280": 619042
+      }
+    }
+  ],
+  "candidate": {
+    "staticFilesVerified": 2119,
+    "allStoredProductContentAndRevisionsEqual": true,
+    "productSummariesWithNewDerivedSizes": 19,
+    "productGalleryPagesWithNewSizes": 30,
+    "galleryPlacementsWithNewSizes": 108,
+    "verifiedProductCanonicalTitleHeadingAndSitemap": 528,
+    "robotsEqual": true,
+    "sitemapUrls": 580,
+    "blogRoutingContractEqual": true,
+    "modifiedByType": {
+      ".html": 78,
+      ".json": 2
+    },
+    "addedByType": {}
+  },
+  "liveGallery": {
+    "run": "44810600669",
+    "attempt": 1,
+    "pages": [
+      [
+        "p-9d6b4318-6caf-4816-aeb0-6b623d6b741c",
+        3
+      ],
+      [
+        "p-25f9a3cf-f60e-46af-aeec-aea7a8e63e6f",
+        1
+      ],
+      [
+        "p-e2b20750-0c53-4a0f-a7fe-684a078ddc3e",
+        6
+      ],
+      [
+        "p-bea55772-97a1-42e7-accc-ce44009160d2",
+        1
+      ],
+      [
+        "p-5b7b429c-d23c-40e5-ae47-e391c34fd008",
+        5
+      ],
+      [
+        "p-21c1e52b-c1ef-4024-a7a3-831ce89dbc98",
+        5
+      ],
+      [
+        "p-71c04ae9-b133-44da-a1d8-036d34d55f66",
+        1
+      ],
+      [
+        "p-be1c292c-7b91-4170-ae1f-51e008b2f5bc",
+        3
+      ],
+      [
+        "p-c46f3143-3169-4c5c-a004-d96e953d87fa",
+        3
+      ],
+      [
+        "p-2e096d39-3eb3-41e8-a703-ce2ba02ba007",
+        6
+      ],
+      [
+        "p-7f619eb5-e135-4f61-a833-d908570005df",
+        4
+      ],
+      [
+        "p-e12f7ae7-3a3a-4c31-a9a4-ed5aef5de326",
+        5
+      ],
+      [
+        "p-7945dcfb-eecf-4806-a0dd-1b6a5e2c9e39",
+        5
+      ],
+      [
+        "p-d57d5d92-47a6-4d9d-a79b-3f14c114c60e",
+        5
+      ],
+      [
+        "p-818958a6-190b-4341-ab5b-726756085b73",
+        1
+      ],
+      [
+        "p-64f04e26-77d3-4aa4-a2a8-5632b26a486c",
+        1
+      ],
+      [
+        "p-f23814fb-f0d0-4d10-a8b0-0c3b27e43c7b",
+        7
+      ],
+      [
+        "p-9ebdad5c-46e1-4362-a0a5-aa83e894c495",
+        5
+      ],
+      [
+        "p-397b0c40-c422-49e5-ae8b-230955a56128",
+        6
+      ],
+      [
+        "p-c6c8402d-044e-4bea-a29d-2a1dfd821664",
+        5
+      ],
+      [
+        "p-327b4393-848d-475a-a5ae-b4be487bcd18",
+        3
+      ],
+      [
+        "p-ae14e1e8-734f-419e-afa2-c98bd12cb074",
+        3
+      ],
+      [
+        "p-627c5af6-6ee2-4047-a5b9-b4c05de0064d",
+        1
+      ],
+      [
+        "p-26f88014-7276-4c13-a123-a8550e2308d7",
+        1
+      ],
+      [
+        "p-fee3aabc-32f4-426f-a8d4-23e344fa0f91",
+        6
+      ],
+      [
+        "p-aaa418ba-bdaf-4d63-aa09-a2d549e22af1",
+        5
+      ],
+      [
+        "p-33b2a860-a6d0-4215-ac8f-fa981c394acd",
+        5
+      ],
+      [
+        "p-8945a6c7-ed97-42a7-aeac-4bc98a886cc6",
+        3
+      ],
+      [
+        "p-6547e08c-d307-46c8-a16a-e4d759a8b555",
+        2
+      ],
+      [
+        "p-6b230942-1c98-4bc9-ac93-2ce9a55d9428",
+        1
+      ]
+    ],
+    "distinctPhotos": 74
+  },
+  "blog": {
+    "unchangedArticles": 3,
+    "publicCanonicalUrls": [
+      "https://supplychainsai.com/blog/",
+      "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/"
+    ]
+  },
+  "historicalImageResponsesVerified": 6,
+  "temporaryFunctions": {
+    "observedAt": "2026-11-20T20:39:29.131Z",
+    "coveredRunIds": [
+      "44799773133",
+      "44801280464",
+      "44802401188",
+      "44803493923",
+      "44804386360",
+      "44808157252",
+      "44810600669"
+    ],
+    "leftoverFunctions": []
+  },
+  "touchAndKeyboardGallery": {
+    "product": "/products/p-7f619eb5-e135-4f61-a833-d908570005df/",
+    "smallVersionPresent": true,
+    "tapped": {
+      "path": "/api/images/3fbe8b166ac883ad003ae8cd4ca653e2",
+      "width": 340
+    },
+    "keyboard": {
+      "path": "/api/images/96d9cd126ac883ac006e0d6426fe6013",
+      "width": 800
+    },
+    "failedPhotos": [],
+    "errors": []
+  },
+  "browser": {
+    "sharedProfile": {
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "cpuRate": 4,
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "browser": "157.0.8103.79",
+      "limitMs": 40000
+    },
+    "beforeEgress": "colo=NRT\nloc=JP",
+    "afterEgress": "colo=NRT\nloc=JP",
+    "sameObservedEgress": true,
+    "pages": [
+      {
+        "pageUrl": "https://supplychainsai.com/products/p-e2b20750-0c53-4a0f-a7fe-684a078ddc3e/",
+        "before": {
+          "samples": [
+            {
+              "mainReadyMs": 9899,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 9868,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1812
+            },
+            {
+              "mainReadyMs": 9101,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 8964,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1010
+            },
+            {
+              "mainReadyMs": 8821,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 8696,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 987
+            }
+          ],
+          "mainMedianMs": 9101,
+          "visibleStripMedianMs": null,
+          "visibleStripExceedingObservation": 3,
+          "mainExceedingObservation": 0
+        },
+        "after": {
+          "samples": [
+            {
+              "mainReadyMs": 2924,
+              "visibleStripReadyMs": 8862,
+              "recordedLabLcpMs": 2840,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 4,
+              "firstDocumentHeadersMs": 995
+            },
+            {
+              "mainReadyMs": 2167,
+              "visibleStripReadyMs": 8083,
+              "recordedLabLcpMs": 2184,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 4,
+              "firstDocumentHeadersMs": 692
+            },
+            {
+              "mainReadyMs": 2411,
+              "visibleStripReadyMs": 8032,
+              "recordedLabLcpMs": 2224,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 4,
+              "firstDocumentHeadersMs": 776
+            }
+          ],
+          "mainMedianMs": 2411,
+          "visibleStripMedianMs": 8083,
+          "visibleStripExceedingObservation": 0,
+          "mainExceedingObservation": 0
+        }
+      },
+      {
+        "pageUrl": "https://supplychainsai.com/products/p-7f619eb5-e135-4f61-a833-d908570005df/",
+        "before": {
+          "samples": [
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 2268,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1292
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 2880,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1451
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "recordedLabLcpMs": 2592,
+              "visibleThumbnailsDecoded": 3,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1178
+            }
+          ],
+          "mainMedianMs": null,
+          "visibleStripMedianMs": null,
+          "visibleStripExceedingObservation": 3,
+          "mainExceedingObservation": 3
+        },
+        "after": {
+          "samples": [
+            {
+              "mainReadyMs": 3090,
+              "visibleStripReadyMs": 11370,
+              "recordedLabLcpMs": 2984,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 3,
+              "firstDocumentHeadersMs": 1061
+            },
+            {
+              "mainReadyMs": 2701,
+              "visibleStripReadyMs": 11383,
+              "recordedLabLcpMs": 2624,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 3,
+              "firstDocumentHeadersMs": 1076
+            },
+            {
+              "mainReadyMs": 2300,
+              "visibleStripReadyMs": 10329,
+              "recordedLabLcpMs": 2244,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 3,
+              "firstDocumentHeadersMs": 678
+            }
+          ],
+          "mainMedianMs": 2701,
+          "visibleStripMedianMs": 11370,
+          "visibleStripExceedingObservation": 0,
+          "mainExceedingObservation": 0
+        }
+      },
+      {
+        "pageUrl": "https://supplychainsai.com/products/p-fee3aabc-32f4-426f-a8d4-23e344fa0f91/",
+        "before": {
+          "samples": [
+            {
+              "mainReadyMs": 9111,
+              "visibleStripReadyMs": 30991,
+              "recordedLabLcpMs": 8988,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1060
+            },
+            {
+              "mainReadyMs": 9085,
+              "visibleStripReadyMs": 31747,
+              "recordedLabLcpMs": 9020,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1241
+            },
+            {
+              "mainReadyMs": 9096,
+              "visibleStripReadyMs": 33562,
+              "recordedLabLcpMs": 8976,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 0,
+              "firstDocumentHeadersMs": 1031
+            }
+          ],
+          "mainMedianMs": 9096,
+          "visibleStripMedianMs": 31747,
+          "visibleStripExceedingObservation": 0,
+          "mainExceedingObservation": 0
+        },
+        "after": {
+          "samples": [
+            {
+              "mainReadyMs": 2477,
+              "visibleStripReadyMs": 4683,
+              "recordedLabLcpMs": 2400,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 5,
+              "firstDocumentHeadersMs": 860
+            },
+            {
+              "mainReadyMs": 3349,
+              "visibleStripReadyMs": 4553,
+              "recordedLabLcpMs": 3240,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 5,
+              "firstDocumentHeadersMs": 1053
+            },
+            {
+              "mainReadyMs": 2086,
+              "visibleStripReadyMs": 6944,
+              "recordedLabLcpMs": 2104,
+              "visibleThumbnailsDecoded": 5,
+              "visibleThumbnailsDeliveredAt160": 5,
+              "firstDocumentHeadersMs": 671
+            }
+          ],
+          "mainMedianMs": 2477,
+          "visibleStripMedianMs": 4683,
+          "visibleStripExceedingObservation": 0,
+          "mainExceedingObservation": 0
+        }
+      }
+    ]
+  }
+}
