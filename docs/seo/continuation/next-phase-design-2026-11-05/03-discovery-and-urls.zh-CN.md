@@ -63,6 +63,12 @@ www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核
 
 可将下述问题连同以前的操作回执发给腾讯支持。官网使用同一 CloudBase HTTP 网关直连模式，HTTP 和 HTTPS 共用现有的静态托管、文章和 API 路由。曾按现有维护流程开启 `HTTP_TO_HTTPS`，实测返回 307 后复原。CLI 文档将此设置写为 301，管理 SDK 类型没有暴露单独的状态码开关。请确认这个具体接入模式是否可支持一跳 301、是否有版本或区域条件、是否有不切 DNS 的配置入口，以及写入请求的协议行为。公开复现地址为 `http://supplychainsai.com/headphones/?page=2`，目标为 `https://supplychainsai.com/headphones/?page=2`。 [CLI 协议说明](https://docs.cloudbase.net/en/cli-v1/gateway) · [管理接口字段](https://cloud.tencent.com/document/product/876/34822)
 
+11 月 21 日，以现用证书对裸域的直连和 CloudBase 边缘加速两种方案做了腾讯只读预检。两种方案的域名归属、证书和配额检查均通过，边缘加速专项也通过。预检后重新读取，域名、协议、证书和原路由与操作前一致。官网裸域 HTTP 仍返回 200，两个 www 入口继续一跳 301 并保留完整路径和参数。实际 301 需要在独立地址上验收。 [腾讯只读预检接口](https://docs.cloudbase.net/api-reference/manager/node/domain#verifyhttpserviceroute)
+
+拟用的 `seo-https-check.supplychainsai.com` 当前没有 DNS 记录或 CloudBase 路由。现有证书只覆盖裸域和 www，当前云凭据查询独立 SSL 证书列表时返回无权访问。若获准演练，先确认独立子域证书和 DNS 的操作权限，再设置临时测试入口。按腾讯列明的日本访问价格，100 MB 下行约 0.083 元，1,000 次边缘请求约 0.005 元，属于按量估算。整站入口的使用量和费用另算。 [腾讯边缘请求和流量计费](https://cloud.tencent.com/document/product/876/141066)
+
+同一轮从日本访问官网和直连图片网关时，客户端主动提供 HTTP/2 协议选项，实际协商均为 HTTP/1.1。独立 TLS 握手和真实文件下载得出相同结果。若日后做边缘试点，可以同时测下载连接和并发，继续单独验收图片上传、文章、查询参数以及视频分段。腾讯独立 EdgeOne 产品文档也提示，HTTP/2 的流量窗口可能影响大文件上传。 [Chrome 请求排队说明](https://developer.chrome.com/docs/devtools/network/reference/#timing-breakdown-phases-explained) · [腾讯 EdgeOne HTTP/2](https://intl.cloud.tencent.com/zh/document/product/1145/46171)
+
 若腾讯确认只支持改接入模式，先准备一个有独立证书的自有子域验证，再决定是否切主域。腾讯目前公开的国内 CloudBase 边缘加速价是每万次请求 50 资源点，流量按地区计费，例如中国大陆与北美分别 310 和 530 资源点/GB。既有套餐积分可能抵扣，实际月成本取决于流量和余量。先确认资源点计费及公司允许的支出，核对加速不会改写后台缓存、转发头或 API 行为。试点通过后才考虑主域 DNS 变更。生产切换要保留原 CNAME、证书、路由和 TTL，实跑只读跳转门禁，并独立验真实登录、接口、文章、商品、地图、视频、404。回退时按记录恢复原接入和 DNS。 [腾讯国内价格](https://cloud.tencent.com/document/product/876/127357) · [边缘加速协议能力](https://docs.cloudbase.net/service/custom-domain)
 
 ### 11 月 19 日晚间核对隔离试点资源

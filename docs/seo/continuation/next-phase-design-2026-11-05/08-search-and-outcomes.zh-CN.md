@@ -15,7 +15,11 @@ WH3 发布后重新读取四个公开商品网址，均返回 200，每个商品
 
 商品 `p-a627c46b-65f1-42c8-a75c-2893d62e877a` 的网址检查此次得到明确结果。Google 存档显示尚不知道这个地址。样品检查文章的 Google 存档仍显示旧的 `noindex` 排除，随后对这篇文章运行 Google 实时检测，界面显示当前网址可以访问并允许收录。两页实时从官网完整读取均为 200，有标题，声明自己为正式网址，也没有阻止收录的 HTML 或 HTTP 标记。文章能否在搜索结果里出现仍以 Google 的索引记录为准。Google 上已有的复查和抓取记录继续保留。 [实测证据](evidence/package-browser-2026-11-21.json) · [Google 网址检查](https://support.google.com/webmasters/answer/12482179)
 
+2026 年 11 月 21 日再次打开视频排除详情。最新报表日期为 11 月 19 日，0 个视频已收录，2 个未收录。明细仍是首页工厂视频（上次抓取 11 月 16 日）和 OEM 页工厂视频（11 月 7 日）。新建的独立观看页不在这两条记录中。最新 Core Web Vitals 报表也更新到 11 月 19 日，手机和桌面仍显示真实使用样本不足。网页索引与普通搜索展示的统计日期和数字没有更新。 [Google 视频收录指南](https://developers.google.com/search/docs/appearance/video) · [官网独立观看页](https://supplychainsai.com/videos/factory-overview/)
+
 HX10 网页已换新版后，独立读取其他 4xx 报告中的五张历史故障图。五张均返回 200，合计 408,452 字节，每张文件摘要与先前修复后保存的值一致。这次验证上线后的图片仍可打开。Google 的复查沿用已有任务，等待平台更新。
+
+腾讯网关北京时间 11 月 21 日 00:17–05:18 的补查覆盖五张历史 4xx 图片及新观看页。独立观看页的十条请求全为 200，没有匹配 Google 公布的普通爬虫或检查来源。图片 46 条中有 42 条是 200。余下四条是对同一张照片额外指定 160 或 640 像素的请求，均为 503。官网实测回复“Requested image size is not prepared”，同一照片不带尺寸的原网址返回 200、69,280 字节 WebP。前后两版网页归档都没有给该照片写入这两个尺寸地址，日志中也没有确认是 Google 发起的请求。历史 400 是否通过复查以 Google 的结果为准。 [Google 爬虫来源核对](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
 
 ## 11 月 20 日复查网页索引
 
