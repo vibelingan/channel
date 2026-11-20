@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
@@ -103,4 +104,34 @@ test('feature branch push is outside every existing automatic deployment trigger
   assert.deepEqual(release.on.push.branches, ['test']);
   const ai = read('deploy-ai-cloudrun');
   assert.deepEqual(ai.on.push, { tags: ['ai-cloudrun-deploy-*'] });
+});
+
+test('the standalone SEO browser checks use the main archive and keep the shared Azure default', () => {
+  for (const job of [read('ci').jobs.unit, read('browser-regression').jobs.browser]) {
+    const setup = job.steps.find(
+      (step) => step.name === 'Use the Ubuntu archive for browser dependencies',
+    );
+    assert.ok(setup);
+    for (const [ref, expectAzure] of [
+      ['refs/heads/feat/seo-foundation', false],
+      ['refs/heads/main', true],
+      ['refs/heads/test', true],
+      ['refs/pull/123/merge', true],
+    ]) {
+      const executed = execFileSync(
+        'bash',
+        ['-ec', `sudo() { printf '%s\\n' "$*"; }\n${setup.run}`],
+        {
+          env: { ...process.env, GITHUB_REF: ref },
+          encoding: 'utf8',
+        },
+      )
+        .trim()
+        .split('\n');
+      assert.deepEqual(executed, [
+        `python3 scripts/ci-ubuntu-archive.py${expectAzure ? ' --azure-runner' : ''}`,
+        'apt-get -o APT::Update::Error-Mode=any -o Acquire::Retries=2 update',
+      ]);
+    }
+  }
 });

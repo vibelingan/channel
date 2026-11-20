@@ -1148,5 +1148,93 @@
         "styleResponseMs": [1548]
       }
     ]
+  },
+  "otherGalleryCoverage": {
+    "initialHtml": {
+      "source": "816d762a0d9be3fdb7ca05d34fd11a5c80a3055a",
+      "totalProducts": 528,
+      "sourceSnapshot": "last accepted public snapshot",
+      "matchedAllGeneratedThumbnailPriorities": true,
+      "thumbsWithoutSmallVersion": 3197,
+      "pagesNoPreparedThumbnail": 521,
+      "thumbsWithSmallVersion": 31,
+      "pagesSomeThumbnailsPrepared": 5,
+      "pagesAllThumbnailsPrepared": 2,
+      "distinctPreparedImages": 19
+    },
+    "largeOriginalScreening": {
+      "galleryProductsWithUnpreparedLargeThumbnails": 144,
+      "distinctUnpreparedLargeGalleryImages": 330,
+      "productsAbove2MBFromTheseFilesAlone": 76,
+      "productsAbove5MBFromTheseFilesAlone": 33,
+      "inventoryMinOriginalBytes": 500000
+    },
+    "pastLargePhotosCurrentGet": {
+      "checked": 12,
+      "status": {
+        "200": 12
+      },
+      "downloadedBytes": 1138322,
+      "bodyCapped": 0,
+      "productPages": 16,
+      "largestKnownDefaultGalleryBytes": [158060, 158060, 158060, 158060, 135494, 125762],
+      "smallestCompleteBytes": 51178,
+      "largestCompleteBytes": 158060
+    },
+    "heavyGalleryLiveSample": {
+      "path": "/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "egress": ["colo=NRT", "loc=JP"],
+      "observationBudgetMs": 40000,
+      "samples": [
+        {
+          "condition": "shaped",
+          "observedMs": 40040,
+          "mainReadyMs": null,
+          "stripReadyMs": null,
+          "lastLcp": {
+            "ms": 3588,
+            "tag": "H1"
+          },
+          "visibleThumbnails": 5,
+          "visibleThumbnailsReady": 0,
+          "galleryResponseBytes": 6500520,
+          "imageRequests": 7,
+          "completedImageRequests": 0
+        },
+        {
+          "condition": "native",
+          "observedMs": 40072,
+          "mainReadyMs": 8010,
+          "stripReadyMs": 25855,
+          "lastLcp": {
+            "ms": 7912,
+            "tag": "IMG"
+          },
+          "visibleThumbnails": 5,
+          "visibleThumbnailsReady": 5,
+          "galleryResponseBytes": 19450240,
+          "imageRequests": 8,
+          "completedImageRequests": 8
+        }
+      ]
+    }
   }
 }

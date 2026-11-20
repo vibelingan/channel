@@ -151,7 +151,11 @@ jobs:
       - name: Use the Ubuntu archive for browser dependencies
         if: ${{ matrix.suite == 'site' }}
         run: |
-          sudo python3 scripts/ci-ubuntu-archive.py --azure-runner
+          if [ "$GITHUB_REF" = refs/heads/feat/seo-foundation ]; then
+            sudo python3 scripts/ci-ubuntu-archive.py
+          else
+            sudo python3 scripts/ci-ubuntu-archive.py --azure-runner
+          fi
           sudo apt-get -o APT::Update::Error-Mode=any -o Acquire::Retries=2 update
       - name: Restore Playwright browsers
         if: ${{ matrix.suite == 'site' }}
