@@ -286,3 +286,5 @@ Google 域名属性能覆盖 HTTP/www 等入口；当前 HTTPS 前缀属性不�
 ### 逐条检查报表里的 12 个网页
 
 11 月 21 日用同一网站属性逐个打开 Google 的网址检查。11 月 16 日汇总里列为“已发现未收录”的 12 个正式网页中，10 个逐页状态仍是“已发现，尚未收录”，另有两个商品在逐页结果显示 Google 当前记录为“未知网址”。12 个都没有显示已收录。这些官网地址已在地图内，并且此前逐个实测直接返回 200、允许索引、正式网址指向自身。汇总和逐页结果的标签有差异，Google 没有在此次结果中给出两个商品的抓取记录；不能从差异猜测封禁原因。保留原地图和已发起的专项验证。 [12 个准确网址及 Google 当时的结果](evidence/remaining-thumbnail-and-main-photo-2026-11-21.json)
+
+对两个显示“Google 未知”的商品又各运行一次 Google 实时测试，均显示网址可访问、页面允许收录。随后只给这两个正式商品发送了抓取申请，Google 均显示已受理。初次测试和申请都使用同一个官网属性。申请受理之后仍要由 Google 抓取和决定是否进入索引。其余十个和已有的五张图复查未重新提交。 [实时测试及受理回执](evidence/remaining-thumbnail-and-main-photo-2026-11-21.json) · [Google 重新抓取说明](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl)

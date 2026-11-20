@@ -228,3 +228,7 @@ WH3 候选归档逐项核对了全部 2,101 个交付文件。与上一轮验收
 官网发布任务 14 分 56 秒完成。将实际交付的 2,119 个公开文件逐一与清单核对，1,366 个 JS、73 个 CSS、589 个 HTML 均检查了测试路径、开发标记与源码映射。没有命中这些规则。相比上一版，40 份 HTML、2 份 JSON 文件更新，公开 JS、CSS、图片和视频的文件路径及字节保持一致。两张小图由独立公开图片接口提供。商品页同条件手机实测，五张可见小图显示中位数 11.37→4.41 秒，正常触屏和键盘切图通过。 [正式任务](https://github.com/vibelingan/channel/actions/runs/44817450062) · [清单与测量](evidence/over-ear-gallery-2026-11-21.json)
 
 腾讯网关出现同一张旧故障图的四次 503，实际请求为未准备的 160 或 640 像素版。该图不带尺寸的地址完整返回 200，前后网页均未引用这两个失败地址。把这条判断方法和对应的审查样例分别推到 Engineering Craft 与 Dev Pipeline 的评审分支。 [Engineering Craft PR #11](https://github.com/orocsy/engineering-craft/pull/11) · [Dev Pipeline PR #16](https://github.com/orocsy/dev-pipeline/pull/16)
+
+### 九张商品主图的正式交付
+
+同一 SEO 分支一次生成九张照片的三个网页尺寸。图片任务用时约 3 分 39 秒。十页都通过现有公开详情接口拿到新尺寸后，使用已验收的网页生成程序发布。官网在任务启动约 9 分 55 秒后登记验收，整个任务在 15 分 32 秒时结束。该归档的 2,119 个公开文件逐项校验，55 份 HTML 和 2 份 JSON 发生变化。修改的 HTML 包括 39 个耳机目录和 16 个商品页，公开 JS、CSS 和原媒体文件的清单没有增删，文件摘要也相同。本轮按实际范围使用受控发布，main、test 和 release 的远端引用继续按原值核对。 [图片任务](https://github.com/vibelingan/channel/actions/runs/44829714959) · [网站发布](https://github.com/vibelingan/channel/actions/runs/44830332217) · [验收与逐次测量](evidence/remaining-thumbnail-and-main-photo-2026-11-21.json)
