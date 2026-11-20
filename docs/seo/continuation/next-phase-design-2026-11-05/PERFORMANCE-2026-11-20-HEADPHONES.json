@@ -860,5 +860,230 @@
       "640": 146938,
       "1280": 349586
     }
+  },
+  "hx10FullGalleryAfter": {
+    "publication": {
+      "run": 44744797796,
+      "renderer": "0788ab8df3c90d66c9afd41c1b747b4d2340cc82",
+      "publicProducts": 528,
+      "sitemapAddresses": 584,
+      "fiveInitialThumbnailSizes": 5,
+      "businessWrites": 0,
+      "temporaryFunctionsCleaned": true
+    },
+    "sameEgress": true,
+    "observationBudgetMs": 40000,
+    "observedMs": [
+      40217,
+      40225,
+      40180,
+      40229
+    ],
+    "mainImageReadyMs": [
+      5473,
+      2532,
+      2778,
+      2667
+    ],
+    "lcpMs": [
+      5376,
+      2408,
+      2768,
+      2668
+    ],
+    "lcpElement": [
+      "IMG",
+      "IMG",
+      "IMG",
+      "IMG"
+    ],
+    "visibleStripReadyMs": [
+      11894,
+      10988,
+      11397,
+      10315
+    ],
+    "visibleThumbnails": [
+      5,
+      5,
+      5,
+      5
+    ],
+    "visibleThumbnailsReadyAtBudget": [
+      5,
+      5,
+      5,
+      5
+    ],
+    "imageRequests": [
+      7,
+      7,
+      7,
+      6
+    ],
+    "completeImageRequests": [
+      7,
+      7,
+      7,
+      6
+    ],
+    "galleryBodyBytesAtBudget": [
+      69126,
+      69126,
+      69126,
+      62670
+    ]
+  },
+  "hx10ThumbnailPlainGetProbe": {
+    "samePublicImages": true,
+    "browserThrottleApplied": false,
+    "parallel": [
+      {
+        "imageBodyBytes": 6570,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1111.16,
+          "connect": 1172.14,
+          "tls": 1854.6,
+          "firstByte": 2864.45,
+          "complete": 2869.33
+        },
+        "functionMs": 600.7
+      },
+      {
+        "imageBodyBytes": 6456,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1111.09,
+          "connect": 1172.13,
+          "tls": 1430.93,
+          "firstByte": 2085.62,
+          "complete": 2085.86
+        },
+        "functionMs": 268.1
+      },
+      {
+        "imageBodyBytes": 6196,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1111.22,
+          "connect": 1172.26,
+          "tls": 2239.42,
+          "firstByte": 2843.73,
+          "complete": 2849.47
+        },
+        "functionMs": 279.4
+      },
+      {
+        "imageBodyBytes": 2390,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1110.28,
+          "connect": 1171.46,
+          "tls": 1431.83,
+          "firstByte": 2117.52,
+          "complete": 2117.67
+        },
+        "functionMs": 268.9
+      },
+      {
+        "imageBodyBytes": 5760,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1108.95,
+          "connect": 1170.14,
+          "tls": 1430.46,
+          "firstByte": 2077.1,
+          "complete": 2083.45
+        },
+        "functionMs": 285.1
+      },
+      {
+        "imageBodyBytes": 7256,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 1108.47,
+          "connect": 1166.34,
+          "tls": 1850.0,
+          "firstByte": 2487.83,
+          "complete": 2488.2
+        },
+        "functionMs": 216.6
+      }
+    ],
+    "serial": [
+      {
+        "imageBodyBytes": 6570,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 3.55,
+          "connect": 2064.68,
+          "tls": 2315.9,
+          "firstByte": 2903.24,
+          "complete": 2906.52
+        },
+        "functionMs": 256.7
+      },
+      {
+        "imageBodyBytes": 6456,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 3.33,
+          "connect": 61.44,
+          "tls": 521.79,
+          "firstByte": 1502.55,
+          "complete": 1555.93
+        },
+        "functionMs": 205.0
+      },
+      {
+        "imageBodyBytes": 6196,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 3.18,
+          "connect": 60.6,
+          "tls": 521.08,
+          "firstByte": 1044.15,
+          "complete": 1048.28
+        },
+        "functionMs": 208.2
+      },
+      {
+        "imageBodyBytes": 2390,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 3.09,
+          "connect": 62.17,
+          "tls": 524.13,
+          "firstByte": 1047.01,
+          "complete": 1047.36
+        },
+        "functionMs": 194.1
+      },
+      {
+        "imageBodyBytes": 5760,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 2.77,
+          "connect": 61.77,
+          "tls": 313.32,
+          "firstByte": 1179.26,
+          "complete": 1504.5
+        },
+        "functionMs": 285.5
+      },
+      {
+        "imageBodyBytes": 7256,
+        "cacheControl": "no-cache",
+        "httpMs": {
+          "dns": 3.49,
+          "connect": 62.37,
+          "tls": 556.39,
+          "firstByte": 1139.29,
+          "complete": 1139.65
+        },
+        "functionMs": 213.5
+      }
+    ]
   }
 }
