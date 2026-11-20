@@ -1,28 +1,10 @@
 {
-  "publicApiProgramSha": "1b23c7edc4ad35c35bfff0fb031b9dc023f7c033",
+  "publicApiProgramSha": "5d3c9f41daf49fe51a95e895336359c53fe3ee8a",
   "images": [
     {
-      "imageId": "4db8df016ac8845b00078da06c459c57",
-      "sourceDigest": "d63da41c28bed32d28fcc02b01cd12c8b887a098d10b64d5a47fab17e28a1f3b",
-      "sourceSha256": "05813c0c6b64f2783b68a698a0129b51567eb02c53541985b632f9a90ec19f8c",
-      "defaultSha256": null
-    },
-    {
-      "imageId": "4db8df016ac8845b00078d9f430a9b5b",
-      "sourceDigest": "6aba86160bf2b708e7e83836d136ff7028c79b40ea9de39a670105207e2ff4e3",
-      "sourceSha256": "788c5b5bc28a579091c4576aa8b7b6fe6f88de20595f521971479a422b26432f",
-      "defaultSha256": null
-    },
-    {
-      "imageId": "4db8df016ac8845b00078da3520c69f1",
-      "sourceDigest": "6163b3e236d1e0f602ec0e1ce54209e426782f4b7af7e61993d16312d398986a",
-      "sourceSha256": "c5c095224f533ee5be79ec9320bcff151bd6b8d187baa1e47b8c0f6ff4ce25ca",
-      "defaultSha256": null
-    },
-    {
-      "imageId": "66baec6f6ac8845c0072bce419e045fd",
-      "sourceDigest": "411b5fb7f338e0f8ec5a415528bfaf2947272251cfef3322b7f31ab4967d8a4a",
-      "sourceSha256": "1f5beebfb28a7e51e9808fcb80578aa4a90df7b252ee87be272a4e5c77d154bb",
+      "imageId": "3fbe8b166ac88391003ae71a181926a6",
+      "sourceDigest": "da270b9eb296aa60e0dc45f6168f5f343dff4ade38bebba5582eea2244ebd3af",
+      "sourceSha256": "8fddf5897c0cd3bc77b6abc85ee0e89178a933c9107938c63e3b4e3a0d3d54a0",
       "defaultSha256": null
     }
   ]
