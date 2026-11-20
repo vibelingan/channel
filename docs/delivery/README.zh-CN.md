@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 21 日，线上网页交付已覆盖 13 个商品页和 40 张已有商品图的小尺寸。发布回执确认临时资源已清理，商品和文章数据没有写入。最新核查同时确认 46 分钟发布的实际耗时、生产包里的历史文件、Google 排除地址和 Alibaba 图片尺寸。可见缩略图改走官网域名的四组对照均更慢，继续使用原地址。分类请求去重的正式发布已另行启动，实际官网验收见该模块的下一条记录。 [网页交付](https://github.com/vibelingan/channel/actions/runs/44787594437) · [发布、生产文件和搜索复查](../seo/continuation/next-phase-design-2026-11-05/RELEASE-PACKAGE-SEARCH-2026-11-20.zh-CN.md#11-月-21-日补查发布来源生产文件和图片域名) · [分类请求交付](https://github.com/vibelingan/channel/actions/runs/44793279279)
+
 11 月 20 日晚，公开图片接口上线了小原图的短时复用。耳机分类同一张首图，在直接请求的 6 次正式验证中有 4 次省掉腾讯对象存储读图，函数处理时间中位数 174.8→47.7 毫秒。整页四次测量中 LCP 2.714→2.676 秒，首次内容显示 2.188→2.312 秒。官网读回 528 件商品公开版本、三篇文章、地图和历史五张图片保持一致。[发布回执](https://github.com/vibelingan/channel/actions/runs/44715810485) · [详细数据与当前性能范围](../seo/continuation/next-phase-design-2026-11-05/REVIEW-2026-11-20.zh-CN.md#这轮跟进的耳机分类小图)
 
 
