@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
-import type { list } from '@vibelingan-channel/db';
+import { list, readCatalogImageReference, setAdapter } from '@vibelingan-channel/db';
 import { bindCatalogWebImage, catalogWebImagePath } from '@vibelingan-channel/db/catalog-web-image';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogImagePresentationSchema } from '@vibelingan-channel/shared/catalog-image-presentation';
+import {
+  buildCatalogImageReferencePlan,
+  catalogImageReferenceEntry,
+} from '../../../../packages/db/src/catalog-image-references.ts';
+import { JsonFileAdapter } from '../../../local-server/src/json-adapter.ts';
 import { budgetImagePresentation, publicImagePresentation } from './image-presentation.ts';
 
 function image(id: string): CollectionDoc {
@@ -82,6 +90,68 @@ test('private, corrupt, unprepared and unresolved images do not acquire public s
     ),
     {},
   );
+});
+
+test('approved detail can resolve pending image links with bounded read-only checks', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'channel-image-presentation-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'db.json');
+  const visible = image('visible');
+  const revoked = image('revoked');
+  const withdrawnImages = [revoked, image('withdrawn-2'), image('withdrawn-3')];
+  const stillUnchecked = image('overflow');
+  const rows = [visible, ...withdrawnImages, stillUnchecked];
+  const added = buildCatalogImageReferencePlan(
+    'a'.repeat(64),
+    [],
+    [visible._id, stillUnchecked._id],
+  );
+  const removed = buildCatalogImageReferencePlan(
+    'b'.repeat(64),
+    withdrawnImages.map((row) => row._id),
+    [],
+  );
+  visible.publishedRefCount = 0;
+  stillUnchecked.publishedRefCount = 0;
+  for (const row of rows) {
+    const plan = withdrawnImages.includes(row) ? removed : added;
+    row.catalogPublishedReferenceLedger = {
+      version: 'catalog-image-reference-ledger-v1',
+      epoch: 0,
+      pending: [
+        catalogImageReferenceEntry(
+          plan,
+          plan.changes.findIndex((change) => change.imageId === row._id),
+        ),
+      ],
+    };
+  }
+  const sourceData = JSON.stringify({
+    images: rows,
+    catalogDetailApprovals: [added.proof, removed.proof],
+  });
+  writeFileSync(file, sourceData);
+  const adapter = new JsonFileAdapter(file);
+  setAdapter(adapter);
+  const calls: string[] = [];
+  const read: typeof readCatalogImageReference = (command) => {
+    assert.equal(command.action, 'read');
+    assert.equal(command.maxDocumentOperations, 8);
+    calls.push(command.imageId);
+    return readCatalogImageReference(command);
+  };
+  const sources = [...rows, visible].map((row) => `/api/images/${row._id}`);
+  assert.deepEqual(await publicImagePresentation(sources, list), {});
+  const result = await publicImagePresentation(sources, list, read);
+  assert.deepEqual(Object.keys(result), ['/api/images/visible']);
+  assert.deepEqual(
+    calls.sort(),
+    rows
+      .slice(0, 4)
+      .map((row) => row._id)
+      .sort(),
+  );
+  assert.equal(readFileSync(file, 'utf8'), sourceData);
 });
 
 test('optional size hints respect the response byte budget without truncating an image entry', () => {

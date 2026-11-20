@@ -1,5 +1,9 @@
 /** Approved canonical detail only. Never reads source observations or evidence. */
-import { get as defaultGet, list as defaultList } from '@vibelingan-channel/db';
+import {
+  get as defaultGet,
+  list as defaultList,
+  readCatalogImageReference,
+} from '@vibelingan-channel/db';
 import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
 import { type ApiResult, err, ok } from '@vibelingan-channel/shared';
 import {
@@ -154,6 +158,7 @@ export function createApprovedProductReader(read: {
               ...decoded.value.variants.items.flatMap((variant) => variant.images),
             ],
             list,
+            readCatalogImageReference,
           ),
           available,
         )
