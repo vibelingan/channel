@@ -290,10 +290,21 @@
     "preparedWebVariant": false
   },
   "fullCrawledExport": {
-    "previousCount": 959,
+    "property": "https://supplychainsai.com/",
+    "filter": "All known pages",
+    "previousChartThrough": "2026-11-09",
+    "previousCount": 960,
+    "previousImageCount": 959,
+    "currentChartThrough": "2026-11-16",
     "currentCount": 960,
     "imageCount": 960,
     "added": 1,
-    "removed": 0
+    "removed": 1,
+    "removedProductPath": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+    "removedProductCurrentHttpStatus": 200,
+    "removedProductCurrentGoogleIndexState": "indexed",
+    "removedProductGoogleInspectionObserved": "2026-11-20",
+    "removedProductGoogleLastCrawl": "2026-11-16",
+    "removedProductGoogleSelectedCanonical": "inspected URL"
   }
 }
