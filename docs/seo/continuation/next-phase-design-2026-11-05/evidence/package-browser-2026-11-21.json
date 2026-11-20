@@ -1,0 +1,164 @@
+{
+  "scope": "Public cold Chrome navigation, first-party scripts and styles; response-body bytes after HTTP transfer decompression.",
+  "pages": [
+    {
+      "page": "/",
+      "status": 200,
+      "script": {
+        "responses": 15,
+        "decodedBytes": 350841
+      },
+      "stylesheet": {
+        "responses": 0,
+        "decodedBytes": 0
+      },
+      "shaMatched": 15,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/headphones/",
+      "status": 200,
+      "script": {
+        "responses": 28,
+        "decodedBytes": 694967
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 60000
+      },
+      "shaMatched": 29,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "status": 200,
+      "script": {
+        "responses": 22,
+        "decodedBytes": 642329
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 55633
+      },
+      "shaMatched": 23,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/portfolio/",
+      "status": 200,
+      "script": {
+        "responses": 12,
+        "decodedBytes": 326760
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 68198
+      },
+      "shaMatched": 13,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/blog/",
+      "status": 200,
+      "script": {
+        "responses": 5,
+        "decodedBytes": 307857
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 103775
+      },
+      "shaMatched": 6,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/admin/",
+      "status": 200,
+      "script": {
+        "responses": 7,
+        "decodedBytes": 197637
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 102058
+      },
+      "shaMatched": 8,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    },
+    {
+      "page": "/blog/prototype-to-mass-production-oem-odm/",
+      "status": 200,
+      "script": {
+        "responses": 5,
+        "decodedBytes": 307857
+      },
+      "stylesheet": {
+        "responses": 1,
+        "decodedBytes": 103775
+      },
+      "shaMatched": 6,
+      "outsideManifestOrChanged": [],
+      "debugMarkers": []
+    }
+  ],
+  "resourceResponses": 100,
+  "matchedResponses": 100,
+  "alibaba": {
+    "url": "https://www.alibaba.com/wholesale/gaming-usb-headset-7.1.html",
+    "successfulDistinctProductPhotoPaths": 268,
+    "minBytes": 1576,
+    "medianBytes": 5371.5,
+    "maxBytes": 15044,
+    "mimeTypes": ["image/avif"],
+    "sampleFromBrowser": [
+      {
+        "host": "s.alicdn.com",
+        "path": "/@sc04/kf/Hf3902f9686bf433daec886e909449631c.jpg_300x300.jpg",
+        "type": "image",
+        "status": 200,
+        "bytes": 3126,
+        "mime": "image/avif"
+      },
+      {
+        "host": "s.alicdn.com",
+        "path": "/@sc04/kf/H91bc8dcaf71b4c35adb170def1c39b66f.jpg_300x300.jpg",
+        "type": "image",
+        "status": 200,
+        "bytes": 7231,
+        "mime": "image/avif"
+      }
+    ]
+  },
+  "referenceArchives": {
+    "publicSite": 14632019398,
+    "blog": 14522561776
+  },
+  "searchConsole": {
+    "property": "https://supplychainsai.com/",
+    "filter": "All known pages",
+    "reportDate": "2026-11-16",
+    "indexed": 529,
+    "notIndexed": 989,
+    "crawledNotIndexed": 960,
+    "imageUrlsInFullCrawledExport": 960,
+    "discoveredNotIndexed": 12,
+    "observedAt": "2026-11-21T00:41:34+09:00"
+  },
+  "wh3LocalConversion": {
+    "productId": "p-f15a8e4f-3f48-4021-ac3d-67bd1060836a",
+    "scope": "Local encoder with checked public original PNG bytes",
+    "originalBytes": 16504142,
+    "webBytes": {
+      "160": 52812,
+      "640": 291918,
+      "1280": 659388
+    }
+  },
+  "browserCaptureCompletedAt": "2026-11-21T00:39:50+09:00"
+}
