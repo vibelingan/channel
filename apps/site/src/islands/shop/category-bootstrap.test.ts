@@ -9,8 +9,8 @@ import { categoryPageIdentity } from '../../lib/seo/category-page-metadata.ts';
 import { CatalogFamilyPage } from './CatalogFamilyPage.tsx';
 import { CatalogPagination } from './CatalogPagination.tsx';
 import {
-  beginNumberedPage,
   CATALOG_PAGE_SIZE,
+  beginNumberedPage,
   catalogDeliveredPageCount,
   catalogDocumentTarget,
   catalogFilteredPathRedirect,
