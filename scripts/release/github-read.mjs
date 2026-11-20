@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { fetchFully } from '../smoke-http.mjs';
 
 export function createGithubReadClient({ policy, token, request = fetchFully }) {
@@ -21,11 +22,21 @@ export function createGithubReadClient({ policy, token, request = fetchFully }) 
         'user-agent': 'channel-static-canary',
       },
     });
-  const api = async (path) => {
+  const api = async (path, { freshArtifact = false } = {}) => {
     if (!/^\/actions\//.test(path) || path.includes('..'))
       throw new Error('Invalid GitHub API path');
-    const result = await get(path);
-    if (result.status !== 200) throw new Error('GitHub API read failed');
+    let result = await get(path);
+    if (freshArtifact && /^\/actions\/artifacts\/[1-9][0-9]*$/.test(path)) {
+      for (const delayMs of [500, 1500]) {
+        if (![404, 500, 502, 503, 504].includes(result.status)) break;
+        console.warn(
+          `GitHub artifact metadata returned HTTP ${result.status}. Retrying the same read.`,
+        );
+        await delay(delayMs);
+        result = await get(path);
+      }
+    }
+    if (result.status !== 200) throw new Error(`GitHub API read failed (HTTP ${result.status})`);
     return JSON.parse(result.body.toString('utf8'));
   };
   return Object.freeze({

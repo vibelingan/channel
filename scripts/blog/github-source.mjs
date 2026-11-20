@@ -74,12 +74,14 @@ export function createBlogGithubSource({
   token,
   request = fetchFully,
   sourcePolicy = policy,
-  artifactPrefix = 'blog-dummy-payload',
+  artifactPrefixes = ['blog-dummy-payload'],
+  producerPolicy = (_run) => sourcePolicy,
   maxArchiveBytes = 72 * 1024 * 1024,
   extractor = new URL('./extract-payload.py', import.meta.url),
 }) {
   if (
-    !/^[a-z0-9-]+$/.test(artifactPrefix) ||
+    !artifactPrefixes.length ||
+    artifactPrefixes.some((prefix) => !/^[a-z0-9-]+$/.test(prefix)) ||
     !Number.isSafeInteger(maxArchiveBytes) ||
     maxArchiveBytes < 1 ||
     maxArchiveBytes > 512 * 1024 * 1024
@@ -88,15 +90,18 @@ export function createBlogGithubSource({
   const github = createGithubReadClient({ policy: sourcePolicy, token, request });
   async function metadata(id, options) {
     if (!/^[1-9][0-9]*$/.test(String(id))) throw new Error('Exact artifact ID required');
-    const artifact = await github.api(`/actions/artifacts/${id}`);
+    const artifact = await github.api(`/actions/artifacts/${id}`, {
+      freshArtifact: Boolean(options.currentRunId),
+    });
     if (String(artifact.id) !== String(id)) throw new Error('Artifact identity mismatch');
-    const match = new RegExp(`^${artifactPrefix}-([1-9][0-9]*)-([1-9][0-9]*)$`).exec(artifact.name);
-    if (!match) throw new Error('Invalid Blog artifact name');
-    const run = await github.api(`/actions/runs/${match[1]}/attempts/${match[2]}`);
+    const match = /^([a-z0-9-]+)-([1-9][0-9]*)-([1-9][0-9]*)$/.exec(artifact.name);
+    if (!match || !artifactPrefixes.includes(match[1])) throw new Error('Invalid artifact name');
+    const [, artifactPrefix, runId, attempt] = match;
+    const run = await github.api(`/actions/runs/${runId}/attempts/${attempt}`);
     return {
       run: validateBlogArtifactSource(artifact, run, {
         ...options,
-        sourcePolicy,
+        sourcePolicy: producerPolicy(run),
         artifactPrefix,
         maxArchiveBytes,
       }),
@@ -135,7 +140,9 @@ export function createBlogGithubSource({
       } finally {
         rmSync(temp, { recursive: true, force: true });
       }
-      await metadata(id, options);
+      const confirmed = await metadata(id, options);
+      if (confirmed.digest !== source.digest || confirmed.run.headSha !== source.run.headSha)
+        throw new Error('Artifact changed during download');
       return source.run;
     },
   };

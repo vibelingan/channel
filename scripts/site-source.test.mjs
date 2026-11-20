@@ -73,11 +73,16 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
   const metadata = { ...artifact, digest: `sha256:${sha256(bytes)}`, size_in_bytes: bytes.length };
   const requests = [];
   let sourceRun = run;
+  const artifactStatuses = [];
   const client = createSiteGithubSource({
     token: 'private-api-token',
     request: async (method, url, options) => {
       requests.push({ url, headers: options.headers });
       if (url === 'https://storage.example/release') return { status: 200, body: bytes };
+      if (url.endsWith('/artifacts/11')) {
+        const status = artifactStatuses.shift() ?? 200;
+        return { status, body: Buffer.from(JSON.stringify(metadata)) };
+      }
       if (url.endsWith('/zip'))
         return {
           status: 302,
@@ -102,6 +107,40 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
     currentRunId: '101',
   });
   assert.equal(current.runId, '101');
+  const callsBeforeRetry = requests.length;
+  artifactStatuses.push(200, 404, 200);
+  assert.equal(
+    (await client.download('11', join(root, 'current-retry'), { currentRunId: '101' })).runId,
+    '101',
+  );
+  assert.deepEqual(
+    requests
+      .slice(callsBeforeRetry)
+      .map(({ url }) => new URL(url).pathname.replace(/^\/repos\/[^/]+\/[^/]+/, '')),
+    [
+      '/actions/artifacts/11',
+      '/actions/runs/101/attempts/1',
+      '/actions/artifacts/11/zip',
+      '/release',
+      '/actions/artifacts/11',
+      '/actions/artifacts/11',
+      '/actions/runs/101/attempts/1',
+    ],
+  );
+  const callsBeforeDenial = requests.length;
+  artifactStatuses.push(403);
+  await assert.rejects(
+    client.download('11', join(root, 'denied'), { currentRunId: '101' }),
+    /GitHub API read failed.*403/,
+  );
+  assert.equal(requests.length, callsBeforeDenial + 1);
+  artifactStatuses.push(404);
+  await assert.rejects(
+    client.download('11', join(root, 'not-found'), { acceptedRunId: '101' }),
+    /GitHub API read failed.*404/,
+  );
+  assert.equal(requests.length, callsBeforeDenial + 2);
+  assert.equal(artifactStatuses.length, 0);
   await assert.rejects(
     client.download('11', join(root, 'wrong-current'), {
       acceptedRunId: '101',
