@@ -1,0 +1,299 @@
+{
+  "googlePageReportDate": "2026-11-16",
+  "googleHistoryRedirect": [
+    {
+      "path": "/headphones/?category=headphones-bluetooth&page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/ai-gadgets/?page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/ai-gadgets/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/headphones",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/headphones/?category=headphones-office&page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    }
+  ],
+  "googleAlternateCanonical": [
+    {
+      "path": "/headphones?page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/headphones/?page=1&category=headphones-wired",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/misc/?page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/misc/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/headphones/?page=1&category=headphones-office",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    },
+    {
+      "path": "/headphones/?page=1",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/headphones/"],
+      "h1Count": 1,
+      "robots": []
+    }
+  ],
+  "googleDiscoveredNotIndexed": [
+    {
+      "path": "/privacy/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/privacy/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    },
+    {
+      "path": "/toys/",
+      "status": 200,
+      "redirects": [],
+      "canonical": ["https://supplychainsai.com/toys/"],
+      "h1Count": 1,
+      "robots": [],
+      "inSitemap": true
+    }
+  ],
+  "googleHistoricalNoindex": {
+    "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+    "status": 200,
+    "redirects": [],
+    "canonical": [
+      "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    ],
+    "h1Count": 1,
+    "robots": []
+  },
+  "googleHistorical404": {
+    "path": "/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+    "status": 200,
+    "type": "image/jpeg",
+    "size": 660144,
+    "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+  },
+  "googleHistorical4xx": [
+    {
+      "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "status": 200,
+      "location": null,
+      "type": "image/webp",
+      "bytes": 51178,
+      "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "status": 200,
+      "location": null,
+      "type": "image/webp",
+      "bytes": 65170,
+      "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "status": 200,
+      "location": null,
+      "type": "image/webp",
+      "bytes": 69280,
+      "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "status": 200,
+      "location": null,
+      "type": "image/webp",
+      "bytes": 87330,
+      "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 200,
+      "location": null,
+      "type": "image/webp",
+      "bytes": 135494,
+      "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+    }
+  ],
+  "sitemaps": {
+    "readByGoogleDate": "2026-11-19",
+    "GoogleTotalPages": 584,
+    "GoogleVideoItemCount": 1,
+    "liveStaticPages": 580,
+    "liveBlogPages": 4
+  },
+  "googleSummary": {
+    "indexed": 529,
+    "notIndexed": 989,
+    "crawledNotIndexed": 960,
+    "discoveredNotIndexed": 12,
+    "redirect": 4,
+    "alternateCanonical": 5,
+    "historicalHTTP4xx": 5,
+    "notFound": 1,
+    "noindex": 1,
+    "robotsDisallowed": 1
+  },
+  "googleValidation4xx": {
+    "started": "2026-11-16",
+    "observed": "2026-11-20",
+    "pending": 5,
+    "failed": 0
+  },
+  "googleSearchResults": {
+    "from": "2026-10-14",
+    "through": "2026-11-18",
+    "impressions": 93,
+    "clicks": 3
+  },
+  "googleVideoSummary": {
+    "date": "2026-11-19",
+    "indexed": 0,
+    "notIndexed": 2
+  },
+  "newlyCrawledImage": {
+    "path": "/api/images/3fbe8b166ac88391003ae71a181926a6",
+    "lastCrawl": "2026-11-17",
+    "http": 200,
+    "bytes": 1996048,
+    "contentType": "image/png",
+    "preparedWebVariant": false
+  },
+  "fullCrawledExport": {
+    "previousCount": 959,
+    "currentCount": 960,
+    "imageCount": 960,
+    "added": 1,
+    "removed": 0
+  }
+}
