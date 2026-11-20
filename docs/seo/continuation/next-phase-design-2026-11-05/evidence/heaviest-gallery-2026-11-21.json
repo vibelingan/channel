@@ -1,0 +1,808 @@
+{
+  "scope": "Frozen public website archive, production image preparation and a website-only release.",
+  "auditArchiveRun": 44817450062,
+  "publishedImageInventory": {
+    "pages": 589,
+    "uniqueImages": 3792,
+    "thumbnailPages": 528,
+    "uniqueThumbnailImages": 2384,
+    "byWidth": {
+      "": 3792,
+      "160": 146,
+      "640": 146,
+      "1280": 146
+    },
+    "hosts": {
+      "diversity-123-d9grnqfux221323bb.service.tcloudbase.com": 3631,
+      "supplychainsai.com": 451
+    },
+    "external": {}
+  },
+  "initialHeroMetadataAudit": {
+    "pages": 528,
+    "altPresent": 528,
+    "initialDimensions": 528,
+    "priorities": {
+      "high": 528
+    },
+    "responsiveHero": 38,
+    "defaultAboveBytes": {
+      "102400": 256,
+      "500000": 30,
+      "1000000": 15,
+      "2000000": 8
+    }
+  },
+  "effectivePublicReferences": {
+    "elapsedMs": 74120,
+    "total": 106,
+    "outcomes": {
+      "public-reference": 106
+    },
+    "confirmedPublicWithZeroBase": 73,
+    "proofReads": {
+      "1": 24,
+      "2": 82
+    },
+    "writes": 0
+  },
+  "localEncoding": {
+    "originals": 37,
+    "originalsBytes": 53996475,
+    "sizeBytes": [179438, 1395420, 3554686],
+    "reused": 37
+  },
+  "productionSizes": {
+    "batches": [
+      {
+        "run": 44823070302,
+        "photos": 20,
+        "responses": 60,
+        "originalBytes": 33145189,
+        "variantBytes": {
+          "160": 88502,
+          "640": 671238,
+          "1280": 1917442
+        }
+      },
+      {
+        "run": 44824017500,
+        "photos": 17,
+        "responses": 51,
+        "originalBytes": 20851286,
+        "variantBytes": {
+          "160": 90936,
+          "640": 724182,
+          "1280": 1637244
+        }
+      }
+    ],
+    "photos": 37,
+    "responses": 111,
+    "variantBytes": {
+      "160": 179438,
+      "640": 1395420,
+      "1280": 3554686
+    }
+  },
+  "candidateAndPublicWebsite": {
+    "run": 44824997693,
+    "acceptedAt": "2026-11-20T22:06:38.188Z",
+    "candidateFiles": 2119,
+    "changes": {
+      ".html": 6
+    },
+    "productCount": 528,
+    "productRowsWithNewImageHints": 0,
+    "businessWrites": 0,
+    "temporaryHelpersClean": true,
+    "livePages": [
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "eligiblePhotos": 6,
+        "cssSlotHintCount": 4
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "eligiblePhotos": 6,
+        "cssSlotHintCount": 4
+      },
+      {
+        "path": "/products/p-537a2487-8ecb-45ef-a0be-9de24764bc4a/",
+        "eligiblePhotos": 7,
+        "cssSlotHintCount": 4
+      },
+      {
+        "path": "/products/p-732cd413-59d9-4061-a230-b646659e8f2f/",
+        "eligiblePhotos": 5,
+        "cssSlotHintCount": 4
+      },
+      {
+        "path": "/products/p-e110f36c-e711-40dc-aa8a-443d0704e2dd/",
+        "eligiblePhotos": 7,
+        "cssSlotHintCount": 4
+      },
+      {
+        "path": "/products/p-8ab7ce31-0e33-416d-a9bc-d6fc2da23e27/",
+        "eligiblePhotos": 6,
+        "cssSlotHintCount": 4
+      }
+    ]
+  },
+  "browser": {
+    "egress": "colo=NRT\nloc=JP",
+    "pages": [
+      {
+        "page": "https://supplychainsai.com/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "profile": {
+          "browser": "157.0.8103.79",
+          "device": {
+            "viewport": {
+              "width": 412,
+              "height": 823
+            },
+            "deviceScaleFactor": 1.75,
+            "isMobile": true,
+            "hasTouch": true,
+            "locale": "en-US"
+          },
+          "network": {
+            "offline": false,
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          },
+          "cpuRate": 4,
+          "limitMs": 40000
+        },
+        "samples": {
+          "baseline": [
+            {
+              "mainMs": 33471,
+              "lcpMs": 33428,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6627995,
+              "downloadedDefaultAndSizedImages": 0
+            },
+            {
+              "mainMs": 38959,
+              "lcpMs": 38828,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6723491,
+              "downloadedDefaultAndSizedImages": 0
+            },
+            {
+              "mainMs": 38994,
+              "lcpMs": 38892,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6755791,
+              "downloadedDefaultAndSizedImages": 0
+            }
+          ],
+          "default-only": [
+            {
+              "mainMs": 2686,
+              "lcpMs": 2656,
+              "stripMs": 10932,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 492252,
+              "downloadedDefaultAndSizedImages": 4
+            },
+            {
+              "mainMs": 2378,
+              "lcpMs": 2336,
+              "stripMs": 10673,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 492252,
+              "downloadedDefaultAndSizedImages": 4
+            },
+            {
+              "mainMs": 3147,
+              "lcpMs": 3100,
+              "stripMs": 10791,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 492252,
+              "downloadedDefaultAndSizedImages": 4
+            }
+          ],
+          "after": [
+            {
+              "mainMs": 2549,
+              "lcpMs": 2388,
+              "stripMs": 8784,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 251002,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 97496,
+                "startMs": 2102,
+                "sendStartMs": 6633,
+                "headerEventMs": 7520,
+                "completeMs": 8766,
+                "functionMs": 369.4
+              }
+            },
+            {
+              "mainMs": 2802,
+              "lcpMs": 2712,
+              "stripMs": 10830,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 251002,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 97496,
+                "startMs": 2571,
+                "sendStartMs": 6709,
+                "headerEventMs": 9551,
+                "completeMs": 10654,
+                "functionMs": 332.3
+              }
+            },
+            {
+              "mainMs": 2126,
+              "lcpMs": 2008,
+              "stripMs": 7143,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 251002,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 97496,
+                "startMs": 1997,
+                "sendStartMs": 4855,
+                "headerEventMs": 5989,
+                "completeMs": 6980,
+                "functionMs": 330.6
+              }
+            }
+          ]
+        }
+      },
+      {
+        "page": "https://supplychainsai.com/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "profile": {
+          "browser": "157.0.8103.79",
+          "device": {
+            "viewport": {
+              "width": 412,
+              "height": 823
+            },
+            "deviceScaleFactor": 1.75,
+            "isMobile": true,
+            "hasTouch": true,
+            "locale": "en-US"
+          },
+          "network": {
+            "offline": false,
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          },
+          "cpuRate": 4,
+          "limitMs": 40000
+        },
+        "samples": {
+          "baseline": [
+            {
+              "mainMs": 24342,
+              "lcpMs": 24276,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6765845,
+              "downloadedDefaultAndSizedImages": 0
+            },
+            {
+              "mainMs": 25030,
+              "lcpMs": 24936,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6629930,
+              "downloadedDefaultAndSizedImages": 0
+            },
+            {
+              "mainMs": 25584,
+              "lcpMs": 25452,
+              "stripMs": null,
+              "visibleImages": 5,
+              "decodedVisibleImages": 1,
+              "galleryBytes": 6686612,
+              "downloadedDefaultAndSizedImages": 0
+            }
+          ],
+          "default-only": [
+            {
+              "mainMs": 2596,
+              "lcpMs": 2444,
+              "stripMs": 10461,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 406604,
+              "downloadedDefaultAndSizedImages": 4
+            },
+            {
+              "mainMs": 2906,
+              "lcpMs": 2744,
+              "stripMs": 10173,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 406604,
+              "downloadedDefaultAndSizedImages": 4
+            },
+            {
+              "mainMs": 2534,
+              "lcpMs": 2380,
+              "stripMs": 10378,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 406604,
+              "downloadedDefaultAndSizedImages": 4
+            }
+          ],
+          "after": [
+            {
+              "mainMs": 2770,
+              "lcpMs": 2720,
+              "stripMs": 10437,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 197624,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 92426,
+                "startMs": 2498,
+                "sendStartMs": 7576,
+                "headerEventMs": 8455,
+                "completeMs": 10360,
+                "functionMs": 371.1
+              }
+            },
+            {
+              "mainMs": 3126,
+              "lcpMs": 2996,
+              "stripMs": 12568,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 195636,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 92426,
+                "startMs": 2985,
+                "sendStartMs": 10520,
+                "headerEventMs": 11337,
+                "completeMs": 12432,
+                "functionMs": 310
+              }
+            },
+            {
+              "mainMs": 2309,
+              "lcpMs": 2204,
+              "stripMs": 8805,
+              "visibleImages": 5,
+              "decodedVisibleImages": 5,
+              "galleryBytes": 197624,
+              "downloadedDefaultAndSizedImages": 0,
+              "lastVisibleImage": {
+                "search": "",
+                "bytes": 92426,
+                "startMs": 1883,
+                "sendStartMs": 6468,
+                "headerEventMs": 7287,
+                "completeMs": 8606,
+                "functionMs": 288.1
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "interactions": [
+      {
+        "product": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "candidates": 4,
+        "tapped": {
+          "path": "/api/images/1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+          "width": 340
+        },
+        "keyboard": {
+          "path": "/api/images/d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+          "width": 340
+        },
+        "failedPhotos": [],
+        "errors": []
+      },
+      {
+        "product": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "candidates": 4,
+        "tapped": {
+          "path": "/api/images/96288337-261f-422b-a08c-46a956151466",
+          "width": 340
+        },
+        "keyboard": {
+          "path": "/api/images/2d39308c-1357-4a40-9892-7e25a3c03f83",
+          "width": 340
+        },
+        "failedPhotos": [],
+        "errors": []
+      }
+    ]
+  },
+  "publicationProofReadExperiment": {
+    "sharedRows": [
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "photos": 6,
+        "separateReadsForAll": 12,
+        "uniqueProofs": 1,
+        "sharedReadsForAll": 7
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "photos": 6,
+        "separateReadsForAll": 12,
+        "uniqueProofs": 1,
+        "sharedReadsForAll": 7
+      }
+    ],
+    "oneParallelGroupTrial": [
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 1,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 4054
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 1,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4609
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 2,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4768
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 2,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3558
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 3,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2119
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 3,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4774
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 4,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4714
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 4,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3530
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 1,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2293
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 1,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4629
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 2,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4704
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 2,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3010
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 3,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2317
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 3,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4700
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 4,
+        "mode": "six in one transaction",
+        "photos": 6,
+        "nativeReads": 7,
+        "ms": 4677
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 4,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3501
+      }
+    ],
+    "twoParallelGroupsTrial": [
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 1,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2824
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 1,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3102
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 2,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3076
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 2,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3136
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 3,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2168
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 3,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3108
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 4,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3105
+      },
+      {
+        "path": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "pair": 4,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2521
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 1,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2311
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 1,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3134
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 2,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3136
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 2,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3112
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 3,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 2073
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 3,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3228
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 4,
+        "mode": "six in two transactions",
+        "photos": 6,
+        "nativeReads": 8,
+        "ms": 3136
+      },
+      {
+        "path": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "pair": 4,
+        "mode": "four independent",
+        "photos": 4,
+        "nativeReads": 8,
+        "ms": 3140
+      }
+    ]
+  },
+  "blogAndHistoricImageRegression": {
+    "run": "44824997693-1",
+    "blog": {
+      "articles": [
+        {
+          "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+          "contentHash": "346215d2c56e32f83491e481b82bafe770af71e700df068e1cc0b1929a670402",
+          "modifiedAt": "2026-11-14T05:54:12.700Z",
+          "publishedAt": "2026-10-26T00:26:21.072Z",
+          "revision": 5,
+          "slug": "oem-project-brief-acceptance-40249243887"
+        },
+        {
+          "articleId": "article-96a06754c53e0eae9613a1ebf36cfb79492dc3bfde08891dc4471ff14841fff3",
+          "contentHash": "afb23d88773c5be5182747e32233832d2352f62edc1070a384e3c01aedf2aabe",
+          "modifiedAt": "2026-11-14T05:54:32.530Z",
+          "publishedAt": "2026-10-28T01:16:02.607Z",
+          "revision": 4,
+          "slug": "oem-headphone-sample-inspection-wecom-20261027"
+        },
+        {
+          "articleId": "article-c6695937e8154a1d6680fb103c3827fbdddc65bb49d9563c14d570c3cfc1d05e",
+          "contentHash": "e2b0cda99e446d28bc79e6676ac504e1148c66ee3e82253035e9578f3e9840c9",
+          "modifiedAt": "2026-11-14T05:52:31.605Z",
+          "publishedAt": "2026-11-14T05:52:31.605Z",
+          "revision": 1,
+          "slug": "prototype-to-mass-production-oem-odm"
+        }
+      ],
+      "publicAndIndexable": [
+        "https://supplychainsai.com/blog/",
+        "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/"
+      ]
+    },
+    "historicalImageUrlsReadable": [
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "bytes": 51178,
+        "type": "image/webp",
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "bytes": 65170,
+        "type": "image/webp",
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "bytes": 69280,
+        "type": "image/webp",
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "bytes": 87330,
+        "type": "image/webp",
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "bytes": 135494,
+        "type": "image/webp",
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "bytes": 660144,
+        "type": "image/jpeg",
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+      }
+    ]
+  },
+  "functions": {
+    "readAt": "2026-11-20T22:13:40.100Z",
+    "functionCount": 9,
+    "runs": ["44823070302", "44824017500", "44824997693"],
+    "leftovers": []
+  }
+}

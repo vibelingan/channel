@@ -184,3 +184,5 @@ GEO 继续依靠真实可引用事实、清晰来源和普通 SEO。当前 Googl
 Search Console 视频报告更新到 11 月 19 日，仍显示收录 0 个、排除 2 个，报表列出的原因是视频未处于观看页。另用网址检查读取新增的独立观看页，Google 仍显示“尚不知道这个网址”，尚未进入网页索引。官网技术条件与平台当前记录分别保留。 [脱敏证据](evidence/package-browser-2026-11-21.json) · [Google 视频收录条件](https://developers.google.com/search/docs/appearance/video#ensure-your-videos-can-be-indexed)
 
 按观看页的准确路径查了腾讯网关从北京时间 11 月 18 日 00:00 到 21 日 00:17 的完整匹配记录。普通 Googlebot 和网址实时检查工具是这次查询的两个来源类型。只有两次符合查询条件，均发生在 11 月 18 日 09:43，均匹配 Google 官方爬虫 IP 清单，官网都返回 200。请求标识显示它们来自 Google 的测试工具。日志中还没有看到普通 Googlebot 来抓这一个网址。这也解释了为什么此前的实时检查可以成功，正式索引报告仍显示未知。 [Google 对 InspectionTool 的说明](https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers#google-inspectiontool) · [脱敏记录](evidence/package-browser-2026-11-21.json)
+
+11 月 21 日再次查询官网的独立观看页。Google 的网址检查已从「尚不知道这个网址」进到「已发现，目前未收录」。同一个网站属性的地图页显示，11 月 19 日成功读取总地图，发现 584 个网页和 1 个视频。视频报表的两个排除例子仍分别是首页和 OEM 页的附带视频。独立观看页已有单独的抓取申请，因此保留现有记录。要确认正式收录，需先看该观看页是否已进入网页索引，再看视频报告是否识别该页。 [Google 视频收录条件](https://developers.google.com/search/docs/appearance/video)
