@@ -15,7 +15,7 @@ import { categoryPageIdentity } from '../lib/seo/category-page-metadata.ts';
 import { categoryPage } from '../lib/seo/category-snapshot.ts';
 import { readProductSnapshot } from '../lib/seo/product-snapshot.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
-import headphonesStyles from '../styles/headphones.css?inline';
+import '../styles/headphones.css';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const hp = getHeadphonesContent(DEFAULT_LOCALE);
@@ -36,9 +36,6 @@ const heroImageApiOrigin = publicCatalogImageApiOrigin(
   Astro.site?.origin,
   import.meta.env.PUBLIC_API_BASE_URL,
 );
-const heroPreload = heroImageApiOrigin
-  ? `/api/images/${hp.hero.sources[0].imageId}`
-  : heroSources[0];
 
 // SEO metadata
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
@@ -54,10 +51,6 @@ const page = categoryPageIdentity(
 ---
 
 <DocumentLayout page={page} title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/" schemaNodes={schemaNodes}>
-  <Fragment slot="head">
-    <link rel="preload" as="image" href={heroPreload} fetchpriority="high" referrerpolicy="no-referrer" />
-    <style is:inline set:html={headphonesStyles}></style>
-  </Fragment>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
