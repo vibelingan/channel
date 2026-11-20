@@ -2,6 +2,8 @@
 
 ## 11 月 20 日复查网页索引
 
+上午再次从已登录的官网属性核对。网页索引截至 11 月 13 日，528 个收录、988 个排除，其他 4xx 仍显示 5 个及复查已开始；网页搜索效果截至 11 月 17 日，85 次展示、3 次点击；视频索引截至 11 月 16 日，0 个已收录、2 个未收录。腾讯网关北京时间 01:09:07–09:03:09 内，按 Google 官方地址范围核实 33 个爬虫请求，33 个都返回 200。该时段没有发现五张历史 4xx 图片或工厂观看页的新请求，图片继续跟踪现有复查，视频仍等 Google 更新索引报告。 [Google 核对爬虫来源](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
+
 用已登录的 Chrome 打开同一个 HTTPS 网站属性。汇总仍截至 11 月 13 日，已收录 528、排除 988。其他 4xx 一行仍显示 5 个、复查已开始。补查腾讯北京时间 11 月 19 日 23:02:16–23:59:52 的网关记录，这个时段未发现符合 Google 普通爬虫来源的请求。它只回答该时段有没有看到新的爬取证据。下一次有新报告日期、网址抓取记录、验证失败或网站新异常时，再对照具体地址。 [Google 页面索引报告](https://support.google.com/webmasters/answer/7440203?hl=en)
 
 11 月 19 日深夜再次看官网的 Search Console。网页索引汇总仍截至 11 月 13 日，528 个已收录、988 个排除。其他 4xx 一行仍是 5 项，专项复查状态为 Started。独立访问五张历史错误图，完整响应继续与修复版本的摘要相同。从腾讯网关读取北京时间 19:58–23:02 的记录，只发现一条来源确认的 Google 爬虫请求，`/robots.txt` 返回 200。该时间段的日志没有显示五张图或工厂观看页被重新抓取。保留同一次 Google 复查，等平台给出更新的日期和网址结果。 [Google 页面索引报告](https://support.google.com/webmasters/answer/7440203) · [Google 爬虫来源核对](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)

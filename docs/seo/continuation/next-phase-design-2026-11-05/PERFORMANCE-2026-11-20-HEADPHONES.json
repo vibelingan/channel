@@ -1,0 +1,506 @@
+{
+  "path": "/headphones/",
+  "trial": {
+    "runId": 44651155317,
+    "renderer": "3f35cf9a00ca3a0628694aff578e4fcfa1abb5ee",
+    "deliveryId": "site-44651155317-1"
+  },
+  "restore": {
+    "runId": 44653668498,
+    "renderer": "1e0a84b1814a46f49166e48243b79c35348a409d",
+    "deliveryId": "site-44653668498-1",
+    "products": 528,
+    "result": "accepted"
+  },
+  "decision": "Restore the accepted category template after the actual full-page and matched first-image medians became slower",
+  "publicPhoto": {
+    "mime": "image/jpeg",
+    "width": 800,
+    "height": 800,
+    "bytes": 63062,
+    "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c"
+  },
+  "publicBrowser": [
+    {
+      "width": 412,
+      "heroReads": 1,
+      "previousStylesheet": 0,
+      "quoteOpened": true
+    },
+    {
+      "width": 1440,
+      "heroReads": 1,
+      "previousStylesheet": 0,
+      "quoteOpened": true
+    }
+  ],
+  "productionNavigationMs": {
+    "profile": {
+      "chrome": "149.0.7827.55",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpu": 4
+    },
+    "phases": {
+      "before": {
+        "samples": [
+          {
+            "lcp": 8068,
+            "fcp": 4888,
+            "htmlTtfb": 3417.199999988079,
+            "fcpAfterHtml": 1470.800000011921,
+            "imageStartAfterHtml": 471.0,
+            "imageRequestToFirstByte": 3538.2000000178814,
+            "imageFirstByteToEnd": 600.6999999880791,
+            "imageEndToLcp": 40.900000005960464,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 132.0,
+              "storage": 434.8,
+              "total": 567.4
+            }
+          },
+          {
+            "lcp": 4368,
+            "fcp": 2912,
+            "htmlTtfb": 1462.2999999821186,
+            "fcpAfterHtml": 1449.7000000178814,
+            "imageStartAfterHtml": 447.59999999403954,
+            "imageRequestToFirstByte": 1870.6000000238419,
+            "imageFirstByteToEnd": 581.2999999821186,
+            "imageEndToLcp": 6.200000017881393,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 64.2,
+              "storage": 320.1,
+              "total": 384.5
+            }
+          },
+          {
+            "lcp": 4040,
+            "fcp": 2852,
+            "htmlTtfb": 1441.8999999761581,
+            "fcpAfterHtml": 1410.1000000238419,
+            "imageStartAfterHtml": 483.80000001192093,
+            "imageRequestToFirstByte": 1652.5,
+            "imageFirstByteToEnd": 454.59999999403954,
+            "imageEndToLcp": 7.200000017881393,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 44.8,
+              "storage": 174.4,
+              "total": 219.5
+            }
+          },
+          {
+            "lcp": 4096,
+            "fcp": 2928,
+            "htmlTtfb": 1468,
+            "fcpAfterHtml": 1460,
+            "imageStartAfterHtml": 502.80000001192093,
+            "imageRequestToFirstByte": 1669.4000000059605,
+            "imageFirstByteToEnd": 452.2999999821186,
+            "imageEndToLcp": 3.5,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 38.9,
+              "storage": 145.0,
+              "total": 184.0
+            }
+          }
+        ],
+        "medians": {
+          "lcp": 4232.0,
+          "fcp": 2920.0,
+          "htmlTtfb": 1465.15,
+          "fcpAfterHtml": 1454.85,
+          "imageStartAfterHtml": 477.4,
+          "imageRequestToFirstByte": 1770.0,
+          "imageFirstByteToEnd": 517.95,
+          "imageEndToLcp": 6.7
+        }
+      },
+      "after": {
+        "samples": [
+          {
+            "lcp": 3332,
+            "fcp": 2384,
+            "htmlTtfb": 1548.0999999940395,
+            "fcpAfterHtml": 835.9000000059605,
+            "imageStartAfterHtml": 49.599999994039536,
+            "imageRequestToFirstByte": 1027.2000000178814,
+            "imageFirstByteToEnd": 699.3999999761581,
+            "imageEndToLcp": 7.700000017881393,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 58.2,
+              "storage": 148.6,
+              "total": 206.9
+            }
+          },
+          {
+            "lcp": 4464,
+            "fcp": 2752,
+            "htmlTtfb": 1496.1000000238419,
+            "fcpAfterHtml": 1255.8999999761581,
+            "imageStartAfterHtml": 41.19999998807907,
+            "imageRequestToFirstByte": 1344.9000000059605,
+            "imageFirstByteToEnd": 1578.0999999940395,
+            "imageEndToLcp": 3.699999988079071,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 40.9,
+              "storage": 148.5,
+              "total": 189.5
+            }
+          },
+          {
+            "lcp": 6656,
+            "fcp": 4844,
+            "htmlTtfb": 3259.5,
+            "fcpAfterHtml": 1584.5,
+            "imageStartAfterHtml": 428.90000000596046,
+            "imageRequestToFirstByte": 1856.699999988079,
+            "imageFirstByteToEnd": 1104.6000000238419,
+            "imageEndToLcp": 6.299999982118607,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 43.4,
+              "storage": 164.3,
+              "total": 207.8
+            }
+          },
+          {
+            "lcp": 4500,
+            "fcp": 3580,
+            "htmlTtfb": 2311.4000000059605,
+            "fcpAfterHtml": 1268.5999999940395,
+            "imageStartAfterHtml": 50.70000001788139,
+            "imageRequestToFirstByte": 1040.0999999940395,
+            "imageFirstByteToEnd": 1088.0,
+            "imageEndToLcp": 9.799999982118607,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 38.9,
+              "storage": 161.1,
+              "total": 200.1
+            }
+          }
+        ],
+        "medians": {
+          "lcp": 4482.0,
+          "fcp": 3166.0,
+          "htmlTtfb": 1929.75,
+          "fcpAfterHtml": 1262.25,
+          "imageStartAfterHtml": 50.15,
+          "imageRequestToFirstByte": 1192.5,
+          "imageFirstByteToEnd": 1096.3,
+          "imageEndToLcp": 7.0
+        }
+      },
+      "restored": {
+        "samples": [
+          {
+            "lcp": 4716,
+            "fcp": 3960,
+            "htmlTtfb": 1570.800000011921,
+            "fcpAfterHtml": 2389.199999988079,
+            "imageStartAfterHtml": 547.3000000119209,
+            "imageRequestToFirstByte": 1838.8999999761581,
+            "imageFirstByteToEnd": 751.8000000119209,
+            "imageEndToLcp": 7.199999988079071,
+            "imageConnectionReused": false,
+            "functionsMs": {
+              "record": 32.7,
+              "storage": 127.6,
+              "total": 160.3
+            }
+          },
+          {
+            "lcp": 5812,
+            "fcp": 3024,
+            "htmlTtfb": 1509.800000011921,
+            "fcpAfterHtml": 1514.199999988079,
+            "imageStartAfterHtml": 482.90000000596046,
+            "imageRequestToFirstByte": 2101.5,
+            "imageFirstByteToEnd": 1708.699999988079,
+            "imageEndToLcp": 9.099999994039536,
+            "imageConnectionReused": false,
+            "functionsMs": {
+              "record": 47.0,
+              "storage": 180.9,
+              "total": 228.0
+            }
+          },
+          {
+            "lcp": 4248,
+            "fcp": 2940,
+            "htmlTtfb": 1527,
+            "fcpAfterHtml": 1413,
+            "imageStartAfterHtml": 497.39999997615814,
+            "imageRequestToFirstByte": 1671.4000000059605,
+            "imageFirstByteToEnd": 516.0,
+            "imageEndToLcp": 36.20000001788139,
+            "imageConnectionReused": true,
+            "functionsMs": {
+              "record": 48.5,
+              "storage": 180.7,
+              "total": 229.3
+            }
+          },
+          {
+            "lcp": 4940,
+            "fcp": 2924,
+            "htmlTtfb": 1462.2999999821186,
+            "fcpAfterHtml": 1461.7000000178814,
+            "imageStartAfterHtml": 476.90000000596046,
+            "imageRequestToFirstByte": 1816.300000011921,
+            "imageFirstByteToEnd": 1178.2999999821186,
+            "imageEndToLcp": 6.200000017881393,
+            "imageConnectionReused": false,
+            "functionsMs": {
+              "record": 39.6,
+              "storage": 152.6,
+              "total": 192.2
+            }
+          }
+        ],
+        "medians": {
+          "lcp": 4828.0,
+          "fcp": 2982.0,
+          "htmlTtfb": 1518.4,
+          "fcpAfterHtml": 1487.95,
+          "imageStartAfterHtml": 490.15,
+          "imageRequestToFirstByte": 1827.6,
+          "imageFirstByteToEnd": 965.05,
+          "imageEndToLcp": 8.15
+        }
+      }
+    }
+  },
+  "sameWindowPublicAssets": {
+    "scope": "Replay exact HTML bytes in both arms. Download selected assets from actual site. Block unrelated resources. Navigation time is excluded.",
+    "samplesMs": [
+      {
+        "phase": "before",
+        "firstPaint": 2296,
+        "heroPaint": 2856,
+        "heroStart": 21.9,
+        "heroFirstByte": 2087.1,
+        "heroReceived": 2823.9
+      },
+      {
+        "phase": "after",
+        "firstPaint": 104,
+        "heroPaint": 4816,
+        "heroStart": 11.1,
+        "heroFirstByte": 4077.5,
+        "heroReceived": 4806.6
+      },
+      {
+        "phase": "after",
+        "firstPaint": 52,
+        "heroPaint": 2712,
+        "heroStart": 11.8,
+        "heroFirstByte": 2046,
+        "heroReceived": 2705.4
+      },
+      {
+        "phase": "before",
+        "firstPaint": 2244,
+        "heroPaint": 2700,
+        "heroStart": 10.6,
+        "heroFirstByte": 1984.6,
+        "heroReceived": 2690.9
+      },
+      {
+        "phase": "before",
+        "firstPaint": 2228,
+        "heroPaint": 2632,
+        "heroStart": 13.7,
+        "heroFirstByte": 1920.3,
+        "heroReceived": 2601.9
+      },
+      {
+        "phase": "after",
+        "firstPaint": 108,
+        "heroPaint": 2592,
+        "heroStart": 11.9,
+        "heroFirstByte": 1906,
+        "heroReceived": 2586.4
+      },
+      {
+        "phase": "after",
+        "firstPaint": 60,
+        "heroPaint": 2916,
+        "heroStart": 11,
+        "heroFirstByte": 1924.8,
+        "heroReceived": 2908.7
+      },
+      {
+        "phase": "before",
+        "firstPaint": 2280,
+        "heroPaint": 2628,
+        "heroStart": 11.8,
+        "heroFirstByte": 1927.1,
+        "heroReceived": 2617
+      },
+      {
+        "phase": "before",
+        "firstPaint": 2240,
+        "heroPaint": 2632,
+        "heroStart": 10.5,
+        "heroFirstByte": 1930.3,
+        "heroReceived": 2622.6
+      },
+      {
+        "phase": "after",
+        "firstPaint": 116,
+        "heroPaint": 2884,
+        "heroStart": 13.8,
+        "heroFirstByte": 2146.7,
+        "heroReceived": 2877.7
+      },
+      {
+        "phase": "after",
+        "firstPaint": 112,
+        "heroPaint": 2584,
+        "heroStart": 13.5,
+        "heroFirstByte": 1896.4,
+        "heroReceived": 2578.7
+      },
+      {
+        "phase": "before",
+        "firstPaint": 2668,
+        "heroPaint": 2728,
+        "heroStart": 11.8,
+        "heroFirstByte": 1929.9,
+        "heroReceived": 2659.6
+      }
+    ]
+  },
+  "localReplay": {
+    "styleDelayMs": 700,
+    "photoDelayMs": 1500,
+    "downlinkBytesPerSecond": 200000,
+    "samplesMs": [
+      {
+        "phase": "current",
+        "firstPaint": 1248,
+        "heroPaint": 2172,
+        "heroStart": 320.1
+      },
+      {
+        "phase": "inline",
+        "firstPaint": 528,
+        "heroPaint": 2456,
+        "heroStart": 605.1
+      },
+      {
+        "phase": "both",
+        "firstPaint": 532,
+        "heroPaint": 2056,
+        "heroStart": 199.4
+      },
+      {
+        "phase": "inline",
+        "firstPaint": 548,
+        "heroPaint": 2440,
+        "heroStart": 613.4
+      },
+      {
+        "phase": "both",
+        "firstPaint": 536,
+        "heroPaint": 2052,
+        "heroStart": 200.3
+      },
+      {
+        "phase": "current",
+        "firstPaint": 1244,
+        "heroPaint": 2144,
+        "heroStart": 312.4
+      },
+      {
+        "phase": "both",
+        "firstPaint": 532,
+        "heroPaint": 2056,
+        "heroStart": 200.4
+      },
+      {
+        "phase": "current",
+        "firstPaint": 1244,
+        "heroPaint": 2144,
+        "heroStart": 313.2
+      },
+      {
+        "phase": "inline",
+        "firstPaint": 536,
+        "heroPaint": 2464,
+        "heroStart": 614.6
+      },
+      {
+        "phase": "inline",
+        "firstPaint": 536,
+        "heroPaint": 2440,
+        "heroStart": 613.9
+      },
+      {
+        "phase": "current",
+        "firstPaint": 1256,
+        "heroPaint": 2168,
+        "heroStart": 315.8
+      },
+      {
+        "phase": "both",
+        "firstPaint": 536,
+        "heroPaint": 2052,
+        "heroStart": 201.7
+      }
+    ]
+  },
+  "searchConsole": {
+    "pageIndexDate": "2026-11-13",
+    "indexed": 528,
+    "excluded": 988,
+    "other4xx": 5,
+    "other4xxValidation": "Started",
+    "videoDate": "2026-11-16",
+    "videoIndexed": 0,
+    "videoExcluded": 2,
+    "searchDate": "2026-11-17",
+    "impressions": 85,
+    "clicks": 3,
+    "verifiedCrawlerRequests": {
+      "received": 33,
+      "verified": 33,
+      "statusCounts": {
+        "200": 33
+      },
+      "startTime": "2026-11-20 01:09:07",
+      "endTime": "2026-11-20 09:03:09",
+      "matchedHistorical": 0,
+      "matchedWatch": 0,
+      "rangePublishedAt": "2026-11-19T15:46:05.000000",
+      "incompleteIfLimitReached": false
+    }
+  }
+}
