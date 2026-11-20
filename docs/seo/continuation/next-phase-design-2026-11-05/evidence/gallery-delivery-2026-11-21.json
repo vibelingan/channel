@@ -1,0 +1,254 @@
+{
+  "run": 44781569400,
+  "wallSeconds": 1271,
+  "publicArtifact": {
+    "files": 2098,
+    "changedHtml": 47,
+    "changedJson": 2,
+    "developerMarkerMatches": 0
+  },
+  "preparedImages": {
+    "distinctPhotos": 20,
+    "verifiedImageSizes": 60,
+    "photosWithMissingHtmlHints": 2,
+    "productPagesWithMissingHints": 3
+  },
+  "device": {
+    "viewport": {
+      "width": 412,
+      "height": 823
+    },
+    "deviceScaleFactor": 1.75,
+    "isMobile": true,
+    "hasTouch": true,
+    "locale": "en-US"
+  },
+  "network": {
+    "offline": false,
+    "latency": 150,
+    "downloadThroughput": 200000,
+    "uploadThroughput": 93750,
+    "connectionType": "cellular4g"
+  },
+  "cpuRate": 4,
+  "limitMs": 40000,
+  "pages": {
+    "https://supplychainsai.com/products/p-59211754-9027-479c-af38-0b2dc5f63883/": {
+      "mainReadyMs": {
+        "before": [6518, 7781, 17614],
+        "after": [5632, 4041, 5406]
+      },
+      "visibleStripReadyMs": {
+        "before": [null, null, null],
+        "after": [9881, 8904, 8653]
+      }
+    },
+    "https://supplychainsai.com/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/": {
+      "mainReadyMs": {
+        "before": [null, null, null],
+        "after": [2500, 2413, 2737]
+      },
+      "visibleStripReadyMs": {
+        "before": [null, null, null],
+        "after": [8524, 10256, 8603]
+      }
+    },
+    "https://supplychainsai.com/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/": {
+      "mainReadyMs": {
+        "before": [31793, 38580, 36051],
+        "after": [2686, 4332, 2698]
+      },
+      "visibleStripReadyMs": {
+        "before": [null, null, null],
+        "after": [7305, 6570, 4904]
+      }
+    }
+  },
+  "apiRepair": {
+    "runId": 44787293545,
+    "source": "9d550ce7bce7b4533ff88a26004b08f846ee39ef",
+    "products": [
+      {
+        "productId": "7be5e4a7-588c-472b-af12-fa27259a963d",
+        "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50",
+        "photos": ["73f7f0d3-3888-42e5-aa5b-af52b9a3898c", "aa7cf08e-c841-4c04-bcf3-0fb556503e14"]
+      },
+      {
+        "productId": "8c009835-7801-4c11-a0dc-4f4bfd96dd05",
+        "revision": "67899e90-ad8b-42ca-a358-df0685d43199",
+        "photos": ["73f7f0d3-3888-42e5-aa5b-af52b9a3898c", "aa7cf08e-c841-4c04-bcf3-0fb556503e14"]
+      },
+      {
+        "productId": "973c8584-c9d4-4ff6-a46a-387db3f9087d",
+        "revision": "479efa10-dab8-48e3-b9db-2db4d15074ae",
+        "photos": ["73f7f0d3-3888-42e5-aa5b-af52b9a3898c", "aa7cf08e-c841-4c04-bcf3-0fb556503e14"]
+      }
+    ],
+    "timing": {
+      "before": {
+        "release": "5d3c9f41daf49fe51a95e895336359c53fe3ee8a",
+        "samples": [
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.461102,
+            "afterConnectionSeconds": 0.862584,
+            "totalSeconds": 1.461704,
+            "bytes": 8107,
+            "hints": 0,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.646495,
+            "afterConnectionSeconds": 1.002944,
+            "totalSeconds": 1.651993,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.259065,
+            "afterConnectionSeconds": 0.712226,
+            "totalSeconds": 1.2755,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.271198,
+            "afterConnectionSeconds": 0.763332,
+            "totalSeconds": 1.271764,
+            "bytes": 8107,
+            "hints": 0,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.223218,
+            "afterConnectionSeconds": 0.630571,
+            "totalSeconds": 1.223903,
+            "bytes": 8107,
+            "hints": 0,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.027261,
+            "afterConnectionSeconds": 0.616437,
+            "totalSeconds": 1.033344,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.101544,
+            "afterConnectionSeconds": 0.606564,
+            "totalSeconds": 1.258198,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.286547,
+            "afterConnectionSeconds": 0.961724,
+            "totalSeconds": 1.287076,
+            "bytes": 8107,
+            "hints": 0,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          }
+        ]
+      },
+      "after": {
+        "release": "9d550ce7bce7b4533ff88a26004b08f846ee39ef",
+        "samples": [
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.605737,
+            "afterConnectionSeconds": 1.205829,
+            "totalSeconds": 1.606845,
+            "bytes": 8781,
+            "hints": 2,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.148235,
+            "afterConnectionSeconds": 0.745819,
+            "totalSeconds": 1.153533,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.282886,
+            "afterConnectionSeconds": 0.749234,
+            "totalSeconds": 1.283523,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.649639,
+            "afterConnectionSeconds": 1.047976,
+            "totalSeconds": 1.650298,
+            "bytes": 8781,
+            "hints": 2,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.443587,
+            "afterConnectionSeconds": 1.045132,
+            "totalSeconds": 1.444605,
+            "bytes": 8781,
+            "hints": 2,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.110908,
+            "afterConnectionSeconds": 0.821648,
+            "totalSeconds": 1.121742,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "control",
+            "ttfbSeconds": 1.053888,
+            "afterConnectionSeconds": 0.61289,
+            "totalSeconds": 1.059221,
+            "bytes": 6822,
+            "hints": 7,
+            "revision": "f204ef48-2332-48b1-af48-fc62694a17cd"
+          },
+          {
+            "case": "withPendingImageReferences",
+            "ttfbSeconds": 1.189333,
+            "afterConnectionSeconds": 0.767181,
+            "totalSeconds": 1.189716,
+            "bytes": 8781,
+            "hints": 2,
+            "revision": "ae0bd0d4-7348-46e2-a6c6-6aada331bf50"
+          }
+        ]
+      }
+    }
+  },
+  "combinedWebsiteDelivery": {
+    "runId": 44787594437,
+    "source": "9d550ce7bce7b4533ff88a26004b08f846ee39ef",
+    "statusAtCapture": "dispatched"
+  },
+  "subsequentImagePreparation": {
+    "runId": 44786249543,
+    "preservedOriginals": 20,
+    "verifiedSizeResponses": 60
+  }
+}
