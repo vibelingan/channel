@@ -8,6 +8,7 @@ import { getHeadphonesContent } from '../i18n/headphones.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
+import { catalogPagePath } from '../islands/shop/numbered-catalog-state.ts';
 import DocumentLayout from '../layouts/DocumentLayout.astro';
 import { apiMediaUrl } from '../lib/api-url.ts';
 import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
@@ -189,6 +190,30 @@ const page = categoryPageIdentity(
       </noscript>
       <div class="mx-auto max-w-[var(--width-container)] px-4 py-12 sm:px-6 lg:px-8">
         <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} client:load />
+        {bootstrap.pageCount > 1 && (
+          <details class="mt-8 border-t border-slate-200 py-5">
+            <summary class="min-h-11 cursor-pointer py-2 font-semibold text-brand-700">Browse all headphone catalog pages</summary>
+            <nav aria-label="Headphone catalog pages" class="mt-4">
+              <ul class="flex flex-wrap gap-2">
+                <li><span aria-current="page" class="inline-flex min-h-11 items-center px-3 text-sm text-ink-muted">1</span></li>
+                {Array.from({ length: bootstrap.pageCount - 1 }, (_, index) => {
+                  const number = index + 2;
+                  return (
+                    <li>
+                      <a
+                        href={catalogPagePath(bootstrap.family, number)}
+                        aria-label={`Headphone catalog page ${number}`}
+                        class="inline-flex min-h-11 min-w-11 items-center justify-center border border-brand-300 bg-white px-3 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+                      >
+                        {number}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          </details>
+        )}
       </div>
     </div>
 
