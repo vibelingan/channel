@@ -51,10 +51,10 @@ const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
 const IMAGE_SCAN_PAGE_SIZE = 100;
 const PLACEHOLDER_IMAGE_ID = '_placeholder';
-const WEB_VARIANT_CACHE_LIMIT = 32;
-const WEB_VARIANT_CACHE_MAX_FILE_BYTES = 64 * 1024;
-const WEB_VARIANT_CACHE_TTL_MS = 60_000;
-const webVariantBytes = new Map<string, { body: string; expiresAt: number }>();
+const IMAGE_CACHE_LIMIT = 32;
+const IMAGE_CACHE_MAX_FILE_BYTES = 64 * 1024;
+const IMAGE_CACHE_TTL_MS = 60_000;
+const imageBytes = new Map<string, { body: string; expiresAt: number }>();
 
 export type PublicCatalog = (typeof CATALOGS)[number];
 
@@ -550,19 +550,32 @@ export async function getCatalogImage(
     return err('INTERNAL_ERROR', 'Requested image size is not prepared');
   if (!web && typeof doc.byteSize === 'number' && doc.byteSize > 4_400_000)
     return err('INTERNAL_ERROR', 'Image delivery preparation is required');
-  // The current record, publication and ready variant checks above also run on a cache hit.
-  // Only the verified response bytes are reusable within this function instance.
-  const cacheKey =
-    width !== undefined &&
-    web &&
-    provider === 'cloudbase-storage' &&
-    web.byteSize <= WEB_VARIANT_CACHE_MAX_FILE_BYTES
-      ? JSON.stringify([web.storageFileId, web.checksumSha256, web.byteSize])
+  const originalProof =
+    !web &&
+    typeof doc.byteSize === 'number' &&
+    Number.isSafeInteger(doc.byteSize) &&
+    doc.byteSize > 0 &&
+    typeof doc.checksumSha256 === 'string' &&
+    /^[a-f0-9]{64}$/.test(doc.checksumSha256)
+      ? { storageFileId, byteSize: doc.byteSize, checksumSha256: doc.checksumSha256 }
       : undefined;
-  const cached = cacheKey === undefined ? undefined : webVariantBytes.get(cacheKey);
-  if (web && cached && cached.expiresAt > performance.now()) {
+  const cacheSource = width === undefined ? originalProof : web;
+  // Reuse bytes after the current publication and file identity checks.
+  const cacheKey =
+    provider === 'cloudbase-storage' &&
+    cacheSource &&
+    cacheSource.byteSize <= IMAGE_CACHE_MAX_FILE_BYTES
+      ? JSON.stringify([
+          cacheSource.storageFileId,
+          cacheSource.checksumSha256,
+          cacheSource.byteSize,
+        ])
+      : undefined;
+  const cached = cacheKey === undefined ? undefined : imageBytes.get(cacheKey);
+  const deliveryDoc = web ? { ...doc, mimeType: web.mimeType } : doc;
+  if (cached && cached.expiresAt > performance.now()) {
     if (started !== undefined) timings.storageMs = 0;
-    return finish(binaryImage({ ...doc, mimeType: web.mimeType }, cached.body));
+    return finish(binaryImage(deliveryDoc, cached.body));
   }
   try {
     const storageStarted = started === undefined ? undefined : performance.now();
@@ -584,27 +597,28 @@ export async function getCatalogImage(
       }
     }
     const validationStarted = started === undefined ? undefined : performance.now();
-    if (web) {
-      const bytes = Buffer.from(object.body, 'base64');
-      if (
-        bytes.byteLength !== web.byteSize ||
-        createHash('sha256').update(bytes).digest('hex') !== web.checksumSha256
-      )
-        throw Error('Web image bytes do not match the prepared version');
-      if (cacheKey !== undefined && object.body.length === 4 * Math.ceil(web.byteSize / 3)) {
-        if (!webVariantBytes.has(cacheKey) && webVariantBytes.size === WEB_VARIANT_CACHE_LIMIT) {
-          const oldest = webVariantBytes.keys().next().value;
-          if (oldest !== undefined) webVariantBytes.delete(oldest);
+    const proof = web ?? (cacheKey === undefined ? undefined : cacheSource);
+    if (proof) {
+      const cacheableLength = object.body.length === 4 * Math.ceil(proof.byteSize / 3);
+      const bytes = web || cacheableLength ? Buffer.from(object.body, 'base64') : undefined;
+      const verified =
+        bytes?.byteLength === proof.byteSize &&
+        createHash('sha256').update(bytes).digest('hex') === proof.checksumSha256;
+      if (web && !verified) throw Error('Web image bytes do not match the prepared version');
+      if (verified && cacheKey !== undefined && cacheableLength) {
+        if (!imageBytes.has(cacheKey) && imageBytes.size === IMAGE_CACHE_LIMIT) {
+          const oldest = imageBytes.keys().next().value;
+          if (oldest !== undefined) imageBytes.delete(oldest);
         }
-        webVariantBytes.set(cacheKey, {
+        imageBytes.set(cacheKey, {
           body: object.body,
-          expiresAt: performance.now() + WEB_VARIANT_CACHE_TTL_MS,
+          expiresAt: performance.now() + IMAGE_CACHE_TTL_MS,
         });
       }
+      if (validationStarted !== undefined)
+        timings.validationMs = performance.now() - validationStarted;
     }
-    if (web && validationStarted !== undefined)
-      timings.validationMs = performance.now() - validationStarted;
-    return finish(binaryImage(web ? { ...doc, mimeType: web.mimeType } : doc, object.body));
+    return finish(binaryImage(deliveryDoc, object.body));
   } catch (e) {
     if (web) return err('INTERNAL_ERROR', 'Prepared image is temporarily unavailable');
     // Active metadata but unfetchable bytes (missing object / transient store

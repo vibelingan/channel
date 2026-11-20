@@ -1308,6 +1308,55 @@ test('catalog timing preserves legacy bytes and storage transport; rejected read
   assert.equal(optionsSeen.length, 2, 'Rejected requests do not read storage');
 });
 
+test('a verified small original reuses bytes only while its published identity matches', async () => {
+  const store = seedStore();
+  const source = store.images?.find((image) => image._id === 'storage-active');
+  assert.ok(source);
+  let data = Buffer.from('small verified original');
+  Object.assign(source, {
+    storageFileId: 'cloud://verified-original',
+    checksumSha256: createHash('sha256').update(data).digest('hex'),
+    byteSize: data.length,
+  });
+  setup(store);
+  let reads = 0;
+  setMediaStorage({
+    ...fakeMediaStorage,
+    async getObjectAsBase64(id, options) {
+      assert.equal(id, source.storageFileId);
+      assert.equal(options, undefined);
+      reads += 1;
+      return { body: data.toString('base64'), byteSize: data.length };
+    },
+  });
+
+  const first = await imageReq(source._id);
+  const again = await imageReq(source._id);
+  assert.equal(first.statusCode, 200);
+  assert.equal(again.statusCode, 200);
+  assert.equal(again.body, first.body);
+  assert.equal(again.headers['Content-Type'], first.headers['Content-Type']);
+  assert.equal(again.headers['Cache-Control'], first.headers['Cache-Control']);
+  assert.match(again.headers['Server-Timing'] ?? '', /ci-storage;dur=0\.0/);
+  assert.equal(reads, 1);
+
+  source.publishedRefCount = 0;
+  assert.equal((await imageReq(source._id)).statusCode, 404);
+  assert.equal(reads, 1);
+
+  source.publishedRefCount = 1;
+  data = Buffer.from('updated verified original');
+  source.checksumSha256 = createHash('sha256').update(data).digest('hex');
+  source.byteSize = data.length;
+  assert.equal((await imageReq(source._id)).body, data.toString('base64'));
+  assert.equal(reads, 2);
+
+  source.checksumSha256 = 'f'.repeat(64);
+  assert.equal((await imageReq(source._id)).body, data.toString('base64'));
+  assert.equal((await imageReq(source._id)).body, data.toString('base64'));
+  assert.equal(reads, 4, 'Mismatched bytes keep the existing response but are never reused');
+});
+
 test('pending storage-backed image returns 404 even with refCount>0', async () => {
   setup();
   assert.equal((await imageReq('storage-pending')).statusCode, 404);
