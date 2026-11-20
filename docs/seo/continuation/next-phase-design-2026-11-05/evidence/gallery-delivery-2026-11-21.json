@@ -244,7 +244,7 @@
   "combinedWebsiteDelivery": {
     "runId": 44787594437,
     "source": "9d550ce7bce7b4533ff88a26004b08f846ee39ef",
-    "statusAtCapture": "in_progress_candidate_verified",
+    "statusAtCapture": "accepted_and_independently_verified",
     "candidateArtifactId": 14654967568,
     "archiveScan": {
       "candidate": "combined-gallery-candidate-44787594437",
@@ -294,9 +294,872 @@
         ["/_astro/AdminApp.B_SVyqyI.js", 1],
         ["/_astro/headphones.DrnLVrv5.css", 1],
         ["/_astro/SkuDetailPage.xO99A4fv.js", 1]
+      ],
+      "distinctPages": 13,
+      "overlappingPages": 1
+    },
+    "unchangedProductRecordsExcludingSizeHints": 528,
+    "midReleasePublicHtmlReadback": {
+      "capturedAt": "2026-11-20T18:20:33.523265+00:00",
+      "runId": 44787594437,
+      "pages": [
+        {
+          "path": "/products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "2a6c5d6e985d0adf4680f9750fb41459161337e92555d463746b6b4f0fdf6b32"
+        },
+        {
+          "path": "/products/p-3dcb1895-2d2d-4378-a6df-db5822c42960/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "fb29b13f4bf5b756065288b095e709472e37e32902c34a46cdb7cc74012b23d3"
+        },
+        {
+          "path": "/products/p-496b0c69-d25d-4afa-a657-38b090496412/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "cc011bd8b29c87ebe0cc22ae69afb7b0695016a0caee1d78f51da33c55310bbb"
+        },
+        {
+          "path": "/products/p-52d6e7c2-8fc7-4e4f-a7a1-204d051f9425/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "4b482c2c63b62d57693bb5c5c0a75f16d6736c6f72c7feca60cc4e8216472742"
+        },
+        {
+          "path": "/products/p-59211754-9027-479c-af38-0b2dc5f63883/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "bc9f1e3ff86b46415a5c435ddb1bb79f515bb5d991094f22aa52d12bb03860d0"
+        },
+        {
+          "path": "/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "f3d4d8217d96566c45de5ec31650d8e408174cf656bf938452c2437ead799202"
+        },
+        {
+          "path": "/products/p-7be5e4a7-588c-472b-af12-fa27259a963d/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "a244686a07d0b0e272e9f6a1d01e2c402c007d53da0083981e437ce483a4d4bf"
+        },
+        {
+          "path": "/products/p-8c009835-7801-4c11-a0dc-4f4bfd96dd05/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "f0d157e9d52194daf529bb4a7e3fbddebe36ff64b0b3848a79740f11e6f653ec"
+        },
+        {
+          "path": "/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "453d763fa2f499a57184d82dfa0f2785bca0089dae083eef23c663b2b436a82f"
+        },
+        {
+          "path": "/products/p-973c8584-c9d4-4ff6-a46a-387db3f9087d/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "5dceab9e08a07b4ac5e645a880857e274f8ec77dfbfe7e2688defec438e0cc3b"
+        },
+        {
+          "path": "/products/p-bbdc923d-7103-40e2-a8ae-93e10bc27f58/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "23a1b15080c7a83fd2665655bba6ceac2bf16cb9a837bff77f87a60eab3378cb"
+        },
+        {
+          "path": "/products/p-e29a208c-2c2e-4d34-a229-9bb97166ef02/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "3fec09762b99852695305eccce9b563037cff3a5c8e09875fe30029a0e53a080"
+        },
+        {
+          "path": "/products/p-ebd9c3bd-75ef-44cf-a8f0-66370723da99/",
+          "status": 200,
+          "exactCandidateHtml": true,
+          "htmlSha256": "161a8a0583712e9cea0f597fe5a586a569384c61dba62adec4c406a43f260674"
+        }
+      ],
+      "exactMatchCount": 13
+    },
+    "dispatchToCompletionSeconds": 1786,
+    "businessWrites": 0,
+    "temporaryResourcesRemoved": true,
+    "keyboardGallery": {
+      "product": "/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "profile": "mobile 412x823",
+      "source": "official website and actual photo delivery",
+      "beforeScripts": {
+        "mainPhotoDisplayed": true,
+        "thumbnailDisabled": true,
+        "markedBusy": true
+      },
+      "afterScriptBeforeApi": {
+        "thumbnailEnabled": true,
+        "keyboardChangedRealPhoto": true,
+        "markedBusy": false
+      },
+      "browserErrors": 0,
+      "outcome": "original timeout retained; three independently confirmed diagnostic passes",
+      "originalTimeoutSeconds": 15,
+      "historicalTimeoutCause": null,
+      "confirmedDiagnosticPasses": 3
+    },
+    "postDeliveryReadback": {
+      "distinctPages": 13,
+      "distinctPhotos": 40,
+      "groups": [
+        {
+          "pages": [
+            {
+              "url": "https://supplychainsai.com/products/p-52d6e7c2-8fc7-4e4f-a7a1-204d051f9425/",
+              "thumbnailsUsingSmallCopy": ["4db8df016ac87ea900071c1e3f36a056"]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-59211754-9027-479c-af38-0b2dc5f63883/",
+              "thumbnailsUsingSmallCopy": [
+                "3fbe8b166ac880cd0039d93042ba4056",
+                "3fbe8b166ac880cd0039d93534bcc39e",
+                "3fbe8b166ac880ce0039d958139d5aae",
+                "4db8df016ac880cd00074774219b91b0",
+                "4db8df016ac880cf000747ab5991f8ba"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/",
+              "thumbnailsUsingSmallCopy": [
+                "3fbe8b166ac8818c0039f8d301c86c46",
+                "3fbe8b166ac8818d0039f8f34708e0b9",
+                "3fbe8b166ac8818e0039f90c346387f8",
+                "3fbe8b166ac881910039f93f48d196ec",
+                "66baec6f6ac8818c007290bd62108be6",
+                "96d9cd126ac87f36006dc0ff19237a74",
+                "96d9cd126ac8818c006de43b262bb743"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-7be5e4a7-588c-472b-af12-fa27259a963d/",
+              "thumbnailsUsingSmallCopy": [
+                "73f7f0d3-3888-42e5-aa5b-af52b9a3898c",
+                "aa7cf08e-c841-4c04-bcf3-0fb556503e14"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-8c009835-7801-4c11-a0dc-4f4bfd96dd05/",
+              "thumbnailsUsingSmallCopy": [
+                "73f7f0d3-3888-42e5-aa5b-af52b9a3898c",
+                "aa7cf08e-c841-4c04-bcf3-0fb556503e14"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/",
+              "thumbnailsUsingSmallCopy": [
+                "3fbe8b166ac880480039bf88489da898",
+                "4db8df016ac87ea900071c1e3f36a056",
+                "4db8df016ac8804900073d794753644c",
+                "66baec6f6ac8804800727e766bdf8cb9",
+                "66baec6f6ac8804a00727e8679603f85",
+                "96d9cd126ac88048006dd0f472eb261e"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-973c8584-c9d4-4ff6-a46a-387db3f9087d/",
+              "thumbnailsUsingSmallCopy": [
+                "73f7f0d3-3888-42e5-aa5b-af52b9a3898c",
+                "aa7cf08e-c841-4c04-bcf3-0fb556503e14"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-ebd9c3bd-75ef-44cf-a8f0-66370723da99/",
+              "thumbnailsUsingSmallCopy": [
+                "3fbe8b166ac8818d0039f8f34708e0b9",
+                "3fbe8b166ac881910039f93f48d196ec",
+                "66baec6f6ac8818c007290bd62108be6",
+                "96d9cd126ac8818c006de43b262bb743"
+              ]
+            }
+          ],
+          "distinctPhotos": 20
+        },
+        {
+          "pages": [
+            {
+              "url": "https://supplychainsai.com/products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/",
+              "thumbnailsUsingSmallCopy": ["01f3430d6aaa5d3f000a523f7c1ddb01"]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-3dcb1895-2d2d-4378-a6df-db5822c42960/",
+              "thumbnailsUsingSmallCopy": [
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "3d00e15d6aab65df0018a88468bd211e",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e2007095271d4569e2",
+                "ea7765a56aab65e6007096c56d67d403",
+                "ea7765a56aab65e80070980961bb171a"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-496b0c69-d25d-4afa-a657-38b090496412/",
+              "thumbnailsUsingSmallCopy": [
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f64003984e67707af8e",
+                "3fbe8b166ac87f64003984e865774365",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "96d9cd126ac87f63006dc3d865e1cd68"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-bbdc923d-7103-40e2-a8ae-93e10bc27f58/",
+              "thumbnailsUsingSmallCopy": [
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "66baec6f6ac883940072b3fc4790e263",
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88392006e0afc55c01794",
+                "96d9cd126ac88393006e0b060b4b30b8"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-e29a208c-2c2e-4d34-a229-9bb97166ef02/",
+              "thumbnailsUsingSmallCopy": [
+                "4db8df016ac881c300075d78128f339d",
+                "66baec6f6ac881c30072936c3fbd4828",
+                "96d9cd126ac881c3006de83913b0458b"
+              ]
+            },
+            {
+              "url": "https://supplychainsai.com/products/p-ebd9c3bd-75ef-44cf-a8f0-66370723da99/",
+              "thumbnailsUsingSmallCopy": ["01f3430d6aaa5d3f000a523f7c1ddb01"]
+            }
+          ],
+          "distinctPhotos": 20
+        }
       ]
     },
-    "unchangedProductRecordsExcludingSizeHints": 528
+    "productionMobileRecheck": {
+      "conditions": {
+        "browser": "157.0.8103.79",
+        "device": {
+          "viewport": {
+            "width": 412,
+            "height": 823
+          },
+          "deviceScaleFactor": 1.75,
+          "isMobile": true,
+          "hasTouch": true,
+          "locale": "en-US"
+        },
+        "cpuRate": 4,
+        "network": {
+          "offline": false,
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        },
+        "limitMs": 40000,
+        "egress": {
+          "colo": "NRT",
+          "loc": "JP"
+        }
+      },
+      "pages": [
+        {
+          "url": "https://supplychainsai.com/products/p-496b0c69-d25d-4afa-a657-38b090496412/",
+          "before": [
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2880,
+                "tag": "H1"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "limit": 40000,
+              "observedMs": 40137,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2684,
+                "tag": "H1"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "limit": 40000,
+              "observedMs": 40002,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2456,
+                "tag": "H1"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "limit": 40000,
+              "observedMs": 40159,
+              "scrollY": 0
+            }
+          ],
+          "after": [
+            {
+              "mainReadyMs": 2916,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2740,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7"
+              ],
+              "limit": 40000,
+              "observedMs": 40146,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2786,
+              "visibleStripReadyMs": 8615,
+              "lastLcp": {
+                "ms": 2700,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "limit": 40000,
+              "observedMs": 10144,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2604,
+              "visibleStripReadyMs": 8827,
+              "lastLcp": {
+                "ms": 2588,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "readyThumbnails": [
+                "96d9cd126ac87f63006dc3d865e1cd68",
+                "66baec6f6ac87f63007272a63bb14d45",
+                "3fbe8b166ac87f63003984d873b32895",
+                "3fbe8b166ac87f63003984d22ff5a5d7",
+                "3fbe8b166ac87f64003984e67707af8e"
+              ],
+              "limit": 40000,
+              "observedMs": 10455,
+              "scrollY": 0
+            }
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-3dcb1895-2d2d-4378-a6df-db5822c42960/",
+          "before": [
+            {
+              "mainReadyMs": 38181,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 38076,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "ea7765a56aab65e2007095271d4569e2"
+              ],
+              "limit": 40000,
+              "observedMs": 40247,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2256,
+                "tag": "H1"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": ["ea7765a56aab65e2007095271d4569e2"],
+              "limit": 40000,
+              "observedMs": 40078,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 2492,
+                "tag": "H1"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": ["ea7765a56aab65e2007095271d4569e2"],
+              "limit": 40000,
+              "observedMs": 40098,
+              "scrollY": 0
+            }
+          ],
+          "after": [
+            {
+              "mainReadyMs": 2952,
+              "visibleStripReadyMs": 4957,
+              "lastLcp": {
+                "ms": 2800,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "limit": 40000,
+              "observedMs": 6621,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2585,
+              "visibleStripReadyMs": 7485,
+              "lastLcp": {
+                "ms": 2568,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "limit": 40000,
+              "observedMs": 9119,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2536,
+              "visibleStripReadyMs": 4342,
+              "lastLcp": {
+                "ms": 2436,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "readyThumbnails": [
+                "3d00e15d6aab65df0018a88468bd211e",
+                "01f3430d6aaa5d3f000a523f7c1ddb01",
+                "ea7765a56aab65e2007095271d4569e2",
+                "d99dc9256aab65e4002810e965e2b46d",
+                "ea7765a56aab65e6007096c56d67d403"
+              ],
+              "limit": 40000,
+              "observedMs": 6086,
+              "scrollY": 0
+            }
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-bbdc923d-7103-40e2-a8ae-93e10bc27f58/",
+          "before": [
+            {
+              "mainReadyMs": 8886,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 8732,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": ["66baec6f6ac883980072b43223da12d4"],
+              "limit": 40000,
+              "observedMs": 40011,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 9054,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 9044,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": ["66baec6f6ac883980072b43223da12d4"],
+              "limit": 40000,
+              "observedMs": 40129,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 9252,
+              "visibleStripReadyMs": null,
+              "lastLcp": {
+                "ms": 9184,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": ["66baec6f6ac883980072b43223da12d4"],
+              "limit": 40000,
+              "observedMs": 40135,
+              "scrollY": 0
+            }
+          ],
+          "after": [
+            {
+              "mainReadyMs": 2854,
+              "visibleStripReadyMs": 4660,
+              "lastLcp": {
+                "ms": 2816,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "limit": 40000,
+              "observedMs": 6383,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2573,
+              "visibleStripReadyMs": 4778,
+              "lastLcp": {
+                "ms": 2560,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "limit": 40000,
+              "observedMs": 6329,
+              "scrollY": 0
+            },
+            {
+              "mainReadyMs": 2863,
+              "visibleStripReadyMs": 4868,
+              "lastLcp": {
+                "ms": 2704,
+                "tag": "IMG"
+              },
+              "visibleThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "readyThumbnails": [
+                "66baec6f6ac883980072b43223da12d4",
+                "96d9cd126ac88393006e0b060b4b30b8",
+                "4db8df016ac88392000781760dda88fd",
+                "66baec6f6ac883930072b3f406afcd76",
+                "96d9cd126ac88392006e0afc55c01794"
+              ],
+              "limit": 40000,
+              "observedMs": 6544,
+              "scrollY": 0
+            }
+          ]
+        }
+      ],
+      "slowThumbnailTrace": [
+        {
+          "id": "3fbe8b166ac87f64003984e67707af8e",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "search": "?w=160",
+          "status": null,
+          "mime": null,
+          "bytes": 0,
+          "completeMs": null,
+          "startMs": 2647,
+          "priority": "Low",
+          "requestTimestamp": 32977.268608,
+          "error": "net::ERR_TIMED_OUT"
+        },
+        {
+          "id": "3fbe8b166ac87f64003984e67707af8e",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "search": "",
+          "status": 200,
+          "mime": "image/webp",
+          "bytes": 3070,
+          "completeMs": null,
+          "startMs": 33116,
+          "priority": "Low",
+          "requestTimestamp": 33007.737038,
+          "protocol": "http/1.1",
+          "connection": 428,
+          "reused": true,
+          "fromDiskCache": false,
+          "cacheControl": "no-store, no-cache, must-revalidate, max-age=0",
+          "functionMs": 224.2,
+          "networkStartMs": 33116,
+          "sendStartMs": 39267,
+          "headerStartMs": 40122,
+          "headerEndMs": 40130,
+          "headerEventMs": 40138,
+          "timings": {
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1
+          }
+        }
+      ],
+      "slowThumbnailTransport": {
+        "checkedAt": "2026-11-20T18:28:31.946937+00:00",
+        "requestPath": "/api/images/3fbe8b166ac87f64003984e67707af8e?w=160",
+        "samples": [
+          {
+            "pair": 1,
+            "origin": "website",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.135482,
+            "connect": 0.19759,
+            "tls": 0.728291,
+            "startTransfer": 1.309757,
+            "total": 1.316075,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 1,
+            "origin": "cloud",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.062785,
+            "connect": 0.256896,
+            "tls": 0.988421,
+            "startTransfer": 2.021223,
+            "total": 2.048458,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 2,
+            "origin": "cloud",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.00316,
+            "connect": 0.060387,
+            "tls": 0.85869,
+            "startTransfer": 1.465623,
+            "total": 1.466296,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 2,
+            "origin": "website",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.002742,
+            "connect": 0.065164,
+            "tls": 0.4342,
+            "startTransfer": 1.120115,
+            "total": 1.120718,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 3,
+            "origin": "website",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.002493,
+            "connect": 0.059031,
+            "tls": 0.34458,
+            "startTransfer": 1.047651,
+            "total": 1.052886,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 3,
+            "origin": "cloud",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.003042,
+            "connect": 0.062847,
+            "tls": 0.860551,
+            "startTransfer": 1.555574,
+            "total": 1.560998,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 4,
+            "origin": "cloud",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.002971,
+            "connect": 0.061892,
+            "tls": 0.840002,
+            "startTransfer": 1.512043,
+            "total": 1.517388,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          },
+          {
+            "pair": 4,
+            "origin": "website",
+            "status": "200",
+            "httpVersion": "1.1",
+            "dns": 0.00306,
+            "connect": 0.062153,
+            "tls": 0.409342,
+            "startTransfer": 0.940805,
+            "total": 0.950845,
+            "bytes": 5964.0,
+            "sha256": "59fd398f050dddbea4017b5ed131c0657320ca9238da539b56efa259312b8de1",
+            "curlExit": 0
+          }
+        ]
+      }
+    }
   },
   "subsequentImagePreparation": {
     "runId": 44786249543,
