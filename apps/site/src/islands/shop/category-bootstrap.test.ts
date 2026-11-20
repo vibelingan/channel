@@ -10,6 +10,7 @@ import { CatalogFamilyPage } from './CatalogFamilyPage.tsx';
 import { CatalogPagination } from './CatalogPagination.tsx';
 import {
   beginNumberedPage,
+  CATALOG_PAGE_SIZE,
   catalogDeliveredPageCount,
   catalogDocumentTarget,
   catalogFilteredPathRedirect,
@@ -219,6 +220,41 @@ test('pagination supplies real next/previous links and does not link outside the
   assert.match(html, /<a[^>]+href="\/headphones\/"[^>]+aria-label="Previous page"/);
   assert.match(html, /<a[^>]+href="\/headphones\/page\/3\/"[^>]+aria-label="Next page"/);
   assert.doesNotMatch(html, /page\/0|page\/4/);
+});
+
+test('large categories expose the middle pages through a bounded set of real links', () => {
+  const lastPage = 39;
+  const distance = new Map([[1, 0]]);
+  const queue = [1];
+  for (const page of queue) {
+    const currentDistance = distance.get(page);
+    assert.ok(currentDistance !== undefined);
+    const html = renderToString(
+      createElement(CatalogPagination, {
+        page,
+        total: lastPage * CATALOG_PAGE_SIZE,
+        pending: false,
+        onPageChange: () => {},
+        pageHref: (target) => catalogPagePath('headphones', target),
+        nativeNavigation: true,
+      }),
+    );
+    const links = [...html.matchAll(/<a href="\/headphones\/(?:page\/(\d+)\/)?"/g)].map(
+      ([, target]) => Number(target ?? 1),
+    );
+    assert.ok(links.length <= 8, `Pagination on page ${page} should stay compact`);
+    for (const link of links) {
+      assert.ok(link >= 1 && link <= lastPage, `Invalid page ${link} from page ${page}`);
+      if (distance.has(link)) continue;
+      distance.set(link, currentDistance + 1);
+      queue.push(link);
+    }
+  }
+  assert.equal(distance.size, lastPage);
+  assert.ok(
+    Math.max(...distance.values()) <= 5,
+    `Furthest page is ${Math.max(...distance.values())} links from the category start`,
+  );
 });
 
 test('mixed filtered paths and API shrinking-page recovery fetch the right document', () => {

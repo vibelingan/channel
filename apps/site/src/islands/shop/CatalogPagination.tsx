@@ -102,24 +102,34 @@ export function CatalogPagination({
       >
         <span aria-hidden="true">&lsaquo;</span>
       </PageControl>
-      {pages.map((candidate, index) => (
-        <Fragment key={candidate}>
-          {index > 0 && candidate - (pages[index - 1] ?? candidate) > 1 && (
-            <span aria-hidden="true" className="px-1 text-ink-muted">
-              &hellip;
-            </span>
-          )}
-          <PageControl
-            {...controls}
-            label={`Page ${candidate}`}
-            page={candidate}
-            current={candidate === page}
-            disabled={pending || candidate === page}
-          >
-            {candidate}
-          </PageControl>
-        </Fragment>
-      ))}
+      {pages.map((candidate, index) => {
+        const previous = pages[index - 1] ?? candidate;
+        const gap = candidate - previous;
+        const middle = previous + Math.floor(gap / 2);
+        return (
+          <Fragment key={candidate}>
+            {gap > 1 && (
+              <PageControl
+                {...controls}
+                label={`Jump to page ${middle}`}
+                page={middle}
+                disabled={pending}
+              >
+                {middle}
+              </PageControl>
+            )}
+            <PageControl
+              {...controls}
+              label={`Page ${candidate}`}
+              page={candidate}
+              current={candidate === page}
+              disabled={pending || candidate === page}
+            >
+              {candidate}
+            </PageControl>
+          </Fragment>
+        );
+      })}
       <PageControl
         {...controls}
         label="Next page"
