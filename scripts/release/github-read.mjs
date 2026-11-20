@@ -10,32 +10,39 @@ export function createGithubReadClient({ policy, token, request = fetchFully }) 
   )
     throw new Error('Pinned GitHub source and read token required');
   const base = `https://api.github.com/repos/${policy.repository}`;
-  const get = (path, { redirect = 'error' } = {}) =>
-    request('GET', base + path, {
-      timeoutMs: 15_000,
-      maxBytes: 2_097_152,
-      redirect,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/vnd.github+json',
-        'x-github-api-version': '2022-11-28',
-        'user-agent': 'channel-static-canary',
-      },
-    });
+  const get = async (path, { redirect = 'error', freshArtifact = false } = {}) => {
+    const read = () =>
+      request('GET', base + path, {
+        timeoutMs: 15_000,
+        maxBytes: 2_097_152,
+        redirect,
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: 'application/vnd.github+json',
+          'x-github-api-version': '2022-11-28',
+          'user-agent': 'channel-static-canary',
+        },
+      });
+    let result = await read();
+    if (freshArtifact && /^\/actions\/artifacts\/[1-9][0-9]*(?:\/zip)?$/.test(path)) {
+      const isZip = path.endsWith('/zip');
+      for (const delayMs of [500, 1500, 4000]) {
+        const missingRedirect = isZip && result.status === 302 && !result.headers?.has('location');
+        if (!missingRedirect && ![404, 500, 502, 503, 504].includes(result.status)) break;
+        const endpoint = isZip ? 'ZIP download' : 'metadata';
+        console.warn(
+          `GitHub artifact ${endpoint} returned HTTP ${result.status}${missingRedirect ? ' with no Location' : ''}. Retrying the same read.`,
+        );
+        await delay(delayMs);
+        result = await read();
+      }
+    }
+    return result;
+  };
   const api = async (path, { freshArtifact = false } = {}) => {
     if (!/^\/actions\//.test(path) || path.includes('..'))
       throw new Error('Invalid GitHub API path');
-    let result = await get(path);
-    if (freshArtifact && /^\/actions\/artifacts\/[1-9][0-9]*$/.test(path)) {
-      for (const delayMs of [500, 1500]) {
-        if (![404, 500, 502, 503, 504].includes(result.status)) break;
-        console.warn(
-          `GitHub artifact metadata returned HTTP ${result.status}. Retrying the same read.`,
-        );
-        await delay(delayMs);
-        result = await get(path);
-      }
-    }
+    const result = await get(path, { freshArtifact });
     if (result.status !== 200) throw new Error(`GitHub API read failed (HTTP ${result.status})`);
     return JSON.parse(result.body.toString('utf8'));
   };

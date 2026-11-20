@@ -74,6 +74,7 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
   const requests = [];
   let sourceRun = run;
   const artifactStatuses = [];
+  const zipStatuses = [];
   const client = createSiteGithubSource({
     token: 'private-api-token',
     request: async (method, url, options) => {
@@ -83,11 +84,15 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
         const status = artifactStatuses.shift() ?? 200;
         return { status, body: Buffer.from(JSON.stringify(metadata)) };
       }
-      if (url.endsWith('/zip'))
+      if (url.endsWith('/zip')) {
+        const status = zipStatuses.shift() ?? 302;
         return {
-          status: 302,
-          headers: new Headers({ location: 'https://storage.example/release' }),
+          status,
+          headers: new Headers(
+            status === 302 ? { location: 'https://storage.example/release' } : {},
+          ),
         };
+      }
       return {
         status: 200,
         body: Buffer.from(JSON.stringify(url.includes('/attempts/') ? sourceRun : metadata)),
@@ -141,6 +146,22 @@ with zipfile.ZipFile(sys.argv[1],'w') as z:
   );
   assert.equal(requests.length, callsBeforeDenial + 2);
   assert.equal(artifactStatuses.length, 0);
+  const callsBeforeDownloadRetry = requests.length;
+  zipStatuses.push(404, 302);
+  assert.equal(
+    (await client.download('11', join(root, 'download-retry'), { currentRunId: '101' })).runId,
+    '101',
+  );
+  assert.equal(
+    requests.slice(callsBeforeDownloadRetry).filter(({ url }) => url.endsWith('/zip')).length,
+    2,
+  );
+  zipStatuses.push(410);
+  await assert.rejects(
+    client.download('11', join(root, 'gone'), { currentRunId: '101' }),
+    /GitHub artifact ZIP read failed.*410/,
+  );
+  assert.equal(zipStatuses.length, 0);
   await assert.rejects(
     client.download('11', join(root, 'wrong-current'), {
       acceptedRunId: '101',

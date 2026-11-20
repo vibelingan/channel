@@ -112,16 +112,20 @@ export function createBlogGithubSource({
     requireCI: github.requireCI,
     async download(id, directory, options = {}) {
       const source = await metadata(id, options);
-      const response = await github.get(`/actions/artifacts/${id}/zip`, { redirect: 'manual' });
-      const location = new URL(response.headers.get('location'));
-      if (
-        response.status !== 302 ||
-        location.protocol !== 'https:' ||
-        location.username ||
-        location.password ||
-        location.port
-      )
-        throw new Error('Invalid Blog archive redirect');
+      const response = await github.get(`/actions/artifacts/${id}/zip`, {
+        redirect: 'manual',
+        freshArtifact: Boolean(options.currentRunId),
+      });
+      const redirect = response.headers?.get('location');
+      if (response.status !== 302 || !redirect) {
+        throw new Error(
+          `GitHub artifact ZIP read failed (HTTP ${response.status}${redirect ? '' : ', Location missing'})`,
+        );
+      }
+      if (!URL.canParse(redirect)) throw new Error('Invalid GitHub artifact ZIP redirect');
+      const location = new URL(redirect);
+      if (location.protocol !== 'https:' || location.username || location.password || location.port)
+        throw new Error('Invalid GitHub artifact ZIP redirect');
       const body = await request('GET', location.href, {
         timeoutMs: 30000,
         maxBytes: maxArchiveBytes,
