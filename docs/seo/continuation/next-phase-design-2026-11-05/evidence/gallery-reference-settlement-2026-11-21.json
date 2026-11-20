@@ -1,0 +1,964 @@
+{
+  "delivery": {
+    "run": 44838400903,
+    "source": "c32f767ccb2c9183f55858fecd4ac12be38b2c62",
+    "renderer": "168fddd3c8c6291d48299da57e6421c739844f2d",
+    "acceptedAt": "2026-11-20T23:48:16.831Z",
+    "changedFiles": {
+      ".html": 41,
+      ".json": 2
+    },
+    "sameProductContent": 528,
+    "publicPages": [
+      {
+        "page": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "newSmallImages": 2,
+        "currentWithSmallSizes": 6,
+        "sha256": "24cd852e9d7a80dd6a2684d44f3c1766ae70b9ec65bf9556aca7fba59be64d07"
+      },
+      {
+        "page": "/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "newSmallImages": 2,
+        "currentWithSmallSizes": 6,
+        "sha256": "331819e96e4cc5cbf2e7e9070f2851dd3a2726a9c3da1c4996bb80bda0d01def"
+      }
+    ],
+    "sameMapsAndRobots": true,
+    "sameBlogConfig": true,
+    "releaseBusinessWrites": 0,
+    "temporaryHelpersClean": true
+  },
+  "independentCloudCleanup": {
+    "readAt": "2026-11-20T23:54:47.192Z",
+    "functionCount": 9,
+    "runs": [44838400903],
+    "leftovers": []
+  },
+  "assetAudit": {
+    "candidate": "reference-settlement-site-payload-44838400903-1",
+    "verifiedManifestFiles": 2122,
+    "publicFiles": 2119,
+    "publicFileTypes": {
+      ".js": 1366,
+      ".css": 73,
+      ".html": 589,
+      ".json": 3,
+      ".ico": 1,
+      ".svg": 3,
+      ".webp": 26,
+      ".jpg": 42,
+      ".png": 9,
+      ".mp4": 4,
+      ".txt": 1,
+      ".xml": 2
+    },
+    "flagged": [],
+    "comparedToPrevious": {
+      "new": 0,
+      "dropped": 0,
+      "changed": {
+        ".html": 41,
+        ".json": 2
+      }
+    }
+  },
+  "verifiedPublishedImageReferences": [
+    {
+      "stage": "verified",
+      "imageId": "3739b124-d903-4fa9-b148-12809574c125",
+      "state": "settled",
+      "effectiveCount": 1
+    },
+    {
+      "stage": "verified",
+      "imageId": "89775750-13ed-4672-a3d1-2ffa087a535b",
+      "state": "settled",
+      "effectiveCount": 1
+    },
+    {
+      "stage": "verified",
+      "imageId": "082b7649-4589-404f-abcb-73251356c037",
+      "state": "settled",
+      "effectiveCount": 1
+    },
+    {
+      "stage": "verified",
+      "imageId": "3aea465e-5bd4-46f6-976e-7017a8685653",
+      "state": "settled",
+      "effectiveCount": 1
+    }
+  ],
+  "publicImageAndProductDetailReadback": {
+    "images": [
+      [
+        {
+          "productPhoto": "3739b124-d903-4fa9-b148-12809574c125",
+          "query": "",
+          "bytes": 133098,
+          "http": 200
+        },
+        {
+          "productPhoto": "3739b124-d903-4fa9-b148-12809574c125",
+          "query": "?w=160",
+          "bytes": 7040,
+          "http": 200
+        },
+        {
+          "productPhoto": "3739b124-d903-4fa9-b148-12809574c125",
+          "query": "?w=640",
+          "bytes": 51980,
+          "http": 200
+        }
+      ],
+      [
+        {
+          "productPhoto": "89775750-13ed-4672-a3d1-2ffa087a535b",
+          "query": "",
+          "bytes": 97496,
+          "http": 200
+        },
+        {
+          "productPhoto": "89775750-13ed-4672-a3d1-2ffa087a535b",
+          "query": "?w=160",
+          "bytes": 4098,
+          "http": 200
+        },
+        {
+          "productPhoto": "89775750-13ed-4672-a3d1-2ffa087a535b",
+          "query": "?w=640",
+          "bytes": 31154,
+          "http": 200
+        }
+      ],
+      [
+        {
+          "productPhoto": "082b7649-4589-404f-abcb-73251356c037",
+          "query": "",
+          "bytes": 92426,
+          "http": 200
+        },
+        {
+          "productPhoto": "082b7649-4589-404f-abcb-73251356c037",
+          "query": "?w=160",
+          "bytes": 6312,
+          "http": 200
+        },
+        {
+          "productPhoto": "082b7649-4589-404f-abcb-73251356c037",
+          "query": "?w=640",
+          "bytes": 38586,
+          "http": 200
+        }
+      ],
+      [
+        {
+          "productPhoto": "3aea465e-5bd4-46f6-976e-7017a8685653",
+          "query": "",
+          "bytes": 81920,
+          "http": 200
+        },
+        {
+          "productPhoto": "3aea465e-5bd4-46f6-976e-7017a8685653",
+          "query": "?w=160",
+          "bytes": 4810,
+          "http": 200
+        },
+        {
+          "productPhoto": "3aea465e-5bd4-46f6-976e-7017a8685653",
+          "query": "?w=640",
+          "bytes": 34852,
+          "http": 200
+        }
+      ]
+    ],
+    "details": [
+      {
+        "page": "p-1253d3f1-d5b7-479a-a094-677f0b1c86be",
+        "expected": 2,
+        "missing": []
+      },
+      {
+        "page": "p-7dc458ee-f165-42a5-a938-cf4c3db1f99c",
+        "expected": 2,
+        "missing": []
+      }
+    ]
+  },
+  "mobileGalleryActions": {
+    "product": "/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+    "candidates": 6,
+    "tapped": {
+      "path": "/api/images/1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+      "width": 340
+    },
+    "keyboard": {
+      "path": "/api/images/d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+      "width": 340
+    },
+    "failedPhotos": [],
+    "errors": []
+  },
+  "publicBlogArticlesUnchanged": 3,
+  "historicalImageAddressesUnchanged": 6,
+  "benchmark": {
+    "settings": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "limitMs": 40000
+    },
+    "egress": ["colo=NRT", "loc=JP"],
+    "pages": [
+      {
+        "page": "https://supplychainsai.com/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+        "before": [
+          {
+            "mainImageMs": 3606,
+            "visibleThumbnailsMs": 16446,
+            "lcpMs": 3508,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 1790,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "",
+                "bytes": 97496,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "",
+                "bytes": 133098,
+                "http": 200
+              }
+            ]
+          },
+          {
+            "mainImageMs": 2207,
+            "visibleThumbnailsMs": 9039,
+            "lcpMs": 2048,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 731,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "",
+                "bytes": 97496,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "",
+                "bytes": 133098,
+                "http": 200
+              }
+            ]
+          },
+          {
+            "mainImageMs": 2552,
+            "visibleThumbnailsMs": 8608,
+            "lcpMs": 2496,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 1299,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "",
+                "bytes": 97496,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "",
+                "bytes": 133098,
+                "http": 200
+              }
+            ]
+          }
+        ],
+        "after": [
+          {
+            "mainImageMs": 2371,
+            "visibleThumbnailsMs": 5192,
+            "lcpMs": 2360,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 755,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "?w=160",
+                "bytes": 4098,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          },
+          {
+            "mainImageMs": 2836,
+            "visibleThumbnailsMs": 4439,
+            "lcpMs": 2704,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 1422,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "?w=160",
+                "bytes": 4098,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          },
+          {
+            "mainImageMs": 2157,
+            "visibleThumbnailsMs": 4162,
+            "lcpMs": 2108,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 717,
+            "visibleImages": [
+              "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+              "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+              "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+              "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+              "89775750-13ed-4672-a3d1-2ffa087a535b"
+            ],
+            "transfers": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=640",
+                "bytes": 8988,
+                "http": 200
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "query": "?w=160",
+                "bytes": 1470,
+                "http": 200
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "query": "?w=160",
+                "bytes": 2474,
+                "http": 200
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "query": "?w=160",
+                "bytes": 5264,
+                "http": 200
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "query": "?w=160",
+                "bytes": 2212,
+                "http": 200
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "query": "?w=160",
+                "bytes": 4098,
+                "http": 200
+              },
+              {
+                "id": "3739b124-d903-4fa9-b148-12809574c125",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          }
+        ],
+        "medianBefore": {
+          "mainImageMs": 2552,
+          "visibleThumbnailsMs": 9039,
+          "lcpMs": 2496,
+          "documentHeadersMs": 1299
+        },
+        "medianAfter": {
+          "mainImageMs": 2371,
+          "visibleThumbnailsMs": 4439,
+          "lcpMs": 2360,
+          "documentHeadersMs": 755
+        }
+      },
+      {
+        "page": "https://supplychainsai.com/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+        "before": [
+          {
+            "mainImageMs": 2747,
+            "visibleThumbnailsMs": 9206,
+            "lcpMs": 2620,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 1331,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "",
+                "bytes": 92426,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "",
+                "bytes": 81920,
+                "http": 200
+              }
+            ]
+          },
+          {
+            "mainImageMs": 6602,
+            "visibleThumbnailsMs": 13066,
+            "lcpMs": 6440,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 5120,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "",
+                "bytes": 92426,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "",
+                "bytes": 81920,
+                "http": 200
+              }
+            ]
+          },
+          {
+            "mainImageMs": 2185,
+            "visibleThumbnailsMs": 7853,
+            "lcpMs": 2028,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 748,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "",
+                "bytes": 92426,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "",
+                "bytes": 81920,
+                "http": 200
+              }
+            ]
+          }
+        ],
+        "after": [
+          {
+            "mainImageMs": 2334,
+            "visibleThumbnailsMs": 4139,
+            "lcpMs": 2316,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 719,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "?w=160",
+                "bytes": 6312,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          },
+          {
+            "mainImageMs": 3000,
+            "visibleThumbnailsMs": 4606,
+            "lcpMs": 2868,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 984,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "?w=160",
+                "bytes": 6312,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          },
+          {
+            "mainImageMs": 3349,
+            "visibleThumbnailsMs": 6160,
+            "lcpMs": 3224,
+            "lcpElement": "IMG",
+            "documentHeadersMs": 1728,
+            "visibleImages": [
+              "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+              "2d39308c-1357-4a40-9892-7e25a3c03f83",
+              "96288337-261f-422b-a08c-46a956151466",
+              "a397b104-dd64-40ea-8714-556a2ca8520c",
+              "082b7649-4589-404f-abcb-73251356c037"
+            ],
+            "transfers": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=640",
+                "bytes": 12618,
+                "http": 200
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "query": "?w=160",
+                "bytes": 1988,
+                "http": 200
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "query": "?w=160",
+                "bytes": 1836,
+                "http": 200
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "query": "?w=160",
+                "bytes": 2030,
+                "http": 200
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "query": "?w=160",
+                "bytes": 4806,
+                "http": 200
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "query": "?w=160",
+                "bytes": 6312,
+                "http": 200
+              },
+              {
+                "id": "3aea465e-5bd4-46f6-976e-7017a8685653",
+                "query": "?w=160",
+                "bytes": 0,
+                "http": null
+              }
+            ]
+          }
+        ],
+        "medianBefore": {
+          "mainImageMs": 2747,
+          "visibleThumbnailsMs": 9206,
+          "lcpMs": 2620,
+          "documentHeadersMs": 1331
+        },
+        "medianAfter": {
+          "mainImageMs": 3000,
+          "visibleThumbnailsMs": 4606,
+          "lcpMs": 2868,
+          "documentHeadersMs": 984
+        }
+      }
+    ]
+  }
+}
