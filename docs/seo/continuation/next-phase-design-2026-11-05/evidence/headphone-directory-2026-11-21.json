@@ -1,0 +1,353 @@
+{
+  "baselineWebsiteRun": 44830332217,
+  "checks": {
+    "seo-module-1.yml": 44833588466,
+    "seo-blog-server.yml": 44833588341,
+    "seo-blog-dummy.yml": 44833588347
+  },
+  "runs": {
+    "archive": 44834400350,
+    "site": 44834613796,
+    "source": "168fddd3c8c6291d48299da57e6421c739844f2d"
+  },
+  "live": {
+    "run": 44834613796,
+    "acceptedAt": "2026-11-20T23:16:34.692Z",
+    "renderer": "168fddd3c8c6291d48299da57e6421c739844f2d",
+    "changedPublicFiles": {
+      ".html": 1
+    },
+    "addedPublicFiles": [],
+    "removedPublicFiles": [],
+    "unchangedProductRecords": 528,
+    "optionalImageHintsChangedOn": 0,
+    "blogRouteConfigUnchanged": true,
+    "payloadRoot": {
+      "plainBytes": [126361, 139470],
+      "estimatedGzipBytes": [20197, 20812]
+    },
+    "publicReadback": [
+      {
+        "path": "/headphones/",
+        "status": 200,
+        "sha256": "8b2444b4cb71b94c40a8718e651aa536fdbd8afbf546b9c34ca7874c354278d6"
+      },
+      {
+        "path": "/headphones/page/26/",
+        "status": 200,
+        "sha256": "551bbc96ca614ee071dc0fc67d74ce86b38e4d9bf73d60ec7ec1a176de380ab6"
+      },
+      {
+        "path": "/headphones/page/33/",
+        "status": 200,
+        "sha256": "60a4f1749ef5185e13fe97b66aec4d24f98b4eeaf29e4ccc3d071d7601b1f9cd"
+      },
+      {
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "status": 200,
+        "sha256": "caf072cfd6e68ff296a6bda829b85f2c75274f185a02598281f21b5ac8351090"
+      },
+      {
+        "path": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "status": 200,
+        "sha256": "beaa0b8b19a474040efb124ae95600b305c600ff163a60c921d67aed5385b44a"
+      }
+    ],
+    "businessWrites": 0,
+    "recordedCleanedFunctions": true
+  },
+  "graph": {
+    "baselineRun": 44830332217,
+    "baselineDirectoryPagesLinked": 3,
+    "candidateDirectoryPagesLinked": 38,
+    "finalCatalogPage": 39,
+    "catalogProductUrls": 528,
+    "allPublishedProductsReachable": true,
+    "linksFromHomeAllProducts": [
+      {
+        "before": 2,
+        "after": 2,
+        "productCount": 41
+      },
+      {
+        "before": 3,
+        "after": 3,
+        "productCount": 67
+      },
+      {
+        "before": 4,
+        "after": 3,
+        "productCount": 72
+      },
+      {
+        "before": 5,
+        "after": 3,
+        "productCount": 144
+      },
+      {
+        "before": 6,
+        "after": 3,
+        "productCount": 180
+      },
+      {
+        "before": 7,
+        "after": 3,
+        "productCount": 24
+      }
+    ],
+    "examplesFromGooglePageIndexing": [
+      {
+        "path": "/privacy/",
+        "before": 1,
+        "after": 1
+      },
+      {
+        "path": "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+        "before": 2,
+        "after": 2
+      },
+      {
+        "path": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "before": 5,
+        "after": 3
+      },
+      {
+        "path": "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "before": 5,
+        "after": 3
+      },
+      {
+        "path": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "before": 6,
+        "after": 3
+      },
+      {
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "before": 6,
+        "after": 3
+      },
+      {
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "before": 6,
+        "after": 3
+      },
+      {
+        "path": "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+        "before": 6,
+        "after": 3
+      },
+      {
+        "path": "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "before": 3,
+        "after": 3
+      },
+      {
+        "path": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "before": 3,
+        "after": 3
+      },
+      {
+        "path": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "before": 7,
+        "after": 3
+      },
+      {
+        "path": "/toys/",
+        "before": 1,
+        "after": 1
+      }
+    ],
+    "uncompressedRootBeforeBytes": 126361,
+    "uncompressedRootAfterBytes": 139470
+  },
+  "browser": {
+    "origin": "https://supplychainsai.com",
+    "browser": "157.0.8103.79",
+    "checks": [
+      {
+        "javaScriptEnabled": false,
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "totalPageLinks": 38,
+        "page26": 200,
+        "target": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "productStatus": 200
+      },
+      {
+        "javaScriptEnabled": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "totalPageLinks": 38,
+        "page26": 200
+      }
+    ]
+  },
+  "package": {
+    "candidate": "headphone-directory-site-payload-44834613796-1",
+    "verifiedManifestFiles": 2122,
+    "publicFiles": 2119,
+    "publicFileTypes": {
+      ".js": 1366,
+      ".css": 73,
+      ".html": 589,
+      ".json": 3,
+      ".ico": 1,
+      ".svg": 3,
+      ".webp": 26,
+      ".jpg": 42,
+      ".png": 9,
+      ".mp4": 4,
+      ".txt": 1,
+      ".xml": 2
+    },
+    "flagged": [],
+    "comparedToPrevious": {
+      "new": 38,
+      "dropped": 0,
+      "changed": {
+        ".html": 588,
+        ".json": 2
+      }
+    }
+  },
+  "websiteWorkflowElapsedSeconds": 789,
+  "googlePageIndexing": {
+    "date": "11/16/26",
+    "indexed": "Indexed 529",
+    "notIndexed": "Not indexed 989 8 reasons",
+    "historical4xx": ["Blocked due to other 4xx issue", "Website", "Started", "5"]
+  },
+  "googleCrawlStats": {
+    "readAt": "2026-11-20T23:12:47.326087+00:00",
+    "reportThrough": "11/18/26",
+    "summary": [
+      "Total crawl requests 3.13K",
+      "Total download size (Bytes) 544M",
+      "Average response time (ms) 1.44K",
+      "Host had no problems in the last 90 days"
+    ],
+    "responseBreakdown": {
+      "OK (200)": "100% (display rounded)",
+      "Other client error (4XX)": "< 1%",
+      "Not found (404)": "< 1%"
+    },
+    "note": "Values transcribed from the visible breakdown. The report did not show a server-error category. Individual examples from this separate crawl stats report were not verified."
+  },
+  "blogAndImages": {
+    "run": "44834613796-1",
+    "blog": {
+      "articles": [
+        {
+          "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+          "contentHash": "346215d2c56e32f83491e481b82bafe770af71e700df068e1cc0b1929a670402",
+          "modifiedAt": "2026-11-14T05:54:12.700Z",
+          "publishedAt": "2026-10-26T00:26:21.072Z",
+          "revision": 5,
+          "slug": "oem-project-brief-acceptance-40249243887"
+        },
+        {
+          "articleId": "article-96a06754c53e0eae9613a1ebf36cfb79492dc3bfde08891dc4471ff14841fff3",
+          "contentHash": "afb23d88773c5be5182747e32233832d2352f62edc1070a384e3c01aedf2aabe",
+          "modifiedAt": "2026-11-14T05:54:32.530Z",
+          "publishedAt": "2026-10-28T01:16:02.607Z",
+          "revision": 4,
+          "slug": "oem-headphone-sample-inspection-wecom-20261027"
+        },
+        {
+          "articleId": "article-c6695937e8154a1d6680fb103c3827fbdddc65bb49d9563c14d570c3cfc1d05e",
+          "contentHash": "e2b0cda99e446d28bc79e6676ac504e1148c66ee3e82253035e9578f3e9840c9",
+          "modifiedAt": "2026-11-14T05:52:31.605Z",
+          "publishedAt": "2026-11-14T05:52:31.605Z",
+          "revision": 1,
+          "slug": "prototype-to-mass-production-oem-odm"
+        }
+      ],
+      "publicAndIndexable": [
+        "https://supplychainsai.com/blog/",
+        "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/"
+      ]
+    },
+    "historicalImageUrlsReadable": [
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "bytes": 51178,
+        "type": "image/webp",
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "bytes": 65170,
+        "type": "image/webp",
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "bytes": 69280,
+        "type": "image/webp",
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "bytes": 87330,
+        "type": "image/webp",
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "bytes": 135494,
+        "type": "image/webp",
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "bytes": 660144,
+        "type": "image/jpeg",
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+      }
+    ]
+  },
+  "automaticUpdates": {
+    "before": {
+      "readAt": "2026-11-20T23:05:40.146Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "7810cea67bfc8d10d4add2b673a425060d586adf",
+        "executorSha": "8b568012d81f04f84292073a40f6d50c4165de6f",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44830332217-1"
+      }
+    },
+    "after": {
+      "readAt": "2026-11-20T23:22:58.855Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "168fddd3c8c6291d48299da57e6421c739844f2d",
+        "executorSha": "168fddd3c8c6291d48299da57e6421c739844f2d",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44834613796-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "historicalDocsCommitWithoutCI": "8463ea25afc7e388c6e4f0a72a54f978e4598296",
+    "oldHeadCIWorkflowMatches": 0,
+    "resultWhenPendingAndExecutorHasNoCI": "waiting-ci",
+    "observedQueuedProductBeforeRelease": false
+  }
+}
