@@ -703,5 +703,93 @@
         }
       }
     }
+  },
+  "hx10InitialThumbnailRollout": {
+    "productionRun": 44734452775,
+    "codeSha": "0788ab8df3c90d66c9afd41c1b747b4d2340cc82",
+    "browser": "157.0.8103.79",
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuRate": 4,
+    "egress": [
+      "colo=NRT",
+      "loc=JP"
+    ],
+    "before": {
+      "headingLargestPaintMs": [
+        2460,
+        2032,
+        1888,
+        2192
+      ],
+      "headingLargestPaintMedianMs": 2112.0,
+      "imageRequests": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "thumbnailBodyBytes": [
+        87160,
+        87160,
+        87160,
+        87160
+      ],
+      "otherPendingImageRequests": [
+        5,
+        5,
+        5,
+        5
+      ]
+    },
+    "after": {
+      "headingLargestPaintMs": [
+        2140,
+        2120,
+        2852,
+        2436
+      ],
+      "headingLargestPaintMedianMs": 2288.0,
+      "imageRequests": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "thumbnailBodyBytes": [
+        6570,
+        6570,
+        6570,
+        6570
+      ],
+      "otherPendingImageRequests": [
+        5,
+        5,
+        5,
+        5
+      ]
+    },
+    "probeCorrection": "A first production sample used a lowercase-only srcset text check, while the accepted initial HTML used srcSet. Retained all original network readings and repeated the four samples with an HTML case-insensitive check.",
+    "galleryDiagnosis": {
+      "eagerMainOriginalsRequestedBeforeScroll": 1,
+      "lazyThumbnailOriginalsRequestedBeforeScroll": 4,
+      "initiator": "parser",
+      "combinedOriginalBytes": 7609383
+    }
   }
 }
