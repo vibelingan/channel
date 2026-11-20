@@ -209,6 +209,28 @@
       "status": 200,
       "totalBodyBytes": 408452,
       "allMatchPriorSha256": true
+    },
+    "historical4xxAfterWh3PageReadback": {
+      "fullResponses": 5,
+      "status": 200,
+      "totalBodyBytes": 408452,
+      "allMatchPriorSha256": true
+    },
+    "httpEntryRecheck": {
+      "httpApex": {
+        "status": 200
+      },
+      "httpWww": {
+        "status": 301,
+        "location": "https://supplychainsai.com/"
+      },
+      "httpsWww": {
+        "status": 301,
+        "location": "https://supplychainsai.com/"
+      },
+      "httpsApex": {
+        "status": 200
+      }
     }
   },
   "wh3LocalConversion": {
@@ -333,6 +355,100 @@
           }
         }
       ]
+    },
+    "baselineRepeated": {
+      "browser": "157.0.8103.79",
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "cpuRate": 4,
+      "egress": "NRT, Japan",
+      "limitMs": 40000,
+      "pages": [
+        {
+          "url": "https://supplychainsai.com/products/p-59211754-9027-479c-af38-0b2dc5f63883/",
+          "samples": [
+            {
+              "mainReadyMs": 6518,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": 7781,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": 17614,
+              "visibleStripReadyMs": null
+            }
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-95c799f6-0191-4044-a1f8-a6bb3895df85/",
+          "samples": [
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": null,
+              "visibleStripReadyMs": null
+            }
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-62824f25-8305-4248-a77a-6b9bb56a52e5/",
+          "samples": [
+            {
+              "mainReadyMs": 31793,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": 38580,
+              "visibleStripReadyMs": null
+            },
+            {
+              "mainReadyMs": 36051,
+              "visibleStripReadyMs": null
+            }
+          ]
+        }
+      ]
+    },
+    "imagePreparation": {
+      "runId": 44780204295,
+      "source": "3d5f62dc255b14ff63abb3e3039111960881eed8"
+    },
+    "productionSizes": {
+      "preservedOriginals": 20,
+      "verifiedPublicResponses": 60,
+      "originalBytes": 48518680,
+      "bytesByWidth": {
+        "160": 84216,
+        "640": 530942,
+        "1280": 1444240
+      }
+    },
+    "siteDelivery": {
+      "runId": 44781569400,
+      "source": "3d5f62dc255b14ff63abb3e3039111960881eed8"
     }
   },
   "newCandidate": {
@@ -573,6 +689,222 @@
     "siteDelivery": {
       "runId": 44775284450,
       "source": "8c54de49a32012e627e9369501693329e2357a52"
+    },
+    "acceptedSiteDelivery": {
+      "runId": 44775284450,
+      "source": "8c54de49a32012e627e9369501693329e2357a52",
+      "renderer": "add4397a5a8ae36f26550f943c7a700395cf9be8",
+      "products": 528,
+      "regionalCleanup": true,
+      "evidenceArtifact": 14650827907,
+      "businessWrites": 0,
+      "wallSeconds": 1496,
+      "timing": {
+        "privateBackup": {
+          "objects": 42,
+          "reused": 17,
+          "uploaded": 25,
+          "uploadedBytes": 30464419,
+          "elapsedMs": 448234
+        },
+        "countByPhase": {
+          "delivery.begin": 6,
+          "delivery.end": 6,
+          "delivery.check": 48,
+          "delivery.accept": 264
+        },
+        "firstUploadToLastPublicCheckSeconds": 552.9
+      },
+      "browser": {
+        "quoteOpened": true,
+        "initialHtml": true,
+        "latestApi": true,
+        "businessWrites": 0,
+        "pageErrors": []
+      }
+    },
+    "liveBenchmark": {
+      "url": "https://supplychainsai.com/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "limitMs": 40000,
+      "egress": "NRT, Japan",
+      "before": [
+        {
+          "condition": "shaped",
+          "mainReadyMs": null,
+          "visibleStripReadyMs": null,
+          "lcpMs": 3588,
+          "lcpElement": "H1",
+          "visibleCount": 5,
+          "readyCount": 0,
+          "documentResponseHeadersAtMs": 1532
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 8010,
+          "visibleStripReadyMs": 25855,
+          "lcpMs": 7912,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1551
+        },
+        {
+          "condition": "shaped",
+          "mainReadyMs": null,
+          "visibleStripReadyMs": null,
+          "lcpMs": 4184,
+          "lcpElement": "H1",
+          "visibleCount": 5,
+          "readyCount": 0,
+          "documentResponseHeadersAtMs": 2846
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 7802,
+          "visibleStripReadyMs": 22038,
+          "lcpMs": 7836,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 892
+        },
+        {
+          "condition": "shaped",
+          "mainReadyMs": null,
+          "visibleStripReadyMs": null,
+          "lcpMs": 2320,
+          "lcpElement": "H1",
+          "visibleCount": 5,
+          "readyCount": 0,
+          "documentResponseHeadersAtMs": 977
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 8147,
+          "visibleStripReadyMs": 17378,
+          "lcpMs": 8004,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1690
+        }
+      ],
+      "after": [
+        {
+          "condition": "shaped",
+          "mainReadyMs": 2911,
+          "visibleStripReadyMs": 5720,
+          "lcpMs": 2828,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1036
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 2412,
+          "visibleStripReadyMs": 4667,
+          "lcpMs": 2256,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 798
+        },
+        {
+          "condition": "shaped",
+          "mainReadyMs": 2976,
+          "visibleStripReadyMs": 5798,
+          "lcpMs": 2956,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 904
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 2773,
+          "visibleStripReadyMs": 4979,
+          "lcpMs": 2732,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1158
+        },
+        {
+          "condition": "shaped",
+          "mainReadyMs": 3055,
+          "visibleStripReadyMs": 5260,
+          "lcpMs": 2892,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1238
+        },
+        {
+          "condition": "native",
+          "mainReadyMs": 2886,
+          "visibleStripReadyMs": 6695,
+          "lcpMs": 2792,
+          "lcpElement": "IMG",
+          "visibleCount": 5,
+          "readyCount": 5,
+          "documentResponseHeadersAtMs": 1215
+        }
+      ],
+      "medians": {
+        "shaped": {
+          "before": {
+            "mainReadyMs": null,
+            "visibleStripReadyMs": null
+          },
+          "after": {
+            "mainReadyMs": 2976,
+            "visibleStripReadyMs": 5720
+          }
+        },
+        "native": {
+          "before": {
+            "mainReadyMs": 8010,
+            "visibleStripReadyMs": 22038
+          },
+          "after": {
+            "mainReadyMs": 2773,
+            "visibleStripReadyMs": 4979
+          }
+        }
+      }
+    },
+    "liveMobileJourneyAfterReady": {
+      "url": "https://supplychainsai.com/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "apiFreshBeforeClick": true,
+      "galleryPhotoChanged": true,
+      "activeImage": {
+        "width": 340,
+        "size": "640"
+      },
+      "variantControlsAvailable": 1,
+      "selectedVariant": false,
+      "quoteOpenedAndClosed": true,
+      "quoteSubmitted": false
     }
   },
   "hx10ImageHostExperiment": {
@@ -653,5 +985,298 @@
       "canonical": 5484
     },
     "decision": "Retain existing paths. Connection reuse increased but gallery delivery speed did not improve consistently."
+  },
+  "acceptedProductHtmlAudit": {
+    "sourceRun": 44765827808,
+    "products": 528,
+    "allInSitemap": true,
+    "allSelfCanonical": true,
+    "oneH1Each": true,
+    "noIndexCount": 0,
+    "missingTitleCount": 0,
+    "missingDescriptionCount": 0,
+    "duplicateTitleGroups": 0,
+    "duplicateDescriptionGroups": 0,
+    "productOfferMarkup": 4,
+    "ordinaryPages": 524,
+    "relatedProductLinksInProductBodyCount": 0,
+    "googleDiscoveredProductSubset": [
+      {
+        "path": "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      },
+      {
+        "path": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "sitemap": true,
+        "selfCanonical": true,
+        "headingCount": 1,
+        "productSchemas": 0,
+        "schemaOfferCount": 0,
+        "noIndex": false,
+        "otherProductLinks": 0
+      }
+    ],
+    "websiteOffersAfterWh3": [
+      {
+        "productUrl": "https://supplychainsai.com/products/p-0e0afdc26a68204700523563353480a1/",
+        "status": 200,
+        "matchesPublishedArchive": true,
+        "oneUnitQuantity": true,
+        "priceAndCurrencyPresent": true,
+        "productStructuredDataPresent": true,
+        "matchingVisiblePriceInArchive": true
+      },
+      {
+        "productUrl": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+        "status": 200,
+        "matchesPublishedArchive": true,
+        "oneUnitQuantity": true,
+        "priceAndCurrencyPresent": true,
+        "productStructuredDataPresent": true,
+        "matchingVisiblePriceInArchive": true
+      },
+      {
+        "productUrl": "https://supplychainsai.com/products/p-66521c2e-0a13-4623-95f6-ef3d684bd870/",
+        "status": 200,
+        "matchesPublishedArchive": true,
+        "oneUnitQuantity": true,
+        "priceAndCurrencyPresent": true,
+        "productStructuredDataPresent": true,
+        "matchingVisiblePriceInArchive": true
+      },
+      {
+        "productUrl": "https://supplychainsai.com/products/p-9079232d-c537-44f3-9a99-0bee45ecad65/",
+        "status": 200,
+        "matchesPublishedArchive": true,
+        "oneUnitQuantity": true,
+        "priceAndCurrencyPresent": true,
+        "productStructuredDataPresent": true,
+        "matchingVisiblePriceInArchive": true
+      }
+    ]
+  },
+  "wh3CandidateChangeScope": {
+    "run": 44775284450,
+    "previousAcceptedRun": 44765827808,
+    "artifact": 14648663446,
+    "changedPublicFiles": 44,
+    "fileTypes": {
+      ".json": 2,
+      ".html": 42
+    },
+    "added": 0,
+    "removed": 0,
+    "affectedDetailPages": 3,
+    "earphoneCategoryPages": {
+      "totalChangedHpCategoryPages": 39,
+      "sameOrderedProductIds": 39,
+      "revisionAndAstroCatalogComponentMarkerOnly": 36,
+      "otherContentChanges": ["/headphones/", "/headphones/page/36/", "/headphones/page/38/"]
+    },
+    "productDataComparison": {
+      "productsCompared": 528,
+      "changedProductRows": 3,
+      "changedProductFields": ["imagePresentation"],
+      "approvedRevisionAndDetailEqualForAll": true
+    },
+    "livePages": [
+      {
+        "path": "products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/index.html",
+        "status": 200,
+        "build": "candidate",
+        "sha256": "ce53428db7e281eb59d7de2a24654280926eec0e6b38d998408768790b85c3f1"
+      },
+      {
+        "path": "products/p-ebd73631-6c47-41b5-ab40-973d9b1a76f3/index.html",
+        "status": 200,
+        "build": "candidate",
+        "sha256": "4454e6f60350c7df4e691e750d8f03c9a0f2cca9d32183647ef391b796ef5bf1"
+      },
+      {
+        "path": "products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/index.html",
+        "status": 200,
+        "build": "candidate",
+        "sha256": "b2a991b7dcbab2ee7831b705fe19d80f415c2df287ae5d98e9fa910c827bdf79"
+      }
+    ]
+  },
+  "heavyGalleryFollowupPlan": {
+    "sourceArchive": 44765827808,
+    "sourceSnapshotMinimumOriginalBytes": 500000,
+    "assumesWh3Prepared": {
+      "pagesWithKnownLargeImages": 143,
+      "pagesAbove5MB": 30,
+      "distinctPhotosAbove5MB": 119,
+      "distinctPendingPhotos": 323
+    },
+    "projectsAfterFirstTwenty": {
+      "pagesWithKnownLargeImages": 138,
+      "pagesAbove5MB": 23,
+      "distinctPhotosAbove5MB": 96,
+      "distinctPendingPhotos": 303
+    },
+    "plannedSubsequentBatches": [
+      {
+        "sequence": 1,
+        "photos": 20,
+        "remainingPagesAbove5MB": 19
+      },
+      {
+        "sequence": 2,
+        "photos": 20,
+        "remainingPagesAbove5MB": 12
+      },
+      {
+        "sequence": 3,
+        "photos": 19,
+        "remainingPagesAbove5MB": 8
+      },
+      {
+        "sequence": 4,
+        "photos": 20,
+        "remainingPagesAbove5MB": 2
+      },
+      {
+        "sequence": 5,
+        "photos": 11,
+        "remainingPagesAbove5MB": 0
+      }
+    ],
+    "firstSubsequentBatchLocalProof": {
+      "originals": 20,
+      "originalBytes": 41356591,
+      "totals": {
+        "160": 104952,
+        "640": 546464,
+        "1280": 1242950
+      },
+      "distinctVariants": 60,
+      "replayVerified": 20
+    }
+  },
+  "galleryFirstClick": {
+    "url": "https://supplychainsai.com/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+    "onlineDiagnosis": [
+      {
+        "held": "entry-script",
+        "buttonAppearedEnabled": true,
+        "astroscriptWasPending": true,
+        "clickChangedPhoto": false,
+        "selectionAfterDataLoaded": false,
+        "selectionOnClickAfterReady": true
+      },
+      {
+        "held": "detail-api",
+        "buttonAppearedEnabled": true,
+        "astroscriptWasPending": false,
+        "clickChangedPhoto": true,
+        "selectionAfterDataLoaded": true,
+        "selectionOnClickAfterReady": true
+      }
+    ],
+    "localBuildEvidence": {
+      "product": "/products/p-f15a8e4f-3f48-4021-ac3d-67bd1060836a/",
+      "profile": "mobile 412x823",
+      "source": "built local Astro page with real public media requests",
+      "beforeScripts": {
+        "mainPhotoDisplayed": true,
+        "thumbnailDisabled": true,
+        "markedBusy": true
+      },
+      "afterScriptBeforeApi": {
+        "thumbnailEnabled": true,
+        "keyboardChangedRealPhoto": true,
+        "markedBusy": false
+      },
+      "browserErrors": 0
+    },
+    "existingBrowserAndHtmlTests": 30,
+    "deployedFix": false
   }
 }
