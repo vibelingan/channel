@@ -1,0 +1,1649 @@
+{
+  "sourceWebsiteRun": 44824997693,
+  "requestConditions": {
+    "browser": "157.0.8103.79",
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "cpuRate": 4,
+    "limitMs": 18000,
+    "cached": false,
+    "htmlMode": "Accepted HTML served by the local browser route. Live origin requests for scripts and images retained.",
+    "order": [
+      "current",
+      "priority",
+      "sizes",
+      "priority",
+      "sizes",
+      "current",
+      "sizes",
+      "current",
+      "priority"
+    ]
+  },
+  "thumbnailReplay": [
+    {
+      "page": "https://supplychainsai.com/products/p-1253d3f1-d5b7-479a-a094-677f0b1c86be/",
+      "baselineHtmlSha256": "7fb83179cc3b1aebafd80af094e9d13e7696bc0fd67f2a05cfd7fc15689bb5a2",
+      "samples": {
+        "current": [
+          {
+            "mainReadyMs": 2822,
+            "visibleThumbnailsReadyMs": 7891,
+            "lcpMs": 2668,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 1824,
+                "completeMs": 2663,
+                "functionMs": 438.3
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1470,
+                "sendMs": 4824,
+                "completeMs": 5814,
+                "functionMs": 373.1
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 4352,
+                "completeMs": 5408,
+                "functionMs": 437.3
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 4342,
+                "completeMs": 5454,
+                "functionMs": 409.6
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 4342,
+                "completeMs": 5287,
+                "functionMs": 410
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 4385,
+                "completeMs": 7808,
+                "functionMs": 434.7
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 2814,
+            "visibleThumbnailsReadyMs": 9650,
+            "lcpMs": 2812,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 339,
+                "completeMs": 1024,
+                "functionMs": 318
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 6393,
+                "completeMs": 7172,
+                "functionMs": 193.6
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 6323,
+                "completeMs": 7376,
+                "functionMs": 322.7
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 6341,
+                "completeMs": 7189,
+                "functionMs": 356.5
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 7473,
+                "completeMs": 9491,
+                "functionMs": 339.6
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1485,
+            "visibleThumbnailsReadyMs": 7397,
+            "lcpMs": 1304,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 342,
+                "completeMs": 1292,
+                "functionMs": 291.5
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1470,
+                "sendMs": 1348,
+                "completeMs": 2014,
+                "functionMs": 321.5
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 1902,
+                "completeMs": 2764,
+                "functionMs": 354.1
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 1910,
+                "completeMs": 3169,
+                "functionMs": 176.4
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 1902,
+                "completeMs": 2584,
+                "functionMs": 174.5
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 5060,
+                "completeMs": 7392,
+                "functionMs": 326.2
+              }
+            ]
+          }
+        ],
+        "priority": [
+          {
+            "mainReadyMs": 1261,
+            "visibleThumbnailsReadyMs": 4885,
+            "lcpMs": 1280,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 369,
+                "completeMs": 1145,
+                "functionMs": 347.8
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 2328,
+                "completeMs": 3289,
+                "functionMs": 372.9
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 2344,
+                "completeMs": 3372,
+                "functionMs": 332.4
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 2327,
+                "completeMs": 3326,
+                "functionMs": 383.8
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 2389,
+                "completeMs": 4758,
+                "functionMs": 357.6
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1815,
+            "visibleThumbnailsReadyMs": 5434,
+            "lcpMs": 1820,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 1123,
+                "completeMs": 1813,
+                "functionMs": 310.6
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1470,
+                "sendMs": 2133,
+                "completeMs": 3042,
+                "functionMs": 338.6
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 2627,
+                "completeMs": 3544,
+                "functionMs": 338.1
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 2689,
+                "completeMs": 4211,
+                "functionMs": 157.9
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 2634,
+                "completeMs": 3618,
+                "functionMs": 370.1
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 2637,
+                "completeMs": 5299,
+                "functionMs": 325.8
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1413,
+            "visibleThumbnailsReadyMs": 7444,
+            "lcpMs": 1388,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 334,
+                "completeMs": 853,
+                "functionMs": 145.3
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 5867,
+                "completeMs": 6516,
+                "functionMs": 165.4
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 5843,
+                "completeMs": 6547,
+                "functionMs": 184.6
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 5843,
+                "completeMs": 6659,
+                "functionMs": 340.3
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "",
+                "status": 200,
+                "bytes": 97496,
+                "sendMs": 5273,
+                "completeMs": 7423,
+                "functionMs": 354.9
+              }
+            ]
+          }
+        ],
+        "sizes": [
+          {
+            "mainReadyMs": 1213,
+            "visibleThumbnailsReadyMs": 3219,
+            "lcpMs": 1160,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 371,
+                "completeMs": 967,
+                "functionMs": 189.4
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 2130,
+                "completeMs": 2895,
+                "functionMs": 207
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 2171,
+                "completeMs": 3179,
+                "functionMs": 342
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 2125,
+                "completeMs": 3052,
+                "functionMs": 385.6
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4098,
+                "sendMs": 2181,
+                "completeMs": 3166,
+                "functionMs": 366.4
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1315,
+            "visibleThumbnailsReadyMs": 5975,
+            "lcpMs": 1324,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 368,
+                "completeMs": 1109,
+                "functionMs": 329
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 4822,
+                "completeMs": 5760,
+                "functionMs": 361.6
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 4796,
+                "completeMs": 5782,
+                "functionMs": 384
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 4814,
+                "completeMs": 5715,
+                "functionMs": 362.1
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4098,
+                "sendMs": 4807,
+                "completeMs": 5729,
+                "functionMs": 346.3
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 3892,
+            "visibleThumbnailsReadyMs": 5724,
+            "lcpMs": 3808,
+            "images": [
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 8988,
+                "sendMs": 442,
+                "completeMs": 3802,
+                "functionMs": 448.7
+              },
+              {
+                "id": "a9f9b0c5-074f-42fe-b371-539b80fd05d6",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1470,
+                "sendMs": 4208,
+                "completeMs": 4987,
+                "functionMs": 363.1
+              },
+              {
+                "id": "d67a4b56-6b7d-4a91-9c6c-c656f4d7e03d",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2474,
+                "sendMs": 4615,
+                "completeMs": 5564,
+                "functionMs": 461.9
+              },
+              {
+                "id": "1b7ad570-4e4c-4cc3-a3b4-000175cd4802",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 5264,
+                "sendMs": 4579,
+                "completeMs": 5286,
+                "functionMs": 206.3
+              },
+              {
+                "id": "f6961a13-5580-4a8f-a23c-ae18bd5ce1a1",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2212,
+                "sendMs": 4565,
+                "completeMs": 5386,
+                "functionMs": 356.2
+              },
+              {
+                "id": "89775750-13ed-4672-a3d1-2ffa087a535b",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4098,
+                "sendMs": 4627,
+                "completeMs": 5475,
+                "functionMs": 323.9
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-7dc458ee-f165-42a5-a938-cf4c3db1f99c/",
+      "baselineHtmlSha256": "8a821f5bf203f0a9c97a967998a54f5303b7ff62a74c9655a6efa8a208631db6",
+      "samples": {
+        "current": [
+          {
+            "mainReadyMs": 1413,
+            "visibleThumbnailsReadyMs": 7659,
+            "lcpMs": 1240,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 344,
+                "completeMs": 1230,
+                "functionMs": 435.4
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1463,
+                "completeMs": 2169,
+                "functionMs": 367.4
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 2001,
+                "completeMs": 2934,
+                "functionMs": 323.8
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 1968,
+                "completeMs": 2846,
+                "functionMs": 332.6
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 1997,
+                "completeMs": 3023,
+                "functionMs": 324.5
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 5463,
+                "completeMs": 7465,
+                "functionMs": 334.5
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1822,
+            "visibleThumbnailsReadyMs": 8440,
+            "lcpMs": 1788,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 811,
+                "completeMs": 1773,
+                "functionMs": 182.3
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1828,
+                "completeMs": 2778,
+                "functionMs": 341.3
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 2376,
+                "completeMs": 3845,
+                "functionMs": 325.8
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 2382,
+                "completeMs": 3319,
+                "functionMs": 323.5
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 2387,
+                "completeMs": 4099,
+                "functionMs": 166.6
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 6266,
+                "completeMs": 8278,
+                "functionMs": 359.4
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1639,
+            "visibleThumbnailsReadyMs": 8458,
+            "lcpMs": 1596,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 425,
+                "completeMs": 1590,
+                "functionMs": 331.4
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 4100,
+                "completeMs": 4606,
+                "functionMs": 147.4
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 5678,
+                "completeMs": 6712,
+                "functionMs": 323.7
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 5712,
+                "completeMs": 6535,
+                "functionMs": 366.4
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 4932,
+                "completeMs": 5677,
+                "functionMs": 184.9
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 6391,
+                "completeMs": 8349,
+                "functionMs": 526.3
+              }
+            ]
+          }
+        ],
+        "priority": [
+          {
+            "mainReadyMs": 1627,
+            "visibleThumbnailsReadyMs": 4637,
+            "lcpMs": 1480,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 337,
+                "completeMs": 1476,
+                "functionMs": 173.3
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1476,
+                "completeMs": 2232,
+                "functionMs": 349.5
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 2049,
+                "completeMs": 2939,
+                "functionMs": 359.2
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 2055,
+                "completeMs": 2924,
+                "functionMs": 308.4
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 2879,
+                "completeMs": 3779,
+                "functionMs": 345.8
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 2102,
+                "completeMs": 4552,
+                "functionMs": 330
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1213,
+            "visibleThumbnailsReadyMs": 4623,
+            "lcpMs": 1184,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 350,
+                "completeMs": 1180,
+                "functionMs": 363.2
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1413,
+                "completeMs": 2313,
+                "functionMs": 286.3
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 1966,
+                "completeMs": 3125,
+                "functionMs": 170.8
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 1966,
+                "completeMs": 2950,
+                "functionMs": 364.6
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 1963,
+                "completeMs": 2960,
+                "functionMs": 354
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 1958,
+                "completeMs": 4557,
+                "functionMs": 291.9
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 5227,
+            "visibleThumbnailsReadyMs": 9663,
+            "lcpMs": 5104,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 4187,
+                "completeMs": 5094,
+                "functionMs": 186.4
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 5213,
+                "completeMs": 6150,
+                "functionMs": 322.7
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 5756,
+                "completeMs": 6563,
+                "functionMs": 320.2
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 6563,
+                "completeMs": 7409,
+                "functionMs": 335.2
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 6653,
+                "completeMs": 7517,
+                "functionMs": 338.4
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "",
+                "status": 200,
+                "bytes": 92426,
+                "sendMs": 6619,
+                "completeMs": 9594,
+                "functionMs": 346.4
+              }
+            ]
+          }
+        ],
+        "sizes": [
+          {
+            "mainReadyMs": 1215,
+            "visibleThumbnailsReadyMs": 3020,
+            "lcpMs": 1144,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 341,
+                "completeMs": 1139,
+                "functionMs": 338.1
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1392,
+                "completeMs": 2292,
+                "functionMs": 301.3
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 1879,
+                "completeMs": 2646,
+                "functionMs": 315.8
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 1872,
+                "completeMs": 2519,
+                "functionMs": 161.7
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 1891,
+                "completeMs": 2850,
+                "functionMs": 361.8
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 6312,
+                "sendMs": 1890,
+                "completeMs": 2862,
+                "functionMs": 331.1
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1284,
+            "visibleThumbnailsReadyMs": 3489,
+            "lcpMs": 1120,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 336,
+                "completeMs": 1108,
+                "functionMs": 325.8
+              },
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1988,
+                "sendMs": 1312,
+                "completeMs": 1829,
+                "functionMs": 161.5
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 2660,
+                "completeMs": 3364,
+                "functionMs": 184.5
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 1901,
+                "completeMs": 2758,
+                "functionMs": 308.9
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 1910,
+                "completeMs": 2824,
+                "functionMs": 319.8
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 6312,
+                "sendMs": 1896,
+                "completeMs": 2854,
+                "functionMs": 328.9
+              }
+            ]
+          },
+          {
+            "mainReadyMs": 1818,
+            "visibleThumbnailsReadyMs": 4426,
+            "lcpMs": 1764,
+            "images": [
+              {
+                "id": "774a433a-e810-4a53-8e0f-2c4e9654ed97",
+                "size": "?w=640",
+                "status": 200,
+                "bytes": 12618,
+                "sendMs": 781,
+                "completeMs": 1672,
+                "functionMs": 321.6
+              },
+              {
+                "id": "2d39308c-1357-4a40-9892-7e25a3c03f83",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 1836,
+                "sendMs": 3141,
+                "completeMs": 3998,
+                "functionMs": 352
+              },
+              {
+                "id": "96288337-261f-422b-a08c-46a956151466",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 2030,
+                "sendMs": 3138,
+                "completeMs": 4291,
+                "functionMs": 148.6
+              },
+              {
+                "id": "a397b104-dd64-40ea-8714-556a2ca8520c",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 4806,
+                "sendMs": 3120,
+                "completeMs": 3802,
+                "functionMs": 129.7
+              },
+              {
+                "id": "082b7649-4589-404f-abcb-73251356c037",
+                "size": "?w=160",
+                "status": 200,
+                "bytes": 6312,
+                "sendMs": 3058,
+                "completeMs": 3952,
+                "functionMs": 300.6
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "googleExactUrls": {
+    "reportDate": "2026-11-16",
+    "inspectedDate": "2026-11-21",
+    "states": {
+      "URL is unknown to Google": 2,
+      "Discovered - currently not indexed": 10
+    },
+    "urls": [
+      {
+        "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"]
+      },
+      {
+        "url": "https://supplychainsai.com/privacy/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/toys/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      }
+    ]
+  },
+  "mainPhotoPreparation": {
+    "pagesWithoutInitialMainSizes": 13,
+    "uniquePhotos": 12,
+    "readOnlyPublicReferenceChecks": {
+      "elapsedMs": 9206,
+      "total": 12,
+      "outcomes": {
+        "public-reference": 12
+      },
+      "confirmedPublicWithZeroBase": 3,
+      "proofReads": {
+        "1": 7,
+        "2": 5
+      },
+      "writes": 0
+    },
+    "pages": [
+      {
+        "page": "p-de3ba6f0-1771-49e8-aed9-68c28a0301d8",
+        "image": "4db8df016ac88170000758a30e1e640f",
+        "defaultBytes": 4318291
+      },
+      {
+        "page": "p-ae6eb1e5-fb0b-4c05-a00a-ec8b65ec18eb",
+        "image": "66baec6f6ac87ea7007269720bdf31ad",
+        "defaultBytes": 4053464
+      },
+      {
+        "page": "p-537a2487-8ecb-45ef-a0be-9de24764bc4a",
+        "image": "e97a6b99-d3e4-42c5-b8a9-275937839abb",
+        "defaultBytes": 3907940
+      },
+      {
+        "page": "p-e110f36c-e711-40dc-aa8a-443d0704e2dd",
+        "image": "a04dd303-9566-4cee-943f-e1ba8c9e4ab7",
+        "defaultBytes": 2989661
+      },
+      {
+        "page": "p-ebd73631-6c47-41b5-ab40-973d9b1a76f3",
+        "image": "96d9cd126ac88291006df36f249fac0a",
+        "defaultBytes": 2858758
+      },
+      {
+        "page": "p-4d5b4d4e-2794-4d3a-a4dc-253459ffd11f",
+        "image": "1b3b1b70-dc8a-46fd-8db1-6e6229b4cc27",
+        "defaultBytes": 2507795
+      },
+      {
+        "page": "p-99ffffde-0a56-4598-ad82-4d13f3ec4b15",
+        "image": "16ed95f4-0c22-4f9f-97e8-2e3d2d19c2df",
+        "defaultBytes": 2423144
+      },
+      {
+        "page": "p-c7716b28-fe2d-4354-a623-5858b2ad4bcf",
+        "image": "16ed95f4-0c22-4f9f-97e8-2e3d2d19c2df",
+        "defaultBytes": 2423144
+      },
+      {
+        "page": "p-7e4a66c6-0ea2-49d5-aae7-bd420fa9ca21",
+        "image": "3fbe8b166ac88383003ae63a53346fd4",
+        "defaultBytes": 1852781
+      },
+      {
+        "page": "p-732cd413-59d9-4061-a230-b646659e8f2f",
+        "image": "ed5ab067-dc19-4271-838e-ad5c863661ff",
+        "defaultBytes": 1514290
+      },
+      {
+        "page": "p-1df4f084-53cd-4b77-adf6-0ebf66b0639e",
+        "image": "66baec6f6ac8806300727fbe588cfe52",
+        "defaultBytes": 1372768
+      },
+      {
+        "page": "p-9128436b-96df-491d-a374-5f57bf4351dd",
+        "image": "66baec6f6ac87fb1007276b869f315df",
+        "defaultBytes": 1277244
+      },
+      {
+        "page": "p-028f12d4-9b6e-4896-ae56-8774edf6bc45",
+        "image": "01f3430d6aaa5d3a000a52150f24429b",
+        "defaultBytes": 1147083
+      }
+    ],
+    "localEncoding": {
+      "summary": {
+        "originals": 9,
+        "originalsBytes": 21811328,
+        "sizeBytes": [47954, 285738, 712718],
+        "reused": 9
+      },
+      "cases": [
+        {
+          "image": "4db8df016ac88170000758a30e1e640f",
+          "originalBytes": 4318291,
+          "sizes": [
+            {
+              "bytes": 5118,
+              "width": 160,
+              "height": 160,
+              "sha256": "51bc0355871df35b69f3b0d7f1d866125fbb139793c790c5c815fbd19274a2ea"
+            },
+            {
+              "bytes": 24842,
+              "width": 640,
+              "height": 640,
+              "sha256": "50f2852af76e195f2160f621f2c044ac4532bfb8de087cdbb68328951ac19ee5"
+            },
+            {
+              "bytes": 64712,
+              "width": 1280,
+              "height": 1280,
+              "sha256": "a0456d89d6dbe92527f1eaa05e22d68b3fcae6ce8d3672fefeb14e93b88ebd79"
+            }
+          ]
+        },
+        {
+          "image": "66baec6f6ac87ea7007269720bdf31ad",
+          "originalBytes": 4053464,
+          "sizes": [
+            {
+              "bytes": 1620,
+              "width": 160,
+              "height": 160,
+              "sha256": "635d9a5bef985d7470985e485dba657b867b957af947923058fa5a0f6a113901"
+            },
+            {
+              "bytes": 22104,
+              "width": 640,
+              "height": 640,
+              "sha256": "81d7c0f42c2afd31d11b233610bddb17c68a9a56e997d31413dd03883629c78f"
+            },
+            {
+              "bytes": 92580,
+              "width": 1280,
+              "height": 1280,
+              "sha256": "77cba8bcdf2bc60d17a5440f26aaad09d21b7f9afe343b940529abc901d4ebe2"
+            }
+          ]
+        },
+        {
+          "image": "96d9cd126ac88291006df36f249fac0a",
+          "originalBytes": 2858758,
+          "sizes": [
+            {
+              "bytes": 6280,
+              "width": 160,
+              "height": 155,
+              "sha256": "4263d55ff0886cbf743134ec34c3d8b69a0e797f0fe98ec855394b4d418f824c"
+            },
+            {
+              "bytes": 35150,
+              "width": 640,
+              "height": 621,
+              "sha256": "ee4967d1362ebe1a7a12efc96d80e0f8f2d1be61c3b483e7c2236b11b7ef4846"
+            },
+            {
+              "bytes": 93176,
+              "width": 1280,
+              "height": 1242,
+              "sha256": "1e8d68dfd124ed2c50fbf75e4aa836b18a083b18a01d3a9c68acd4ad218fa475"
+            }
+          ]
+        },
+        {
+          "image": "1b3b1b70-dc8a-46fd-8db1-6e6229b4cc27",
+          "originalBytes": 2507795,
+          "sizes": [
+            {
+              "bytes": 2756,
+              "width": 160,
+              "height": 160,
+              "sha256": "03d4add5eccb1cc8b050dfb277ffd16051aaf95b25c2741319ef74f66afdd60e"
+            },
+            {
+              "bytes": 24468,
+              "width": 640,
+              "height": 640,
+              "sha256": "f079a88ba1d533c51845e8ca8e8ce1e7b26b025c82333cbc9cc1ff4447700fe7"
+            },
+            {
+              "bytes": 61428,
+              "width": 1280,
+              "height": 1280,
+              "sha256": "a2196a88c16b485f3ec7dd667ef97cba6de82ff68328087be488c0b08abda3f3"
+            }
+          ]
+        },
+        {
+          "image": "16ed95f4-0c22-4f9f-97e8-2e3d2d19c2df",
+          "originalBytes": 2423144,
+          "sizes": [
+            {
+              "bytes": 3052,
+              "width": 160,
+              "height": 160,
+              "sha256": "816929288d271066e25bf12bcf861bbb1e760d4be5cdeec23af40d254e585918"
+            },
+            {
+              "bytes": 29600,
+              "width": 640,
+              "height": 640,
+              "sha256": "d74142bc2e9fe5a8ad565e4a1149cb7a75268ae87223817cc7a4ce905abd4b5d"
+            },
+            {
+              "bytes": 75682,
+              "width": 1280,
+              "height": 1280,
+              "sha256": "5bf0749b9ffd16f374e866213ca62528ab5ecb1b2ee5d8a4705a7568ee8a8dd1"
+            }
+          ]
+        },
+        {
+          "image": "3fbe8b166ac88383003ae63a53346fd4",
+          "originalBytes": 1852781,
+          "sizes": [
+            {
+              "bytes": 6982,
+              "width": 160,
+              "height": 160,
+              "sha256": "f45b27b2d43349a020cfa8cebe85adb83992261d228a2c835d7cc468c223b795"
+            },
+            {
+              "bytes": 35308,
+              "width": 640,
+              "height": 642,
+              "sha256": "aafc55298f7425d39866d9ea65c9736b0cdcce2b9b6962b599e99b9254e1bc76"
+            },
+            {
+              "bytes": 78138,
+              "width": 1280,
+              "height": 1283,
+              "sha256": "65fabe4f0fbb664392cde5b8ef7a5d51eef3af21976beca3c0c13dcfd06b9b23"
+            }
+          ]
+        },
+        {
+          "image": "66baec6f6ac8806300727fbe588cfe52",
+          "originalBytes": 1372768,
+          "sizes": [
+            {
+              "bytes": 7100,
+              "width": 160,
+              "height": 160,
+              "sha256": "6c6c8746bdfc4cd32090ee039f3ecf103e2906335f63f836be6a7dea4645e7ee"
+            },
+            {
+              "bytes": 35696,
+              "width": 640,
+              "height": 640,
+              "sha256": "af4865aa9f9f411c58d06a40871235bc0527cfaf9cfccdfc5c5b40d6025f7e65"
+            },
+            {
+              "bytes": 72624,
+              "width": 1280,
+              "height": 1280,
+              "sha256": "2e6c5d66953fc1531cd559bdf3d5d0622a3a1212d4a7d21c9eeb35212cc248a0"
+            }
+          ]
+        },
+        {
+          "image": "66baec6f6ac87fb1007276b869f315df",
+          "originalBytes": 1277244,
+          "sizes": [
+            {
+              "bytes": 6986,
+              "width": 160,
+              "height": 181,
+              "sha256": "02606eb54e95b7f128622e148e4fbabce8e5c5ff740ece469a297e55d16b1da4"
+            },
+            {
+              "bytes": 36606,
+              "width": 640,
+              "height": 724,
+              "sha256": "f3f20072d0e52ae93da04320c6949b1091d2c801e1a89271545ab47758f2ac1d"
+            },
+            {
+              "bytes": 95562,
+              "width": 1280,
+              "height": 1447,
+              "sha256": "b0d7759542e92e2fd739904fcd2a42c820696311aad36e4ba1d5ad78abf6ed45"
+            }
+          ]
+        },
+        {
+          "image": "01f3430d6aaa5d3a000a52150f24429b",
+          "originalBytes": 1147083,
+          "sizes": [
+            {
+              "bytes": 8060,
+              "width": 160,
+              "height": 160,
+              "sha256": "b7b80c42140e3a540c33033efeb5c6850ea38c243945fabb9b259b6a1a8dc914"
+            },
+            {
+              "bytes": 41964,
+              "width": 640,
+              "height": 640,
+              "sha256": "718ae7fc44ea469a247f3ce3ac838b12cc35ef885c3be8dec9cbf8bc98484672"
+            },
+            {
+              "bytes": 78816,
+              "width": 1200,
+              "height": 1200,
+              "sha256": "8bf3130b265cd70f608655e7045bd6b524e03b8dca6ef345b95d48a9d1595d97"
+            }
+          ]
+        }
+      ]
+    },
+    "alreadyDeliveredSmallerDefaults": [
+      {
+        "id": "p-537a2487-8ecb-45ef-a0be-9de24764bc4a",
+        "image": "e97a6b99-d3e4-42c5-b8a9-275937839abb",
+        "media": {
+          "": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 91426,
+            "defaultMatch": true,
+            "cache": "no-cache"
+          },
+          "?w=160": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 3140,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          },
+          "?w=640": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 26618,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          }
+        },
+        "galleryIndex": null,
+        "totalHints": 4,
+        "matched": false
+      },
+      {
+        "id": "p-e110f36c-e711-40dc-aa8a-443d0704e2dd",
+        "image": "a04dd303-9566-4cee-943f-e1ba8c9e4ab7",
+        "media": {
+          "": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 101096,
+            "defaultMatch": true,
+            "cache": "no-cache"
+          },
+          "?w=160": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 4466,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          },
+          "?w=640": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 41222,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          }
+        },
+        "galleryIndex": null,
+        "totalHints": 4,
+        "matched": false
+      },
+      {
+        "id": "p-732cd413-59d9-4061-a230-b646659e8f2f",
+        "image": "ed5ab067-dc19-4271-838e-ad5c863661ff",
+        "media": {
+          "": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 46594,
+            "defaultMatch": true,
+            "cache": "no-cache"
+          },
+          "?w=160": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 2428,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          },
+          "?w=640": {
+            "type": "image/webp",
+            "status": 200,
+            "bodyBytes": 16834,
+            "defaultMatch": false,
+            "cache": "no-cache"
+          }
+        },
+        "galleryIndex": 4,
+        "totalHints": 4,
+        "matched": false
+      }
+    ],
+    "liveBaseline": {
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "limitMs": 32000,
+      "scope": [
+        {
+          "page": "https://supplychainsai.com/products/p-de3ba6f0-1771-49e8-aed9-68c28a0301d8/",
+          "image": "4db8df016ac88170000758a30e1e640f",
+          "samples": [
+            {
+              "mainReadyMs": null,
+              "lcpMs": 3112,
+              "assetBytesRead": 3616956,
+              "mediaType": "image/png",
+              "assetCompleteMs": null,
+              "htmlSha256": "72e1aab01908533ca0126c341b7fa5ee95684b5455c80c25eed3be88274ac3b2"
+            },
+            {
+              "mainReadyMs": null,
+              "lcpMs": 2236,
+              "assetBytesRead": 3755802,
+              "mediaType": "image/png",
+              "assetCompleteMs": null,
+              "htmlSha256": "72e1aab01908533ca0126c341b7fa5ee95684b5455c80c25eed3be88274ac3b2"
+            },
+            {
+              "mainReadyMs": null,
+              "lcpMs": 4932,
+              "assetBytesRead": 3214478,
+              "mediaType": "image/png",
+              "assetCompleteMs": null,
+              "htmlSha256": "72e1aab01908533ca0126c341b7fa5ee95684b5455c80c25eed3be88274ac3b2"
+            }
+          ]
+        },
+        {
+          "page": "https://supplychainsai.com/products/p-537a2487-8ecb-45ef-a0be-9de24764bc4a/",
+          "image": "e97a6b99-d3e4-42c5-b8a9-275937839abb",
+          "samples": [
+            {
+              "mainReadyMs": 3758,
+              "lcpMs": 3748,
+              "assetBytesRead": 91426,
+              "mediaType": "image/webp",
+              "assetCompleteMs": 3732,
+              "htmlSha256": "29bfab0249df13d612bac94653888da2c2ba68bef7e4ba2828f97c7831bc2a2c"
+            },
+            {
+              "mainReadyMs": 3547,
+              "lcpMs": 3468,
+              "assetBytesRead": 91426,
+              "mediaType": "image/webp",
+              "assetCompleteMs": 3454,
+              "htmlSha256": "29bfab0249df13d612bac94653888da2c2ba68bef7e4ba2828f97c7831bc2a2c"
+            },
+            {
+              "mainReadyMs": 4163,
+              "lcpMs": 4020,
+              "assetBytesRead": 91426,
+              "mediaType": "image/webp",
+              "assetCompleteMs": 4009,
+              "htmlSha256": "29bfab0249df13d612bac94653888da2c2ba68bef7e4ba2828f97c7831bc2a2c"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
