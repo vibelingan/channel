@@ -244,7 +244,59 @@
   "combinedWebsiteDelivery": {
     "runId": 44787594437,
     "source": "9d550ce7bce7b4533ff88a26004b08f846ee39ef",
-    "statusAtCapture": "dispatched"
+    "statusAtCapture": "in_progress_candidate_verified",
+    "candidateArtifactId": 14654967568,
+    "archiveScan": {
+      "candidate": "combined-gallery-candidate-44787594437",
+      "verifiedManifestFiles": 2119,
+      "publicFiles": 2116,
+      "publicFileTypes": {
+        ".js": 1363,
+        ".css": 73,
+        ".html": 589,
+        ".json": 3,
+        ".ico": 1,
+        ".svg": 3,
+        ".webp": 26,
+        ".jpg": 42,
+        ".png": 9,
+        ".mp4": 4,
+        ".txt": 1,
+        ".xml": 2
+      },
+      "flagged": [],
+      "comparedToPrevious": {
+        "new": 35,
+        "dropped": 0,
+        "changed": {
+          ".html": 584,
+          ".json": 2
+        }
+      }
+    },
+    "thumbnailHintReadback": {
+      "previousGroup": {
+        "pages": 8,
+        "photos": 20
+      },
+      "nextGroup": {
+        "pages": 6,
+        "photos": 20
+      },
+      "changedHtml": 584,
+      "newPublicFiles": 18,
+      "removedPublicFiles": 0,
+      "commonOldReferences": [
+        ["/_astro/ProductLanding.DpTgtDmZ.js", 528],
+        ["/_astro/_publicKey_.BePS2EtE.css", 528],
+        ["/_astro/BaseLayout.mfjaJzIa.css", 55],
+        ["/_astro/CatalogFamilyPage.CWDNX_RD.js", 46],
+        ["/_astro/AdminApp.B_SVyqyI.js", 1],
+        ["/_astro/headphones.DrnLVrv5.css", 1],
+        ["/_astro/SkuDetailPage.xO99A4fv.js", 1]
+      ]
+    },
+    "unchangedProductRecordsExcludingSizeHints": 528
   },
   "subsequentImagePreparation": {
     "runId": 44786249543,
