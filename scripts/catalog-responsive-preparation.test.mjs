@@ -10,6 +10,7 @@ const { tsImport } = createRequire(new URL('../apps/site/package.json', import.m
 );
 const {
   ResponsivePreparationPlanSchema,
+  selectResponsivePreparationBatch,
   runCatalogResponsivePreparation,
   assertResponsivePreparationInvocation,
 } = await tsImport('./images/prepare-responsive.ts', import.meta.url);
@@ -58,6 +59,31 @@ test('responsive preparation accepts only an explicit bounded and unique environ
     },
   ])
     assert.equal(ResponsivePreparationPlanSchema.safeParse({ ...plan, ...patch }).success, false);
+});
+test('an exact batch selects at most twenty reviewed images and legacy selections still work', () => {
+  const selected = { publicApiProgramSha: 'e'.repeat(40), images: plan.images };
+  const second = [{ ...plan.images[0], imageId: 'second-image' }];
+  const manifest = {
+    publicApiProgramSha: selected.publicApiProgramSha,
+    batches: [plan.images, second],
+  };
+  assert.deepEqual(selectResponsivePreparationBatch(selected), selected);
+  assert.throws(() => selectResponsivePreparationBatch(selected, '1'), /single batch/);
+  assert.deepEqual(selectResponsivePreparationBatch(manifest, '1'), selected);
+  assert.deepEqual(selectResponsivePreparationBatch(manifest, '2'), {
+    ...selected,
+    images: second,
+  });
+  for (const index of ['', '0', '02', '3', '2.0']) {
+    assert.throws(() => selectResponsivePreparationBatch(manifest, index), /Choose an existing/);
+  }
+  for (const batches of [
+    [plan.images, plan.images],
+    [plan.images, []],
+    [plan.images, Array(21).fill(second[0])],
+  ]) {
+    assert.throws(() => selectResponsivePreparationBatch({ ...manifest, batches }, '1'));
+  }
 });
 test('the operator cannot reach a cloud call or create output before confirmation and config validation', async () => {
   const previous = process.env.CATALOG_RESPONSIVE_CONFIRM;

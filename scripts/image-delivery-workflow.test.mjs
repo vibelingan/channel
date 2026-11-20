@@ -58,6 +58,11 @@ test('selected-size preparation shares the deploy queue and cannot run from anot
   assert.deepEqual(Object.keys(workflow.on), ['workflow_call']);
   assert.equal(workflow.jobs.responsive.environment, 'test');
   assert.equal(job.with.operation, 'responsive');
+  assert.equal(job.with.responsive_batch, '${{ inputs.image_batch }}');
+  assert.equal(
+    workflow.jobs.responsive.env.IMAGE_RESPONSIVE_BATCH,
+    '${{ inputs.responsive_batch }}',
+  );
   assert.equal(workflow.jobs.responsive.env.TENCENTCLOUD_SECRETKEY, undefined);
   assert.equal(
     workflow.jobs.responsive.steps.filter((step) => step.env?.TENCENTCLOUD_SECRETKEY).length,

@@ -38,6 +38,44 @@ import { blogWorkerSdk } from '../blog/worker-source.ts';
 
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const sha = z.string().regex(/^[a-f0-9]{64}$/);
+const programSha = z.string().regex(/^[a-f0-9]{40}$/);
+const responsiveImages = z
+  .array(
+    z
+      .object({
+        imageId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/),
+        sourceDigest: sha,
+        sourceSha256: sha,
+        defaultSha256: sha.nullable(),
+      })
+      .strict(),
+  )
+  .min(1)
+  .max(20)
+  .refine((images) => new Set(images.map((item) => item.imageId)).size === images.length);
+
+const responsiveSelection = z.union([
+  z.object({ publicApiProgramSha: programSha, images: responsiveImages }).strict(),
+  z
+    .object({ publicApiProgramSha: programSha, batches: z.array(responsiveImages).min(1).max(4) })
+    .strict()
+    .refine(({ batches }) => {
+      const ids = batches.flatMap((images) => images.map((item) => item.imageId));
+      return new Set(ids).size === ids.length;
+    }, 'An image may appear in only one batch'),
+]);
+
+export function selectResponsivePreparationBatch(selection: unknown, batch = '') {
+  const manifest = responsiveSelection.parse(selection);
+  if ('images' in manifest) {
+    assert(batch === '', 'Leave the batch number empty for a single batch');
+    return manifest;
+  }
+  const images = /^[1-9][0-9]*$/.test(batch) ? manifest.batches[Number(batch) - 1] : undefined;
+  assert(images, 'Choose an existing batch number from the reviewed manifest');
+  return { publicApiProgramSha: manifest.publicApiProgramSha, images };
+}
+
 export function assertResponsivePreparationInvocation(env: NodeJS.ProcessEnv) {
   assert(
     env.GITHUB_ACTIONS === 'true' &&
@@ -55,27 +93,11 @@ export const ResponsivePreparationPlanSchema = z
   .object({
     envId: z.literal('diversity-123-d9grnqfux221323bb'),
     region: z.literal('ap-shanghai'),
-    programSha: z.string().regex(/^[a-f0-9]{40}$/),
-    publicApiProgramSha: z
-      .string()
-      .regex(/^[a-f0-9]{40}$/)
-      .optional(),
-    images: z
-      .array(
-        z
-          .object({
-            imageId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/),
-            sourceDigest: sha,
-            sourceSha256: sha,
-            defaultSha256: sha.nullable(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(20),
+    programSha,
+    publicApiProgramSha: programSha.optional(),
+    images: responsiveImages,
   })
-  .strict()
-  .refine((plan) => new Set(plan.images.map((item) => item.imageId)).size === plan.images.length);
+  .strict();
 
 function document(answer: unknown, id: string): CollectionDoc {
   const result = sdkAnswer(answer);

@@ -66,6 +66,9 @@ on:
       plan_token:
         description: Reviewed plan token; maintenance uses backup-v1; blog-import-setup uses only the local pilot secret SHA-256
         type: string
+      image_batch:
+        description: The numbered batch in the reviewed responsive-image manifest
+        type: string
       reason:
         description: Operator reason, retained with the reviewed plan
         type: string
@@ -623,6 +626,7 @@ jobs:
     with:
       operation: responsive
       expected_package: ${{ inputs.plan_token }}
+      responsive_batch: ${{ inputs.image_batch }}
     secrets: inherit
 
   image_api_update:

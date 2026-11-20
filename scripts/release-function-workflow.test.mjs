@@ -137,7 +137,7 @@ test('all manual modes select exactly one job and retain the existing shared tar
     queue: 'max',
   });
   assert.equal(workflow.jobs.functions.environment, 'test');
-  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 14);
+  assert.equal(Object.keys(workflow.on.workflow_dispatch.inputs).length, 15);
 });
 test('function workflow runs credentials only in the two function commands and archives before executing', () => {
   const job = workflow.jobs.functions;

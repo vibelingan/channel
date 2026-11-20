@@ -8,6 +8,9 @@ on:
       expected_package:
         type: string
         required: true
+      responsive_batch:
+        type: string
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -19,6 +22,7 @@ jobs:
     environment: test
     env:
       CATALOG_RESPONSIVE_CONFIRM: PREPARE_SELECTED_SIZES_ONLY
+      IMAGE_RESPONSIVE_BATCH: ${{ inputs.responsive_batch }}
       IMAGE_EXPECTED_PROGRAM: ${{ inputs.expected_package }}
       TCB_ENV_ID: diversity-123-d9grnqfux221323bb
       CLOUDBASE_REGION: ap-shanghai
