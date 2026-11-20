@@ -7,6 +7,8 @@
 
 Google 网页搜索表现的统计截至 11 月 18 日。10 月 14 日以来仍是 93 次展示、3 次点击，平均位置 26.5。数据截止日未往前走，沿用已保存的两段七日对照。
 
+在同一网站属性和日期范围内把搜索类型换成图片，Google 记录 1 次展示、0 次点击，页面报告将这次展示归到官网首页。视频搜索报告为 0 次展示、0 次点击。Google 图片搜索的展示数字与网页索引报告中那些未收录图片地址分别统计。Core Web Vitals 的手机和桌面都显示最近 90 天没有足够的真实使用数据。本站 Chrome 慢网测量继续用来判断具体改动的效果。 [Google 搜索表现统计口径](https://support.google.com/webmasters/answer/7576553) · [读回证据](evidence/package-browser-2026-11-21.json)
+
 再次读取网页索引报告时，Google 仍显示数据截至 11 月 16 日，529 个网址已收录、989 个排除，其他 4xx 的验证仍为 Started。另从已验收的官网归档检查全部 528 个商品的初始 HTML。每件都在地图中，有单独的标题和描述、一个主标题，声明自己的正式网址，无禁止收录标记。四件有符合现行规则的官网单价标记，余下 524 件以普通网页交付。Google 已发现但未收录的十件商品也符合这些基础条件。从商品页正文没有找到通向其他商品的相关推荐链接。分类页已有普通商品链接，后续若补推荐，从确实属于同一采购场景的商品开始。这个发现还不能解释 Google 暂未收录的原因。 [已验收的官网归档](https://github.com/vibelingan/channel/actions/runs/44765827808/artifacts/14644617699) · [528 页核对记录](evidence/package-browser-2026-11-21.json)
 
 WH3 发布后重新读取四个公开商品网址，均返回 200，每个商品的名称、官网单价、币种和一件起订条件与发布包中的商品摘要标记一致。此处确认的是官网发出的数据。搜索结果是否最终展示价格，由 Google 决定。 [四个商品的实际网址](evidence/package-browser-2026-11-21.json) · [Google 商品摘要规范](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)

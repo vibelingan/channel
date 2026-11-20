@@ -231,6 +231,25 @@
       "httpsApex": {
         "status": 200
       }
+    },
+    "mediaSearchOutcomes": {
+      "property": "https://supplychainsai.com/",
+      "observedOn": "2026-11-21",
+      "reportedDateRange": ["2026-10-14", "2026-11-18"],
+      "images": {
+        "impressions": 1,
+        "clicks": 0,
+        "averagePosition": 74,
+        "observedLandingPage": "https://supplychainsai.com/"
+      },
+      "videos": {
+        "impressions": 0,
+        "clicks": 0
+      },
+      "fieldVitals": {
+        "mobile": "not enough data",
+        "desktop": "not enough data"
+      }
     }
   },
   "wh3LocalConversion": {
