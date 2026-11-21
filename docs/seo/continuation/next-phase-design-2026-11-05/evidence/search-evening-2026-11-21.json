@@ -1,0 +1,162 @@
+{
+  "site": "https://supplychainsai.com",
+  "googleSearchConsole": {
+    "pageReportThrough": "2026-11-16",
+    "indexed": 529,
+    "notIndexed": 989,
+    "reasons": {
+      "crawledCurrentlyNotIndexed": 960,
+      "discoveredCurrentlyNotIndexed": 12,
+      "other4xx": 5,
+      "alternateCanonical": 5,
+      "redirect": 4,
+      "robots": 1,
+      "noindex": 1,
+      "notFound": 1
+    },
+    "other4xxValidation": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0
+    },
+    "sampleArticleIndexedInspection": {
+      "latestCrawlDate": "2026-10-29",
+      "status": "Excluded by noindex tag",
+      "source": "X-Robots-Tag"
+    },
+    "watchPageIndexedInspection": {
+      "status": "URL is unknown to Google"
+    },
+    "videoIndexing": {
+      "through": "2026-11-19",
+      "indexed": 0,
+      "videoIsNotOnWatchPage": 2
+    },
+    "webSearchThreeMonthView": {
+      "through": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3
+    },
+    "coreWebVitalsThrough": "2026-11-20",
+    "mobileAndDesktop": "Insufficient real-user data"
+  },
+  "independentLiveChecks": {
+    "sampleArticle": {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "final": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "status": 200,
+      "mime": "text/html",
+      "robots": null,
+      "range": null,
+      "h1": "How to Inspect Your First OEM Headphone Sample",
+      "htmlBytes": 37628
+    },
+    "watchPage": {
+      "url": "https://supplychainsai.com/videos/factory-overview/",
+      "final": "https://supplychainsai.com/videos/factory-overview/",
+      "status": 200,
+      "mime": "text/html",
+      "robots": null,
+      "range": null,
+      "h1": "Factory &amp; workshop overview",
+      "htmlBytes": 32614
+    },
+    "declaredSitemapIndex": {
+      "url": "https://supplychainsai.com/sitemap-index.xml",
+      "final": "https://supplychainsai.com/sitemap-index.xml",
+      "status": 200,
+      "mime": "application/xml",
+      "robots": null,
+      "range": null
+    },
+    "articleInSitemap": true,
+    "videoInSitemap": true,
+    "videoMediaRange": {
+      "url": "https://supplychainsai.com/blog/media/factory/oem-factory.3cd89b386c1d.mp4",
+      "final": "https://supplychainsai.com/blog/media/factory/oem-factory.3cd89b386c1d.mp4",
+      "status": 206,
+      "mime": "video/mp4",
+      "robots": null,
+      "range": "bytes 0-1023/7201197"
+    },
+    "videoPoster": {
+      "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+      "final": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+      "status": 200,
+      "mime": "image/webp",
+      "robots": null,
+      "range": null
+    }
+  },
+  "cloudBaseAccessLog": {
+    "timezone": "Asia/Shanghai",
+    "targetedPaths": 26,
+    "segments": [
+      {
+        "window": {
+          "startTime": "2026-11-21 20:02:52",
+          "endTime": "2026-11-21 20:17:51"
+        },
+        "exactRows": 24,
+        "statuses": {
+          "200": 24
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 20:17:52",
+          "endTime": "2026-11-21 20:32:51"
+        },
+        "exactRows": 68,
+        "statuses": {
+          "200": 68
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 20:32:52",
+          "endTime": "2026-11-21 20:47:51"
+        },
+        "exactRows": 41,
+        "statuses": {
+          "200": 41
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 20:47:52",
+          "endTime": "2026-11-21 21:02:51"
+        },
+        "exactRows": 23,
+        "statuses": {
+          "200": 23
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 21:02:52",
+          "endTime": "2026-11-21 21:17:00"
+        },
+        "exactRows": 17,
+        "statuses": {
+          "200": 17
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      }
+    ]
+  }
+}

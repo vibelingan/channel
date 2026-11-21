@@ -338,3 +338,11 @@ Google 域名属性能覆盖 HTTP/www 等入口；当前 HTTPS 前缀属性不�
 从官网重新完整下载了五张历史 4xx 图片和一张旧 404 图片，六张都返回 200，文件摘要、格式和长度与修复后的版本相符。另用腾讯网关日志精确查看五张图及独立工厂视频页的六个地址。北京时间 09:27:31 至 11:02:07 内返回 18 条实际请求，全部 200。核对请求来源与 Google 公布的爬虫地址范围后，该窗口内没有确认到 Googlebot 的请求。数据说明这六个地址在这个时间窗口没有复现请求错误，Google 的实际复查结果还要继续跟踪。本次未重新提交地图或复查申请。 [官网回读与报表记录](evidence/catalog-copy-and-search-recheck-2026-11-21.json)
 
 独立观看页仍有可抓取的视频入口，官网实际视频分段请求返回 206，地图、海报和网页中的信息一致。观看页处于已发现、尚未建立索引的状态。528 个商品页里有四件显示真实公开单价并提供相同的 Google 商品标记，其余不为商品增强展示填造价格。 [Google 视频收录条件](https://developers.google.com/search/docs/appearance/video) · [Google 商品价格字段](https://developers.google.com/search/docs/appearance/structured-data/product-snippet#offer)
+
+### 11 月 21 日晚复查
+
+五张历史 4xx 商品图的 Google 复查显示 11 月 16 日已开始，五张都待处理，目前零张复查失败。报表的网页数仍停在 11 月 16 日，为 529 已收录、989 未收录。搜索表现刷新到 11 月 19 日，为 95 次展示、3 次点击，比前一日截图多 2 次展示、点击数相同。这个变化还不足以判断近期改动是否带来了稳定增长。Core Web Vitals 截至 11 月 20 日仍缺足够的手机和桌面访客数据。
+
+同一个 Google 账号的逐页检查里，耳机样品检查文章仍显示 Google 在 10 月 29 日读到禁止收录的响应头。这次在 11 月 21 日晚从官网直接取回全文，状态 200，响应头和网页均未禁止收录，正式网址指向自身，Blog 地图包含这篇文章。工厂观看页这次显示 Google 未知，而当天较早记录显示已发现。官网独立取回含视频的 HTML 和地图，视频可分段读取并返回 206，海报返回 200。Google 视频汇总截至 11 月 19 日仍是零收录，列出的两个旧地址仍为非观看页。将「官网已去掉禁止收录」和「Google 的旧抓取还没有更新」分别登记，避免把当前网站响应和历史索引结果当成同一项。
+
+从腾讯网关分时段核对这两页、历史图片和近期受影响的地址，共 26 个。北京时间 20:02:52 至 21:17:00 间检索出 173 次请求，全部返回 200，各段均未触及日志的返回上限。这些记录中没有同时满足 Google 官方爬虫地址和 Googlebot 标识的请求。因此这段数据能验证官网交付状态，实际抓取是否更新继续以 Google 报表为准。 [分时段计数、正式网站回读及报表记录](evidence/search-evening-2026-11-21.json) · [识别 Google 爬虫](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests) · [Google 重新抓取说明](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl)
