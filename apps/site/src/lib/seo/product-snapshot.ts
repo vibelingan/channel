@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { PublicProductSchema } from '@vibelingan-channel/shared/catalog';
-import { decodeCatalogDetailView } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  type CatalogPriceSummary,
+  CatalogPriceSummarySchema,
+  decodeCatalogDetailView,
+} from '@vibelingan-channel/shared/catalog-detail';
 import { imagePresentationMatchesSources } from '@vibelingan-channel/shared/catalog-image-presentation';
 import { z } from 'zod';
 import { startDetailPages } from '../../catalog/application/catalog-detail-pages.ts';
@@ -23,7 +27,9 @@ import {
 // Strip unknown top-level fields. Nested pricing still uses the strict shared contracts.
 // Missing family/slug are historical public data, never a reason to remove a product.
 const publicRow = PublicProductSchema.partial({ productFamily: true }).strip();
-export type SeoPublicProduct = z.infer<typeof publicRow>;
+export type SeoPublicProduct = z.infer<typeof publicRow> & {
+  priceSummary?: CatalogPriceSummary;
+};
 const publicVersionSchema = z
   .object({
     sequence: z.number().int().positive().safe(),
@@ -52,7 +58,7 @@ function legacyRevision(product: SeoPublicProduct): string {
   const { imagePresentation: _presentation, ...content } = product;
   return `legacy-${hash(content)}`;
 }
-function projectRow(value: unknown): SeoPublicProduct {
+function projectRow(value: unknown, includeApprovedPrice = false): SeoPublicProduct {
   const record = z.record(z.unknown()).parse(value);
   const fields: Record<string, unknown> = {};
   for (const key of Object.keys(PublicProductSchema.shape)) {
@@ -76,6 +82,11 @@ function projectRow(value: unknown): SeoPublicProduct {
     )
   )
     throw new Error(`Invalid public image: ${row._id}`);
+  if (includeApprovedPrice) {
+    // The anonymous list exposes this exact summary on approved products.
+    const summary = CatalogPriceSummarySchema.safeParse(record.priceSummary);
+    if (summary.success) return { ...row, priceSummary: summary.data };
+  }
   return row;
 }
 function projectDetail(value: unknown, id: string): DetailPage {
@@ -121,7 +132,7 @@ export function decodeProductSnapshot(value: unknown, expectedSite: string): Pro
     throw new Error('Synthetic SEO fixtures are restricted to local builds');
   const ids = new Set<string>();
   const products = root.products.map((entry) => {
-    const product = projectRow(entry.product);
+    const product = projectRow(entry.product, entry.detail !== undefined);
     if (ids.has(product._id)) throw new Error(`Duplicate public ID: ${product._id}`);
     ids.add(product._id);
     const detail =
@@ -222,7 +233,7 @@ async function inventory(api: typeof fetch): Promise<SeoPublicProduct[]> {
     )
       throw new Error('Public inventory pagination changed or is incomplete');
     for (const value of result.items) {
-      const product = projectRow(value);
+      const product = projectRow(value, true);
       if (ids.has(product._id)) throw new Error(`Duplicate public inventory ID: ${product._id}`);
       ids.add(product._id);
       rows.push(product);
@@ -515,8 +526,7 @@ async function captureProductRefresh(
   const products = await mapPublic(before, async (row) => {
     const previous = old.get(row._id);
     const head = heads.get(row._id);
-    const cardChanged =
-      previous && publicCardHash(projectRow(previous.product)) !== publicCardHash(row);
+    const cardChanged = previous && publicCardHash(previous.product) !== publicCardHash(row);
     if ((!previous || cardChanged) && !head) throw Error('Public change is not tracked');
     const refresh =
       !previous ||

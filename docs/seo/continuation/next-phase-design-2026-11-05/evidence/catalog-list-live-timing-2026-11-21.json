@@ -685,5 +685,213 @@
     ],
     "finding": "The live list mounts inside the lazily loaded product-preview wrapper. In both samples the first list request follows the last required preview download by at most 50 ms. The main thread was busy for under one second over the entire elapsed period.",
     "scope": "Two traces localize the dependency in this mobile profile. No change to JavaScript loading order or list routing was deployed from this experiment."
+  },
+  "preparingCountryPickerAtProductOpenTrial": {
+    "chrome": "157.0.8103.79",
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "networkEgress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "method": "Paired local builds from the accepted website source and snapshot, with read-only requests relayed to the actual public website. Candidate starts loading the separated React Aria country picker after the product detail renders.",
+    "samples": [
+      {
+        "version": "base",
+        "listStartedAfterNavigationMs": 5463,
+        "browserCanInteractMs": 6513,
+        "openProductMs": 1534,
+        "openContactToCountryPickerMs": 89,
+        "countryModuleRequestedAtMs": null,
+        "countryModuleTransferredBytes": null,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      },
+      {
+        "version": "candidate",
+        "listStartedAfterNavigationMs": 4947,
+        "browserCanInteractMs": 6161,
+        "openProductMs": 936,
+        "openContactToCountryPickerMs": 3370,
+        "countryModuleRequestedAtMs": 7076,
+        "countryModuleTransferredBytes": 196985,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      },
+      {
+        "version": "candidate",
+        "listStartedAfterNavigationMs": 4874,
+        "browserCanInteractMs": 5704,
+        "openProductMs": 1409,
+        "openContactToCountryPickerMs": 2868,
+        "countryModuleRequestedAtMs": 6787,
+        "countryModuleTransferredBytes": 196985,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      },
+      {
+        "version": "base",
+        "listStartedAfterNavigationMs": 5879,
+        "browserCanInteractMs": 6872,
+        "openProductMs": 1416,
+        "openContactToCountryPickerMs": 60,
+        "countryModuleRequestedAtMs": null,
+        "countryModuleTransferredBytes": null,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      },
+      {
+        "version": "base",
+        "listStartedAfterNavigationMs": 7038,
+        "browserCanInteractMs": 7920,
+        "openProductMs": 1898,
+        "openContactToCountryPickerMs": 60,
+        "countryModuleRequestedAtMs": null,
+        "countryModuleTransferredBytes": null,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      },
+      {
+        "version": "candidate",
+        "listStartedAfterNavigationMs": 5726,
+        "browserCanInteractMs": 6572,
+        "openProductMs": 1388,
+        "openContactToCountryPickerMs": 4364,
+        "countryModuleRequestedAtMs": 7544,
+        "countryModuleTransferredBytes": 196985,
+        "selectedCountryAndReviewedWithoutSending": true,
+        "returnedToOriginalCard": true
+      }
+    ],
+    "medians": {
+      "base": {
+        "listStartedAfterNavigationMs": 5879,
+        "browserCanInteractMs": 6872,
+        "openProductMs": 1534,
+        "openContactToCountryPickerMs": 60
+      },
+      "candidate": {
+        "listStartedAfterNavigationMs": 4947,
+        "browserCanInteractMs": 6161,
+        "openProductMs": 1388,
+        "openContactToCountryPickerMs": 3370
+      }
+    },
+    "decision": "Keep the existing script order. The fast path into the inquiry still waits multiple additional seconds for the country picker.",
+    "appliedToProduction": false
+  },
+  "initialPublicPriceCandidate": {
+    "source": "Already-public anonymous catalog page matched by existing approved product identity.",
+    "browser": {
+      "chrome": "157.0.8103.79",
+      "proof": {
+        "publicUrl": "https://supplychainsai.com/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+        "sourceRowCount": 12,
+        "suppliedApprovedPrices": 12,
+        "appliedToStructuredEntries": 12,
+        "buildProductCount": 528
+      },
+      "samples": [
+        {
+          "version": "base",
+          "javaScriptEnabled": false,
+          "price": "Request a Quote",
+          "canonical": "https://supplychainsai.com/headphones/",
+          "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "htmlSha256": "1f90242fc58648eefff37a282dc6198cd15e8231a28eb76e258bafbbdddb44ad",
+          "refreshedPriceSupported": false,
+          "openedProductAndRestoredFocus": false
+        },
+        {
+          "version": "candidate",
+          "javaScriptEnabled": false,
+          "price": "From $2.34",
+          "canonical": "https://supplychainsai.com/headphones/",
+          "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "htmlSha256": "8f32631f1db98e432231e339a5f05e7c8e7fdb7d201ed28ffabeb06e4b58a093",
+          "refreshedPriceSupported": false,
+          "openedProductAndRestoredFocus": false
+        },
+        {
+          "version": "candidate",
+          "javaScriptEnabled": true,
+          "price": "From $2.34",
+          "canonical": "https://supplychainsai.com/headphones/",
+          "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "htmlSha256": "8f32631f1db98e432231e339a5f05e7c8e7fdb7d201ed28ffabeb06e4b58a093",
+          "refreshedPriceSupported": true,
+          "openedProductAndRestoredFocus": true
+        }
+      ]
+    },
+    "pairedStaticBuilds": {
+      "htmlCount": 591,
+      "changedHtml": [
+        "headphones/index.html",
+        "headphones/page/10/index.html",
+        "headphones/page/11/index.html",
+        "headphones/page/12/index.html",
+        "headphones/page/13/index.html",
+        "headphones/page/14/index.html",
+        "headphones/page/15/index.html",
+        "headphones/page/16/index.html",
+        "headphones/page/17/index.html",
+        "headphones/page/18/index.html",
+        "headphones/page/19/index.html",
+        "headphones/page/2/index.html",
+        "headphones/page/20/index.html",
+        "headphones/page/21/index.html",
+        "headphones/page/22/index.html",
+        "headphones/page/23/index.html",
+        "headphones/page/24/index.html",
+        "headphones/page/25/index.html",
+        "headphones/page/26/index.html",
+        "headphones/page/27/index.html",
+        "headphones/page/28/index.html",
+        "headphones/page/29/index.html",
+        "headphones/page/3/index.html",
+        "headphones/page/30/index.html",
+        "headphones/page/31/index.html",
+        "headphones/page/32/index.html",
+        "headphones/page/33/index.html",
+        "headphones/page/34/index.html",
+        "headphones/page/35/index.html",
+        "headphones/page/36/index.html",
+        "headphones/page/37/index.html",
+        "headphones/page/38/index.html",
+        "headphones/page/39/index.html",
+        "headphones/page/4/index.html",
+        "headphones/page/5/index.html",
+        "headphones/page/6/index.html",
+        "headphones/page/7/index.html",
+        "headphones/page/8/index.html",
+        "headphones/page/9/index.html"
+      ],
+      "productDetailsChanged": 0,
+      "allAssetsEqual": true,
+      "pathsEqual": {
+        "sitemap-index.xml": true,
+        "sitemap-0.xml": true,
+        "robots.txt": true,
+        "seo-manifest.json": false,
+        "products/manifest.json": true,
+        "catalog-pages/manifest.json": false
+      }
+    },
+    "scope": "Full original inventory, with approved list price summaries from one verified public response added to the candidate test input. The release performs full fresh acquisition."
   }
 }

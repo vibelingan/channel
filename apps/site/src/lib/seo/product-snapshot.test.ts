@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import type { CatalogPriceSummary } from '@vibelingan-channel/shared/catalog-detail';
+import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
+import { parseDocument } from 'yaml';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
+import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts';
+import { CatalogFamilyPage } from '../../islands/shop/CatalogFamilyPage.tsx';
+import { categoryPage } from './category-snapshot.ts';
+import { productPageDescriptor } from './product-page.ts';
 import {
   PUBLIC_SNAPSHOT_READS,
+  type ProductSnapshot,
   collectProductRefresh,
   collectProductSnapshot,
   collectPublicProductPaths,
@@ -17,6 +27,40 @@ const row = {
   description: 'A public description.',
   category: '',
 };
+const headphoneRow = { ...row, productFamily: 'headphones' };
+const publicPriceSummary: CatalogPriceSummary = {
+  source: 'sku',
+  variantId: 'variant-1',
+  pricing: {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 100,
+    tiers: [
+      { minimumQuantity: 100, maximumQuantity: 499, unitAmountMinor: 325 },
+      { minimumQuantity: 500, unitAmountMinor: 234 },
+    ],
+  },
+};
+
+function renderHeadphones(snapshot: ProductSnapshot): string {
+  const raw = readFileSync(new URL('../../i18n/content/catalog/en-US.md', import.meta.url), 'utf8');
+  const frontmatter = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  assert.ok(frontmatter);
+  const content: CatalogContent & { sharedDetail: SharedDetailContent } = parseDocument(
+    frontmatter[1],
+  ).toJS();
+  const family = content.families.find(({ key }) => key === 'headphones');
+  assert.ok(family);
+  return renderToString(
+    createElement(CatalogFamilyPage, {
+      content,
+      family,
+      bootstrap: categoryPage(snapshot, 'headphones'),
+      previewContent: content.sharedDetail,
+    }),
+  );
+}
+
 function transport(detail: unknown = detailFixture(), status = 200): typeof fetch {
   return async (input, init) => {
     assert.equal(init?.credentials, 'omit');
@@ -164,7 +208,7 @@ test('emergency reuse preserves accepted detail and interactions, filters withdr
 });
 
 function refreshTransport(
-  items: Array<typeof row>,
+  items: Array<typeof row & { priceSummary?: unknown }>,
   counts: Map<string, number>,
   revision: string | null = 'approved-r1',
 ): typeof fetch {
@@ -200,6 +244,135 @@ const refreshHead = (productId: string, visible = true) => ({
   semanticHash: 'a'.repeat(64),
   detailRevision: visible ? 'approved-r1' : null,
   changedAt: null,
+});
+
+test('the captured approved price summary is already visible on the initial category HTML', async () => {
+  const priced = { ...headphoneRow, priceSummary: publicPriceSummary, vipPrice: 1 };
+  const capture = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport([priced], new Map()),
+  );
+  const entry = capture.products[0];
+  assert.ok(entry);
+  assert.match(renderHeadphones(capture), /data-product-card-price[^>]*>From \$2\.34</);
+  assert.deepEqual(entry.product.priceSummary, publicPriceSummary);
+  assert.equal(Object.hasOwn(entry.product, 'vipPrice'), false);
+
+  const accepted = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport([headphoneRow], new Map()),
+  );
+  const oldEntry = accepted.products[0];
+  assert.ok(oldEntry);
+  assert.deepEqual(decodeProductSnapshot(accepted, origin), accepted);
+  assert.deepEqual(
+    reuseAcceptedProductSnapshot(capture, ['/products/p-canonical-product/'], origin),
+    capture,
+  );
+  assert.deepEqual(entry.detail, oldEntry.detail);
+  assert.deepEqual(
+    productPageDescriptor(entry, origin, 'Example'),
+    productPageDescriptor(oldEntry, origin, 'Example'),
+  );
+});
+
+test('missing or malformed summaries never manufacture a category price', async () => {
+  const malformed = { ...publicPriceSummary, costPrice: 1 };
+  const quoteOnly = {
+    source: 'website',
+    pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+  };
+  for (const priceSummary of [undefined, malformed, quoteOnly]) {
+    const snapshot = await collectProductSnapshot(
+      origin,
+      origin,
+      refreshTransport([{ ...headphoneRow, priceSummary }], new Map()),
+    );
+    assert.match(renderHeadphones(snapshot), /data-product-card-price[^>]*>Request a Quote</);
+    assert.deepEqual(
+      snapshot.products[0]?.product.priceSummary,
+      priceSummary === quoteOnly ? quoteOnly : undefined,
+    );
+    assert.equal(JSON.stringify(snapshot).includes('costPrice'), false);
+  }
+});
+
+test('legacy snapshots keep the previous detail shape and revision even if a summary is supplied', async () => {
+  const old = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport([headphoneRow], new Map(), null),
+  );
+  const priced = { ...headphoneRow, priceSummary: publicPriceSummary };
+  const candidate = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport([priced], new Map(), null),
+  );
+  assert.match(old.products[0]?.revision ?? '', /^legacy-/);
+  assert.deepEqual(candidate, old);
+  const entry = old.products[0];
+  assert.ok(entry);
+  assert.deepEqual(
+    decodeProductSnapshot(
+      {
+        ...old,
+        products: [{ ...entry, product: { ...entry.product, priceSummary: publicPriceSummary } }],
+      },
+      origin,
+    ),
+    old,
+  );
+});
+
+test('incremental capture refreshes only the affected price card and matches full capture', async () => {
+  const second = { ...headphoneRow, _id: 'second' };
+  const oldProducts = [second, headphoneRow];
+  const original = refreshTransport(oldProducts, new Map());
+  const heads = [refreshHead(row._id), refreshHead(second._id)];
+  const accepted = await collectProductRefresh(
+    await collectProductSnapshot(origin, origin, original),
+    heads,
+    origin,
+    origin,
+    original,
+  );
+  const newProducts = [second, { ...headphoneRow, priceSummary: publicPriceSummary }];
+  const details = new Map<string, number>();
+  const changed = await collectProductRefresh(
+    accepted,
+    heads,
+    origin,
+    origin,
+    refreshTransport(newProducts, details),
+  );
+  assert.deepEqual([...details], [[row._id, 2]]);
+  const before = categoryPage(accepted, 'headphones');
+  const after = categoryPage(changed, 'headphones');
+  assert.notEqual(after.revision, before.revision);
+  assert.deepEqual(
+    after.items.map(({ _id }) => _id),
+    before.items.map(({ _id }) => _id),
+  );
+
+  const fresh = await collectProductSnapshot(
+    origin,
+    origin,
+    refreshTransport(newProducts, new Map()),
+  );
+  assert.deepEqual(after, categoryPage(fresh, 'headphones'));
+  details.clear();
+  const same = await collectProductRefresh(
+    changed,
+    heads,
+    origin,
+    origin,
+    refreshTransport(newProducts, details),
+  );
+  assert.deepEqual(same, changed);
+  assert.equal(details.size, 0);
 });
 
 test('incremental capture reads only changed and new product details, retaining every other accepted entry', async () => {
