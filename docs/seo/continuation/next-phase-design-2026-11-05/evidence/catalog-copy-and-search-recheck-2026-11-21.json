@@ -940,5 +940,320 @@
         "renderedBytesBeforeMinification": 24
       }
     ]
+  },
+  "adminDefinitionIsolationTrial": {
+    "manualBuildSplitGraph": [
+      {
+        "page": "products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 643395,
+        "adminDefinitionChains": []
+      },
+      {
+        "page": "products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+        "build": "admin-definition-split-trial",
+        "scripts": 24,
+        "bytes": 644060,
+        "adminDefinitionChains": [
+          [
+            "SiteHeader.astro_astro_type_script_index_0_lang.BipV6Ltl.js",
+            "admin-definitions-trial.BUL3_Jyj.js"
+          ]
+        ]
+      },
+      {
+        "page": "products/p-50633c37-434c-4374-a540-f071a00fc799",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 643395,
+        "adminDefinitionChains": []
+      },
+      {
+        "page": "products/p-50633c37-434c-4374-a540-f071a00fc799",
+        "build": "admin-definition-split-trial",
+        "scripts": 24,
+        "bytes": 644060,
+        "adminDefinitionChains": [
+          [
+            "SiteHeader.astro_astro_type_script_index_0_lang.BipV6Ltl.js",
+            "admin-definitions-trial.BUL3_Jyj.js"
+          ]
+        ]
+      },
+      {
+        "page": "headphones",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 407545,
+        "adminDefinitionChains": []
+      },
+      {
+        "page": "headphones",
+        "build": "admin-definition-split-trial",
+        "scripts": 24,
+        "bytes": 408481,
+        "adminDefinitionChains": [
+          ["CatalogFamilyPage.DrfpiZhB.js", "admin-definitions-trial.BUL3_Jyj.js"]
+        ]
+      },
+      {
+        "page": "admin",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 16,
+        "bytes": 775039,
+        "adminDefinitionChains": []
+      },
+      {
+        "page": "admin",
+        "build": "admin-definition-split-trial",
+        "scripts": 18,
+        "bytes": 775619,
+        "adminDefinitionChains": [
+          ["AdminApp.Di0A2J3R.js", "AdminApp.DMV6X0p-.js", "admin-definitions-trial.BUL3_Jyj.js"]
+        ]
+      }
+    ],
+    "narrowedSourceImportsGraph": [
+      {
+        "page": "products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 643395,
+        "adminModules": {
+          "alibaba-sync-workflow.DqOvWzE3.js": {
+            "parent": "SiteHeader.astro_astro_type_script_index_0_lang.CZttWFOw.js",
+            "bytes": 105508,
+            "markers": {
+              "alibabaSyncSchema": true,
+              "adminCollection": false
+            }
+          }
+        }
+      },
+      {
+        "page": "products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+        "build": "storefront-import-trial",
+        "scripts": 25,
+        "bytes": 607186,
+        "adminModules": {}
+      },
+      {
+        "page": "products/p-50633c37-434c-4374-a540-f071a00fc799",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 643395,
+        "adminModules": {
+          "alibaba-sync-workflow.DqOvWzE3.js": {
+            "parent": "SiteHeader.astro_astro_type_script_index_0_lang.CZttWFOw.js",
+            "bytes": 105508,
+            "markers": {
+              "alibabaSyncSchema": true,
+              "adminCollection": false
+            }
+          }
+        }
+      },
+      {
+        "page": "products/p-50633c37-434c-4374-a540-f071a00fc799",
+        "build": "storefront-import-trial",
+        "scripts": 25,
+        "bytes": 607186,
+        "adminModules": {}
+      },
+      {
+        "page": "headphones",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 22,
+        "bytes": 407545,
+        "adminModules": {
+          "alibaba-sync-workflow.DqOvWzE3.js": {
+            "parent": "CatalogFamilyPage.DFNE_lFk.js",
+            "bytes": 105508,
+            "markers": {
+              "alibabaSyncSchema": true,
+              "adminCollection": false
+            }
+          }
+        }
+      },
+      {
+        "page": "headphones",
+        "build": "storefront-import-trial",
+        "scripts": 25,
+        "bytes": 371458,
+        "adminModules": {}
+      },
+      {
+        "page": "admin",
+        "build": "shared-catalog-copy-baseline",
+        "scripts": 16,
+        "bytes": 775039,
+        "adminModules": {
+          "alibaba-sync-workflow.DqOvWzE3.js": {
+            "parent": "AdminApp.DNmLZaTc.js",
+            "bytes": 105508,
+            "markers": {
+              "alibabaSyncSchema": true,
+              "adminCollection": false
+            }
+          }
+        }
+      },
+      {
+        "page": "admin",
+        "build": "storefront-import-trial",
+        "scripts": 19,
+        "bytes": 775382,
+        "adminModules": {
+          "AdminApp.CDKpZ4D3.js": {
+            "parent": "AdminApp.DkWkUoYV.js",
+            "bytes": 466324,
+            "markers": {
+              "alibabaSyncSchema": true,
+              "adminCollection": false
+            }
+          }
+        }
+      }
+    ],
+    "narrowedSourceImportsBrowser": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "browserSamples": [
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 15487,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 71,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 483,
+          "heroCompleteMs": 1135,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1228,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 18977,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 72,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 484,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1184,
+            "tag": "IMG"
+          },
+          "scriptRequests": 25,
+          "scriptTransferBytes": 614686
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19268,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 72,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 485,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1176,
+            "tag": "IMG"
+          },
+          "scriptRequests": 25,
+          "scriptTransferBytes": 614686
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19119,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 74,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 491,
+          "heroCompleteMs": 1136,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1176,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19101,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 74,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 476,
+          "heroCompleteMs": 1129,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1172,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 18986,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 71,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 483,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1180,
+            "tag": "IMG"
+          },
+          "scriptRequests": 25,
+          "scriptTransferBytes": 614686
+        }
+      ],
+      "errors": []
+    },
+    "decision": "Kept the deployed program. Manual chunking retained admin definitions on the public graph. Narrowed imports removed them and reduced transfer bytes, but added requests and did not materially improve picture paint or interactive readiness in this lab."
   }
 }
