@@ -116,6 +116,33 @@ export function galleryOnlyProductSnapshotImages(
   );
 }
 
+/** Compare only photos still used by the approved detail in the candidate renderer. */
+export function assertRetainedProductImageWidths(
+  previous: ProductSnapshotImages,
+  snapshot: ImageSnapshot,
+  candidate: ProductSnapshotImages,
+  { galleryOnly = false } = {},
+) {
+  const currentProducts = new Map(snapshot.products.map((entry) => [entry.product._id, entry]));
+  const candidates = new Map(candidate.products.map((row) => [row.productId, row.images]));
+  for (const row of previous.products) {
+    const entry = currentProducts.get(row.productId);
+    if (!entry?.detail) continue;
+    const sources = new Set(detailSources(entry));
+    if (!galleryOnly)
+      for (const source of entry.detail.descriptionImages ?? []) sources.add(source);
+    for (const [source, sizes] of Object.entries(row.images)) {
+      if (!sources.has(source)) continue;
+      const widths = new Set(candidates.get(row.productId)?.[source]?.map((size) => size.width));
+      const missing = sizes.filter((size) => !widths.has(size.width));
+      if (missing.length)
+        throw Error(
+          `Product ${row.productId} still uses ${source} but lost web image widths: ${missing.map((size) => size.width).join(', ')}`,
+        );
+    }
+  }
+}
+
 export async function readProductSnapshotImages(file: string, snapshot: ImageSnapshot) {
   let bytes: Buffer;
   try {

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import {
+  assertRetainedProductImageWidths,
   createProductSnapshotImages,
   decodeProductSnapshotImages,
   galleryOnlyProductSnapshotImages,
@@ -93,6 +94,95 @@ test('description hints survive the approved rendering snapshot and do not reach
   );
   assert.deepEqual(galleryOnlyProductSnapshotImages(current, newHints), images);
   assert.throws(() => decodeProductSnapshotImages(newHints, snapshot));
+});
+
+test('a new gallery photo cannot displace a retained variant photo for the same approved product', () => {
+  const variantSource = '/api/images/approved-variant';
+  const currentDetail = {
+    ...detail,
+    variants: { ...detail.variants, items: [{ images: [variantSource] }] },
+  };
+  const current = {
+    ...snapshot,
+    products: snapshot.products.map((entry) => ({ ...entry, detail: currentDetail })),
+  };
+  const row = images.products[0];
+  assert.ok(row);
+  const previous = createProductSnapshotImages(current, [
+    {
+      ...row,
+      images: {
+        [variantSource]: [160, 640, 1280].map((width) => ({
+          url: `${variantSource}?w=${width}`,
+          width,
+          height: width,
+        })),
+      },
+    },
+  ]);
+  assert.throws(
+    () => assertRetainedProductImageWidths(previous, current, images),
+    /approved-variant but lost web image widths: 160, 640, 1280/,
+  );
+  const fixed = createProductSnapshotImages(current, [
+    { ...row, images: { ...row.images, ...previous.products[0]?.images } },
+  ]);
+  assertRetainedProductImageWidths(previous, current, fixed);
+});
+
+test('copy edits still protect retained photos, and removing a photo or a product can drop its widths', () => {
+  const revised = {
+    ...snapshot,
+    products: snapshot.products.map((entry) => ({ ...entry, revision: 'approved-r2' })),
+  };
+  const missing = createProductSnapshotImages(revised);
+  assert.throws(
+    () => assertRetainedProductImageWidths(images, revised, missing),
+    /lost web image widths: 640/,
+  );
+  const replaced = {
+    ...revised,
+    products: revised.products.map((entry) => ({
+      ...entry,
+      detail: { ...detail, images: ['/api/images/replacement-photo'] },
+    })),
+  };
+  assertRetainedProductImageWidths(images, replaced, missing);
+  assertRetainedProductImageWidths(images, { ...replaced, products: [] }, missing);
+});
+
+test('legacy renderer restore may omit body-only sizes and still protects shared gallery photos', () => {
+  const bodyOnly = '/api/images/body-only';
+  const current = {
+    ...snapshot,
+    products: snapshot.products.map((entry) => ({
+      ...entry,
+      detail: { ...detail, descriptionImages: [source, bodyOnly] },
+    })),
+  };
+  const row = images.products[0];
+  assert.ok(row);
+  const previous = createProductSnapshotImages(current, [
+    {
+      ...row,
+      images: {
+        ...row.images,
+        [bodyOnly]: [{ url: `${bodyOnly}?w=160`, width: 160, height: 100 }],
+      },
+    },
+  ]);
+  assert.throws(
+    () => assertRetainedProductImageWidths(previous, current, images),
+    /body-only but lost web image widths: 160/,
+  );
+  assertRetainedProductImageWidths(previous, current, images, { galleryOnly: true });
+  assert.throws(
+    () =>
+      assertRetainedProductImageWidths(previous, current, createProductSnapshotImages(current), {
+        galleryOnly: true,
+      }),
+    /configuration-photo but lost web image widths: 640/,
+  );
 });
 
 test('legacy absent hints remain readable; malformed or mismatched files fail instead of silently falling back', async (t) => {

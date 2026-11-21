@@ -7,6 +7,8 @@ import CloudBase from '@cloudbase/manager-node';
 import COS from 'cos-nodejs-sdk-v5';
 import { productPath } from '../apps/site/src/lib/seo/product-identity.ts';
 import {
+  assertRetainedProductImageWidths,
+  decodeProductSnapshotImages,
   galleryOnlyProductSnapshotImages,
   readProductSnapshotImages,
 } from '../apps/site/src/lib/seo/product-snapshot-images.ts';
@@ -535,16 +537,24 @@ try {
   if (automatic && baseline?.envelope.codeSha !== codeSha)
     throw Error('The content executor must match the currently accepted website code');
   const productFile = join(directory, 'product-snapshot.json');
+  const acceptedProductImagePresentation = () => {
+    if (!baseline) return null;
+    const value = JSON.parse(
+      readObject(baseline.directory, 'compatibility.json').toString(),
+    ).productImagePresentation;
+    if (value === undefined) return null;
+    const snapshot = JSON.parse(
+      readObject(baseline.directory, baseline.envelope.snapshotPath).toString(),
+    );
+    return decodeProductSnapshotImages(value, snapshot);
+  };
   // Work on a copy: the verified recovery package must remain byte-for-byte intact.
   const acceptedProductInput = async () => {
     if (!baseline) throw Error('Accepted site input is required');
     const file = join(directory, 'accepted-product-snapshot.json');
     await writeFile(file, readObject(baseline.directory, 'product-snapshot.json'), { flag: 'wx' });
-    const images = JSON.parse(
-      readObject(baseline.directory, 'compatibility.json').toString(),
-    ).productImagePresentation;
-    if (images !== undefined)
-      await writeFile(`${file}.images.json`, JSON.stringify(images), { flag: 'wx' });
+    const images = acceptedProductImagePresentation();
+    if (images) await writeFile(`${file}.images.json`, JSON.stringify(images), { flag: 'wx' });
     return file;
   };
   const built =
@@ -668,6 +678,7 @@ try {
       snapshot: JSON.parse(
         readObject(baseline.directory, baseline.envelope.snapshotPath).toString(),
       ),
+      productImagePresentation: acceptedProductImagePresentation(),
       objectProofs: baseline.staticManifest.entries.flatMap((entry: SiteObjectEntry) =>
         entry.objectVersion ? [{ ...entry, ...entry.objectVersion }] : [],
       ),
@@ -986,6 +997,11 @@ try {
     const productImagePresentation = programRestore
       ? galleryOnlyProductSnapshotImages(products, offeredHints)
       : offeredHints;
+    const previousImages = acceptedProductImagePresentation();
+    if (previousImages)
+      assertRetainedProductImageWidths(previousImages, products, productImagePresentation, {
+        galleryOnly: programRestore,
+      });
     if (programRestore)
       await writeFile(`${productFile}.images.json`, JSON.stringify(productImagePresentation));
     assert(Array.isArray(products.products));
