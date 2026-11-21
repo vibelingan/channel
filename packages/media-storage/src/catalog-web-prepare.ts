@@ -167,14 +167,16 @@ export interface PreparedCatalogWebVariants {
 export async function prepareCatalogWebVariants(
   input: Omit<PrepareInput, 'existing' | 'checkpoint' | 'width'> & {
     existing?: PreparedCatalogWebVariants;
+    /** Reviewed preparation may specify the default width for an already small original. */
+    defaultWidth?: 1280;
     checkpoint(value: Readonly<PreparedCatalogWebVariants>): Promise<void>;
   },
 ): Promise<PreparedCatalogWebVariants | null> {
   let planned = input.existing ? structuredClone(input.existing) : undefined;
-  const { existing: _existing, checkpoint: _checkpoint, ...source } = input;
+  const { defaultWidth, existing: _existing, checkpoint: _checkpoint, ...source } = input;
   const defaultObject = await prepareCatalogWebObject({
     ...source,
-    // Keep the existing small-original admission rule for automatic ingestion.
+    ...(defaultWidth === undefined ? {} : { width: defaultWidth }),
     ...(planned ? { existing: planned.default } : {}),
     checkpoint: async (value) => {
       const next = { default: value, variants: planned?.variants ?? {} };

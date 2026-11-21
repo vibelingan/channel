@@ -161,3 +161,38 @@ test('small originals are never enlarged or copied into duplicate storage object
   );
   assert.equal(f.objects.size, 1);
 });
+
+test('reviewed preparation generates responsive sizes for a small full-size JPEG', async () => {
+  const bytes = await sharp({
+    create: { width: 800, height: 600, channels: 3, background: '#234567' },
+  })
+    .jpeg()
+    .toBuffer();
+  assert.ok(bytes.byteLength < 100 * 1024);
+  const f = fixture();
+  const input = {
+    imageId: 'small-full-size',
+    bytes,
+    mimeType: 'image/jpeg',
+    checksumSha256: sha(bytes),
+    storage: f.storage,
+    checkpoint: async () => {},
+  };
+
+  assert.equal(await prepareCatalogWebVariants(input), null);
+  assert.equal(f.events.length, 0);
+
+  const result = await prepareCatalogWebVariants({ ...input, defaultWidth: 1280 });
+  assert.ok(result);
+  assert.equal(result.default.width, 800);
+  assert.equal(result.variants['160']?.width, 160);
+  assert.equal(result.variants['640']?.width, 640);
+  assert.equal(f.objects.size, 3);
+
+  f.events.length = 0;
+  assert.deepEqual(
+    await prepareCatalogWebVariants({ ...input, defaultWidth: 1280, existing: result }),
+    result,
+  );
+  assert.equal(f.events.filter((event) => event.startsWith('put:')).length, 0);
+});

@@ -264,6 +264,7 @@ export async function runCatalogResponsivePreparation(input: {
         mimeType: source.mimeType,
         checksumSha256: target.sourceSha256,
         storage,
+        defaultWidth: 1280,
         ...(previousDefault
           ? {
               existing: {
