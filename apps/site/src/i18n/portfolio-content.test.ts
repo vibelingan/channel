@@ -90,8 +90,14 @@ test('portfolio defines audited cumulative stats independent of visible item cou
   assert.ok(portfolioPage.includes('{stat.value}'));
   assert.ok(portfolioPage.includes('{stat.label}'));
   assert.ok(portfolioPage.includes('{stats.note}'));
-  assert.equal((siteContent.match(/label: Success Stories, href: '\/portfolio'/g) ?? []).length, 2);
-  assert.ok(!siteContent.includes("label: Success Stories, href: '/success-stories'"));
+});
+
+test('header and footer link Success Stories directly to its canonical URL', () => {
+  const links = [...siteContent.matchAll(/label: Success Stories, href: '([^']+)'/g)];
+  assert.deepEqual(
+    links.map((match) => match[1]),
+    ['/portfolio/', '/portfolio/'],
+  );
 });
 
 test('portfolio uses the two confirmed image-backed cases in vertical order', () => {

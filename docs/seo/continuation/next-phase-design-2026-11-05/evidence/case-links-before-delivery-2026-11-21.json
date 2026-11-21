@@ -1,0 +1,301 @@
+{
+  "observedAt": "2026-11-21T01:24:05.820212+00:00",
+  "searchConsole": {
+    "property": "https://supplychainsai.com/",
+    "reportThrough": "2026-11-16",
+    "indexed": 529,
+    "notIndexed": 989,
+    "other4xxValidationStarted": "2026-11-16",
+    "other4xxPending": 5,
+    "other4xxFailed": 0,
+    "webSearchThrough": "2026-11-18",
+    "webImpressions": 93,
+    "webClicks": 3
+  },
+  "graph": {
+    "run": 44845124397,
+    "siteOrigin": "https://supplychainsai.com",
+    "sitemapPageCount": 580,
+    "productPageCount": 528,
+    "allProductHopsFromHome": {
+      "3": 487,
+      "2": 41
+    },
+    "sitemapPagesWithoutPathFromHome": ["/portfolio/"],
+    "googleDiscoveredNotIndexedTargets": [
+      {
+        "route": "/privacy/",
+        "hopsFromHome": 1,
+        "examplePath": ["/", "/privacy/"],
+        "allUniqueSitePagesLinking": 579,
+        "mainContentLinkingPages": ["/", "/oem/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+        "hopsFromHome": 2,
+        "examplePath": ["/", "/headphones/", "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/"],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/4/",
+          "/products/p-182b050e-303a-417b-a430-ae7688822e54/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/4/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/4/",
+          "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/4/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/6/",
+          "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/6/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/6/",
+          "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/6/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/26/",
+          "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/26/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/26/",
+          "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/26/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/misc/",
+          "/misc/page/2/",
+          "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/misc/page/2/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/misc/",
+          "/misc/page/2/",
+          "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/misc/page/2/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "hopsFromHome": 3,
+        "examplePath": [
+          "/",
+          "/headphones/",
+          "/headphones/page/33/",
+          "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/"
+        ],
+        "allUniqueSitePagesLinking": 1,
+        "mainContentLinkingPages": ["/headphones/page/33/"],
+        "otherProductPagesLinking": 0
+      },
+      {
+        "route": "/toys/",
+        "hopsFromHome": 1,
+        "examplePath": ["/", "/toys/"],
+        "allUniqueSitePagesLinking": 579,
+        "mainContentLinkingPages": ["/electronics-toys/"],
+        "otherProductPagesLinking": 0
+      }
+    ]
+  },
+  "caseNavigation": {
+    "existing": [
+      {
+        "route": "/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/",
+        "bytes": 167718,
+        "sha256": "cccc44ac07c580f1428aa969fdcdadc15ff56f69d114a146c09bb369284682a5",
+        "caseNavigation": [
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/portfolio",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/portfolio/",
+        "bytes": 78689,
+        "sha256": "85ccfd635d04c5213a9d4e01b339454ce9b42e8fbc6fa900d5183f8094dbecc6",
+        "caseNavigation": [
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/portfolio/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/portfolio/",
+        "bytes": 78689,
+        "sha256": "85ccfd635d04c5213a9d4e01b339454ce9b42e8fbc6fa900d5183f8094dbecc6",
+        "caseNavigation": [
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/headphones/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/",
+        "bytes": 139470,
+        "sha256": "839261b9bd79b4e0e507e609a74a614df0e2182605b8da2181f5fa8b0412dc01",
+        "caseNavigation": [
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/oem/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/oem/",
+        "bytes": 118997,
+        "sha256": "6094653fa5c23addbace5d8bc3ccbd67049616d6e10f1d8452f82708da485280",
+        "caseNavigation": [
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio",
+            "region": "footer"
+          }
+        ]
+      }
+    ],
+    "candidate": {
+      "evaluatedHtmlPages": 591,
+      "pagesLinkingToCanonicalCasePage": 586,
+      "identicalMapsAndRobots": true
+    }
+  },
+  "candidateBrowser": [
+    {
+      "region": "header",
+      "width": 390,
+      "javaScriptEnabled": false,
+      "status": 200,
+      "path": "/portfolio/",
+      "cases": ["Children's Sleep Training Clock", "Disc Repair System"]
+    },
+    {
+      "region": "footer",
+      "width": 1440,
+      "javaScriptEnabled": false,
+      "status": 200,
+      "path": "/portfolio/",
+      "cases": ["Children's Sleep Training Clock", "Disc Repair System"]
+    }
+  ]
+}

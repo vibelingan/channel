@@ -13,7 +13,7 @@ brand:
 nav:
   items:
     - { label: Headphones, href: '/headphones' }
-    - { label: Success Stories, href: '/portfolio' }
+    - { label: Success Stories, href: '/portfolio/' }
     - { label: OEM Development, href: '/oem#what-we-do' }
     - { label: Sign In, href: '/login', emphasis: true }
 
@@ -221,7 +221,7 @@ footer:
     - heading: Company
       links:
         - { label: Headphones, href: '/headphones' }
-        - { label: Success Stories, href: '/portfolio' }
+        - { label: Success Stories, href: '/portfolio/' }
         - { label: OEM Development, href: '/oem' }
     - heading: Account
       links:
