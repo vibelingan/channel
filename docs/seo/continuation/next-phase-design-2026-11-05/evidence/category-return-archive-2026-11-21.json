@@ -10,9 +10,7 @@
     "/ai-gadgets/": 31,
     "/toys/": 5
   },
-  "addedBuildScripts": [
-    "_astro/ProductLanding.DPQGREq7.js"
-  ],
+  "addedBuildScripts": ["_astro/ProductLanding.DPQGREq7.js"],
   "assetPathsRemoved": 0,
   "mapsUnchanged": [
     "robots.txt",

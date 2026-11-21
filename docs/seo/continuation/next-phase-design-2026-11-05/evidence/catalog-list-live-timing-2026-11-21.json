@@ -430,5 +430,152 @@
         }
       }
     }
+  },
+  "actualChromeCandidateTrial": {
+    "observedAt": "2026-11-21T05:42:26.995Z",
+    "siteRun": 44868271676,
+    "archiveHtmlSha256": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21",
+    "pageUrl": "https://supplychainsai.com/headphones/",
+    "browser": "157.0.8103.79",
+    "networkEgress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuSlowdownFactor": 4,
+    "method": "Live Chrome navigation over HTTPS to the real storefront, no fulfilled/replayed assets. New cold context per sample. Candidate redirects only the first anonymous matching GET at the JavaScript call boundary, and only before running fetch.",
+    "bodyBytesEverySample": 32238,
+    "bodySha256EverySample": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+    "samples": [
+      {
+        "arm": "direct",
+        "sequence": 1,
+        "listStartedAfterNavigationMs": 9324,
+        "listRequestToHeadersMs": 1497,
+        "listRequestToBodyCompleteMs": 1886,
+        "browserReusedConnection": true,
+        "tlsMs": null,
+        "appListTotalMs": 922.7,
+        "visibleLivePriceAfterNavigationMs": 11226,
+        "heroVisibleAfterNavigationMs": 5881,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/"
+      },
+      {
+        "arm": "apex",
+        "sequence": 2,
+        "listStartedAfterNavigationMs": 8738,
+        "listRequestToHeadersMs": 1343,
+        "listRequestToBodyCompleteMs": 1508,
+        "browserReusedConnection": false,
+        "tlsMs": 248.3,
+        "appListTotalMs": 522.8,
+        "visibleLivePriceAfterNavigationMs": 10262,
+        "heroVisibleAfterNavigationMs": 2807,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/",
+        "realVariantSelectionAndFocusOnBackVerified": true,
+        "detailStayedOnCloudBaseDirect": true
+      },
+      {
+        "arm": "apex",
+        "sequence": 3,
+        "listStartedAfterNavigationMs": 8625,
+        "listRequestToHeadersMs": 1223,
+        "listRequestToBodyCompleteMs": 1484,
+        "browserReusedConnection": false,
+        "tlsMs": 254.5,
+        "appListTotalMs": 373.6,
+        "visibleLivePriceAfterNavigationMs": 10125,
+        "heroVisibleAfterNavigationMs": 3232,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/"
+      },
+      {
+        "arm": "direct",
+        "sequence": 4,
+        "listStartedAfterNavigationMs": 7530,
+        "listRequestToHeadersMs": 2032,
+        "listRequestToBodyCompleteMs": 3037,
+        "browserReusedConnection": true,
+        "tlsMs": null,
+        "appListTotalMs": 444.7,
+        "visibleLivePriceAfterNavigationMs": 10583,
+        "heroVisibleAfterNavigationMs": 2230,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/",
+        "realVariantSelectionAndFocusOnBackVerified": true,
+        "detailStayedOnCloudBaseDirect": true
+      },
+      {
+        "arm": "direct",
+        "sequence": 5,
+        "listStartedAfterNavigationMs": 7950,
+        "listRequestToHeadersMs": 1927,
+        "listRequestToBodyCompleteMs": 2676,
+        "browserReusedConnection": true,
+        "tlsMs": null,
+        "appListTotalMs": 479.2,
+        "visibleLivePriceAfterNavigationMs": 10642,
+        "heroVisibleAfterNavigationMs": 3137,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/"
+      },
+      {
+        "arm": "apex",
+        "sequence": 6,
+        "listStartedAfterNavigationMs": 7727,
+        "listRequestToHeadersMs": 1236,
+        "listRequestToBodyCompleteMs": 1401,
+        "browserReusedConnection": false,
+        "tlsMs": 251.7,
+        "appListTotalMs": 339.1,
+        "visibleLivePriceAfterNavigationMs": 9143,
+        "heroVisibleAfterNavigationMs": 2363,
+        "publicCardPrice": "From $2.34",
+        "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "canonical": "https://supplychainsai.com/headphones/"
+      }
+    ],
+    "medians": {
+      "direct": {
+        "listStartedAfterNavigationMs": 7950,
+        "listRequestToHeadersMs": 1927,
+        "listRequestToBodyCompleteMs": 2676,
+        "visibleLivePriceAfterNavigationMs": 10642,
+        "appListTotalMs": 479.2,
+        "reusedConnections": 3
+      },
+      "apex": {
+        "listStartedAfterNavigationMs": 8625,
+        "listRequestToHeadersMs": 1236,
+        "listRequestToBodyCompleteMs": 1484,
+        "visibleLivePriceAfterNavigationMs": 10125,
+        "appListTotalMs": 373.6,
+        "reusedConnections": 0
+      }
+    },
+    "decision": "Test a scoped public list change with real session and routing regression before rollout. Faster download does not prove LCP improvement or warmed connection reuse."
   }
 }
