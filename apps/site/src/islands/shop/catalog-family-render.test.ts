@@ -73,7 +73,10 @@ const firstQuery = { page: 1, search: '', categories: null };
 
 const readyState = () => ({ ...initialNumberedCatalogState(), committed: firstQuery });
 
-const renderGrid = (state: ReturnType<typeof initialNumberedCatalogState>) =>
+const renderGrid = (
+  state: ReturnType<typeof initialNumberedCatalogState>,
+  cardImageApiOrigin?: string,
+) =>
   renderToStaticMarkup(
     createElement(CatalogFamilyGrid, {
       content,
@@ -81,6 +84,7 @@ const renderGrid = (state: ReturnType<typeof initialNumberedCatalogState>) =>
       state,
       selectedCategories: ['wired'],
       searchInput: '',
+      cardImageApiOrigin,
       onCategoriesChange: () => undefined,
       onSearchInputChange: () => undefined,
       onRetry: () => undefined,
@@ -88,6 +92,27 @@ const renderGrid = (state: ReturnType<typeof initialNumberedCatalogState>) =>
       onPageChange: () => undefined,
     }),
   );
+
+test('a numbered catalog can use the public website image route for known product pictures', () => {
+  const storageApi = 'https://catalog-images.example.com';
+  const source = storageApi + '/api/images/catalog-photo';
+  const state = {
+    ...readyState(),
+    products: [
+      { _id: 'gated', name: 'Gated photo', images: [source] },
+      {
+        _id: 'external',
+        name: 'External photo',
+        images: ['https://supplier.example.com/photo.webp'],
+      },
+    ],
+    total: 2,
+  };
+
+  assert.match(renderGrid(state, storageApi), /src="\/api\/images\/catalog-photo"/);
+  assert.match(renderGrid(state, storageApi), /src="https:\/\/supplier.example.com\/photo.webp"/);
+  assert.ok(renderGrid(state).includes(`src="${source}"`));
+});
 
 test('family catalog replaces twelve-card pages and rejects stale responses', () => {
   const initial = beginNumberedPage(initialNumberedCatalogState(), firstQuery);

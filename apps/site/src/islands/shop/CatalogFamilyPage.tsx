@@ -44,17 +44,24 @@ interface Props {
   previewContent?: SharedDetailContent;
   bootstrap?: CatalogPage;
   pageMetadata?: CategoryPageMetadata;
+  cardImageApiOrigin?: string;
 }
 
 const SharedCatalogPreview = lazy(() => import('./SharedCatalogPreview.tsx'));
 
-function StaticCatalogPage({ content, family, bootstrap }: Props & { bootstrap: CatalogPage }) {
+function StaticCatalogPage({
+  content,
+  family,
+  bootstrap,
+  cardImageApiOrigin,
+}: Props & { bootstrap: CatalogPage }) {
   const state = initialNumberedCatalogState(bootstrap);
   return (
     <CatalogFamilyGrid
       content={content}
       family={{ ...family, categories: [] }}
       state={state}
+      cardImageApiOrigin={cardImageApiOrigin}
       selectedCategories={[]}
       searchInput=""
       filtersDisabled
@@ -100,13 +107,19 @@ export function CatalogFamilyPage({
   previewContent,
   bootstrap,
   pageMetadata,
+  cardImageApiOrigin,
 }: Props) {
   if (SharedCatalogPreview && previewContent)
     return (
       <Suspense
         fallback={
           bootstrap ? (
-            <StaticCatalogPage content={content} family={family} bootstrap={bootstrap} />
+            <StaticCatalogPage
+              content={content}
+              family={family}
+              bootstrap={bootstrap}
+              cardImageApiOrigin={cardImageApiOrigin}
+            />
           ) : (
             <output>{content.list.loadingLabel}</output>
           )
@@ -124,6 +137,7 @@ export function CatalogFamilyPage({
               family={family}
               bootstrap={bootstrap}
               pageMetadata={pageMetadata}
+              cardImageApiOrigin={cardImageApiOrigin}
               onOpenProduct={open}
               locationSearch={locationSearch}
             />
@@ -138,6 +152,7 @@ export function CatalogFamilyPage({
       family={family}
       bootstrap={bootstrap}
       pageMetadata={pageMetadata}
+      cardImageApiOrigin={cardImageApiOrigin}
     />
   );
 }
@@ -226,6 +241,7 @@ function CatalogFamilyController({
   family,
   bootstrap,
   pageMetadata,
+  cardImageApiOrigin,
   onOpenProduct,
   locationSearch,
   registry,
@@ -650,6 +666,7 @@ function CatalogFamilyController({
           content={content}
           family={family}
           state={state}
+          cardImageApiOrigin={cardImageApiOrigin}
           selectedCategories={selectedCategories}
           searchInput={searchInput}
           onCategoriesChange={(categories) => handleFilters(searchInput, categories, true)}

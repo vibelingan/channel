@@ -19,6 +19,7 @@ interface Props {
   onPageChange: (page: number) => void;
   onOpenProduct?: (productId: string) => void;
   filtersDisabled?: boolean;
+  cardImageApiOrigin?: string;
   pageHref?: (page: number) => string;
   nativePagination?: NativePageNavigation;
 }
@@ -43,7 +44,13 @@ function CatalogProductCard({
   product,
   content,
   onOpenProduct,
-}: { product: Product; content: CatalogContent; onOpenProduct?: (productId: string) => void }) {
+  cardImageApiOrigin,
+}: {
+  product: Product;
+  content: CatalogContent;
+  onOpenProduct?: (productId: string) => void;
+  cardImageApiOrigin?: string;
+}) {
   const { list, detail } = content;
   const moq = effectiveCatalogMoq(product);
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
@@ -64,6 +71,8 @@ function CatalogProductCard({
           imagePresentation={product.imagePresentation}
           sizes="(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)"
           sources={product.images ?? []}
+          preferSiteImage={Boolean(cardImageApiOrigin)}
+          siteImageApiOrigin={cardImageApiOrigin}
           alt={product.name}
           imageClassName="p-4 transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
@@ -116,6 +125,7 @@ export function CatalogFamilyGrid({
   pageHref,
   nativePagination,
   filtersDisabled = false,
+  cardImageApiOrigin,
 }: Props) {
   const { list } = content;
   // Public products without a legacy slug still have a stable product-ID link.
@@ -232,6 +242,7 @@ export function CatalogFamilyGrid({
                 key={product._id}
                 product={product}
                 content={content}
+                cardImageApiOrigin={cardImageApiOrigin}
                 onOpenProduct={onOpenProduct}
               />
             ))}

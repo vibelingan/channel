@@ -1,4 +1,5 @@
 ---
+import { publicCatalogImageApiOrigin } from '../../../../../../scripts/release/site-policy.mjs';
 import AssistantHost from '../../../components/AssistantHost.astro';
 import SiteFooter from '../../../components/SiteFooter.astro';
 import SiteHeader from '../../../components/SiteHeader.astro';
@@ -48,6 +49,10 @@ const root = categoryPageIdentity(
 );
 const { page, heading, breadcrumbs } = identity;
 const pageMetadata = { current: identity, root };
+const cardImageApiOrigin = publicCatalogImageApiOrigin(
+  Astro.site?.origin,
+  import.meta.env.PUBLIC_API_BASE_URL,
+);
 ---
 <DocumentLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />
@@ -71,7 +76,7 @@ const pageMetadata = { current: identity, root };
     </section>
     <section data-catalog-page-section class="bg-white py-10 sm:py-14" aria-label={heading}>
       <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} pageMetadata={pageMetadata} client:load />
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} bootstrap={bootstrap} pageMetadata={pageMetadata} cardImageApiOrigin={cardImageApiOrigin} client:load />
       </div>
     </section>
   </main>

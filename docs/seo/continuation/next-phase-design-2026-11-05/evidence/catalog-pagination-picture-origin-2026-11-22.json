@@ -1,0 +1,346 @@
+{
+  "local": {
+    "scope": {
+      "officialSite": "site-44943682010-1",
+      "candidateComparedToHostedPackage": true,
+      "pages": [
+        {
+          "path": "ai-gadgets/index.html",
+          "cards": 12,
+          "changedHosts": 0
+        },
+        {
+          "path": "ai-gadgets/page/2/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "ai-gadgets/page/3/index.html",
+          "cards": 7,
+          "changedHosts": 7
+        },
+        {
+          "path": "headphones/index.html",
+          "cards": 12,
+          "changedHosts": 0
+        },
+        {
+          "path": "headphones/page/10/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/11/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/12/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/13/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/14/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/15/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/16/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/17/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/18/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/19/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/2/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/20/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/21/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/22/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/23/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/24/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/25/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/26/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/27/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/28/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/29/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/3/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/30/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/31/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/32/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/33/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/34/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/35/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/36/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/37/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/38/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/39/index.html",
+          "cards": 4,
+          "changedHosts": 4
+        },
+        {
+          "path": "headphones/page/4/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/5/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/6/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/7/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/8/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "headphones/page/9/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "misc/index.html",
+          "cards": 12,
+          "changedHosts": 0
+        },
+        {
+          "path": "misc/page/2/index.html",
+          "cards": 12,
+          "changedHosts": 12
+        },
+        {
+          "path": "misc/page/3/index.html",
+          "cards": 8,
+          "changedHosts": 8
+        }
+      ],
+      "imagesShifted": 487,
+      "unique": 468
+    },
+    "pictures": {
+      "live": false,
+      "rows": [
+        {
+          "width": 390,
+          "causedOwnImageError": false,
+          "loadedAfterPublicCatalogRefresh": true,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:53346",
+              "status": 200
+            }
+          ],
+          "image": {
+            "width": 800,
+            "alt": "Factory OEM Headphones Gaming  Earphones Wireless Over Ear Gaming Headset",
+            "widthAttr": "800",
+            "heightAttr": "800"
+          }
+        },
+        {
+          "width": 1440,
+          "causedOwnImageError": false,
+          "loadedAfterPublicCatalogRefresh": true,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:53346",
+              "status": 200
+            }
+          ],
+          "image": {
+            "width": 800,
+            "alt": "Factory OEM Headphones Gaming  Earphones Wireless Over Ear Gaming Headset",
+            "widthAttr": "800",
+            "heightAttr": "800"
+          }
+        },
+        {
+          "width": 1440,
+          "causedOwnImageError": true,
+          "loadedAfterPublicCatalogRefresh": true,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:53346",
+              "status": 503
+            },
+            {
+              "origin": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+              "status": 200
+            }
+          ],
+          "image": {
+            "width": 800,
+            "alt": "Factory OEM Headphones Gaming  Earphones Wireless Over Ear Gaming Headset",
+            "widthAttr": "800",
+            "heightAttr": "800"
+          }
+        }
+      ]
+    },
+    "interactions": {
+      "results": [
+        {
+          "version": "current",
+          "width": 390,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "current",
+          "width": 1440,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "candidate",
+          "width": 390,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "candidate",
+          "width": 1440,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        }
+      ],
+      "submittedInquiry": false
+    }
+  }
+}
