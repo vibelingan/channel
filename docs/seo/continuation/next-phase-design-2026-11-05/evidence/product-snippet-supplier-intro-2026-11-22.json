@@ -1,0 +1,98 @@
+{
+  "mode": "candidate",
+  "baselineRun": 44950036550,
+  "siteProductCount": 528,
+  "checkedHtmlFiles": 589,
+  "acceptedSnapshotSha256": "a24d04536417ad160ee210c169b29b23a468ae00b1a4f81182f2885bced95226",
+  "changedProductDescriptions": 337,
+  "unchangedProductDescriptions": 191,
+  "otherUnchangedPages": 61,
+  "afterExcerptKinds": {
+    "visibleProductSpecification": 172,
+    "fallback": 165
+  },
+  "unchangedSearchFiles": [
+    "sitemap-index.xml",
+    "sitemap-0.xml",
+    "robots.txt",
+    "products/manifest.json"
+  ],
+  "sampleFromDiscoveredUrls": [
+    {
+      "path": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "before": "Factory Wholesale Jerry Scheme Wireless V5.4 EDR Over Ear Headphones, 40mm Driver ANC Headset 4-6H Playtime 400mA Battery. Experienced Headphones Manufacturer…",
+      "after": "Factory Wholesale Jerry Scheme Wireless V5.4 EDR Over Ear Headphones, 40mm Driver ANC Headset 4-6H… View product specifications, photos and quotation options.",
+      "usesVisibleSpecification": false
+    },
+    {
+      "path": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "before": "Attractive Active Noise Cancellation Headset Wired Gaming Anc Headphones. Experienced Headphones Manufacturer Channel Technology Ltd is engaged in the…",
+      "after": "Attractive Active Noise Cancellation Headset Wired Gaming Anc Headphones. Drivers Size: 40mm.",
+      "usesVisibleSpecification": true
+    },
+    {
+      "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "before": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones. Experienced Headphones Manufacturer Channel Technology Ltd is…",
+      "after": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones. Impedance: 32Ω.",
+      "usesVisibleSpecification": true
+    },
+    {
+      "path": "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "before": "Computer Microphone Gaming Headphones Wireless TWS Headsets Blue Tooth Earphone Headphone. Experienced Headphones Manufacturer Channel Technology Ltd is…",
+      "after": "Computer Microphone Gaming Headphones Wireless TWS Headsets Blue Tooth Earphone Headphone. View product specifications, photos and quotation options.",
+      "usesVisibleSpecification": false
+    }
+  ],
+  "sampleFromOtherUrls": {
+    "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+    "before": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone. Experienced Headphones Manufacturer Channel Technology Ltd is engaged in the…",
+    "after": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone. Weight: 290(g).",
+    "usesVisibleSpecification": true
+  },
+  "candidateMethod": "Rebuild against the current accepted public catalog snapshot. Full HTML comparison excludes only the description in its existing head locations, generated island IDs, and fingerprinted asset filenames.",
+  "searchConsole": {
+    "property": "https://supplychainsai.com/",
+    "observedOn": "2026-11-22",
+    "pageIndexing": {
+      "reportDate": "2026-11-16",
+      "indexed": 529,
+      "notIndexed": 989,
+      "reasons": 8,
+      "other4xxValidation": {
+        "started": "2026-11-16",
+        "pending": 5,
+        "failed": 0
+      }
+    },
+    "searchPerformanceWeb": {
+      "from": "2026-10-14",
+      "through": "2026-11-19",
+      "clicks": 3,
+      "impressions": 95,
+      "averagePosition": 26.8
+    },
+    "videoIndexing": {
+      "reportDate": "2026-11-19",
+      "indexed": 0,
+      "notIndexed": 2,
+      "reason": "Video isn't on a watch page"
+    },
+    "https": {
+      "reportDate": "2026-11-21",
+      "httpsUrls": 9,
+      "nonHttpsUrls": 0
+    },
+    "coreWebVitals": {
+      "reportDate": "2026-11-20",
+      "mobile": "insufficient data",
+      "desktop": "insufficient data"
+    }
+  },
+  "historicalUrlsFollowup": {
+    "windowCst": ["2026-11-22 05:00:01", "2026-11-22 05:44:38"],
+    "urls": 7,
+    "requests": 13,
+    "response200": 13,
+    "verifiedGooglebotRequests": 0
+  }
+}

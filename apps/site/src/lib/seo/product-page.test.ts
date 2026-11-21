@@ -260,9 +260,8 @@ test('the real long imported name and summary fit display budgets without changi
   assert.ok(characters(page.title) <= 65);
   assert.ok(characters(page.description) <= 160);
   assert.equal(page.title, 'High Quality Foldable Headband Headphones Wireless Headset…');
-  assert.match(page.description, /…$/u);
-  assert.doesNotMatch(page.description, /we exp(?:…|$)/u);
-  assert.ok(summary.includes(page.description.slice(name.length + 2, -1)));
+  assert.match(page.description, /View product specifications, photos and quotation options\.$/);
+  assert.doesNotMatch(page.description, /Experienced Headphones Manufacturer/);
   const html = renderToStaticMarkup(
     createElement(LegacySkuDetailPage, {
       initialProduct: entry.product,
@@ -280,6 +279,31 @@ test('the real long imported name and summary fit display budgets without changi
   const breadcrumbs = page.schemaNodes.find((node) => node['@type'] === 'BreadcrumbList');
   assert.ok(Array.isArray(breadcrumbs?.itemListElement));
   assert.equal(breadcrumbs.itemListElement.at(-1)?.name, name);
+});
+
+test('a repeated supplier introduction yields to a visible product specification', () => {
+  const entry = metadataEntry('specific', 'Headset');
+  const descriptionText =
+    'Experienced Headphones Manufacturer\nChannel Technology Ltd is engaged in the research, development, production, and sale of headphones.';
+  const detail = {
+    ...detailFixture(),
+    revision: entry.revision,
+    descriptionText,
+    facts: [
+      { name: 'Material', value: 'Leather' },
+      { name: 'Material:', value: 'Plastic' },
+      { name: 'Battery Charging Time', value: '1–3 hours' },
+      { name: 'Driver Size', value: '40 mm' },
+    ],
+  };
+  assert.equal(metadata({ ...entry, detail }).description, 'Headset. Driver Size: 40 mm.');
+  assert.equal(
+    metadata({
+      ...entry,
+      detail: { ...detail, descriptionText: 'A compact headset for daily calls.' },
+    }).description,
+    'Headset. A compact headset for daily calls.',
+  );
 });
 
 test('identical names retain each complete UUID within the title budget', () => {

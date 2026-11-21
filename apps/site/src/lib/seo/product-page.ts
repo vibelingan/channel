@@ -1,3 +1,4 @@
+import { catalogContentView } from '../../catalog/presentation/catalog-content-view.ts';
 import type { Product } from '../../islands/shop/catalog-types.ts';
 import { catalogBreadcrumbSchema, familyBreadcrumbs, hubBreadcrumbs } from '../catalog-seo.ts';
 import { createPageDescriptor } from './page.ts';
@@ -7,6 +8,9 @@ import { publicProductRichResult } from './public-offer.ts';
 
 const TITLE_BUDGET = 65;
 const DESCRIPTION_BUDGET = 160;
+const DEFAULT_DESCRIPTION = 'View product specifications, photos and quotation options.';
+const supplierIntroduction =
+  /^Experienced Headphones Manufacturer\s+Channel Technology Ltd is engaged in the research\b/i;
 
 export function productBreadcrumbs(product: Product) {
   const family = product.productFamily;
@@ -27,6 +31,32 @@ function bodySummary(entry: ProductSnapshotEntry): string {
   if (!detail) return entry.product.description ?? '';
   // Structured-content presentation uses approved notes instead of descriptionText.
   return ('content' in detail ? detail.content.notes.join(' ') : detail.descriptionText) ?? '';
+}
+
+function productDescription(entry: ProductSnapshotEntry, name: string, identity: string) {
+  const summary = bodySummary(entry).replace(/\s+/g, ' ').trim();
+  if (!supplierIntroduction.test(summary))
+    return fitIdentity(
+      `${name.trim()}. ${summary || DEFAULT_DESCRIPTION}`,
+      identity,
+      DESCRIPTION_BUDGET,
+    );
+
+  const detail = entry.detail;
+  const content = detail && 'content' in detail ? detail.content : undefined;
+  const fact =
+    detail &&
+    catalogContentView(detail.facts, content)
+      .highlights.map(({ name, value }) => `${name.trim().replace(/:+$/, '')}: ${value.trim()}`)
+      .find((text) => Array.from(text).length <= 60);
+  const description = fact ? `${fact.replace(/\.$/, '')}.` : DEFAULT_DESCRIPTION;
+  const available = DESCRIPTION_BUDGET - Array.from(description + identity).length - 2;
+  if (available < 2)
+    return fitIdentity(`${name.trim()}. ${description}`, identity, DESCRIPTION_BUDGET);
+
+  const title = shorten(name, available);
+  const separator = /[.…!?]$/u.test(title) ? ' ' : '. ';
+  return `${title}${separator}${description}${identity}`;
 }
 
 export function duplicateProductTitleIds(entries: readonly ProductSnapshotEntry[], brand: string) {
@@ -58,12 +88,7 @@ export function productPageDescriptor(
   const path = productPath(product._id);
   const identity = duplicateName ? ` (${product._id})` : '';
   const name = detail?.name ?? product.name;
-  const summary = bodySummary(entry).replace(/\s+/g, ' ').trim();
-  const description = fitIdentity(
-    `${name.trim()}. ${summary || 'View product specifications, photos and quotation options.'}`,
-    identity,
-    DESCRIPTION_BUDGET,
-  );
+  const description = productDescription(entry, name, identity);
   const richResult = publicProductRichResult(entry, origin, description);
   return createPageDescriptor({
     path,
