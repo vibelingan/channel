@@ -1,0 +1,100 @@
+{
+  "testedAt": "2026-11-21T11:31:08+09:00",
+  "pages": {
+    "uk": "https://www.alibaba.co.uk/product-detail/ANC-Wireless-Bluetooth-5-4-Headphones_1601906395339.html",
+    "it": "https://www.alibaba.it/product-detail/Advanced-Noise-Cancelling-Over-Ear-Headphones_1601696867545.html",
+    "list": "https://www.alibaba.com/picks/wireless-headphones-bluetooth.html"
+  },
+  "responses": [
+    {
+      "sample": "uk",
+      "url": "https://s.alicdn.com/@sc04/kf/Hc26f8791474e4f63a5ca858dfa30d2adD.png_960x960q80.jpg",
+      "source": "img",
+      "status": 200,
+      "mime": "image/png",
+      "bytes": 1132388,
+      "sha256": "271df467daeb7528aba29590589635e59134188e745830003b99700ef132bfd4",
+      "dimensions": [960, 960]
+    },
+    {
+      "sample": "it",
+      "url": "https://s.alicdn.com/@sc04/kf/H11c028be99f5436587180c42b4d6a3b71.jpg_960x960q80.jpg",
+      "source": "img",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 69361,
+      "sha256": "62e621de293e0f04912c1e12930369d0dfa1f44af4064c423c42fb24321fce6f",
+      "dimensions": [960, 960]
+    },
+    {
+      "sample": "list",
+      "url": "https://s.alicdn.com/@sc04/kf/Hb25261e6adfa4122bb0ecc9cba0a8acdb.jpg_200x200.jpg",
+      "source": "img",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 4878,
+      "sha256": "5e06d40812eb8a4bea2fe21764f014dd64bd9b035f17c2d5e8b31ab0e3b030d9",
+      "dimensions": [200, 200]
+    },
+    {
+      "sample": "uk",
+      "url": "https://sc04.alicdn.com/kf/Hc26f8791474e4f63a5ca858dfa30d2adD.png",
+      "source": "html",
+      "status": 200,
+      "mime": "image/png",
+      "bytes": 1337693,
+      "sha256": "8dda70c6b4e2a25e6e8a2eb32c0689fdaec08f1b4aa7220907306049c0b28c11",
+      "dimensions": [1024, 1024]
+    },
+    {
+      "sample": "uk",
+      "url": "https://sc04.alicdn.com/kf/Hc26f8791474e4f63a5ca858dfa30d2adD.png_50x50.png",
+      "source": "html",
+      "status": 200,
+      "mime": "image/png",
+      "bytes": 4956,
+      "sha256": "2b7ae50140b84b078d622680ca06a20bc96a71c4c4f8d812ddaa572b596c8385",
+      "dimensions": [50, 50]
+    },
+    {
+      "sample": "it",
+      "url": "https://sc04.alicdn.com/kf/H11c028be99f5436587180c42b4d6a3b71.jpg",
+      "source": "html",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 338825,
+      "sha256": "de27dd8ecfabe23f94791779a1380104eb33f035906d1fb95dbd01892003f12e",
+      "dimensions": [1500, 1500]
+    },
+    {
+      "sample": "it",
+      "url": "https://sc04.alicdn.com/kf/H11c028be99f5436587180c42b4d6a3b71.jpg_50x50.jpg",
+      "source": "html",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 2227,
+      "sha256": "0f2435b31671bc66d55a9b3cfb74a687a105f1f392e6e31d5d97f45877a2f6ae",
+      "dimensions": [50, 50]
+    },
+    {
+      "sample": "uk",
+      "url": "https://s.alicdn.com/@sc04/kf/Hc26f8791474e4f63a5ca858dfa30d2adD.png_80x80.jpg",
+      "source": "html",
+      "status": 200,
+      "mime": "image/png",
+      "bytes": 11217,
+      "sha256": "7cae2a7fb2bdcc3d8713ea6ec34c8ff71387827bdccb7e6593828b50b842249f",
+      "dimensions": [80, 80]
+    },
+    {
+      "sample": "it",
+      "url": "https://s.alicdn.com/@sc04/kf/H11c028be99f5436587180c42b4d6a3b71.jpg_80x80.jpg",
+      "source": "html",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 1985,
+      "sha256": "d1674193bcbb802bc57268b142830f99e41dde0874f87a300c618e8ff4c6d784",
+      "dimensions": [80, 80]
+    }
+  ]
+}
