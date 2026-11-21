@@ -113,9 +113,7 @@
   "cloudCleanup": {
     "readAt": "2026-11-21T00:57:44.159Z",
     "functionCount": 9,
-    "runs": [
-      44845124397
-    ],
+    "runs": [44845124397],
     "leftovers": []
   },
   "catalogAutomaticUpdate": {
@@ -158,16 +156,8 @@
       "connectionType": "cellular4g"
     },
     "clickToProductVisibleMilliseconds": {
-      "base": [
-        980.3,
-        1441.7,
-        2406.5
-      ],
-      "candidate": [
-        1404.3,
-        1408.5,
-        1445.7
-      ]
+      "base": [980.3, 1441.7, 2406.5],
+      "candidate": [1404.3, 1408.5, 1445.7]
     },
     "mediansMilliseconds": {
       "base": 1441.7,
@@ -186,69 +176,37 @@
     "timingsMilliseconds": {
       "base": {
         "navigationToInquiryEnabled": {
-          "runs": [
-            7131.3,
-            8127.7,
-            9169
-          ],
+          "runs": [7131.3, 8127.7, 9169],
           "median": 8127.7
         },
         "inquiryEnabledToDialogVisible": {
-          "runs": [
-            211.2,
-            78.1,
-            76.4
-          ],
+          "runs": [211.2, 78.1, 76.4],
           "median": 78.1
         },
         "continueToFirstContactField": {
-          "runs": [
-            75,
-            70,
-            58
-          ],
+          "runs": [75, 70, 58],
           "median": 70
         },
         "continueToCountryPicker": {
-          "runs": [
-            78.3,
-            73.3,
-            62.3
-          ],
+          "runs": [78.3, 73.3, 62.3],
           "median": 73.3
         }
       },
       "candidate": {
         "navigationToInquiryEnabled": {
-          "runs": [
-            7339.6,
-            5633,
-            5602.6
-          ],
+          "runs": [7339.6, 5633, 5602.6],
           "median": 5633
         },
         "inquiryEnabledToDialogVisible": {
-          "runs": [
-            71.7,
-            71.7,
-            79.9
-          ],
+          "runs": [71.7, 71.7, 79.9],
           "median": 71.7
         },
         "continueToFirstContactField": {
-          "runs": [
-            57,
-            57.1,
-            53.5
-          ],
+          "runs": [57, 57.1, 53.5],
           "median": 57
         },
         "continueToCountryPicker": {
-          "runs": [
-            3864.7,
-            4920.1,
-            1847.9
-          ],
+          "runs": [3864.7, 4920.1, 1847.9],
           "median": 3864.7
         }
       }
