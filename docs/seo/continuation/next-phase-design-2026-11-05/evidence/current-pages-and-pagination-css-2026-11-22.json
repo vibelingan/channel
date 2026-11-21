@@ -1,0 +1,3427 @@
+{
+  "liveSweep": {
+    "startedAt": "2026-11-21T19:19:18.684Z",
+    "release": "site-44937759126-1",
+    "chrome": "157.0.8103.79",
+    "egressAtStart": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "egressAtEnd": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "observeAfterDomMs": 5500,
+    "profiles": {
+      "mobile": {
+        "view": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "isMobile": true,
+          "hasTouch": true
+        },
+        "cpu": 4,
+        "network": {
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "desktop": {
+        "view": {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "deviceScaleFactor": 1
+        },
+        "cpu": 1,
+        "network": {
+          "latency": 40,
+          "downloadThroughput": 1250000,
+          "uploadThroughput": 625000,
+          "connectionType": "ethernet"
+        }
+      }
+    },
+    "categories": {
+      "home": "/",
+      "directory": "/headphones/",
+      "page2": "/headphones/page/2/",
+      "oem": "/oem/",
+      "portfolio": "/portfolio/",
+      "product": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+      "otherProduct": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+      "blog": "/blog/",
+      "article": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "video": "/videos/factory-overview/"
+    },
+    "rows": [
+      {
+        "round": 1,
+        "kind": "home",
+        "path": "/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 1332.5,
+          "lastByte": 2384.3999999910593,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 684.7000000029802,
+          "tcpDuration": 57.79999999701977,
+          "tlsDuration": 223.20000000298023,
+          "requestStart": 970.7999999970198,
+          "domContentLoaded": 4579.5,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 1936,
+          "lcp": {
+            "time": 2052,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.029444868578656917
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 23
+        }
+      },
+      {
+        "round": 1,
+        "kind": "home",
+        "path": "/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 940.9000000059605,
+          "lastByte": 1590.2000000029802,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 55.400000005960464,
+          "tcpDuration": 317.40000000596046,
+          "tlsDuration": 226.69999998807907,
+          "requestStart": 603.2000000029802,
+          "domContentLoaded": 3196.7000000029802,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 1168,
+          "lcp": {
+            "time": 1492,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.009378022521219135
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 824.2000000029802,
+          "lastByte": 1772,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.29999999701977,
+          "tcpDuration": 56.70000000298023,
+          "tlsDuration": 253.70000000298023,
+          "requestStart": 368.80000001192093,
+          "domContentLoaded": 4766.9000000059605,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 2028,
+          "lcp": {
+            "time": 2784,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.0004896853631158791
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 1033.5,
+          "firstByte": 2177.6000000089407,
+          "lastByte": 2777.2000000029802,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 865.7000000029802,
+            "firstByte": 1510.2000000029802,
+            "lastByte": 1998.4000000059605,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 6
+        }
+      },
+      {
+        "round": 1,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 916.5,
+          "lastByte": 1199.7999999970198,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.1000000089407,
+          "tcpDuration": 57.29999999701977,
+          "tlsDuration": 462.29999999701977,
+          "requestStart": 577.7999999970198,
+          "domContentLoaded": 3764.3999999910593,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 1628,
+          "lcp": {
+            "time": 2852,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.0004476825060013717
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 1023.2000000029802,
+          "firstByte": 2258.0999999940395,
+          "lastByte": 2830.5,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 996,
+            "firstByte": 1544,
+            "lastByte": 1594.5999999940395,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 2368.0999999940395,
+          "lastByte": 3127.0999999940395,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.29999999701977,
+          "tcpDuration": 57.79999999701977,
+          "tlsDuration": 685.1000000089407,
+          "requestStart": 802.2000000029802,
+          "domContentLoaded": 7161.5999999940395,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 5580,
+          "lcp": {
+            "time": 5652,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.03699959512048189
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 2414.0999999940395,
+            "firstByte": 3316.7000000029802,
+            "lastByte": 5548.70000000298,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659420
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 8
+        }
+      },
+      {
+        "round": 1,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 1014.5,
+          "lastByte": 2215.5,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 49.8999999910593,
+          "tcpDuration": 58.20000000298023,
+          "tlsDuration": 251.20000000298023,
+          "requestStart": 366.40000000596046,
+          "domContentLoaded": 3514.7000000029802,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 2184,
+          "lcp": {
+            "time": 5548,
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+          "start": 2187.2000000029802,
+          "firstByte": 0,
+          "lastByte": 5539,
+          "encoded": 0,
+          "protocol": ""
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 1078.7000000029802,
+            "firstByte": 1673,
+            "lastByte": 2157.5999999940395,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659420
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 5084.0999999940395,
+          "lastByte": 5878,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.400000005960464,
+          "tcpDuration": 58,
+          "tlsDuration": 222.59999999403954,
+          "requestStart": 339.09999999403954,
+          "domContentLoaded": 8074.20000000298,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 6392,
+          "lcp": {
+            "time": 6500,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.0027391372297515607
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 5121.20000000298,
+            "firstByte": 5927.79999999702,
+            "lastByte": 6358.70000000298,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 23
+        }
+      },
+      {
+        "round": 1,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 726.7000000029802,
+          "lastByte": 1346.4000000059605,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.20000000298023,
+          "tcpDuration": 58.79999999701977,
+          "tlsDuration": 252.1000000089407,
+          "requestStart": 370.30000001192093,
+          "domContentLoaded": 3392.800000011921,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 1740,
+          "lcp": {
+            "time": 1776,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.013180504081736539
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 736,
+            "firstByte": 1407.9000000059605,
+            "lastByte": 1703,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 1153.0999999940395,
+          "lastByte": 3401.2000000029802,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.400000005960464,
+          "tcpDuration": 58.3999999910593,
+          "tlsDuration": 677.7000000029802,
+          "requestStart": 793.5,
+          "domContentLoaded": 4567.5999999940395,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 2668,
+          "lcp": {
+            "time": 2708,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 1190.9000000059605,
+            "firstByte": 2132.7000000029802,
+            "lastByte": 2636.2000000029802,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 2320.2000000029802,
+          "lastByte": 2511.0999999940395,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 1075.300000011921,
+          "tcpDuration": 316.3999999910593,
+          "tlsDuration": 482.5,
+          "requestStart": 1877,
+          "domContentLoaded": 4519.20000000298,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 3172,
+          "lcp": {
+            "time": 3196,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 2376.2999999970198,
+            "firstByte": 2935.7000000029802,
+            "lastByte": 3146,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 749.6000000089407,
+          "lastByte": 1452.2000000029802,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 55.900000005960464,
+          "tcpDuration": 57.79999999701977,
+          "tlsDuration": 249.79999999701977,
+          "requestStart": 366.30000001192093,
+          "domContentLoaded": 4371.800000011921,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 2144,
+          "lcp": {
+            "time": 2476,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00037112995941413987
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 1310.6000000089407,
+          "firstByte": 2270.1000000089407,
+          "lastByte": 2471.7000000029802,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 853.5,
+            "firstByte": 1751,
+            "lastByte": 2112.4000000059605,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 2
+        }
+      },
+      {
+        "round": 1,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 730.5,
+          "lastByte": 1365.5,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.79999999701977,
+          "tcpDuration": 58.20000000298023,
+          "tlsDuration": 252,
+          "requestStart": 369.5,
+          "domContentLoaded": 3841.9000000059605,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 1696,
+          "lcp": {
+            "time": 1928,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00021357807007673182
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 1254.5999999940395,
+          "firstByte": 1803.7999999970198,
+          "lastByte": 1914.2000000029802,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 822.2000000029802,
+            "firstByte": 1415.0999999940395,
+            "lastByte": 1663.4000000059605,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 1146.6000000089407,
+          "lastByte": 1966.1000000089407,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.20000000298023,
+          "tcpDuration": 57.8999999910593,
+          "tlsDuration": 724.7000000029802,
+          "requestStart": 840.8000000119209,
+          "domContentLoaded": 4161.300000011921,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 2556,
+          "lcp": {
+            "time": 2724,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.006884872177865934
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 1471.7000000029802,
+          "firstByte": 2581.7000000029802,
+          "lastByte": 2716.2000000029802,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 1246.7000000029802,
+            "firstByte": 1843.800000011921,
+            "lastByte": 2514.800000011921,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 4103.70000000298,
+          "lastByte": 4448,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 3099.5,
+          "tcpDuration": 318.59999999403954,
+          "tlsDuration": 253.30000001192093,
+          "requestStart": 3672.4000000059605,
+          "domContentLoaded": 6173.4000000059605,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 4732,
+          "lcp": {
+            "time": 4908,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.008215135513117283
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 4418.100000008941,
+          "firstByte": 4870.4000000059605,
+          "lastByte": 4892.20000000298,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 4113.600000008941,
+            "firstByte": 4499.70000000298,
+            "lastByte": 4706,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 890.3000000119209,
+          "lastByte": 952,
+          "encoded": 8224,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.20000000298023,
+          "tcpDuration": 57.6000000089407,
+          "tlsDuration": 251.5,
+          "requestStart": 367.90000000596046,
+          "domContentLoaded": 2395.4000000059605,
+          "headerAndBodyTransfer": 8524
+        },
+        "paints": {
+          "fcp": 1828,
+          "lcp": {
+            "time": 1868,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.019065131464897866
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 914.1000000089407,
+            "firstByte": 1248.2000000029802,
+            "lastByte": 1798,
+            "encoded": 18084,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84684
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 751.0999999940395,
+          "lastByte": 827.6999999880791,
+          "encoded": 8233,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.20000000298023,
+          "tcpDuration": 58.70000000298023,
+          "tlsDuration": 220.79999999701977,
+          "requestStart": 338.69999998807907,
+          "domContentLoaded": 1709.8999999910593,
+          "headerAndBodyTransfer": 8533
+        },
+        "paints": {
+          "fcp": 1196,
+          "lcp": {
+            "time": 1212,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.011969735370316786
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 760.5,
+            "firstByte": 1087.5,
+            "lastByte": 1160.7999999970198,
+            "encoded": 18103,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84744
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 1005.9000000059605,
+          "lastByte": 1109.9000000059605,
+          "encoded": 9829,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.29999999701977,
+          "tcpDuration": 57.20000000298023,
+          "tlsDuration": 249.69999998807907,
+          "requestStart": 366,
+          "domContentLoaded": 2274.6000000089407,
+          "headerAndBodyTransfer": 10129
+        },
+        "paints": {
+          "fcp": 1588,
+          "lcp": {
+            "time": 7392,
+            "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+          "start": 1072.5,
+          "firstByte": 2665.4000000059605,
+          "lastByte": 7382.9000000059605,
+          "encoded": 33460,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 1030.5,
+            "firstByte": 1398,
+            "lastByte": 1554.5,
+            "encoded": 18138,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84694
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 911.4000000059605,
+          "lastByte": 1002.5,
+          "encoded": 9828,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.69999998807907,
+          "tcpDuration": 58.30000001192093,
+          "tlsDuration": 250.8999999910593,
+          "requestStart": 368.20000000298023,
+          "domContentLoaded": 2061.1000000089407,
+          "headerAndBodyTransfer": 10128
+        },
+        "paints": {
+          "fcp": 1400,
+          "lcp": {
+            "time": 1412,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.005303568672839506
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 920.1000000089407,
+            "firstByte": 1285.1000000089407,
+            "lastByte": 1362.4000000059605,
+            "encoded": 18103,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84694
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 960.7999999970198,
+          "lastByte": 1167.2999999970198,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.5,
+          "tcpDuration": 58.900000005960464,
+          "tlsDuration": 485.3999999910593,
+          "requestStart": 602.9000000059605,
+          "domContentLoaded": 3441.7999999970198,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 1768,
+          "lcp": {
+            "time": 1960,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 1137,
+          "firstByte": 1650.9000000059605,
+          "lastByte": 1948.6000000089407,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 1003.6000000089407,
+            "firstByte": 1527.1000000089407,
+            "lastByte": 1737.1000000089407,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 832.2999999970198,
+          "lastByte": 936.0999999940395,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.8999999910593,
+          "tcpDuration": 57.400000005960464,
+          "tlsDuration": 223.20000000298023,
+          "requestStart": 339.59999999403954,
+          "domContentLoaded": 2686,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 1456,
+          "lcp": {
+            "time": 1648,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0.00021900475689086077
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 930.7999999970198,
+          "firstByte": 1455.3999999910593,
+          "lastByte": 1627.7999999970198,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 844.8999999910593,
+            "firstByte": 1352.3999999910593,
+            "lastByte": 1423.5999999940395,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 654.1000000089407,
+          "lastByte": 1170.300000011921,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.20000000298023,
+          "tcpDuration": 56.8999999910593,
+          "tlsDuration": 220.40000000596046,
+          "requestStart": 336.6000000089407,
+          "domContentLoaded": 3049.7000000029802,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 1756,
+          "lcp": {
+            "time": 2176,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0.00021900475689086077
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 1165.9000000059605,
+          "firstByte": 1753,
+          "lastByte": 2139.6000000089407,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 662,
+            "firstByte": 1589.1000000089407,
+            "lastByte": 1719.9000000059605,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 727.2999999970198,
+          "lastByte": 950.0999999940395,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 73.79999999701977,
+          "tcpDuration": 57.400000005960464,
+          "tlsDuration": 250.79999999701977,
+          "requestStart": 384.90000000596046,
+          "domContentLoaded": 3074.0999999940395,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 1444,
+          "lcp": {
+            "time": 2148,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0.0006402555582384342
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 920,
+          "firstByte": 1774.5999999940395,
+          "lastByte": 2126.2000000029802,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 771.2000000029802,
+            "firstByte": 1270.7000000029802,
+            "lastByte": 1415.5999999940395,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 944.9000000059605,
+          "lastByte": 1022.7999999970198,
+          "encoded": 9829,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.8999999910593,
+          "tcpDuration": 58.5,
+          "tlsDuration": 221.70000000298023,
+          "requestStart": 338.40000000596046,
+          "domContentLoaded": 2031.2000000029802,
+          "headerAndBodyTransfer": 10129
+        },
+        "paints": {
+          "fcp": 1416,
+          "lcp": {
+            "time": 1428,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.005559012740858625
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 953.2999999970198,
+            "firstByte": 1296.7000000029802,
+            "lastByte": 1380.2999999970198,
+            "encoded": 18146,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84729
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 1300.7000000029802,
+          "lastByte": 1412,
+          "encoded": 9841,
+          "protocol": "http/1.1",
+          "dnsDuration": 54.20000000298023,
+          "tcpDuration": 56.5,
+          "tlsDuration": 540.6999999880791,
+          "requestStart": 656,
+          "domContentLoaded": 2696.4000000059605,
+          "headerAndBodyTransfer": 10141
+        },
+        "paints": {
+          "fcp": 1976,
+          "lcp": {
+            "time": 2424,
+            "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+            "element": "IMG"
+          },
+          "cls": 0.0296424349712668
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+          "start": 1397,
+          "firstByte": 2172.6000000089407,
+          "lastByte": 2417,
+          "encoded": 33460,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 1325.7000000029802,
+            "firstByte": 1771.300000011921,
+            "lastByte": 1945.6000000089407,
+            "encoded": 18146,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84810
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 739.2999999970198,
+          "lastByte": 816,
+          "encoded": 8233,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.3999999910593,
+          "tcpDuration": 58.70000000298023,
+          "tlsDuration": 223.5,
+          "requestStart": 341.59999999403954,
+          "domContentLoaded": 1767.5,
+          "headerAndBodyTransfer": 8533
+        },
+        "paints": {
+          "fcp": 1208,
+          "lcp": {
+            "time": 1228,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.011392494233056842
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 748.2000000029802,
+            "firstByte": 1093.7000000029802,
+            "lastByte": 1172.7000000029802,
+            "encoded": 18103,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84684
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 797.5999999940395,
+          "lastByte": 850.7999999970198,
+          "encoded": 8250,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.3999999910593,
+          "tcpDuration": 57.79999999701977,
+          "tlsDuration": 251.1000000089407,
+          "requestStart": 367.29999999701977,
+          "domContentLoaded": 1818.2999999970198,
+          "headerAndBodyTransfer": 8550
+        },
+        "paints": {
+          "fcp": 1280,
+          "lcp": {
+            "time": 1320,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.019065131464897866
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 823.1999999880791,
+            "firstByte": 1140.7999999970198,
+            "lastByte": 1247.0999999940395,
+            "encoded": 18103,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84694
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 1010.6000000089407,
+          "lastByte": 1191.6000000089407,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.29999999701977,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 461.29999999701977,
+          "requestStart": 578.3000000119209,
+          "domContentLoaded": 3320.5,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 1580,
+          "lcp": {
+            "time": 2236,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.008215135513117283
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 1135.300000011921,
+          "firstByte": 2177.5,
+          "lastByte": 2218.6000000089407,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 1023.1000000089407,
+            "firstByte": 1462.800000011921,
+            "lastByte": 1548.2000000029802,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 961.3000000119209,
+          "lastByte": 1467.6000000089407,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.6000000089407,
+          "tcpDuration": 58.3999999910593,
+          "tlsDuration": 485.1000000089407,
+          "requestStart": 604.1000000089407,
+          "domContentLoaded": 4067.5,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 2040,
+          "lcp": {
+            "time": 2280,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.006884872177865934
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 1279.2000000029802,
+          "firstByte": 2130.4000000059605,
+          "lastByte": 2263.1000000089407,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 1003.8000000119209,
+            "firstByte": 1647.1000000089407,
+            "lastByte": 2008.7000000029802,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 4
+        }
+      },
+      {
+        "round": 2,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 746.4000000059605,
+          "lastByte": 943.7000000029802,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.70000000298023,
+          "tcpDuration": 142.29999999701977,
+          "tlsDuration": 220.70000000298023,
+          "requestStart": 420.6000000089407,
+          "domContentLoaded": 2953.4000000059605,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 1408,
+          "lcp": {
+            "time": 2012,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00021357807007673182
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 913.9000000059605,
+          "firstByte": 1960.2000000029802,
+          "lastByte": 1993.5,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 825.7000000029802,
+            "firstByte": 1272,
+            "lastByte": 1366,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 683.8999999910593,
+          "lastByte": 1114.5999999940395,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.80000001192093,
+          "tcpDuration": 59.69999998807907,
+          "tlsDuration": 218.5,
+          "requestStart": 336,
+          "domContentLoaded": 3918.7999999970198,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 2112,
+          "lcp": {
+            "time": 2172,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00037112995941413987
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 972.5,
+          "firstByte": 1771.7000000029802,
+          "lastByte": 2095.3999999910593,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 768.8999999910593,
+            "firstByte": 1357.2999999970198,
+            "lastByte": 2081,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 3
+        }
+      },
+      {
+        "round": 2,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 1240.2000000029802,
+          "lastByte": 1355.0999999940395,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.79999999701977,
+          "tcpDuration": 57.5,
+          "tlsDuration": 673.2000000029802,
+          "requestStart": 790.7000000029802,
+          "domContentLoaded": 4381.5,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 1908,
+          "lcp": {
+            "time": 1928,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.0008541031365204904
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 1245.7999999970198,
+            "firstByte": 1783.7999999970198,
+            "lastByte": 1879.5999999940395,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 943.4000000059605,
+          "lastByte": 1364.800000011921,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.599999994039536,
+          "tcpDuration": 57.6000000089407,
+          "tlsDuration": 487.69999998807907,
+          "requestStart": 604,
+          "domContentLoaded": 4637.9000000059605,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 2388,
+          "lcp": {
+            "time": 2444,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.012275810239128724
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 975.5,
+            "firstByte": 1580.800000011921,
+            "lastByte": 2355.4000000059605,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 1431.6000000089407,
+          "lastByte": 2244.4000000059605,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 132,
+          "tcpDuration": 58.900000005960464,
+          "tlsDuration": 254.19999998807907,
+          "requestStart": 451.5,
+          "domContentLoaded": 3956.2999999970198,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 2380,
+          "lcp": {
+            "time": 2416,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.013180504081736539
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 1493.5,
+            "firstByte": 2183.9000000059605,
+            "lastByte": 2342.2999999970198,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 662,
+          "lastByte": 1847.5,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 52.400000005960464,
+          "tcpDuration": 57.599999994039536,
+          "tlsDuration": 221.70000000298023,
+          "requestStart": 338.09999999403954,
+          "domContentLoaded": 4415.0999999940395,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 2864,
+          "lcp": {
+            "time": 2948,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.0027391372297515607
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 693.7999999970198,
+            "firstByte": 1302,
+            "lastByte": 2833.5999999940395,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 23
+        }
+      },
+      {
+        "round": 2,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 1154.5999999940395,
+          "lastByte": 2353.8999999910593,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 48.69999998807907,
+          "tcpDuration": 57.1000000089407,
+          "tlsDuration": 670.5,
+          "requestStart": 786.3999999910593,
+          "domContentLoaded": 3773.3999999910593,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 2356,
+          "lcp": {
+            "time": 7584,
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+          "start": 2364.8999999910593,
+          "firstByte": 0,
+          "lastByte": 7567.79999999702,
+          "encoded": 0,
+          "protocol": ""
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 1167.699999988079,
+            "firstByte": 1804,
+            "lastByte": 2319.199999988079,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 26,
+          "bytes": 397251
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 1094.5,
+          "lastByte": 1707,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.20000000298023,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 679.1999999880791,
+          "requestStart": 796.1999999880791,
+          "domContentLoaded": 4082.699999988079,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 2632,
+          "lcp": {
+            "time": 2700,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.05632098350015176
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 1139.5999999940395,
+            "firstByte": 1904.8999999910593,
+            "lastByte": 2600,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659420
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 4
+        }
+      },
+      {
+        "round": 2,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 1268.2999999970198,
+          "lastByte": 1593.7000000029802,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 59,
+          "tcpDuration": 313.59999999403954,
+          "tlsDuration": 483.6000000089407,
+          "requestStart": 857.2999999970198,
+          "domContentLoaded": 4077.7999999970198,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 2128,
+          "lcp": {
+            "time": 2536,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.0004476825060013718
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 1383.6000000089407,
+          "firstByte": 2402.9000000059605,
+          "lastByte": 2526.4000000059605,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 1276.5,
+            "firstByte": 1904.7000000029802,
+            "lastByte": 2096.7000000029802,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 662.5,
+          "lastByte": 1983,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.5,
+          "tcpDuration": 58,
+          "tlsDuration": 221,
+          "requestStart": 336.69999998807907,
+          "domContentLoaded": 4287.199999988079,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 2044,
+          "lcp": {
+            "time": 2668,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.000623181002813999
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 843.1999999880791,
+          "firstByte": 2112,
+          "lastByte": 2657.7999999970198,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 700.5,
+            "firstByte": 1318.7999999970198,
+            "lastByte": 2014,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 6
+        }
+      },
+      {
+        "round": 2,
+        "kind": "home",
+        "path": "/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 688.7000000029802,
+          "lastByte": 2350.6000000089407,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.20000000298023,
+          "tcpDuration": 58.5,
+          "tlsDuration": 218.69999998807907,
+          "requestStart": 335.90000000596046,
+          "domContentLoaded": 3410.1000000089407,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 916,
+          "lcp": {
+            "time": 948,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.012342364527070474
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "home",
+        "path": "/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 1514.0999999940395,
+          "lastByte": 2418.8999999910593,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.1000000089407,
+          "tcpDuration": 59.5,
+          "tlsDuration": 1047,
+          "requestStart": 1165.5,
+          "domContentLoaded": 4545.699999988079,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 1980,
+          "lcp": {
+            "time": 2052,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.029444868578656917
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 3
+        }
+      },
+      {
+        "round": 3,
+        "kind": "home",
+        "path": "/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 989.5,
+          "lastByte": 3407.199999988079,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.099999994039536,
+          "tcpDuration": 312.40000000596046,
+          "tlsDuration": 219.20000000298023,
+          "requestStart": 590.7999999970198,
+          "domContentLoaded": 4362.5999999940395,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 1400,
+          "lcp": {
+            "time": 1476,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.029444868578656917
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 12
+        }
+      },
+      {
+        "round": 3,
+        "kind": "home",
+        "path": "/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/",
+          "start": 0,
+          "firstByte": 901.3000000119209,
+          "lastByte": 2556.6000000089407,
+          "encoded": 167725,
+          "protocol": "http/1.1",
+          "dnsDuration": 54.29999999701977,
+          "tcpDuration": 311.29999999701977,
+          "tlsDuration": 222.70000000298023,
+          "requestStart": 593.4000000059605,
+          "domContentLoaded": 3503.7000000029802,
+          "headerAndBodyTransfer": 168025
+        },
+        "paints": {
+          "fcp": 1128,
+          "lcp": {
+            "time": 1160,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.010681356363597395
+        },
+        "lcpResource": null,
+        "localStylesheets": [],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 713.5999999940395,
+          "lastByte": 1916.2999999970198,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.8999999910593,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 254.20000000298023,
+          "requestStart": 370.70000000298023,
+          "domContentLoaded": 3910.7000000029802,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 1980,
+          "lcp": {
+            "time": 3056,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.000623181002813999
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 897.0999999940395,
+          "firstByte": 2217,
+          "lastByte": 3034.5999999940395,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 754.9000000059605,
+            "firstByte": 1306.9000000059605,
+            "lastByte": 1947.9000000059605,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 2
+        }
+      },
+      {
+        "round": 3,
+        "kind": "directory",
+        "path": "/headphones/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/",
+          "start": 0,
+          "firstByte": 936.2999999970198,
+          "lastByte": 1260.4000000059605,
+          "encoded": 150371,
+          "protocol": "http/1.1",
+          "dnsDuration": 60,
+          "tcpDuration": 57.80000001192093,
+          "tlsDuration": 487.29999999701977,
+          "requestStart": 606,
+          "domContentLoaded": 3111.6000000089407,
+          "headerAndBodyTransfer": 150671
+        },
+        "paints": {
+          "fcp": 1700,
+          "lcp": {
+            "time": 2212,
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "element": "IMG"
+          },
+          "cls": 0.0004476825060013717
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+          "start": 1055.1000000089407,
+          "firstByte": 2068.2000000029802,
+          "lastByte": 2197.6000000089407,
+          "encoded": 63062,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.DDYvkQ2r.css",
+            "start": 1029.5,
+            "firstByte": 1613.2999999970198,
+            "lastByte": 1667.2999999970198,
+            "encoded": 60044,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 28,
+          "bytes": 659767
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 755.3999999910593,
+          "lastByte": 1638.5,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 109.09999999403954,
+          "tcpDuration": 58.20000000298023,
+          "tlsDuration": 248.5,
+          "requestStart": 417.09999999403954,
+          "domContentLoaded": 3894,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 2272,
+          "lcp": {
+            "time": 2344,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.04253046243230651
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 798.7000000029802,
+            "firstByte": 1533.5999999940395,
+            "lastByte": 2239.0999999940395,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659420
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 6
+        }
+      },
+      {
+        "round": 3,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 1342.300000011921,
+          "lastByte": 1944,
+          "encoded": 119941,
+          "protocol": "http/1.1",
+          "dnsDuration": 55.20000000298023,
+          "tcpDuration": 58.1000000089407,
+          "tlsDuration": 222.09999999403954,
+          "requestStart": 339.1000000089407,
+          "domContentLoaded": 4484.800000011921,
+          "headerAndBodyTransfer": 120241
+        },
+        "paints": {
+          "fcp": 2468,
+          "lcp": {
+            "time": 6556,
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+            "element": "IMG"
+          },
+          "cls": 0.00035332215443887173
+        },
+        "lcpResource": {
+          "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+          "start": 2479.5,
+          "firstByte": 0,
+          "lastByte": 6546.100000008941,
+          "encoded": 0,
+          "protocol": ""
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/BaseLayout.CncUyMCw.css",
+            "start": 1355.5,
+            "firstByte": 1972.300000011921,
+            "lastByte": 2431.4000000059605,
+            "encoded": 102102,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659420
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 1161.6000000089407,
+          "lastByte": 2576.7000000029802,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.29999999701977,
+          "tcpDuration": 59.5,
+          "tlsDuration": 687.1000000089407,
+          "requestStart": 804.9000000059605,
+          "domContentLoaded": 4655.29999999702,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 3068,
+          "lcp": {
+            "time": 3148,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.0027391372297515607
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 1196.2999999970198,
+            "firstByte": 2159.2000000029802,
+            "lastByte": 3032.6000000089407,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 23
+        }
+      },
+      {
+        "round": 3,
+        "kind": "oem",
+        "path": "/oem/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/oem/",
+          "start": 0,
+          "firstByte": 786,
+          "lastByte": 1995.7000000029802,
+          "encoded": 119004,
+          "protocol": "http/1.1",
+          "dnsDuration": 119.29999999701977,
+          "tcpDuration": 58.5,
+          "tlsDuration": 257.29999999701977,
+          "requestStart": 436.1000000089407,
+          "domContentLoaded": 3489.5,
+          "headerAndBodyTransfer": 119304
+        },
+        "paints": {
+          "fcp": 1948,
+          "lcp": {
+            "time": 1976,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 1.1342592592592592e-5
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 794.6000000089407,
+            "firstByte": 1502.9000000059605,
+            "lastByte": 1911.9000000059605,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 15,
+          "bytes": 313500
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 955,
+          "lastByte": 1378.5999999940395,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 54.5,
+          "tcpDuration": 58.099999994039536,
+          "tlsDuration": 490.29999999701977,
+          "requestStart": 605.5999999940395,
+          "domContentLoaded": 4581.70000000298,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 2260,
+          "lcp": {
+            "time": 2316,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.0009680248848281912
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 988.7000000029802,
+            "firstByte": 1586.7999999970198,
+            "lastByte": 2225.5999999940395,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "portfolio",
+        "path": "/portfolio/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/portfolio/",
+          "start": 0,
+          "firstByte": 1384.199999988079,
+          "lastByte": 1616.8999999910593,
+          "encoded": 78697,
+          "protocol": "http/1.1",
+          "dnsDuration": 60,
+          "tcpDuration": 367.19999998807907,
+          "tlsDuration": 452.90000000596046,
+          "requestStart": 881.1999999880791,
+          "domContentLoaded": 3537,
+          "headerAndBodyTransfer": 78997
+        },
+        "paints": {
+          "fcp": 2064,
+          "lcp": {
+            "time": 2092,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/oem-portfolio.CjBL_z5_.css",
+            "start": 1455.199999988079,
+            "firstByte": 1817.699999988079,
+            "lastByte": 2030.5999999940395,
+            "encoded": 68198,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 680.7999999970198,
+          "lastByte": 1323.4000000059605,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.20000000298023,
+          "tcpDuration": 57.099999994039536,
+          "tlsDuration": 221.6000000089407,
+          "requestStart": 337.5,
+          "domContentLoaded": 4405.20000000298,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 2032,
+          "lcp": {
+            "time": 2396,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00037112995941413987
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 943.0999999940395,
+          "firstByte": 2216.7000000029802,
+          "lastByte": 2388.4000000059605,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 724,
+            "firstByte": 1326.7000000029802,
+            "lastByte": 2001.0999999940395,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 2
+        }
+      },
+      {
+        "round": 3,
+        "kind": "product",
+        "path": "/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-7e5b8922-dc02-4910-ad74-b265cb7a6b60/",
+          "start": 0,
+          "firstByte": 1143.7999999970198,
+          "lastByte": 1818.3999999910593,
+          "encoded": 78695,
+          "protocol": "http/1.1",
+          "dnsDuration": 58.400000005960464,
+          "tcpDuration": 60.70000000298023,
+          "tlsDuration": 488.70000000298023,
+          "requestStart": 608.8999999910593,
+          "domContentLoaded": 4084.5999999940395,
+          "headerAndBodyTransfer": 78995
+        },
+        "paints": {
+          "fcp": 2384,
+          "lcp": {
+            "time": 2412,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+            "element": "IMG"
+          },
+          "cls": 0.00021357807007673182
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aab65a70013c92e6b4ee723",
+          "start": 1331.2999999970198,
+          "firstByte": 2309.5999999940395,
+          "lastByte": 2347.5,
+          "encoded": 31740,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 1256.2000000029802,
+            "firstByte": 2148.0999999940395,
+            "lastByte": 2353.5,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 1784.2999999970198,
+          "lastByte": 2268.5,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 1160.5,
+          "tcpDuration": 58,
+          "tlsDuration": 218.8999999910593,
+          "requestStart": 1438.5,
+          "domContentLoaded": 4703.699999988079,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 2804,
+          "lcp": {
+            "time": 3068,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.006884872177865934
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 2082.5999999940395,
+          "firstByte": 2879.699999988079,
+          "lastByte": 3048.699999988079,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 1827,
+            "firstByte": 2432.8999999910593,
+            "lastByte": 2772.5,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 1,
+          "blockingBeyond50Ms": 1
+        }
+      },
+      {
+        "round": 3,
+        "kind": "otherProduct",
+        "path": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+          "start": 0,
+          "firstByte": 669.7999999970198,
+          "lastByte": 1118.7999999970198,
+          "encoded": 91157,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.69999998807907,
+          "tcpDuration": 58.30000001192093,
+          "tlsDuration": 229.3999999910593,
+          "requestStart": 346.59999999403954,
+          "domContentLoaded": 3151.2999999970198,
+          "headerAndBodyTransfer": 91457
+        },
+        "paints": {
+          "fcp": 1580,
+          "lcp": {
+            "time": 2136,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+            "element": "IMG"
+          },
+          "cls": 0.008215135513117283
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991",
+          "start": 1070,
+          "firstByte": 2049.699999988079,
+          "lastByte": 2125.699999988079,
+          "encoded": 25392,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "start": 894.0999999940395,
+            "firstByte": 1430.2999999970198,
+            "lastByte": 1537.5,
+            "encoded": 55677,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 22,
+          "bytes": 607295
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 1033.9000000059605,
+          "lastByte": 1087.2000000029802,
+          "encoded": 8224,
+          "protocol": "http/1.1",
+          "dnsDuration": 68.29999999701977,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 487.70000000298023,
+          "requestStart": 614.6000000089407,
+          "domContentLoaded": 2248.5,
+          "headerAndBodyTransfer": 8524
+        },
+        "paints": {
+          "fcp": 1560,
+          "lcp": {
+            "time": 1600,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 1055.2000000029802,
+            "firstByte": 1378.7000000029802,
+            "lastByte": 1528,
+            "encoded": 18135,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84744
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "blog",
+        "path": "/blog/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/",
+          "start": 0,
+          "firstByte": 975.0999999940395,
+          "lastByte": 1029.5,
+          "encoded": 8233,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.29999999701977,
+          "tcpDuration": 58.099999994039536,
+          "tlsDuration": 486.29999999701977,
+          "requestStart": 602.7000000029802,
+          "domContentLoaded": 1918.7999999970198,
+          "headerAndBodyTransfer": 8533
+        },
+        "paints": {
+          "fcp": 1380,
+          "lcp": {
+            "time": 1400,
+            "url": null,
+            "element": "P"
+          },
+          "cls": 0.011392494233056842
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 982.0999999940395,
+            "firstByte": 1251.2999999970198,
+            "lastByte": 1344.5,
+            "encoded": 18109,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84661
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 1563.5,
+          "lastByte": 1655,
+          "encoded": 9829,
+          "protocol": "http/1.1",
+          "dnsDuration": 58,
+          "tcpDuration": 58.70000000298023,
+          "tlsDuration": 218.5,
+          "requestStart": 336,
+          "domContentLoaded": 2801.7999999970198,
+          "headerAndBodyTransfer": 10129
+        },
+        "paints": {
+          "fcp": 2088,
+          "lcp": {
+            "time": 3208,
+            "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+            "element": "IMG"
+          },
+          "cls": 0.029476622513813704
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/blog/media/articles/article-media-a7bf2ce8d7a668645cf1e6da98ee52285d42da43171911531c30e221149a24b8/web-v2-30344129b351b3d2fd90c053eefc4cbc6fb99bf588e87dbc49a459d79e73b6e2.webp",
+          "start": 1638.7999999970198,
+          "firstByte": 2943.8999999910593,
+          "lastByte": 3199.699999988079,
+          "encoded": 33460,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 1587.7999999970198,
+            "firstByte": 1929.7999999970198,
+            "lastByte": 2050.5999999940395,
+            "encoded": 18103,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84661
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "article",
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "start": 0,
+          "firstByte": 944,
+          "lastByte": 1020.2000000029802,
+          "encoded": 9829,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.79999999701977,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 222.59999999403954,
+          "requestStart": 338.20000000298023,
+          "domContentLoaded": 2012.7000000029802,
+          "headerAndBodyTransfer": 10129
+        },
+        "paints": {
+          "fcp": 1464,
+          "lcp": {
+            "time": 1480,
+            "url": null,
+            "element": "H1"
+          },
+          "cls": 0.0055476701482660325
+        },
+        "lcpResource": null,
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/blog/_astro/404.DOZFug7z.css",
+            "start": 951.4000000059605,
+            "firstByte": 1363.1000000089407,
+            "lastByte": 1424.7999999970198,
+            "encoded": 18109,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 5,
+          "bytes": 84661
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "mobile",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 9441.5,
+          "lastByte": 9662,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.900000005960464,
+          "tcpDuration": 57.5,
+          "tlsDuration": 8970.20000000298,
+          "requestStart": 9086.89999999106,
+          "domContentLoaded": 11659,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 10244,
+          "lcp": {
+            "time": 11040,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0.0006402555582384343
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 9632,
+          "firstByte": 10249.09999999404,
+          "lastByte": 11025.5,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 9483.29999999702,
+            "firstByte": 10039.699999988079,
+            "lastByte": 10209.5,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "video",
+        "path": "/videos/factory-overview/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/videos/factory-overview/",
+          "start": 0,
+          "firstByte": 671.6000000089407,
+          "lastByte": 777.4000000059605,
+          "encoded": 32614,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.30000001192093,
+          "tcpDuration": 58,
+          "tlsDuration": 222.59999999403954,
+          "requestStart": 339,
+          "domContentLoaded": 2615.6000000089407,
+          "headerAndBodyTransfer": 32914
+        },
+        "paints": {
+          "fcp": 1152,
+          "lcp": {
+            "time": 1804,
+            "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+            "element": "VIDEO"
+          },
+          "cls": 0.00021900475689086077
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+          "start": 770.9000000059605,
+          "firstByte": 1303.2000000029802,
+          "lastByte": 1769.300000011921,
+          "encoded": 47880,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/_slug_.C7BMU5Lz.css",
+            "start": 680.2000000029802,
+            "firstByte": 1034,
+            "lastByte": 1116.2000000029802,
+            "encoded": 27021,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 12,
+          "bytes": 289419
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      }
+    ],
+    "finishedAt": "2026-11-21T19:28:46.641Z"
+  },
+  "candidate": {
+    "comparedHtml": 591,
+    "cssOnlyRoutes": [
+      "ai-gadgets/page/2/index.html",
+      "ai-gadgets/page/3/index.html",
+      "headphones/index.html",
+      "headphones/page/10/index.html",
+      "headphones/page/11/index.html",
+      "headphones/page/12/index.html",
+      "headphones/page/13/index.html",
+      "headphones/page/14/index.html",
+      "headphones/page/15/index.html",
+      "headphones/page/16/index.html",
+      "headphones/page/17/index.html",
+      "headphones/page/18/index.html",
+      "headphones/page/19/index.html",
+      "headphones/page/2/index.html",
+      "headphones/page/20/index.html",
+      "headphones/page/21/index.html",
+      "headphones/page/22/index.html",
+      "headphones/page/23/index.html",
+      "headphones/page/24/index.html",
+      "headphones/page/25/index.html",
+      "headphones/page/26/index.html",
+      "headphones/page/27/index.html",
+      "headphones/page/28/index.html",
+      "headphones/page/29/index.html",
+      "headphones/page/3/index.html",
+      "headphones/page/30/index.html",
+      "headphones/page/31/index.html",
+      "headphones/page/32/index.html",
+      "headphones/page/33/index.html",
+      "headphones/page/34/index.html",
+      "headphones/page/35/index.html",
+      "headphones/page/36/index.html",
+      "headphones/page/37/index.html",
+      "headphones/page/38/index.html",
+      "headphones/page/39/index.html",
+      "headphones/page/4/index.html",
+      "headphones/page/5/index.html",
+      "headphones/page/6/index.html",
+      "headphones/page/7/index.html",
+      "headphones/page/8/index.html",
+      "headphones/page/9/index.html",
+      "misc/page/2/index.html",
+      "misc/page/3/index.html"
+    ],
+    "unchangedJavaScriptFiles": 43,
+    "adminHtmlExactLocalParity": true,
+    "unchangedXML": ["sitemap-index.xml", "sitemap-0.xml", "robots.txt"],
+    "newCatalogStylesheet": {
+      "url": "/_astro/headphones.B9voga9k.css",
+      "bytes": 60278
+    },
+    "numberedPagePriorBytes": 102102,
+    "rootPriorBytes": 60044,
+    "visualTests": [
+      {
+        "family": "headphones",
+        "width": 390,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      },
+      {
+        "family": "headphones",
+        "width": 1440,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      },
+      {
+        "family": "ai-gadgets",
+        "width": 390,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      },
+      {
+        "family": "ai-gadgets",
+        "width": 1440,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      },
+      {
+        "family": "misc",
+        "width": 390,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      },
+      {
+        "family": "misc",
+        "width": 1440,
+        "computedStylesEqual": true,
+        "screenshotsIdentical": true
+      }
+    ]
+  },
+  "localInteractions": {
+    "results": [
+      {
+        "version": "current",
+        "width": 390,
+        "htmlStatus": 200,
+        "publicReads": [200, 200, 200, 200],
+        "searchCleared": true,
+        "openedPreview": true,
+        "openedQuote": true,
+        "countrySelected": "Brazil",
+        "quoteClosed": true
+      },
+      {
+        "version": "current",
+        "width": 1440,
+        "htmlStatus": 200,
+        "publicReads": [200, 200, 200, 200],
+        "searchCleared": true,
+        "openedPreview": true,
+        "openedQuote": true,
+        "countrySelected": "Brazil",
+        "quoteClosed": true
+      },
+      {
+        "version": "candidate",
+        "width": 390,
+        "htmlStatus": 200,
+        "publicReads": [200, 200, 200, 200],
+        "searchCleared": true,
+        "openedPreview": true,
+        "openedQuote": true,
+        "countrySelected": "Brazil",
+        "quoteClosed": true
+      },
+      {
+        "version": "candidate",
+        "width": 1440,
+        "htmlStatus": 200,
+        "publicReads": [200, 200, 200, 200],
+        "searchCleared": true,
+        "openedPreview": true,
+        "openedQuote": true,
+        "countrySelected": "Brazil",
+        "quoteClosed": true
+      }
+    ],
+    "submittedInquiry": false
+  }
+}

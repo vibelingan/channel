@@ -9,11 +9,12 @@ import {
 } from '../../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../../i18n/site.ts';
 import { CatalogFamilyPage } from '../../../islands/shop/CatalogFamilyPage.tsx';
-import BaseLayout from '../../../layouts/BaseLayout.astro';
+import DocumentLayout from '../../../layouts/DocumentLayout.astro';
 import { categoryPageIdentity } from '../../../lib/seo/category-page-metadata.ts';
 import { type CategoryPageData, categoryPages } from '../../../lib/seo/category-snapshot.ts';
 import { readProductSnapshot } from '../../../lib/seo/product-snapshot.ts';
 import { OEM_INQUIRY_HREF } from '../../../lib/site-navigation.ts';
+import '../../../styles/headphones.css';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
@@ -48,7 +49,7 @@ const root = categoryPageIdentity(
 const { page, heading, breadcrumbs } = identity;
 const pageMetadata = { current: identity, root };
 ---
-<BaseLayout page={page}>
+<DocumentLayout page={page}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <section class="border-b border-slate-200 bg-surface-alt">
@@ -76,4 +77,4 @@ const pageMetadata = { current: identity, root };
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
   {bootstrap.family === 'headphones' && <AssistantHost />}
-</BaseLayout>
+</DocumentLayout>

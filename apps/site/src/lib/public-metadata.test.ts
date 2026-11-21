@@ -288,7 +288,7 @@ test('category pagination binds its audited descriptor and keeps unique concise 
   assert.deepEqual(diagnostics, []);
   const layouts: ComponentNode[] = [];
   const visit = (node: AstroNode) => {
-    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if (node.type === 'component' && node.name === 'DocumentLayout') layouts.push(node);
     if ('children' in node) for (const child of node.children) visit(child);
   };
   visit(ast);

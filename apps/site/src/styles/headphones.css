@@ -2,8 +2,9 @@
 @import "tailwindcss" source(none);
 @import "./document.css";
 
-/* Include the category view, product details, and dialogs it can open. */
+/* Shared by the headphone landing page and catalog pagination. */
 @source "../pages/headphones.astro";
+@source "../pages/[family]/page";
 @source "../layouts/DocumentLayout.astro";
 @source "../catalog/presentation";
 @source "../islands/shop";
