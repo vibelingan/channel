@@ -1,0 +1,222 @@
+{
+  "releaseRuns": {
+    "source": "fdf8f277d64dd9cba5c73901178dcfd1400f09f8",
+    "selectedImage": "8fb6351b-ff11-4abd-9ede-d98d18c49122",
+    "checks": {
+      "seo-module-1.yml": 44890228713,
+      "seo-blog-server.yml": 44890228714,
+      "seo-blog-dummy.yml": 44890228698
+    },
+    "imagePreparation": 44890637438,
+    "site": 44890771752
+  },
+  "productPage": "https://supplychainsai.com/products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/",
+  "comparisonSetup": {
+    "browser": "157.0.8103.79",
+    "egress": "JP/NRT",
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuThrottlingRate": 4,
+    "observationLimitMs": 40000
+  },
+  "imagePreparation": {
+    "source": "fdf8f277d64dd9cba5c73901178dcfd1400f09f8",
+    "imageRun": 44890637438,
+    "photoId": "8fb6351b-ff11-4abd-9ede-d98d18c49122",
+    "originalUnchanged": true,
+    "versions": [
+      {
+        "width": 160,
+        "bytes": 3668,
+        "sha256": "bea5133bb1f98d50412a78e6ec31098481760c89f70569569bb7a3a9f5f6a08e",
+        "matchesLocalEncoder": true
+      },
+      {
+        "width": 640,
+        "bytes": 39784,
+        "sha256": "cfc8532fe442746423902b2b9aa92f100491626ff5915bb8cfb7f96174aa7ae2",
+        "matchesLocalEncoder": true
+      },
+      {
+        "width": 1280,
+        "bytes": 133588,
+        "sha256": "9cd3643bc8aa5e45e59f604a8d3b82b37900605f833434e0e87c24f3dda84100",
+        "matchesLocalEncoder": true
+      }
+    ],
+    "publicDetailHasTheSmallSize": true
+  },
+  "archive": {
+    "baseline": "site-payload-44879423463-1",
+    "candidate": "jxl-candidate-44890771752",
+    "staticFilesVerified": 2156,
+    "changedStaticFiles": ["products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/index.html"],
+    "htmlFilesVerified": 589,
+    "productCount": 528,
+    "approvedProductRevision": "c1df4ec7-7cd2-4d9e-aac5-426bde18c051",
+    "publicCommerceChanges": {
+      "added": [],
+      "removed": [],
+      "edited": []
+    },
+    "sitemapRobotsCanonicalAndStructuredDataPreserved": true,
+    "blogRoutingUnchanged": true,
+    "thumbnail": {
+      "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122",
+      "srcset": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122?w=160 160w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122?w=640 640w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122?w=1280 1280w",
+      "sizes": "80px",
+      "loading": "lazy",
+      "fetchpriority": "auto"
+    },
+    "categoryCard": {
+      "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122",
+      "initialSrcset": null,
+      "rawDefaultDelivery": "verified in the browser"
+    }
+  },
+  "websiteAccepted": {
+    "phase": "SUCCEEDED",
+    "acceptedAt": 1795254728122,
+    "stepCount": 2
+  },
+  "before": [
+    {
+      "run": 1,
+      "thumbnailReadyMs": null,
+      "visibleThumbnailsReady": 4,
+      "allVisibleThumbnailsReadyMs": null,
+      "initialMainPhotoReadyMs": 5908,
+      "pageLcpMs": 5784,
+      "selectedThumbnailRequests": [
+        {
+          "query": "",
+          "bodyBytesReceived": 2761472,
+          "status": 200,
+          "completeMs": null
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "thumbnailReadyMs": 39413,
+      "visibleThumbnailsReady": 5,
+      "allVisibleThumbnailsReadyMs": 39413,
+      "initialMainPhotoReadyMs": 4907,
+      "pageLcpMs": 4752,
+      "selectedThumbnailRequests": [
+        {
+          "query": "",
+          "bodyBytesReceived": 2880425,
+          "status": 200,
+          "completeMs": 39349
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "thumbnailReadyMs": null,
+      "visibleThumbnailsReady": 4,
+      "allVisibleThumbnailsReadyMs": null,
+      "initialMainPhotoReadyMs": 6200,
+      "pageLcpMs": 6192,
+      "selectedThumbnailRequests": [
+        {
+          "query": "",
+          "bodyBytesReceived": 2602522,
+          "status": 200,
+          "completeMs": null
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "run": 1,
+      "thumbnailReadyMs": 4378,
+      "visibleThumbnailsReady": 5,
+      "allVisibleThumbnailsReadyMs": 30877,
+      "initialMainPhotoReadyMs": 5383,
+      "pageLcpMs": 5220,
+      "selectedThumbnailRequests": [
+        {
+          "query": "?w=160",
+          "bodyBytesReceived": 3668,
+          "status": 200,
+          "completeMs": 4212
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "thumbnailReadyMs": 5541,
+      "visibleThumbnailsReady": 5,
+      "allVisibleThumbnailsReadyMs": 20981,
+      "initialMainPhotoReadyMs": 5340,
+      "pageLcpMs": 5352,
+      "selectedThumbnailRequests": [
+        {
+          "query": "?w=160",
+          "bodyBytesReceived": 3668,
+          "status": 200,
+          "completeMs": 5503
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "thumbnailReadyMs": 5575,
+      "visibleThumbnailsReady": 5,
+      "allVisibleThumbnailsReadyMs": 24230,
+      "initialMainPhotoReadyMs": 8187,
+      "pageLcpMs": 8160,
+      "selectedThumbnailRequests": [
+        {
+          "query": "?w=160",
+          "bodyBytesReceived": 3668,
+          "status": 200,
+          "completeMs": 5570
+        }
+      ]
+    }
+  ],
+  "afterThumbnailMedianMs": 5541,
+  "detailClick": {
+    "active": true,
+    "mainPhotoWidth": 640,
+    "bytes": 39784
+  },
+  "categoryCard": {
+    "imageRun": 44890637438,
+    "observedAt": "2026-11-21T09:41:51.216Z",
+    "existingCatalogCardAddress": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/8fb6351b-ff11-4abd-9ede-d98d18c49122",
+    "bytes": 133588,
+    "mimeType": "image/webp",
+    "sameWebCopy": true
+  },
+  "postReleaseChecks": {
+    "unchangedBlogArticles": 3,
+    "indexableBlogUrls": 4,
+    "unchangedHistoricalImages": 6,
+    "cleanup": {
+      "readAt": "2026-11-21T09:58:47.237Z",
+      "functionCount": 9,
+      "runs": [44890771752],
+      "leftovers": []
+    }
+  }
+}
