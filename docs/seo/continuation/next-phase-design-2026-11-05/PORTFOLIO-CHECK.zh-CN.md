@@ -4,9 +4,11 @@
 
 官网的“Success Stories”原来从菜单及页脚指向 `/portfolio`，而网站地图和案例页声明的正式地址是 `/portfolio/`。两个地址现场均返回 200，正文逐字相同。遍历上次实际交付的 580 个静态地图页面，按初始 HTML 的同站正式网址链接从首页逐步走，只有这份案例页的正式地址缺少路径。浏览器仍可通过旧地址打开，因此这项是消除站内链接与正式网址分歧，并未复现页面缺失。
 
-菜单和页脚统一指向 `/portfolio/`。本地用已验收的 528 件商品快照生成网站，扫描初始 HTML 后，586 份有案例导航的页面都只使用正式地址，网站地图和 robots 文件与官网候选逐字相同。关闭 JavaScript，分别从手机菜单和桌面页脚点击，均直接打开案例页，能读到两项原有案例。旧地址继续由托管提供，便于已有书签访问。该记录描述发布前证据，线上切换及读回以新的发布回执为准。 [站内路径、HTTP 和本地浏览器结果](evidence/case-links-before-delivery-2026-11-21.json) · [Google 对普通 HTML 链接的说明](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)
+菜单和页脚统一指向 `/portfolio/`。本地用已验收的 528 件商品快照生成网站，扫描初始 HTML 后，586 份有案例导航的页面都只使用正式地址，网站地图和 robots 文件与官网候选逐字相同。关闭 JavaScript，分别从手机菜单和桌面页脚点击，均直接打开案例页，能读到两项原有案例。旧地址继续由托管提供，便于已有书签访问。以下单列正式验收。 [站内路径、HTTP 和本地浏览器结果](evidence/case-links-before-delivery-2026-11-21.json) · [Google 对普通 HTML 链接的说明](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)
 
 同一遍历也确认 528 个商品都能从首页用两到三次点击到达。Google 报为“已发现但未收录”的 10 件商品每件有一个分类或分页的正式链接。隐私和 Toys 页面从首页一次就能到达。当前证据支持观察这些页面的重新抓取，不能把它们未收录归因于完全没有内部链接。Search Console 的网页报告仍截至 11 月 16 日，其他 4xx 复查 5 项待处理、0 项失败。
+
+**正式交付。** [GitHub 交付](https://github.com/vibelingan/channel/actions/runs/44850799943)用时 34 分 54 秒，从任务创建到腾讯确认官网切换约 28 分 09 秒。实际发布包的 584 份 HTML 更新，2,120 个公开文件无增删，JS、CSS、图片、sitemap 及 robots 与上一版相同。首页、耳机分类、OEM 页、带与不带尾斜杠的案例入口五份 HTML 均与新发布包一致。禁用 JavaScript 后，用手机菜单与桌面页脚实点，两条路径均直接进入 `/portfolio/`，两项案例正常显示。528 件商品、三篇公开 Blog 和六张历史故障图逐份核对，临时函数已清理。商品自动更新继续用这次验收的程序。 [官网读回、Google 逐网址及浏览器原始数字](evidence/case-navigation-and-index-recheck-2026-11-21.json)
 
 2026-11-12，只读。**`https://supplychainsai.com/portfolio/`正常存在，没有复现截图所说的“无法完整抓取正文”。** 它是案例集合页，不是单个案例详情页。
 

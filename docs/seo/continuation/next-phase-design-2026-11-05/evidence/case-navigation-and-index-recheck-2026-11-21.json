@@ -1,0 +1,489 @@
+{
+  "release": {
+    "archive": 44850539111,
+    "site": 44850799943,
+    "source": "6e2d84162191d840176133c119dab6fc7631ac69",
+    "acceptedAt": "2026-11-21T02:00:56.241Z",
+    "publishedProductRows": 528,
+    "catalogSnapshotMatchesPreRelease": true,
+    "publishedBlogRecordsMatched": 3,
+    "historicalImagesMatched": 6,
+    "removedTemporaryFunctions": true,
+    "catalogAutoUpdate": {
+      "readAt": "2026-11-21T02:09:44.345Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "6e2d84162191d840176133c119dab6fc7631ac69",
+        "executorSha": "6e2d84162191d840176133c119dab6fc7631ac69",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44850799943-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "siteNavigation": [
+      {
+        "route": "/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/",
+        "bytes": 167721,
+        "sha256": "947b3eb9fbc8a6f2d4e842a9611339cb2b857dc1a760926f14861ed89ca70de4",
+        "caseNavigation": [
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/portfolio",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/portfolio/",
+        "bytes": 78692,
+        "sha256": "370223a5eb0141a4cc0d58fb49d52452430ef20005151ed1fa4ee03f78773d3c",
+        "caseNavigation": [
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/portfolio/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/portfolio/",
+        "bytes": 78692,
+        "sha256": "370223a5eb0141a4cc0d58fb49d52452430ef20005151ed1fa4ee03f78773d3c",
+        "caseNavigation": [
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/headphones/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/",
+        "bytes": 139473,
+        "sha256": "5ae5b0978ba698eaf104fa21aba1cc4c3f3d23f1179ef69f644fd5480cdc72c2",
+        "caseNavigation": [
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "footer"
+          }
+        ]
+      },
+      {
+        "route": "/oem/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/oem/",
+        "bytes": 119000,
+        "sha256": "6e668c1aa6e7030edbecb3f93ef9552e98134f5544977a1ebca4a6055cbeb233",
+        "caseNavigation": [
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "header"
+          },
+          {
+            "href": "/portfolio/",
+            "region": "footer"
+          }
+        ]
+      }
+    ],
+    "browser": [
+      {
+        "region": "header",
+        "width": 390,
+        "javaScriptEnabled": false,
+        "status": 200,
+        "path": "/portfolio/",
+        "cases": ["Children's Sleep Training Clock", "Disc Repair System"]
+      },
+      {
+        "region": "footer",
+        "width": 1440,
+        "javaScriptEnabled": false,
+        "status": 200,
+        "path": "/portfolio/",
+        "cases": ["Children's Sleep Training Clock", "Disc Repair System"]
+      }
+    ],
+    "package": {
+      "candidate": "site-payload-44850799943-1",
+      "verifiedManifestFiles": 2123,
+      "publicFiles": 2120,
+      "publicFileTypes": {
+        ".js": 1367,
+        ".css": 73,
+        ".html": 589,
+        ".json": 3,
+        ".ico": 1,
+        ".svg": 3,
+        ".webp": 26,
+        ".jpg": 42,
+        ".png": 9,
+        ".mp4": 4,
+        ".txt": 1,
+        ".xml": 2
+      },
+      "flagged": [],
+      "comparedToPrevious": {
+        "new": 0,
+        "dropped": 0,
+        "changed": {
+          ".html": 584
+        }
+      }
+    },
+    "elapsedSeconds": 2094
+  },
+  "searchConsole": {
+    "targetedInspectionBeforeRelease": [
+      {
+        "url": "https://supplychainsai.com/portfolio/",
+        "title": "URL is on Google",
+        "indexing": ["Page indexing Page is indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "title": "URL is on Google",
+        "indexing": ["Page indexing Page is indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "title": "URL is on Google",
+        "indexing": ["Page indexing Page is indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/privacy/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      },
+      {
+        "url": "https://supplychainsai.com/toys/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: Discovered - currently not indexed"]
+      }
+    ],
+    "unknownPagesLiveChecks": [
+      {
+        "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"],
+        "live": {
+          "status": "observed",
+          "labels": ["Page availability Page can be indexed", "URL is available to Google"]
+        }
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "title": "URL is not on Google",
+        "indexing": ["Page indexing Page is not indexed: URL is unknown to Google"],
+        "live": {
+          "status": "observed",
+          "labels": ["Page availability Page can be indexed", "URL is available to Google"]
+        }
+      }
+    ],
+    "verifiedGatewayGooglebotReads": [
+      {
+        "path": "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "status": 200,
+        "utc": "2026-11-20T22:30:55.911Z",
+        "method": "GET"
+      },
+      {
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "status": 200,
+        "utc": "2026-11-20T22:32:56.263Z",
+        "method": "GET"
+      }
+    ],
+    "gatewayWindowInChinaTime": {
+      "startTime": "2026-11-21 04:27:31",
+      "endTime": "2026-11-21 09:27:31"
+    },
+    "otherHttpStatusCountsInWindow": {
+      "200": 73,
+      "503": 4
+    }
+  },
+  "imageInvestigation": {
+    "auditedProductHtmlFromRun": 44845124397,
+    "pages": 528,
+    "responsivePrimaryImages": 50,
+    "historicalSuspectImagesReadLive": 18,
+    "confirmedAbove500000": 15,
+    "cloudReadOnlySourceProof": {
+      "elapsedMs": 17389,
+      "total": 15,
+      "outcomes": {
+        "public-reference": 15
+      },
+      "confirmedPublicWithZeroBase": 0,
+      "proofReads": {
+        "1": 15
+      },
+      "writes": 0
+    },
+    "localImageSizes": {
+      "originals": 15,
+      "originalsBytes": 9295866,
+      "sizeBytes": [68064, 482224, 900712],
+      "reused": 15
+    },
+    "published": false,
+    "mobilePhotoReplay": {
+      "source": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "identicalSimulatedServerDelayMs": 300,
+      "samples": [
+        {
+          "version": "before",
+          "responseBytes": 691718,
+          "imageRequestMs": 461.30000000447035,
+          "imageFirstByteMs": 762.3000000044703,
+          "imageDoneMs": 4323.20000000298,
+          "paintedMainMs": 4340,
+          "displayWidth": 338
+        },
+        {
+          "version": "after",
+          "responseBytes": 45506,
+          "imageRequestMs": 453.6000000014901,
+          "imageFirstByteMs": 754.7000000029802,
+          "imageDoneMs": 1080.7000000029802,
+          "paintedMainMs": 1092,
+          "displayWidth": 338
+        },
+        {
+          "version": "after",
+          "responseBytes": 45506,
+          "imageRequestMs": 446.80000000447035,
+          "imageFirstByteMs": 748.9000000059605,
+          "imageDoneMs": 1076.2000000029802,
+          "paintedMainMs": 1092,
+          "displayWidth": 338
+        },
+        {
+          "version": "before",
+          "responseBytes": 691718,
+          "imageRequestMs": 455.3999999985099,
+          "imageFirstByteMs": 756.7999999970198,
+          "imageDoneMs": 4316.39999999851,
+          "paintedMainMs": 4336,
+          "displayWidth": 338
+        },
+        {
+          "version": "before",
+          "responseBytes": 691718,
+          "imageRequestMs": 449.70000000298023,
+          "imageFirstByteMs": 749.8999999985099,
+          "imageDoneMs": 4312.70000000298,
+          "paintedMainMs": 4336,
+          "displayWidth": 338
+        },
+        {
+          "version": "after",
+          "responseBytes": 45506,
+          "imageRequestMs": 450.5,
+          "imageFirstByteMs": 751.8999999985099,
+          "imageDoneMs": 1077.7999999970198,
+          "paintedMainMs": 1104,
+          "displayWidth": 338
+        }
+      ]
+    },
+    "photoPaintMediansMilliseconds": {
+      "after": 1092,
+      "before": 4336
+    },
+    "officialWebsiteBeforeAnyImageSwitch": {
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "chrome": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "pages": [
+        {
+          "url": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "imageReadyMs": [26745, 9286, 9986],
+          "mainLcpMs": [26652, 9104, 9984],
+          "identity": "66baec6f6ac77ca10068b51364d57105"
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "imageReadyMs": [13567, 10361, 10397],
+          "mainLcpMs": [13496, 10360, 10276],
+          "identity": "4c2f81c76a87aa810006464f66008e31"
+        }
+      ]
+    }
+  },
+  "quoteRenderingExperiment": {
+    "published": false,
+    "allProductHtmlHadFormRemoved": 528,
+    "medianBytesRemoved": 6339,
+    "inquiryRequestsSent": 0,
+    "successfulJourneys": 6,
+    "perRun": [
+      {
+        "version": "base",
+        "readyMs": 7566.3,
+        "dialogMs": 968,
+        "countryMs": 66.2
+      },
+      {
+        "version": "candidate",
+        "readyMs": 7488.9,
+        "dialogMs": 152.5,
+        "countryMs": 58.7
+      },
+      {
+        "version": "candidate",
+        "readyMs": 7267.2,
+        "dialogMs": 123.3,
+        "countryMs": 57
+      },
+      {
+        "version": "base",
+        "readyMs": 5408.7,
+        "dialogMs": 159.7,
+        "countryMs": 76.1
+      },
+      {
+        "version": "base",
+        "readyMs": 5879.9,
+        "dialogMs": 71.8,
+        "countryMs": 66.5
+      },
+      {
+        "version": "candidate",
+        "readyMs": 6859.1,
+        "dialogMs": 119.6,
+        "countryMs": 53.6
+      }
+    ],
+    "readyMediansMilliseconds": {
+      "base": 5879.9,
+      "candidate": 7267.2
+    }
+  }
+}
