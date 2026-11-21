@@ -1,0 +1,441 @@
+{
+  "workflow": "https://github.com/vibelingan/channel/actions/runs/44905918126",
+  "sourceCommit": "aebf57b8c1ed96afa9c3c7bd445f881d9bb5c870",
+  "workflowStartedAtUTC": "2026-11-21T12:50:53Z",
+  "workflowCompletedAtUTC": "2026-11-21T13:08:32Z",
+  "accepted": {
+    "deliveryId": "site-44905918126-1",
+    "artifactHash": "4bd0e4bbb3f1b91e0cfdcf7d5da2bd9af5886e6a2b3c7b60d6e145dcd6025802",
+    "acceptedAt": "2026-11-21T13:02:46.152Z"
+  },
+  "imagePreparation": "https://github.com/vibelingan/channel/actions/runs/44905586278",
+  "confirmedPublicImageResponses": [
+    {
+      "url": "https://supplychainsai.com/api/images/3d00e15d6aaa4e0c000c93de53e34bc0",
+      "bodyBytes": 69448,
+      "sha256": "f0af8121d6ceac134d0a5ea605e15226f1c393e1e58c47a39e79385c714bcef4",
+      "width": 790,
+      "height": 1418
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/3d00e15d6aaa4e0c000c93de53e34bc0?w=160",
+      "bodyBytes": 6510,
+      "sha256": "4f874082729582e3dca26e894ae76dde902c404329a2d58b3858950f1a641c74",
+      "width": 160,
+      "height": 287
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/3d00e15d6aaa4e0c000c93de53e34bc0?w=640",
+      "bodyBytes": 51874,
+      "sha256": "d1ee82518fb791352bf1f96fbef97c7c0d3cdb524f3827541d666c9472e7862b",
+      "width": 640,
+      "height": 1149
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/3d00e15d6aaa4e0c000c93de53e34bc0?w=1280",
+      "bodyBytes": 69448,
+      "sha256": "f0af8121d6ceac134d0a5ea605e15226f1c393e1e58c47a39e79385c714bcef4",
+      "width": 790,
+      "height": 1418
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e09000972d24578ae71",
+      "bodyBytes": 97650,
+      "sha256": "ba0e1e465939d90b6b5087cd6037f3fe7d8a975916802e74c82a818c8f696b64",
+      "width": 790,
+      "height": 1452
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e09000972d24578ae71?w=160",
+      "bodyBytes": 6534,
+      "sha256": "52c9433c0b33d6bdd9d94f9b6d77371572379a6a18787e7d9038cd8a8249059f",
+      "width": 160,
+      "height": 294
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e09000972d24578ae71?w=640",
+      "bodyBytes": 67384,
+      "sha256": "1aa79fdadb908721f49c38267f2d4b159fbb423cafb618104b6fa520a1373712",
+      "width": 640,
+      "height": 1176
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e09000972d24578ae71?w=1280",
+      "bodyBytes": 97650,
+      "sha256": "ba0e1e465939d90b6b5087cd6037f3fe7d8a975916802e74c82a818c8f696b64",
+      "width": 790,
+      "height": 1452
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0a00150ad82dbd7538",
+      "bodyBytes": 57894,
+      "sha256": "f8148ddafec3d1448d55e5dc6198d78c3372c5f429fd51c0d6f1b8193b56acbc",
+      "width": 790,
+      "height": 1531
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0a00150ad82dbd7538?w=160",
+      "bodyBytes": 6494,
+      "sha256": "b87775e7e429286d9edb4dbb5f78d903583eb147102e63c3f465dff1eee4190e",
+      "width": 160,
+      "height": 310
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0a00150ad82dbd7538?w=640",
+      "bodyBytes": 42918,
+      "sha256": "e989a3f217001bbaa68a88d7ab43f497440ef129085bcaa3426c9cab470f5329",
+      "width": 640,
+      "height": 1240
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0a00150ad82dbd7538?w=1280",
+      "bodyBytes": 57894,
+      "sha256": "f8148ddafec3d1448d55e5dc6198d78c3372c5f429fd51c0d6f1b8193b56acbc",
+      "width": 790,
+      "height": 1531
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0b00150ae22fd63b86",
+      "bodyBytes": 82060,
+      "sha256": "d99397a97cb5d8b6c2eafeb5f7c3c0cb7632cbefdc114ca42b2812287b5d6cc4",
+      "width": 790,
+      "height": 1722
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0b00150ae22fd63b86?w=160",
+      "bodyBytes": 8558,
+      "sha256": "2657e4a451b426cada034c1c324e3e8fc427deca699fdba311da00b4016d6509",
+      "width": 160,
+      "height": 349
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0b00150ae22fd63b86?w=640",
+      "bodyBytes": 62580,
+      "sha256": "c503741425085a608f77530343efe1de23a3a8e0d269102ffc18817c6dc2dcd3",
+      "width": 640,
+      "height": 1395
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/d99dc9256aaa4e0b00150ae22fd63b86?w=1280",
+      "bodyBytes": 82060,
+      "sha256": "d99397a97cb5d8b6c2eafeb5f7c3c0cb7632cbefdc114ca42b2812287b5d6cc4",
+      "width": 790,
+      "height": 1722
+    }
+  ],
+  "verifiedStaticPackage": {
+    "delivery": 44905918126,
+    "artifactEntriesVerified": 2159,
+    "approvedProductsEqual": 528,
+    "changedPublishedArtifacts": [
+      "products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/index.html",
+      "products/p-2b9428b4-fcd5-4ae7-a716-fdbd3fbaf8aa/index.html",
+      "products/p-3b4a9635-0a17-4e59-aad5-2d03d323ff2f/index.html",
+      "products/p-3e247f95-c4a0-4b25-a520-3efbeb3967d1/index.html",
+      "products/p-415ca769-b2ec-47d4-a2e2-164784070f2b/index.html",
+      "products/p-657cac86-cef0-447d-a72e-d96ba2b6e9c0/index.html",
+      "products/p-c19db540-647e-4129-a9bf-f4c457152a00/index.html",
+      "products/p-ecc34ba8-dbe9-4c78-a131-ec63a33d41bc/index.html",
+      "static-manifest.json",
+      "compatibility.json"
+    ],
+    "allEightPages": [
+      {
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "bodySha256": "5fef95e8dec5981809caf996e81220183b7b82915b061ab8ef5d2a4ff3b853bb",
+        "sizedDescriptionPhotos": 4
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-2b9428b4-fcd5-4ae7-a716-fdbd3fbaf8aa/",
+        "bodySha256": "d32acfd42088e346f6b44abca1c37aad4827ecfb2960d183b4e10eb956f4999f",
+        "sizedDescriptionPhotos": 1
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-3b4a9635-0a17-4e59-aad5-2d03d323ff2f/",
+        "bodySha256": "7ff1cee4678270ab493172dbff999509fc6e25b96990111d974b2c393a2122ff",
+        "sizedDescriptionPhotos": 1
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-3e247f95-c4a0-4b25-a520-3efbeb3967d1/",
+        "bodySha256": "76796f1b08a3a0b532c3cf75d201520dec9e2569586fd2bba1187eb79f347a62",
+        "sizedDescriptionPhotos": 4
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-415ca769-b2ec-47d4-a2e2-164784070f2b/",
+        "bodySha256": "d42e9288cfeb1b92b941382c9c25dfbb7d7dca5c6498daae9888f040d2d5e098",
+        "sizedDescriptionPhotos": 4
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-657cac86-cef0-447d-a72e-d96ba2b6e9c0/",
+        "bodySha256": "900a1c9e992e1d6a155d98f47cef77ab895a2966fa6021e6d69fbbdbb8946e7a",
+        "sizedDescriptionPhotos": 4
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-c19db540-647e-4129-a9bf-f4c457152a00/",
+        "bodySha256": "e62d50c8d39eb94c9f59d76733ecd53434131d9570f1429854c91319db5661d8",
+        "sizedDescriptionPhotos": 4
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-ecc34ba8-dbe9-4c78-a131-ec63a33d41bc/",
+        "bodySha256": "7f974e5ae569f7c77657626dbfbde93f188ed7462010af19bbc0cfbb1c2c31c2",
+        "sizedDescriptionPhotos": 1
+      }
+    ],
+    "cssJsRobotsSitemapsByteIdentical": true
+  },
+  "unchangedPublicBlogAndHistoricalImageReadBack": [
+    {
+      "url": "https://supplychainsai.com/blog/",
+      "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123",
+      "bytes": 31961,
+      "mime": "text/html"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+      "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9",
+      "bytes": 32746,
+      "mime": "text/html"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "bytes": 37628,
+      "mime": "text/html"
+    },
+    {
+      "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+      "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1",
+      "bytes": 50451,
+      "mime": "text/html"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+      "bytes": 51178,
+      "mime": "image/webp"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+      "bytes": 65170,
+      "mime": "image/webp"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+      "bytes": 69280,
+      "mime": "image/webp"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17",
+      "bytes": 87330,
+      "mime": "image/webp"
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659",
+      "bytes": 135494,
+      "mime": "image/webp"
+    }
+  ],
+  "cloudCleanup": {
+    "readAt": "2026-11-21T13:09:35.105Z",
+    "functionCount": 9,
+    "runs": [44905918126],
+    "leftovers": []
+  },
+  "automaticCatalogUpdates": {
+    "readAt": "2026-11-21T13:10:45.737Z",
+    "pending": false,
+    "enabled": true,
+    "functionActive": true,
+    "cadence": "{\"cron\":\"0 * * * * * *\"}",
+    "triggerEnabled": null,
+    "active": {
+      "codeSha": "ae2e8d73d9364ef48c7ec947d97f5548fc044668",
+      "executorSha": "aebf57b8c1ed96afa9c3c7bd445f881d9bb5c870",
+      "executorRef": "feat/seo-foundation",
+      "catalogTracked": true,
+      "acceptedRunId": "site-44905918126-1"
+    }
+  },
+  "comparisonConditions": {
+    "chrome": "157.0.8103.79",
+    "location": "JP/NRT",
+    "viewport": [1350, 940],
+    "emptyBrowserCache": true,
+    "nativeLoadingConnectionType": "slow-2g",
+    "hardwareNetworkSpeedNotEmulated": true,
+    "observationStartsAfterDOMContentLoaded": true,
+    "initialWindowMs": 6000
+  },
+  "liveBrowserObservations": [
+    {
+      "phase": "before",
+      "samples": [
+        {
+          "visit": 1,
+          "imageRequestsInFirstSixSeconds": 16,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 5180114,
+          "reportedTransferredBytesBeforeObservationEnded": 0,
+          "observedLcpMs": 3712,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 0
+        },
+        {
+          "visit": 2,
+          "imageRequestsInFirstSixSeconds": 16,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 5180114,
+          "reportedTransferredBytesBeforeObservationEnded": 631736,
+          "observedLcpMs": 1992,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 0
+        },
+        {
+          "visit": 3,
+          "imageRequestsInFirstSixSeconds": 16,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 5180114,
+          "reportedTransferredBytesBeforeObservationEnded": 1071026,
+          "observedLcpMs": 2236,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 0
+        }
+      ],
+      "lcpMedianMs": 2236
+    },
+    {
+      "phase": "size-only",
+      "samples": [
+        {
+          "visit": 1,
+          "imageRequestsInFirstSixSeconds": 20,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 3984465,
+          "reportedTransferredBytesBeforeObservationEnded": 142120,
+          "observedLcpMs": 2980,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 4
+        },
+        {
+          "visit": 2,
+          "imageRequestsInFirstSixSeconds": 20,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 3984465,
+          "reportedTransferredBytesBeforeObservationEnded": 324081,
+          "observedLcpMs": 3556,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 4
+        },
+        {
+          "visit": 3,
+          "imageRequestsInFirstSixSeconds": 16,
+          "uniquePhotosRequested": 16,
+          "sumOfRequestedImageFileBytes": 3677413,
+          "reportedTransferredBytesBeforeObservationEnded": 0,
+          "observedLcpMs": 2236,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 0
+        }
+      ],
+      "lcpMedianMs": 2980
+    },
+    {
+      "phase": "after",
+      "samples": [
+        {
+          "visit": 1,
+          "imageRequestsInFirstSixSeconds": 5,
+          "uniquePhotosRequested": 5,
+          "sumOfRequestedImageFileBytes": 571087,
+          "reportedTransferredBytesBeforeObservationEnded": 0,
+          "observedLcpMs": 3688,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 4
+        },
+        {
+          "visit": 2,
+          "imageRequestsInFirstSixSeconds": 5,
+          "uniquePhotosRequested": 5,
+          "sumOfRequestedImageFileBytes": 571087,
+          "reportedTransferredBytesBeforeObservationEnded": 265281,
+          "observedLcpMs": 2504,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 4
+        },
+        {
+          "visit": 3,
+          "imageRequestsInFirstSixSeconds": 5,
+          "uniquePhotosRequested": 5,
+          "sumOfRequestedImageFileBytes": 571087,
+          "reportedTransferredBytesBeforeObservationEnded": 0,
+          "observedLcpMs": 2568,
+          "finalImageVerifiedAfterScroll": {
+            "width": 180,
+            "height": 144,
+            "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 16",
+            "currentSrc": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa0a4a0015e52328a516d4"
+          },
+          "supportedWidthMarkupAfterHydration": 4
+        }
+      ],
+      "lcpMedianMs": 2568
+    }
+  ],
+  "mobilePublicJourney": {
+    "route": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+    "attachment": {
+      "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aaa4e0b00150ae22fd63b86?w=1280",
+      "width": "790",
+      "height": "1722",
+      "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone — description image 4",
+      "size": 358
+    },
+    "gallerySelectionWorks": true,
+    "quoteOpenedAndClosed": true,
+    "inquirySubmitted": false
+  }
+}
