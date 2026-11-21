@@ -381,7 +381,10 @@ test('standard product route binds the validated public page descriptor to the d
   assert.equal(layouts.length, 1);
   assert.deepEqual(
     layouts[0]?.attributes.map(({ name, kind, value }) => ({ name, kind, value })),
-    [{ name: 'page', kind: 'expression', value: 'page' }],
+    [
+      { name: 'page', kind: 'expression', value: 'page' },
+      { name: 'socialImage', kind: 'expression', value: 'socialImage' },
+    ],
   );
 });
 

@@ -137,6 +137,60 @@
         }
       ]
     },
-    "rule": "Keep the generic artwork for first photos reused by published catalog entries with different approved names."
+    "rule": "Keep the generic artwork for first photos reused by published catalog entries with different approved names.",
+    "publicDetailTrace": {
+      "image": "/api/images/3fbe8b166ac880a40039d6d048ce99e7",
+      "confirmedSource": "live published product detail API",
+      "rows": [
+        {
+          "page": "/products/p-26f88014-7276-4c13-a123-a8550e2308d7/",
+          "publicName": "Gaming In-Ear Headphones Sound Quality Wireless Earphones Hand Free Headset Stereo Earbuds Earphone Headset for Sports",
+          "publicDetailHttp": 200,
+          "generalGalleryPosition": null,
+          "variantGalleryPositions": [
+            {
+              "variantReferencePosition": 1,
+              "galleryPosition": 1
+            }
+          ]
+        },
+        {
+          "page": "/products/p-2e096d39-3eb3-41e8-a703-ce2ba02ba007/",
+          "publicName": "Hot sales Over Ear HIFI Stereo Headsets Wireless  Headphones Sports Gaming EarphonesSupport TF/AUX noise reduction",
+          "publicDetailHttp": 200,
+          "generalGalleryPosition": null,
+          "variantGalleryPositions": [
+            {
+              "variantReferencePosition": 1,
+              "galleryPosition": 1
+            }
+          ]
+        },
+        {
+          "page": "/products/p-71c04ae9-b133-44da-a1d8-036d34d55f66/",
+          "publicName": "Wireless Noise Cancelling Earbuds In-ear Earphone Type Sport Running Music Headphones",
+          "publicDetailHttp": 200,
+          "generalGalleryPosition": null,
+          "variantGalleryPositions": [
+            {
+              "variantReferencePosition": 1,
+              "galleryPosition": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "preReleaseGoogleSearchConsole": {
+    "indexReportDate": "2026-11-16",
+    "indexedUrls": 529,
+    "excludedUrls": 989,
+    "errorOrExclusionReasons": 8,
+    "other4xxValidationStarted": "2026-11-16",
+    "pendingHistorical4xx": 5,
+    "failedHistorical4xx": 0,
+    "webSearchThrough": "2026-11-19",
+    "impressions": 95,
+    "clicks": 3
   }
 }

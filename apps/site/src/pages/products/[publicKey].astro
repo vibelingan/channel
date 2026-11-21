@@ -14,15 +14,21 @@ import {
   productBreadcrumbs,
   productPageDescriptor,
 } from '../../lib/seo/product-page.ts';
+import {
+  conflictingProductPhotoPaths,
+  productPreviewImage,
+} from '../../lib/seo/product-preview-image.ts';
 import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
-import { conflictingProductPhotoPaths, productPreviewImage } from '../../lib/seo/product-preview-image.ts';
 import '../../styles/product.css';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
   const site = getSiteContent(DEFAULT_LOCALE);
   const duplicateIds = duplicateProductTitleIds(snapshot.products, site.brand.name);
-  const apiOrigin = publicCatalogImageApiOrigin(snapshot.siteOrigin, import.meta.env.PUBLIC_API_BASE_URL);
+  const apiOrigin = publicCatalogImageApiOrigin(
+    snapshot.siteOrigin,
+    import.meta.env.PUBLIC_API_BASE_URL,
+  );
   const conflictingPhotos = conflictingProductPhotoPaths(snapshot.products, apiOrigin);
   return snapshot.products.map((entry) => ({
     params: { publicKey: productKey(entry.product._id) },
@@ -54,7 +60,7 @@ const page = productPageDescriptor(
   duplicateName,
 );
 ---
-<DocumentLayout page={page} {...(socialImage ? { socialImage } : {})}>
+<DocumentLayout page={page} socialImage={socialImage}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     {entry.detail ? (
