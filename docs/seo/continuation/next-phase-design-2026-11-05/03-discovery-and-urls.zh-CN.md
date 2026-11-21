@@ -73,7 +73,9 @@ www 301 已验收，不重复做。11月18日独立Node完整GET与curl再次核
 
 11 月 21 日，以现用证书对裸域的直连和 CloudBase 边缘加速两种方案做了腾讯只读预检。两种方案的域名归属、证书和配额检查均通过，边缘加速专项也通过。预检后重新读取，域名、协议、证书和原路由与操作前一致。官网裸域 HTTP 仍返回 200，两个 www 入口继续一跳 301 并保留完整路径和参数。实际 301 需要在独立地址上验收。 [腾讯只读预检接口](https://docs.cloudbase.net/api-reference/manager/node/domain#verifyhttpserviceroute)
 
-拟用的 `seo-https-check.supplychainsai.com` 当前没有 DNS 记录或 CloudBase 路由。现有证书只覆盖裸域和 www，当前云凭据查询独立 SSL 证书列表时返回无权访问。若获准演练，先确认独立子域证书和 DNS 的操作权限，再设置临时测试入口。按腾讯列明的日本访问价格，100 MB 下行约 0.083 元，1,000 次边缘请求约 0.005 元，属于按量估算。整站入口的使用量和费用另算。 [腾讯边缘请求和流量计费](https://cloud.tencent.com/document/product/876/141066)
+拟用的 `seo-https-check.supplychainsai.com` 当前没有 DNS 记录或 CloudBase 路由。现有证书只覆盖裸域和 www，当前云凭据查询独立 SSL 证书列表时返回无权访问。若获准演练，先确认独立子域证书和 DNS 的操作权限，再设置临时测试入口。腾讯提供适用于单个域名的免费证书，试点账号能否领取尚未确认。按腾讯列明的日本访问价格，100 MB 下行约 0.083 元，1,000 次边缘请求约 0.005 元，属于按量估算。整站入口的使用量和费用另算。 [腾讯免费证书说明](https://cloud.tencent.com/document/product/400/6814) · [CloudBase 资源点价格](https://cloud.tencent.com/document/product/876/127357)
+
+DNSPod 11 月 20 日的说明确认，添加 URL 转发会自动给这个名字加一条指向 DNSPod 转发服务器的 CNAME。免费版虽然有两条转发额度，使用其中一条依然会更换裸域的接收服务。DNS 只能按域名找入口，无法把同一个名字的 HTTP 留给转发服务、HTTPS 留给 CloudBase。 [DNSPod 转发原理和免费额度](https://cloud.tencent.com/document/product/302/104714)
 
 同一轮从日本访问官网和直连图片网关时，客户端主动提供 HTTP/2 协议选项，实际协商均为 HTTP/1.1。独立 TLS 握手和真实文件下载得出相同结果。若日后做边缘试点，可以同时测下载连接和并发，继续单独验收图片上传、文章、查询参数以及视频分段。腾讯独立 EdgeOne 产品文档也提示，HTTP/2 的流量窗口可能影响大文件上传。 [Chrome 请求排队说明](https://developer.chrome.com/docs/devtools/network/reference/#timing-breakdown-phases-explained) · [腾讯 EdgeOne HTTP/2](https://intl.cloud.tencent.com/zh/document/product/1145/46171)
 

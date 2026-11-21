@@ -892,6 +892,763 @@
         "catalog-pages/manifest.json": false
       }
     },
-    "scope": "Full original inventory, with approved list price summaries from one verified public response added to the candidate test input. The release performs full fresh acquisition."
+    "scope": "Full original inventory, with approved list price summaries from one verified public response added to the candidate test input. The release performs full fresh acquisition.",
+    "production": {
+      "run": {
+        "archive": 44874783130,
+        "site": 44875233788,
+        "source": "c173c4c74c60801aa57972e7422e06153c95c1bd"
+      },
+      "checks": {
+        "seo-module-1.yml": 44874409781,
+        "seo-blog-server.yml": 44874409670,
+        "seo-blog-dummy.yml": 44874409667
+      },
+      "package": {
+        "run": 44875233788,
+        "source": "c173c4c74c60801aa57972e7422e06153c95c1bd",
+        "verifiedManifestEntries": 2159,
+        "staticFileCount": 2156,
+        "publicFileTypes": {
+          ".js": 1403,
+          ".css": 73,
+          ".html": 589,
+          ".json": 3,
+          ".ico": 1,
+          ".svg": 3,
+          ".webp": 26,
+          ".jpg": 42,
+          ".png": 9,
+          ".mp4": 4,
+          ".txt": 1,
+          ".xml": 2
+        },
+        "developmentPathOrMarkerMatches": 0,
+        "approvedProductCount": 528,
+        "priceSummaries": 527,
+        "summaryPricingModes": {
+          "tiered": 510,
+          "fixed": 11,
+          "unavailable": 6
+        },
+        "existingProductDataPreserved": true,
+        "staticProductPagesByteIdentical": 528,
+        "staticAssetsByteIdentical": 1476,
+        "changedStaticFiles": [
+          "ai-gadgets/index.html",
+          "ai-gadgets/page/2/index.html",
+          "ai-gadgets/page/3/index.html",
+          "catalog-pages/manifest.json",
+          "headphones/index.html",
+          "headphones/page/10/index.html",
+          "headphones/page/11/index.html",
+          "headphones/page/12/index.html",
+          "headphones/page/13/index.html",
+          "headphones/page/14/index.html",
+          "headphones/page/15/index.html",
+          "headphones/page/16/index.html",
+          "headphones/page/17/index.html",
+          "headphones/page/18/index.html",
+          "headphones/page/19/index.html",
+          "headphones/page/2/index.html",
+          "headphones/page/20/index.html",
+          "headphones/page/21/index.html",
+          "headphones/page/22/index.html",
+          "headphones/page/23/index.html",
+          "headphones/page/24/index.html",
+          "headphones/page/25/index.html",
+          "headphones/page/26/index.html",
+          "headphones/page/27/index.html",
+          "headphones/page/28/index.html",
+          "headphones/page/29/index.html",
+          "headphones/page/3/index.html",
+          "headphones/page/30/index.html",
+          "headphones/page/31/index.html",
+          "headphones/page/32/index.html",
+          "headphones/page/33/index.html",
+          "headphones/page/34/index.html",
+          "headphones/page/35/index.html",
+          "headphones/page/36/index.html",
+          "headphones/page/37/index.html",
+          "headphones/page/38/index.html",
+          "headphones/page/39/index.html",
+          "headphones/page/4/index.html",
+          "headphones/page/5/index.html",
+          "headphones/page/6/index.html",
+          "headphones/page/7/index.html",
+          "headphones/page/8/index.html",
+          "headphones/page/9/index.html",
+          "misc/index.html",
+          "misc/page/2/index.html",
+          "misc/page/3/index.html",
+          "seo-manifest.json",
+          "toys/index.html"
+        ],
+        "unchangedSearchMapAndRobots": true,
+        "publicReads": {
+          "/headphones/": {
+            "status": 200,
+            "sha256": "6785daa025a334721bcf8bfee050760953a17a32ca5fdc5c4f3b17a1cee3cc32",
+            "matchesApprovedPackage": true
+          },
+          "/sitemap-index.xml": {
+            "status": 200,
+            "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+            "matchesApprovedPackage": true
+          },
+          "/sitemap-0.xml": {
+            "status": 200,
+            "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b",
+            "matchesApprovedPackage": true
+          },
+          "/robots.txt": {
+            "status": 200,
+            "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090",
+            "matchesApprovedPackage": true
+          }
+        }
+      },
+      "acceptedAt": "2026-11-21T06:39:36.543Z",
+      "acceptedSecondsAfterDispatch": 1032,
+      "runCompletedAt": "2026-11-21T06:45:11Z",
+      "runTotalSeconds": 1367,
+      "existingPublicContent": {
+        "run": "44875233788-1",
+        "blog": {
+          "articles": [
+            {
+              "articleId": "article-08c9c17b1eed3ddff3c0d8d1f1e893a84dc6da8d263b2e23dda2c884e154935b",
+              "contentHash": "346215d2c56e32f83491e481b82bafe770af71e700df068e1cc0b1929a670402",
+              "modifiedAt": "2026-11-14T05:54:12.700Z",
+              "publishedAt": "2026-10-26T00:26:21.072Z",
+              "revision": 5,
+              "slug": "oem-project-brief-acceptance-40249243887"
+            },
+            {
+              "articleId": "article-96a06754c53e0eae9613a1ebf36cfb79492dc3bfde08891dc4471ff14841fff3",
+              "contentHash": "afb23d88773c5be5182747e32233832d2352f62edc1070a384e3c01aedf2aabe",
+              "modifiedAt": "2026-11-14T05:54:32.530Z",
+              "publishedAt": "2026-10-28T01:16:02.607Z",
+              "revision": 4,
+              "slug": "oem-headphone-sample-inspection-wecom-20261027"
+            },
+            {
+              "articleId": "article-c6695937e8154a1d6680fb103c3827fbdddc65bb49d9563c14d570c3cfc1d05e",
+              "contentHash": "e2b0cda99e446d28bc79e6676ac504e1148c66ee3e82253035e9578f3e9840c9",
+              "modifiedAt": "2026-11-14T05:52:31.605Z",
+              "publishedAt": "2026-11-14T05:52:31.605Z",
+              "revision": 1,
+              "slug": "prototype-to-mass-production-oem-odm"
+            }
+          ],
+          "publicAndIndexable": [
+            "https://supplychainsai.com/blog/",
+            "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+            "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+            "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/"
+          ]
+        },
+        "historicalImageUrlsReadable": [
+          {
+            "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+            "bytes": 51178,
+            "type": "image/webp",
+            "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+            "bytes": 65170,
+            "type": "image/webp",
+            "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+            "bytes": 69280,
+            "type": "image/webp",
+            "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+            "bytes": 87330,
+            "type": "image/webp",
+            "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+            "bytes": 135494,
+            "type": "image/webp",
+            "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+            "bytes": 660144,
+            "type": "image/jpeg",
+            "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+          }
+        ]
+      },
+      "temporaryFunctionCleanup": {
+        "readAt": "2026-11-21T06:45:48.922Z",
+        "functionCount": 9,
+        "runs": [44875233788],
+        "leftovers": []
+      },
+      "scheduledProductUpdates": {
+        "readAt": "2026-11-21T06:45:58.296Z",
+        "pending": false,
+        "enabled": true,
+        "functionActive": true,
+        "cadence": "{\"cron\":\"0 * * * * * *\"}",
+        "triggerEnabled": null,
+        "active": {
+          "codeSha": "c173c4c74c60801aa57972e7422e06153c95c1bd",
+          "executorSha": "c173c4c74c60801aa57972e7422e06153c95c1bd",
+          "executorRef": "feat/seo-foundation",
+          "catalogTracked": true,
+          "acceptedRunId": "site-44875233788-1"
+        }
+      },
+      "regionalTestBusinessWrites": 0,
+      "browser": {
+        "version": "157.0.8103.79",
+        "samples": [
+          {
+            "version": "base",
+            "javaScriptEnabled": false,
+            "price": "Request a Quote",
+            "canonical": "https://supplychainsai.com/headphones/",
+            "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "htmlSha256": "1f90242fc58648eefff37a282dc6198cd15e8231a28eb76e258bafbbdddb44ad",
+            "refreshedPriceSupported": false,
+            "openedProductAndRestoredFocus": false
+          },
+          {
+            "version": "candidate",
+            "javaScriptEnabled": false,
+            "price": "From $2.34",
+            "canonical": "https://supplychainsai.com/headphones/",
+            "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "htmlSha256": "6785daa025a334721bcf8bfee050760953a17a32ca5fdc5c4f3b17a1cee3cc32",
+            "refreshedPriceSupported": false,
+            "openedProductAndRestoredFocus": false
+          },
+          {
+            "version": "candidate",
+            "javaScriptEnabled": true,
+            "price": "From $2.34",
+            "canonical": "https://supplychainsai.com/headphones/",
+            "productHref": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "htmlSha256": "6785daa025a334721bcf8bfee050760953a17a32ca5fdc5c4f3b17a1cee3cc32",
+            "refreshedPriceSupported": true,
+            "openedProductAndRestoredFocus": true
+          }
+        ]
+      }
+    }
+  },
+  "anonymousListPreloadTrial": {
+    "design": "Same archived website HTML is supplied by the experiment. Chrome reads the official static asset URLs directly from the live site, under simulated mobile conditions. Actual Chrome makes GETs to the current public backend. Candidate adds one native CORS fetch preload for the exact default public list request in the HTML head. No request interception or custom data cache.",
+    "chrome": "157.0.8103.79",
+    "siteArtifact": 44868271676,
+    "egress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "mobile": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true,
+      "locale": "en-US"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuRate": 4,
+    "htmlSha256": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21",
+    "samples": [
+      {
+        "arm": "base",
+        "sequence": 1,
+        "list": {
+          "type": "Fetch",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "script",
+          "started": 7343,
+          "status": 200,
+          "headersAt": 8490,
+          "protocol": "http/1.1",
+          "reused": true,
+          "finished": 9231,
+          "bytes": 33232
+        },
+        "filterReadyMs": 7350,
+        "heroReadyMs": 2433,
+        "candidateLcpMs": 2452,
+        "priceAfter": "From $2.34"
+      },
+      {
+        "arm": "preload",
+        "sequence": 2,
+        "list": {
+          "type": "Other",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "parser",
+          "started": 15,
+          "status": 200,
+          "headersAt": 2401,
+          "protocol": "http/1.1",
+          "reused": false,
+          "finished": 3100,
+          "bytes": 33232
+        },
+        "filterReadyMs": 7080,
+        "heroReadyMs": 1884,
+        "candidateLcpMs": 1888,
+        "priceAfter": "From $2.34"
+      },
+      {
+        "arm": "preload",
+        "sequence": 3,
+        "list": {
+          "type": "Other",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "parser",
+          "started": 15,
+          "status": 200,
+          "headersAt": 3968,
+          "protocol": "http/1.1",
+          "reused": false,
+          "finished": 4477,
+          "bytes": 33238
+        },
+        "filterReadyMs": 7346,
+        "heroReadyMs": 1833,
+        "candidateLcpMs": 1844,
+        "priceAfter": "From $2.34"
+      },
+      {
+        "arm": "base",
+        "sequence": 4,
+        "list": {
+          "type": "Fetch",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "script",
+          "started": 6553,
+          "status": 200,
+          "headersAt": 7673,
+          "protocol": "http/1.1",
+          "reused": true,
+          "finished": 8092,
+          "bytes": 33231
+        },
+        "filterReadyMs": 6559,
+        "heroReadyMs": 1599,
+        "candidateLcpMs": 1604,
+        "priceAfter": "From $2.34"
+      },
+      {
+        "arm": "base",
+        "sequence": 5,
+        "list": {
+          "type": "Fetch",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "script",
+          "started": 6443,
+          "status": 200,
+          "headersAt": 7736,
+          "protocol": "http/1.1",
+          "reused": true,
+          "finished": 8444,
+          "bytes": 33247
+        },
+        "filterReadyMs": 7199,
+        "heroReadyMs": 1516,
+        "candidateLcpMs": 1520,
+        "priceAfter": "From $2.34"
+      },
+      {
+        "arm": "preload",
+        "sequence": 6,
+        "list": {
+          "type": "Other",
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "initiator": "parser",
+          "started": 15,
+          "status": 200,
+          "headersAt": 4577,
+          "protocol": "http/1.1",
+          "reused": false,
+          "finished": 5273,
+          "bytes": 33232
+        },
+        "filterReadyMs": 9905,
+        "heroReadyMs": 4465,
+        "candidateLcpMs": 4468,
+        "priceAfter": "From $2.34"
+      }
+    ],
+    "millisecondsAfterNavigation": {
+      "base": {
+        "listFinishedMs": 8444,
+        "filterReadyMs": 7199,
+        "heroReadyMs": 1599
+      },
+      "preload": {
+        "listFinishedMs": 4477,
+        "filterReadyMs": 7346,
+        "heroReadyMs": 1884
+      }
+    },
+    "decision": "Not released. Fetch completion advanced, with a single actual API request per visit, while the buyer-facing filter and image showed no improvement in this experiment. HTML timing excludes a production HTML request."
+  },
+  "storefrontPreviewScriptCompression": {
+    "liveReadback": {
+      "resource": "https://supplychainsai.com/_astro/catalog-variant-state.tqVmpUOl.js",
+      "reads": [
+        {
+          "accept": "identity",
+          "returnedEncoding": "identity",
+          "status": 200,
+          "http": 11,
+          "bytes": 262169,
+          "sha256": "c8d965699931f3b54d0af306b9bce5ac6377c2c3643138ee675f1c891fb36797",
+          "matchesArchivedBody": true
+        },
+        {
+          "accept": "gzip",
+          "returnedEncoding": "identity",
+          "status": 200,
+          "http": 11,
+          "bytes": 262169,
+          "sha256": "c8d965699931f3b54d0af306b9bce5ac6377c2c3643138ee675f1c891fb36797",
+          "matchesArchivedBody": true
+        },
+        {
+          "accept": "br, gzip",
+          "returnedEncoding": "identity",
+          "status": 200,
+          "http": 11,
+          "bytes": 262169,
+          "sha256": "c8d965699931f3b54d0af306b9bce5ac6377c2c3643138ee675f1c891fb36797",
+          "matchesArchivedBody": true
+        }
+      ],
+      "archivedBodyBytes": 262169,
+      "localGzipBytes": 82405
+    },
+    "controlledChromeTrial": {
+      "design": "Same archived storefront files sent from one local HTTP server with cold Chrome sessions. The public list response is an exact captured reply and repeat public API/first-party image data is replayed from memory. Only the critical preview JS is transmitted with or without gzip. This is not a cloud latency or edge trial.",
+      "siteArtifact": 44868271676,
+      "bundle": "/_astro/catalog-variant-state.tqVmpUOl.js",
+      "chrome": "157.0.8103.79",
+      "mobile": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "payload": {
+        "uncompressed": 262169,
+        "gzip": 82502,
+        "sha256": "c8d965699931f3b54d0af306b9bce5ac6377c2c3643138ee675f1c891fb36797"
+      },
+      "samples": [
+        {
+          "group": "identity",
+          "sequence": 1,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3728,
+            "status": 200,
+            "encoding": "identity",
+            "length": 262169,
+            "headersAt": 5348,
+            "finished": 5346,
+            "wireBytes": 262367
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 5383,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 5542,
+            "finished": 5700,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1328,
+                "type": "IMG"
+              },
+              {
+                "ms": 1372,
+                "type": "H1"
+              },
+              {
+                "ms": 1428,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 5389,
+            "priceReady": 5715
+          }
+        },
+        {
+          "group": "gzip",
+          "sequence": 2,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3742,
+            "status": 200,
+            "encoding": "gzip",
+            "length": 82502,
+            "headersAt": 4473,
+            "finished": 4471,
+            "wireBytes": 82723
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 4507,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 4674,
+            "finished": 4832,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1332,
+                "type": "IMG"
+              },
+              {
+                "ms": 1372,
+                "type": "H1"
+              },
+              {
+                "ms": 1448,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 4512,
+            "priceReady": 4849
+          }
+        },
+        {
+          "group": "gzip",
+          "sequence": 3,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3728,
+            "status": 200,
+            "encoding": "gzip",
+            "length": 82502,
+            "headersAt": 4456,
+            "finished": 4455,
+            "wireBytes": 82723
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 4490,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 4649,
+            "finished": 4808,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1320,
+                "type": "IMG"
+              },
+              {
+                "ms": 1364,
+                "type": "H1"
+              },
+              {
+                "ms": 1436,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 4496,
+            "priceReady": 4824
+          }
+        },
+        {
+          "group": "identity",
+          "sequence": 4,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3729,
+            "status": 200,
+            "encoding": "identity",
+            "length": 262169,
+            "headersAt": 5350,
+            "finished": 5349,
+            "wireBytes": 262367
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 5385,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 5551,
+            "finished": 5709,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1320,
+                "type": "IMG"
+              },
+              {
+                "ms": 1364,
+                "type": "H1"
+              },
+              {
+                "ms": 1440,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 5391,
+            "priceReady": 5723
+          }
+        },
+        {
+          "group": "identity",
+          "sequence": 5,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3735,
+            "status": 200,
+            "encoding": "identity",
+            "length": 262169,
+            "headersAt": 5356,
+            "finished": 5355,
+            "wireBytes": 262367
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 5392,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 5556,
+            "finished": 5713,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1320,
+                "type": "IMG"
+              },
+              {
+                "ms": 1364,
+                "type": "H1"
+              },
+              {
+                "ms": 1448,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 5398,
+            "priceReady": 5728
+          }
+        },
+        {
+          "group": "gzip",
+          "sequence": 6,
+          "script": {
+            "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+            "started": 3729,
+            "status": 200,
+            "encoding": "gzip",
+            "length": 82502,
+            "headersAt": 4457,
+            "finished": 4456,
+            "wireBytes": 82723
+          },
+          "list": {
+            "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+            "started": 4492,
+            "status": 200,
+            "encoding": "identity",
+            "length": 32238,
+            "headersAt": 4659,
+            "finished": 4814,
+            "wireBytes": 32421
+          },
+          "observed": {
+            "lcp": [
+              {
+                "ms": 1320,
+                "type": "IMG"
+              },
+              {
+                "ms": 1364,
+                "type": "H1"
+              },
+              {
+                "ms": 1456,
+                "type": "IMG"
+              }
+            ],
+            "filterReady": 4499,
+            "priceReady": 4829
+          }
+        }
+      ],
+      "millisecondsAfterNavigation": {
+        "identity": {
+          "scriptComplete": 5349,
+          "listStart": 5385,
+          "filterReady": 5391,
+          "priceReady": 5723,
+          "heroLcp": 1440
+        },
+        "gzip": {
+          "scriptComplete": 4456,
+          "listStart": 4492,
+          "filterReady": 4499,
+          "priceReady": 4829,
+          "heroLcp": 1448
+        }
+      }
+    },
+    "decision": "No production edge change. This isolates one file transfer, justifying the static-only edge pilot once the DNS, certificate and usage prerequisites are available."
   }
 }
