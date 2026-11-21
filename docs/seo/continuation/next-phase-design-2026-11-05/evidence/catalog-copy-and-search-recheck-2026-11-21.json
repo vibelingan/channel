@@ -387,5 +387,558 @@
       ],
       "errors": []
     }
+  },
+  "liveQuotePreparation": {
+    "browser": "157.0.8103.79",
+    "pageUrl": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+    "region": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuRate": 4,
+    "samples": [
+      {
+        "html": {
+          "firstByte": 893,
+          "done": 1337,
+          "bytes": 80975,
+          "protocol": "http/1.1"
+        },
+        "island": 11051,
+        "lcp": {
+          "ms": 2384,
+          "tag": "IMG"
+        },
+        "landing": "ProductLanding.DoDhP8sm.js",
+        "mainImage": true,
+        "scriptRows": [
+          {
+            "asset": "SiteHeader.astro_astro_type_script_index_0_lang.DZtO4EId.js",
+            "bytes": 4993,
+            "transfer": 5293,
+            "start": 1069,
+            "first": 2027,
+            "end": 2095,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "AccountMenu.DQ49V37Y.js",
+            "bytes": 4076,
+            "transfer": 4376,
+            "start": 2320,
+            "first": 2695,
+            "end": 2778,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "client.CR28Oxrx.js",
+            "bytes": 182291,
+            "transfer": 182591,
+            "start": 2320,
+            "first": 2650,
+            "end": 5231,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "ProductLanding.DoDhP8sm.js",
+            "bytes": 1194,
+            "transfer": 1494,
+            "start": 2326,
+            "first": 2709,
+            "end": 2747,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "AssistantWidget.DTFzLaKg.js",
+            "bytes": 16837,
+            "transfer": 17137,
+            "start": 2326,
+            "first": 2946,
+            "end": 3220,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "catalog-taxonomy.BRLFIL4G.js",
+            "bytes": 2414,
+            "transfer": 2714,
+            "start": 2375,
+            "first": 2745,
+            "end": 2824,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "alibaba-sync-workflow.CIKqAOa1.js",
+            "bytes": 105538,
+            "transfer": 105838,
+            "start": 2375,
+            "first": 2765,
+            "end": 4618,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "jsx-runtime.u17CrQMm.js",
+            "bytes": 479,
+            "transfer": 779,
+            "start": 2749,
+            "first": 3024,
+            "end": 3051,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.DP38BoPS.js",
+            "bytes": 7746,
+            "transfer": 8046,
+            "start": 2749,
+            "first": 3244,
+            "end": 3431,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "public-quote-transport.DqU6IsOC.js",
+            "bytes": 12980,
+            "transfer": 13280,
+            "start": 2749,
+            "first": 3226,
+            "end": 3520,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "ProductMedia.CIXB7nIK.js",
+            "bytes": 3531,
+            "transfer": 3831,
+            "start": 2749,
+            "first": 3588,
+            "end": 3671,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "catalog-variant-state.CBqUd3m2.js",
+            "bytes": 262169,
+            "transfer": 262469,
+            "start": 2749,
+            "first": 3380,
+            "end": 10340,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "useSession.DwTpJZCm.js",
+            "bytes": 384,
+            "transfer": 684,
+            "start": 2779,
+            "first": 4113,
+            "end": 4158,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "session.BhUOLuWk.js",
+            "bytes": 2848,
+            "transfer": 3148,
+            "start": 2779,
+            "first": 4111,
+            "end": 4225,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "api-envelope.v-HjK5jP.js",
+            "bytes": 9586,
+            "transfer": 9886,
+            "start": 2826,
+            "first": 4051,
+            "end": 4287,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "numbered-catalog-state.DRBcgeOa.js",
+            "bytes": 3507,
+            "transfer": 3807,
+            "start": 2826,
+            "first": 4578,
+            "end": 4661,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "product-detail.cdSeV7G8.js",
+            "bytes": 5911,
+            "transfer": 6211,
+            "start": 3522,
+            "first": 4654,
+            "end": 4772,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "quote-draft.CRBhcLRK.js",
+            "bytes": 7227,
+            "transfer": 7527,
+            "start": 3522,
+            "first": 4752,
+            "end": 4895,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.B12p2oPd.js",
+            "bytes": 3654,
+            "transfer": 3954,
+            "start": 4895,
+            "first": 5286,
+            "end": 5350,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "CatalogQuoteConditions.zgsNwH7T.js",
+            "bytes": 258,
+            "transfer": 558,
+            "start": 10344,
+            "first": 10961,
+            "end": 11021,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "Gallery.qldYsEaG.js",
+            "bytes": 4940,
+            "transfer": 5240,
+            "start": 10345,
+            "first": 10749,
+            "end": 10960,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.V_KxlPMr.js",
+            "bytes": 919,
+            "transfer": 1219,
+            "start": 10345,
+            "first": 10852,
+            "end": 10969,
+            "protocol": "http/1.1"
+          }
+        ],
+        "quoteOpenedAndClosed": true,
+        "nonReadRequests": [],
+        "scriptTotalBytes": 643482
+      },
+      {
+        "html": {
+          "firstByte": 1148,
+          "done": 1783,
+          "bytes": 80975,
+          "protocol": "http/1.1"
+        },
+        "island": 10074,
+        "lcp": {
+          "ms": 3076,
+          "tag": "IMG"
+        },
+        "landing": "ProductLanding.DoDhP8sm.js",
+        "mainImage": true,
+        "scriptRows": [
+          {
+            "asset": "SiteHeader.astro_astro_type_script_index_0_lang.DZtO4EId.js",
+            "bytes": 4993,
+            "transfer": 5293,
+            "start": 1303,
+            "first": 1822,
+            "end": 1880,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "AccountMenu.DQ49V37Y.js",
+            "bytes": 4076,
+            "transfer": 4376,
+            "start": 2346,
+            "first": 2662,
+            "end": 2750,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "client.CR28Oxrx.js",
+            "bytes": 182291,
+            "transfer": 182591,
+            "start": 2346,
+            "first": 2631,
+            "end": 5157,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "ProductLanding.DoDhP8sm.js",
+            "bytes": 1194,
+            "transfer": 1494,
+            "start": 2351,
+            "first": 2664,
+            "end": 2705,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "AssistantWidget.DTFzLaKg.js",
+            "bytes": 16837,
+            "transfer": 17137,
+            "start": 2351,
+            "first": 2686,
+            "end": 2915,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "catalog-taxonomy.BRLFIL4G.js",
+            "bytes": 2414,
+            "transfer": 2714,
+            "start": 2398,
+            "first": 3085,
+            "end": 3153,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "alibaba-sync-workflow.CIKqAOa1.js",
+            "bytes": 105538,
+            "transfer": 105838,
+            "start": 2398,
+            "first": 3039,
+            "end": 4664,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "jsx-runtime.u17CrQMm.js",
+            "bytes": 479,
+            "transfer": 779,
+            "start": 2706,
+            "first": 3080,
+            "end": 3103,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.DP38BoPS.js",
+            "bytes": 7746,
+            "transfer": 8046,
+            "start": 2706,
+            "first": 3341,
+            "end": 3483,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "public-quote-transport.DqU6IsOC.js",
+            "bytes": 12980,
+            "transfer": 13280,
+            "start": 2706,
+            "first": 3403,
+            "end": 3649,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "ProductMedia.CIXB7nIK.js",
+            "bytes": 3531,
+            "transfer": 3831,
+            "start": 2706,
+            "first": 3706,
+            "end": 3783,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "catalog-variant-state.CBqUd3m2.js",
+            "bytes": 262169,
+            "transfer": 262469,
+            "start": 2706,
+            "first": 3715,
+            "end": 9492,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "session.BhUOLuWk.js",
+            "bytes": 2848,
+            "transfer": 3148,
+            "start": 2750,
+            "first": 3841,
+            "end": 3928,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "useSession.DwTpJZCm.js",
+            "bytes": 384,
+            "transfer": 684,
+            "start": 2750,
+            "first": 4276,
+            "end": 4311,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "api-envelope.v-HjK5jP.js",
+            "bytes": 9586,
+            "transfer": 9886,
+            "start": 3155,
+            "first": 4266,
+            "end": 4490,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "numbered-catalog-state.DRBcgeOa.js",
+            "bytes": 3507,
+            "transfer": 3807,
+            "start": 3155,
+            "first": 4670,
+            "end": 4737,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "product-detail.cdSeV7G8.js",
+            "bytes": 5911,
+            "transfer": 6211,
+            "start": 3650,
+            "first": 4900,
+            "end": 5037,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "quote-draft.CRBhcLRK.js",
+            "bytes": 7227,
+            "transfer": 7527,
+            "start": 3651,
+            "first": 4906,
+            "end": 5075,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.B12p2oPd.js",
+            "bytes": 3654,
+            "transfer": 3954,
+            "start": 5076,
+            "first": 5431,
+            "end": 5464,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "Gallery.qldYsEaG.js",
+            "bytes": 4940,
+            "transfer": 5240,
+            "start": 9497,
+            "first": 9840,
+            "end": 9898,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "index.V_KxlPMr.js",
+            "bytes": 919,
+            "transfer": 1219,
+            "start": 9497,
+            "first": 10001,
+            "end": 10026,
+            "protocol": "http/1.1"
+          },
+          {
+            "asset": "CatalogQuoteConditions.zgsNwH7T.js",
+            "bytes": 258,
+            "transfer": 558,
+            "start": 9497,
+            "first": 10039,
+            "end": 10046,
+            "protocol": "http/1.1"
+          }
+        ],
+        "quoteOpenedAndClosed": true,
+        "nonReadRequests": [],
+        "scriptTotalBytes": 643482
+      }
+    ]
+  },
+  "localSharedChunkAttribution": {
+    "file": "_astro/alibaba-sync-workflow.DqOvWzE3.js",
+    "chunkBytesAfterMinification": 105508,
+    "modules": [
+      {
+        "module": "zod/v3/types.js",
+        "renderedBytesBeforeMinification": 122025
+      },
+      {
+        "module": "packages/shared/src/collections.ts",
+        "renderedBytesBeforeMinification": 56036
+      },
+      {
+        "module": "packages/shared/src/catalog-taxonomy.ts",
+        "renderedBytesBeforeMinification": 5592
+      },
+      {
+        "module": "zod/v3/locales/en.js",
+        "renderedBytesBeforeMinification": 5471
+      },
+      {
+        "module": "packages/shared/src/catalog/alibaba-pricing-adapter.ts",
+        "renderedBytesBeforeMinification": 5051
+      },
+      {
+        "module": "zod/v3/ZodError.js",
+        "renderedBytesBeforeMinification": 4155
+      },
+      {
+        "module": "zod/v3/helpers/util.js",
+        "renderedBytesBeforeMinification": 4026
+      },
+      {
+        "module": "zod/v3/helpers/parseUtil.js",
+        "renderedBytesBeforeMinification": 3394
+      },
+      {
+        "module": "packages/shared/src/catalog-product.ts",
+        "renderedBytesBeforeMinification": 3363
+      },
+      {
+        "module": "packages/shared/src/catalog/offer-pricing.ts",
+        "renderedBytesBeforeMinification": 2961
+      },
+      {
+        "module": "packages/shared/src/catalog/supplier-review.ts",
+        "renderedBytesBeforeMinification": 2699
+      },
+      {
+        "module": "packages/shared/src/manual-catalog-pricing.ts",
+        "renderedBytesBeforeMinification": 2267
+      },
+      {
+        "module": "packages/shared/src/category-api.ts",
+        "renderedBytesBeforeMinification": 1897
+      },
+      {
+        "module": "packages/shared/src/catalog/resolve-pricing.ts",
+        "renderedBytesBeforeMinification": 1893
+      },
+      {
+        "module": "packages/shared/src/media.ts",
+        "renderedBytesBeforeMinification": 1734
+      },
+      {
+        "module": "packages/shared/src/alibaba-sync-workflow.ts",
+        "renderedBytesBeforeMinification": 877
+      },
+      {
+        "module": "lib/api-url.ts",
+        "renderedBytesBeforeMinification": 832
+      },
+      {
+        "module": "packages/shared/src/auth.ts",
+        "renderedBytesBeforeMinification": 317
+      },
+      {
+        "module": "zod/v3/helpers/errorUtil.js",
+        "renderedBytesBeforeMinification": 292
+      },
+      {
+        "module": "zod/v3/errors.js",
+        "renderedBytesBeforeMinification": 88
+      },
+      {
+        "module": "packages/shared/src/media-lifecycle.ts",
+        "renderedBytesBeforeMinification": 24
+      }
+    ]
   }
 }
