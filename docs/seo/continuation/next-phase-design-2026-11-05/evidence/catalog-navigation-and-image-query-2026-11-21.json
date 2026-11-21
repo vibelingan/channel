@@ -1,0 +1,390 @@
+{
+  "release": {
+    "runId": 44888847921,
+    "source": "fcc3f9ac4a3c1c4359397f0e5ae184d40f017dc7",
+    "checks": [
+      44888377041,
+      44888377019,
+      44888376994
+    ]
+  },
+  "previousPackage": "5eb21da4ed34f6cd93ac4d6ffc1c109cb81d0817be56259364b44155fce51353",
+  "acceptedPackage": "ec42dff31f50da380ac461e77b0d997a4b6ba6bbbdbbe1ef968421100b12a65d",
+  "sameResponsiveAndPlainResponseBodiesAndHeaders": true,
+  "beforeEarlier": {
+    "observedAt": "2026-11-21T07:25:21.889Z",
+    "expectedRelease": "94ee3bc84ee77d86cf9a5b7d578c097317798e06",
+    "statistics": {
+      "imageStageMs": {
+        "median": 185.7,
+        "minimum": 130.7,
+        "maximum": 302.5
+      },
+      "responsiveTotalMs": {
+        "median": 581.8,
+        "minimum": 351.2,
+        "maximum": 1327.6
+      },
+      "plainTotalMs": {
+        "median": 368.9,
+        "minimum": 209.5,
+        "maximum": 814.4
+      },
+      "clientElapsedMs": {
+        "median": 3834,
+        "minimum": 2204,
+        "maximum": 6315
+      }
+    },
+    "country": "JP",
+    "connectionPoint": "NRT",
+    "egressStable": true,
+    "unchangedHistoricalImages": 6,
+    "pairs": [
+      {
+        "round": 1,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 200.1,
+          "functionTotalMs": 586.3,
+          "clientMs": 2204
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 455.8
+        }
+      },
+      {
+        "round": 2,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 228.2,
+          "functionTotalMs": 577.2,
+          "clientMs": 2700
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 209.5
+        }
+      },
+      {
+        "round": 3,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 171.3,
+          "functionTotalMs": 483,
+          "clientMs": 5510
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 265.3
+        }
+      },
+      {
+        "round": 4,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 130.7,
+          "functionTotalMs": 351.2,
+          "clientMs": 3763
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 281.9
+        }
+      },
+      {
+        "round": 5,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 302.5,
+          "functionTotalMs": 1327.6,
+          "clientMs": 6315
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 668.5
+        }
+      },
+      {
+        "round": 6,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 164.8,
+          "functionTotalMs": 756.9,
+          "clientMs": 3905
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 814.4
+        }
+      }
+    ]
+  },
+  "beforeNearRelease": {
+    "observedAt": "2026-11-21T09:14:21.524Z",
+    "expectedRelease": "94ee3bc84ee77d86cf9a5b7d578c097317798e06",
+    "statistics": {
+      "imageStageMs": {
+        "median": 187.3,
+        "minimum": 149.6,
+        "maximum": 269.8
+      },
+      "responsiveTotalMs": {
+        "median": 481,
+        "minimum": 415.5,
+        "maximum": 1020.2
+      },
+      "plainTotalMs": {
+        "median": 321.7,
+        "minimum": 213.2,
+        "maximum": 416.7
+      },
+      "clientElapsedMs": {
+        "median": 2557,
+        "minimum": 2044,
+        "maximum": 3529
+      }
+    },
+    "country": "JP",
+    "connectionPoint": "NRT",
+    "egressStable": true,
+    "unchangedHistoricalImages": 6,
+    "pairs": [
+      {
+        "round": 1,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 269.8,
+          "functionTotalMs": 1020.2,
+          "clientMs": 2657
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 416.7
+        }
+      },
+      {
+        "round": 2,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 167.6,
+          "functionTotalMs": 485,
+          "clientMs": 2084
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 369.6
+        }
+      },
+      {
+        "round": 3,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 206.9,
+          "functionTotalMs": 477,
+          "clientMs": 3090
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 219.6
+        }
+      },
+      {
+        "round": 4,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 160.3,
+          "functionTotalMs": 450.8,
+          "clientMs": 2457
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 307.8
+        }
+      },
+      {
+        "round": 5,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 261,
+          "functionTotalMs": 502.3,
+          "clientMs": 3529
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 213.2
+        }
+      },
+      {
+        "round": 6,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 149.6,
+          "functionTotalMs": 415.5,
+          "clientMs": 2044
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 335.6
+        }
+      }
+    ]
+  },
+  "afterRelease": {
+    "observedAt": "2026-11-21T09:18:54.241Z",
+    "expectedRelease": "fcc3f9ac4a3c1c4359397f0e5ae184d40f017dc7",
+    "statistics": {
+      "imageStageMs": {
+        "median": 179.9,
+        "minimum": 105.1,
+        "maximum": 293.9
+      },
+      "responsiveTotalMs": {
+        "median": 605.6,
+        "minimum": 528.1,
+        "maximum": 943.5
+      },
+      "plainTotalMs": {
+        "median": 458.3,
+        "minimum": 270.1,
+        "maximum": 707.8
+      },
+      "clientElapsedMs": {
+        "median": 3732.5,
+        "minimum": 2580,
+        "maximum": 5939
+      }
+    },
+    "country": "JP",
+    "connectionPoint": "NRT",
+    "egressStable": true,
+    "unchangedHistoricalImages": 6,
+    "pairs": [
+      {
+        "round": 1,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 293.9,
+          "functionTotalMs": 943.5,
+          "clientMs": 5939
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 707.8
+        }
+      },
+      {
+        "round": 2,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 160.7,
+          "functionTotalMs": 645.9,
+          "clientMs": 4616
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 470.5
+        }
+      },
+      {
+        "round": 3,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 105.1,
+          "functionTotalMs": 528.1,
+          "clientMs": 2714
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 446
+        }
+      },
+      {
+        "round": 4,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 161,
+          "functionTotalMs": 531.8,
+          "clientMs": 2580
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 570.3
+        }
+      },
+      {
+        "round": 5,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 242.7,
+          "functionTotalMs": 604.3,
+          "clientMs": 4422
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 435
+        }
+      },
+      {
+        "round": 6,
+        "withImageSizes": {
+          "bodyBytes": 32238,
+          "imageStageMs": 198.8,
+          "functionTotalMs": 606.9,
+          "clientMs": 3043
+        },
+        "withoutImageSizes": {
+          "functionTotalMs": 270.1
+        }
+      }
+    ]
+  },
+  "siteNavigationCandidate": {
+    "verifiedHtmlPages": 589,
+    "productDetails": 528,
+    "canonicalSitemapPageCount": 580,
+    "changedLinkPages": 584,
+    "previousAliases": {
+      "/oem#what-we-do": 1168,
+      "/headphones": 584,
+      "/oem": 585,
+      "/oem#process": 1
+    },
+    "remainingAliases": 0,
+    "unchangedOtherAnchorDestinations": true,
+    "unchangedPageMetadata": true,
+    "unchangedStructuredData": true,
+    "unchangedImageTags": true,
+    "unchangedAnchorTargets": true,
+    "matchingSitemapAndRobots": {
+      "robots.txt": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090",
+      "sitemap-0.xml": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b",
+      "sitemap-index.xml": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+    }
+  },
+  "siteRelease": {
+    "source": "ae2e8d73d9364ef48c7ec947d97f5548fc044668",
+    "deliveryId": "site-44879423463-1",
+    "manifestEntries": 2159,
+    "publicFiles": 2156,
+    "addedGeneratedAssets": [],
+    "changedFileTypes": {
+      ".html": 584
+    },
+    "existingPublicPathsRemoved": 0,
+    "publicProducts": 528,
+    "publicProductContentsMatchBaseline": true
+  },
+  "blogRelease": {
+    "source": "ae2e8d73d9364ef48c7ec947d97f5548fc044668",
+    "stageRun": 44882757750,
+    "finalRun": 44883117616,
+    "verifiedHealth": true,
+    "preservedArticles": 3,
+    "historicalImagesReadable": 6
+  },
+  "cloudGateWayAfterNavigation": {
+    "targetedPaths": 19,
+    "windowCloudBaseTime": {
+      "startTime": "2026-11-21 15:53:08",
+      "endTime": "2026-11-21 17:15:36"
+    },
+    "exactRows": 13,
+    "statuses": {
+      "200": 13
+    },
+    "verifiedGoogleRequests": [],
+    "unexpected": [],
+    "potentiallyTruncated": false
+  },
+  "browser": {
+    "catalogRefreshAndProductModal": true,
+    "inquiryCountryAndReview": true,
+    "returnedToCatalogWithCardFocused": true,
+    "inquirySubmitted": false
+  }
+}
