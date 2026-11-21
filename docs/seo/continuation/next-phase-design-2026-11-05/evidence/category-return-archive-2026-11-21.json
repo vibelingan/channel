@@ -1,0 +1,114 @@
+{
+  "run": 44868271676,
+  "artifact": 14693076136,
+  "source": "7efc6b541fe5a610658075e91d8d065aa72cea69",
+  "verifiedManifestEntries": 2159,
+  "htmlPages": 589,
+  "categorizedProducts": {
+    "/headphones/": 460,
+    "/misc/": 32,
+    "/ai-gadgets/": 31,
+    "/toys/": 5
+  },
+  "addedBuildScripts": [
+    "_astro/ProductLanding.DPQGREq7.js"
+  ],
+  "assetPathsRemoved": 0,
+  "mapsUnchanged": [
+    "robots.txt",
+    "sitemap-index.xml",
+    "sitemap-0.xml",
+    "products/manifest.json",
+    "catalog-pages/manifest.json",
+    "seo-manifest.json"
+  ],
+  "approvedProductSnapshotUnchanged": true,
+  "adminAndLegacyProductPagesUnchanged": true,
+  "previousSiteRun": 44864069637,
+  "modifiedPublicFiles": {
+    "count": 528,
+    "byExtension": {
+      ".html": 528
+    },
+    "productHtmlCount": 528,
+    "candidateBytesUncompressed": 46935129
+  },
+  "developmentArtifactScan": {
+    "publicBytes": 181092352,
+    "publicFiles": 2156,
+    "countsByExtension": {
+      ".css": 73,
+      ".html": 589,
+      ".ico": 1,
+      ".jpg": 42,
+      ".js": 1403,
+      ".json": 3,
+      ".mp4": 4,
+      ".png": 9,
+      ".svg": 3,
+      ".txt": 1,
+      ".webp": 26,
+      ".xml": 2
+    },
+    "patterns": [
+      "dev_config",
+      "inline_or_linked_source_map",
+      "internal_fixture_endpoint",
+      "react_development_runtime",
+      "source_or_map",
+      "test_filename",
+      "test_or_example_path",
+      "vite_dev_client"
+    ],
+    "hits": []
+  },
+  "liveAcceptance": {
+    "receiptArtifact": 14693907351,
+    "deliveryId": "site-44868271676-1",
+    "websiteDigest": "c5ba936c80ad9de33413fda4f191929c0cd890189c152f2497e3c16ca888cacf",
+    "acceptedAt": "2026-11-21T05:25:51.026Z",
+    "dispatchToAcceptanceSeconds": 1933,
+    "dispatchToWorkflowCompletionSeconds": 2320,
+    "browserLinkCheck": [
+      {
+        "key": "p-187fb9ae-4a73-4c60-af66-649b293fb725",
+        "destination": "/headphones/",
+        "javaScriptEnabled": false
+      },
+      {
+        "key": "p-187fb9ae-4a73-4c60-af66-649b293fb725",
+        "destination": "/headphones/",
+        "javaScriptEnabled": true
+      },
+      {
+        "key": "p-23ea50be-9983-4ddb-af4c-a93958a69c6f",
+        "destination": "/headphones/",
+        "javaScriptEnabled": false
+      },
+      {
+        "key": "p-23ea50be-9983-4ddb-af4c-a93958a69c6f",
+        "destination": "/headphones/",
+        "javaScriptEnabled": true
+      },
+      {
+        "key": "p-258394ec-d04d-4777-a0ab-fa1b14ba4375",
+        "destination": "/toys/",
+        "javaScriptEnabled": false
+      },
+      {
+        "key": "p-258394ec-d04d-4777-a0ab-fa1b14ba4375",
+        "destination": "/toys/",
+        "javaScriptEnabled": true
+      }
+    ],
+    "productCount": 528,
+    "businessDataWrites": 0,
+    "acceptedPublicBlogArticles": 3,
+    "indexableBlogUrlsChecked": 4,
+    "historicalImagesFullyVerified": 6,
+    "temporaryFunctionsRemaining": 0,
+    "catalogRefreshEnabled": true,
+    "catalogRefreshUsesAcceptedRenderer": true,
+    "catalogRefreshPending": false
+  }
+}

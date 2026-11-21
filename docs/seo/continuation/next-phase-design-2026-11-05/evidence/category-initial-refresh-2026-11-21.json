@@ -1,0 +1,136 @@
+{
+  "siteRun": 44868271676,
+  "githubArtifact": 14693076136,
+  "archiveHtmlSha256": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21",
+  "endpoint": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+  "browser": "157.0.8103.79",
+  "networkEgress": {
+    "colo": "NRT",
+    "loc": "JP"
+  },
+  "deviceViewport": {
+    "viewport": {
+      "width": 412,
+      "height": 823
+    },
+    "deviceScaleFactor": 1.75,
+    "isMobile": true,
+    "hasTouch": true,
+    "locale": "en-US"
+  },
+  "networkProfile": {
+    "offline": false,
+    "latency": 150,
+    "downloadThroughput": 200000,
+    "uploadThroughput": 93750,
+    "connectionType": "cellular4g"
+  },
+  "cpuSlowdownFactor": 4,
+  "method": "Replay the same production candidate HTML and matching chunks with actual public GETs. Only the first unfiltered list GET was delayed by up to one second or until the hero was ready. Each isolated Chrome first visit had an empty cache.",
+  "samples": [
+    {
+      "arm": "base",
+      "heroVisibleMs": 3276,
+      "heroStartMs": 37,
+      "heroWaitForHeadersMs": 2711,
+      "catalogStartMs": 511,
+      "catalogReadCompleteMs": 3355,
+      "scheduledDelayMs": 0,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "arm": "defer",
+      "heroVisibleMs": 2478,
+      "heroStartMs": 15,
+      "heroWaitForHeadersMs": 1480,
+      "catalogStartMs": 1315,
+      "catalogReadCompleteMs": 3886,
+      "scheduledDelayMs": 1001,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "arm": "defer",
+      "heroVisibleMs": 1594,
+      "heroStartMs": 16,
+      "heroWaitForHeadersMs": 1246,
+      "catalogStartMs": 1277,
+      "catalogReadCompleteMs": 3264,
+      "scheduledDelayMs": 1000,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "arm": "base",
+      "heroVisibleMs": 3624,
+      "heroStartMs": 14,
+      "heroWaitForHeadersMs": 2618,
+      "catalogStartMs": 275,
+      "catalogReadCompleteMs": 2999,
+      "scheduledDelayMs": 0,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "arm": "base",
+      "heroVisibleMs": 1497,
+      "heroStartMs": 19,
+      "heroWaitForHeadersMs": 1151,
+      "catalogStartMs": 275,
+      "catalogReadCompleteMs": 3661,
+      "scheduledDelayMs": 0,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "arm": "defer",
+      "heroVisibleMs": 1593,
+      "heroStartMs": 14,
+      "heroWaitForHeadersMs": 1232,
+      "catalogStartMs": 1272,
+      "catalogReadCompleteMs": 2886,
+      "scheduledDelayMs": 1001,
+      "staticPriceLabel": "Request a Quote",
+      "refreshedPriceLabel": "From $2.34",
+      "href": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "canonical": "https://supplychainsai.com/headphones/"
+    }
+  ],
+  "earlyClickAndBack": [
+    {
+      "arm": "base",
+      "catalogRequestsDuringDetailOpen": 1,
+      "variantSelected": true,
+      "originalCardFocusRestored": true,
+      "oneCatalogRefreshCompletedAfterBack": true,
+      "refreshedPriceLabel": "From $2.34"
+    },
+    {
+      "arm": "defer",
+      "catalogRequestsDuringDetailOpen": 0,
+      "variantSelected": true,
+      "originalCardFocusRestored": true,
+      "oneCatalogRefreshCompletedAfterBack": true,
+      "refreshedPriceLabel": "From $2.34"
+    }
+  ],
+  "snapshotContract": {
+    "productId": "003a6310-5244-4766-adfa-eb1002ad0fb4",
+    "snapshotIncludesCardPriceSummary": false,
+    "publicCatalogGetIncludesCardPriceSummary": true,
+    "rowProjectionUsesKeysFromPublicProductSchema": true,
+    "publicProductSchemaDeclaresPriceSummary": false
+  },
+  "decision": "Keep the current refresh schedule. The small set saw variable first-byte waits and all delayed runs reached the one-second cap. Static price projection is a distinct change and was not modified."
+}
