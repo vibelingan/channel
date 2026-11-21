@@ -17,7 +17,9 @@
 | [金属漆蓝牙耳机](https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/) | Over Ear，包耳式 | In ear，入耳式 | 以这款商品的原始型号资料确认实际佩戴方式 |
 | [折叠耳机](https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/) | Active Noise Cancelling，主动降噪 | No Noise Cancellation，无降噪 | 确认是否有主动降噪，以及规格是否只适用于某个配置 |
 
-另外核对了商品标题。忽略大小写和空格后有八组同名，涉及 20 个独立商品网址。其中六个 JXLDD-01 页面使用同一标题和描述，且都列出相同的七个颜色名称。官网分开保留这些商品记录。是否应合并，须先核对供应商商品与规格编号、公开报价、图片以及历史询盘引用。同名只作为核对线索，现有商品身份、网址和数据都保留。 [商品快照与两处线上正文核对](evidence/product-discovery-and-copy-2026-11-21.json) · [Google 对单页或多页展示商品规格的说明](https://developers.google.com/search/docs/appearance/structured-data/product-variants)
+继续查这两件商品的来源。通过腾讯云只读查询，把官网商品与其绑定的阿里巴巴同步记录逐个对上。系统在 9 月 3 日保存的两份来源记录已经包含相同的标题及矛盾规格。这说明官网网页生成程序原样展示了已保存的数据。该记录的日期也说明它无法替代供应商对当前产品规格的确认。核对期间没有修改来源记录或商品。 [来源对照明细](evidence/product-discovery-and-copy-2026-11-21.json)
+
+另外核对了商品标题。忽略大小写和空格后有八组同名，涉及 20 个独立商品网址。其中六个 JXLDD-01 页面使用同一标题和描述，且都列出相同的七个颜色名称。官网分开保留这六条商品记录，并且数据库中绑定的是六个不同的阿里巴巴商品编号。若业务方考虑合并，需要确认它们是否实际卖同一产品，并核对规格、公开报价、图片以及历史询盘引用。同名只作为核对线索，现有商品身份、网址和数据都保留。 [商品快照与两处线上正文核对](evidence/product-discovery-and-copy-2026-11-21.json) · [Google 对单页或多页展示商品规格的说明](https://developers.google.com/search/docs/appearance/structured-data/product-variants)
 
 商品负责人确认事实后，由后台更新并批准相应商品。已有自动更新流程负责生成新版公开 HTML。交付验收要重新核对标题、可见规格、网页声明的正式网址和已有询盘入口。从 Search Console 另查新抓取日期和索引结果。当页面只修改图片尺寸、渲染程序或发布脚本时，仍沿用原商品内容日期。
 

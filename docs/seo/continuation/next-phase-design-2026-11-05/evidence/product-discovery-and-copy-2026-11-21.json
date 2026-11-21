@@ -114,6 +114,39 @@
         "url": "https://supplychainsai.com/products/p-9749adc9-acda-4536-a2a3-30282c44d3c7/",
         "publicVariantCount": 7
       }
+    ],
+    "jxlddSourceIdentityCheck": {
+      "checkedAt": "2026-11-21T12:29:29.625Z",
+      "productCount": 6,
+      "distinctSavedAlibabaLinks": 6,
+      "distinctSavedAlibabaProductIdentities": 6,
+      "writes": 0
+    }
+  },
+  "savedMarketplaceSourceCheck": {
+    "checkedAt": "2026-11-21T12:26:30.836Z",
+    "writes": 0,
+    "results": [
+      {
+        "productId": "187fb9ae-4a73-4c60-af66-649b293fb725",
+        "sourceRecord": "Saved Alibaba observation",
+        "observedAt": "2026-09-03T07:59:24.688Z",
+        "active": true,
+        "sameTitleAsWebsiteProduct": true,
+        "titleContainsConflictingPhrase": true,
+        "matchingSourceSpecificationValues": ["In ear"],
+        "sourceAlreadyContainsTheSameConflict": true
+      },
+      {
+        "productId": "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+        "sourceRecord": "Saved Alibaba observation",
+        "observedAt": "2026-09-03T08:00:30.116Z",
+        "active": true,
+        "sameTitleAsWebsiteProduct": true,
+        "titleContainsConflictingPhrase": true,
+        "matchingSourceSpecificationValues": ["No Noise Cancellation"],
+        "sourceAlreadyContainsTheSameConflict": true
+      }
     ]
   }
 }
