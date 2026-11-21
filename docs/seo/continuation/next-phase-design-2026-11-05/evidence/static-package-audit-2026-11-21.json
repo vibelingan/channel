@@ -171,42 +171,15 @@
         }
       },
       "largestUnlinkedStaticAssets": [
-        [
-          "media/videoanimation.mp4",
-          14930439
-        ],
-        [
-          "media/oem/factory-video.mp4",
-          10523748
-        ],
-        [
-          "media/section-partnership.png",
-          2218445
-        ],
-        [
-          "media/videoanimation.webp",
-          742966
-        ],
-        [
-          "media/oem/team/team.jpg",
-          226816
-        ],
-        [
-          "media/team-diversity.webp",
-          46428
-        ],
-        [
-          "media/logo-diversity.svg",
-          7094
-        ],
-        [
-          "media/oem/logo.png",
-          6182
-        ],
-        [
-          "favicon.ico",
-          3332
-        ]
+        ["media/videoanimation.mp4", 14930439],
+        ["media/oem/factory-video.mp4", 10523748],
+        ["media/section-partnership.png", 2218445],
+        ["media/videoanimation.webp", 742966],
+        ["media/oem/team/team.jpg", 226816],
+        ["media/team-diversity.webp", 46428],
+        ["media/logo-diversity.svg", 7094],
+        ["media/oem/logo.png", 6182],
+        ["favicon.ico", 3332]
       ],
       "limits": "All current HTML and XML and matching literal references in extracted JS/CSS. Browser-computed references and independently linked assets may not appear. No deletion recommendation."
     }
@@ -368,42 +341,15 @@
         }
       },
       "largestUnlinkedStaticAssets": [
-        [
-          "media/videoanimation.mp4",
-          14930439
-        ],
-        [
-          "media/oem/factory-video.mp4",
-          10523748
-        ],
-        [
-          "media/section-partnership.png",
-          2218445
-        ],
-        [
-          "media/videoanimation.webp",
-          742966
-        ],
-        [
-          "media/oem/team/team.jpg",
-          226816
-        ],
-        [
-          "media/team-diversity.webp",
-          46428
-        ],
-        [
-          "media/logo-diversity.svg",
-          7094
-        ],
-        [
-          "media/oem/logo.png",
-          6182
-        ],
-        [
-          "favicon.ico",
-          3332
-        ]
+        ["media/videoanimation.mp4", 14930439],
+        ["media/oem/factory-video.mp4", 10523748],
+        ["media/section-partnership.png", 2218445],
+        ["media/videoanimation.webp", 742966],
+        ["media/oem/team/team.jpg", 226816],
+        ["media/team-diversity.webp", 46428],
+        ["media/logo-diversity.svg", 7094],
+        ["media/oem/logo.png", 6182],
+        ["favicon.ico", 3332]
       ],
       "limits": "All current HTML and XML and matching literal references in extracted JS/CSS. Browser-computed references and independently linked assets may not appear. No deletion recommendation."
     }
