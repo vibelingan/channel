@@ -4486,5 +4486,1486 @@
     "originalPublicUrl": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
     "visualReview": "Original and unchanged-dimension 800x800 WebP independently viewed. Product, connector, contrast and visible edges retained. SSIM 0.997945.",
     "websiteWrites": 0
+  },
+  "defaultWebpApiRelease": {
+    "ship": {
+      "run": 44963085688,
+      "source": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+      "checks": [
+        {
+          "conclusion": "",
+          "databaseId": 44962586439,
+          "headSha": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+          "status": "in_progress",
+          "workflowName": "SEO release modules (offline)"
+        },
+        {
+          "conclusion": "success",
+          "databaseId": 44962586417,
+          "headSha": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+          "status": "completed",
+          "workflowName": "SEO Blog isolated dummy"
+        },
+        {
+          "conclusion": "success",
+          "databaseId": 44962586424,
+          "headSha": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+          "status": "completed",
+          "workflowName": "Blog server HTTP acceptance"
+        }
+      ]
+    },
+    "rollbackArtifactId": 14730616497,
+    "workflowEndpointChecks": 5,
+    "programPackageIndependentBefore": {
+      "phase": "before",
+      "observedAt": "2026-11-21T23:39:18.609Z",
+      "packageSha256": "ec42dff31f50da380ac461e77b0d997a4b6ba6bbbdbbe1ef968421100b12a65d",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main"
+    },
+    "programPackageIndependentAfter": {
+      "phase": "after",
+      "observedAt": "2026-11-21T23:44:27.910Z",
+      "packageSha256": "120a9b8fbc068a77e7a1ad1ed8ea6ea6be05337cfac18d1e401acecc643725e5",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main"
+    },
+    "before": [
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 1552.7854170068167,
+        "totalMs": 1655.6657089968212,
+        "functionTimings": {
+          "ci-record": 50.5,
+          "ci-storage": 199.7,
+          "ci-url": 98.2,
+          "ci-download": 101.3,
+          "ci-check": 0.2,
+          "ci-total": 250.5
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 795.6350000167731,
+        "totalMs": 969.8276669951156,
+        "functionTimings": {
+          "ci-record": 53.3,
+          "ci-storage": 273.8,
+          "ci-url": 177.2,
+          "ci-download": 96.4,
+          "ci-check": 0.1,
+          "ci-total": 327.3
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 691.4937919937074,
+        "totalMs": 1104.9087090068497,
+        "functionTimings": {
+          "ci-record": 42.9,
+          "ci-storage": 195.0,
+          "ci-url": 103.4,
+          "ci-download": 91.5,
+          "ci-check": 0.2,
+          "ci-total": 238.3
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 928.5704580252059,
+        "totalMs": 955.9046660142485,
+        "functionTimings": {
+          "ci-record": 44.9,
+          "ci-storage": 241.2,
+          "ci-url": 150.2,
+          "ci-download": 90.8,
+          "ci-check": 0.2,
+          "ci-total": 286.6
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 669.5977500057779,
+        "totalMs": 1033.9167499914765,
+        "functionTimings": {
+          "ci-record": 42.5,
+          "ci-storage": 160.7,
+          "ci-url": 98.4,
+          "ci-download": 62.2,
+          "ci-check": 0.1,
+          "ci-total": 203.3
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 713.1740000040736,
+        "totalMs": 1295.9913749946281,
+        "functionTimings": {
+          "ci-record": 48.3,
+          "ci-storage": 215.2,
+          "ci-url": 106.3,
+          "ci-download": 108.7,
+          "ci-check": 0.2,
+          "ci-total": 263.8
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 691.9829999969807,
+        "totalMs": 886.7467080126517,
+        "functionTimings": {
+          "ci-record": 36.8,
+          "ci-storage": 198.5,
+          "ci-url": 79.7,
+          "ci-download": 118.7,
+          "ci-check": 0.1,
+          "ci-total": 235.5
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 700.663458002964,
+        "totalMs": 1057.3390829958953,
+        "functionTimings": {
+          "ci-record": 44.7,
+          "ci-storage": 190.3,
+          "ci-url": 105.9,
+          "ci-download": 84.2,
+          "ci-check": 0.2,
+          "ci-total": 235.3
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 695.2968339901417,
+        "totalMs": 1055.90704199858,
+        "functionTimings": {
+          "ci-record": 37.3,
+          "ci-storage": 191.5,
+          "ci-url": 91.5,
+          "ci-download": 99.8,
+          "ci-check": 0.3,
+          "ci-total": 229.3
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 872.2114160191268,
+        "totalMs": 958.9020410203375,
+        "functionTimings": {
+          "ci-record": 44.2,
+          "ci-storage": 180.0,
+          "ci-url": 95.5,
+          "ci-download": 84.4,
+          "ci-check": 0.4,
+          "ci-total": 224.7
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 721.3980829983484,
+        "totalMs": 2237.145416002022,
+        "functionTimings": {
+          "ci-record": 43.6,
+          "ci-storage": 186.1,
+          "ci-url": 82.0,
+          "ci-download": 103.8,
+          "ci-check": 0.2,
+          "ci-total": 230.0
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 820.2624169935007,
+        "totalMs": 895.1739169715438,
+        "functionTimings": {
+          "ci-record": 45.2,
+          "ci-storage": 151.7,
+          "ci-url": 62.5,
+          "ci-download": 89.1,
+          "ci-check": 0.2,
+          "ci-total": 197.3
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 731.0651250008959,
+        "totalMs": 1153.408042009687,
+        "functionTimings": {
+          "ci-record": 43.0,
+          "ci-storage": 214.7,
+          "ci-url": 76.1,
+          "ci-download": 138.5,
+          "ci-check": 0.2,
+          "ci-total": 258.1
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 667.8042090206873,
+        "totalMs": 948.3683750149794,
+        "functionTimings": {
+          "ci-record": 36.6,
+          "ci-storage": 143.3,
+          "ci-url": 88.4,
+          "ci-download": 54.7,
+          "ci-check": 0.2,
+          "ci-total": 180.2
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 708.8438339997083,
+        "totalMs": 1771.2837499857415,
+        "functionTimings": {
+          "ci-record": 32.1,
+          "ci-storage": 185.7,
+          "ci-url": 96.0,
+          "ci-download": 89.6,
+          "ci-check": 0.2,
+          "ci-total": 218.2
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 727.2296659939457,
+        "totalMs": 936.6023750044405,
+        "functionTimings": {
+          "ci-record": 36.8,
+          "ci-storage": 207.9,
+          "ci-url": 116.4,
+          "ci-download": 91.3,
+          "ci-check": 0.2,
+          "ci-total": 245.1
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 651.5075829811394,
+        "totalMs": 1013.8621249934658,
+        "functionTimings": {
+          "ci-record": 35.6,
+          "ci-storage": 158.9,
+          "ci-url": 91.6,
+          "ci-download": 67.1,
+          "ci-check": 0.2,
+          "ci-total": 194.8
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 667.1232499938924,
+        "totalMs": 2181.4983329968527,
+        "functionTimings": {
+          "ci-record": 37.2,
+          "ci-storage": 156.0,
+          "ci-url": 73.3,
+          "ci-download": 82.6,
+          "ci-check": 0.1,
+          "ci-total": 193.4
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 874.4565000233706,
+        "totalMs": 924.8131250205915,
+        "functionTimings": {
+          "ci-record": 35.5,
+          "ci-storage": 201.8,
+          "ci-check": 0.2,
+          "ci-total": 237.7
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 522.6829169841949,
+        "totalMs": 637.3639589874074,
+        "functionTimings": {
+          "ci-record": 36.1,
+          "ci-storage": 0.0,
+          "ci-total": 36.1
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 682.1901250223164,
+        "totalMs": 872.5367090082727,
+        "functionTimings": {
+          "ci-record": 53.1,
+          "ci-storage": 143.2,
+          "ci-check": 0.2,
+          "ci-total": 196.6
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 652.5032909994479,
+        "totalMs": 803.5572500084527,
+        "functionTimings": {
+          "ci-record": 33.5,
+          "ci-storage": 138.4,
+          "ci-check": 0.2,
+          "ci-total": 172.3
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 526.0306249838322,
+        "totalMs": 1105.3876249934547,
+        "functionTimings": {
+          "ci-record": 48.8,
+          "ci-storage": 0.0,
+          "ci-total": 48.9
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 754.9535409780219,
+        "totalMs": 801.4569999941159,
+        "functionTimings": {
+          "ci-record": 32.8,
+          "ci-storage": 0.0,
+          "ci-total": 32.9
+        }
+      }
+    ],
+    "after": [
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 1261.1967080156319,
+        "totalMs": 1355.81966600148,
+        "functionTimings": {
+          "ci-record": 40.0,
+          "ci-storage": 0.0,
+          "ci-total": 40.2
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 497.06720901303925,
+        "totalMs": 595.8659590105526,
+        "functionTimings": {
+          "ci-record": 45.8,
+          "ci-storage": 0.0,
+          "ci-total": 46.0
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 2150.5242910061497,
+        "totalMs": 3106.47616602364,
+        "functionTimings": {
+          "ci-record": 119.9,
+          "ci-storage": 328.4,
+          "ci-url": 86.2,
+          "ci-download": 241.5,
+          "ci-check": 0.2,
+          "ci-total": 449.3
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 491.5685830055736,
+        "totalMs": 671.8333330063615,
+        "functionTimings": {
+          "ci-record": 44.9,
+          "ci-storage": 0.0,
+          "ci-total": 45.2
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 500.0779170077294,
+        "totalMs": 952.699291985482,
+        "functionTimings": {
+          "ci-record": 32.3,
+          "ci-storage": 0.0,
+          "ci-total": 32.9
+        }
+      },
+      {
+        "name": "smallDefault1",
+        "path": "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 507.6463340083137,
+        "totalMs": 631.3054169877432,
+        "functionTimings": {
+          "ci-record": 38.6,
+          "ci-storage": 0.0,
+          "ci-total": 38.9
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 689.4050000119023,
+        "totalMs": 868.2324580149725,
+        "functionTimings": {
+          "ci-record": 46.5,
+          "ci-storage": 161.6,
+          "ci-url": 93.6,
+          "ci-download": 67.8,
+          "ci-check": 0.3,
+          "ci-total": 208.5
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 532.7435840154067,
+        "totalMs": 641.9203339901287,
+        "functionTimings": {
+          "ci-record": 41.6,
+          "ci-storage": 0.0,
+          "ci-total": 41.8
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 531.5855839871801,
+        "totalMs": 979.8214999900665,
+        "functionTimings": {
+          "ci-record": 45.4,
+          "ci-storage": 0.0,
+          "ci-total": 45.6
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 483.29012500471435,
+        "totalMs": 610.1309579971712,
+        "functionTimings": {
+          "ci-record": 38.3,
+          "ci-storage": 0.0,
+          "ci-total": 38.5
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 529.2377499863505,
+        "totalMs": 991.0640409798361,
+        "functionTimings": {
+          "ci-record": 42.2,
+          "ci-storage": 0.0,
+          "ci-total": 42.6
+        }
+      },
+      {
+        "name": "smallDefault2",
+        "path": "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 508.4086249989923,
+        "totalMs": 634.3913339951541,
+        "functionTimings": {
+          "ci-record": 37.5,
+          "ci-storage": 0.0,
+          "ci-total": 37.8
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 681.5379580075387,
+        "totalMs": 848.2467500143684,
+        "functionTimings": {
+          "ci-record": 40.4,
+          "ci-storage": 178.1,
+          "ci-url": 81.2,
+          "ci-download": 96.7,
+          "ci-check": 0.2,
+          "ci-total": 219.0
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 665.1007500186097,
+        "totalMs": 1080.5478749971371,
+        "functionTimings": {
+          "ci-record": 31.1,
+          "ci-storage": 162.6,
+          "ci-url": 84.3,
+          "ci-download": 78.2,
+          "ci-check": 0.2,
+          "ci-total": 194.2
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 864.7906250262167,
+        "totalMs": 939.6012080251239,
+        "functionTimings": {
+          "ci-record": 45.2,
+          "ci-storage": 201.7,
+          "ci-url": 99.5,
+          "ci-download": 102.0,
+          "ci-check": 0.3,
+          "ci-total": 247.6
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 678.4680419950746,
+        "totalMs": 1173.9478750096168,
+        "functionTimings": {
+          "ci-record": 36.5,
+          "ci-storage": 148.8,
+          "ci-url": 94.2,
+          "ci-download": 54.4,
+          "ci-check": 0.3,
+          "ci-total": 185.8
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 659.992417000467,
+        "totalMs": 930.9127079905011,
+        "functionTimings": {
+          "ci-record": 48.3,
+          "ci-storage": 142.1,
+          "ci-url": 86.8,
+          "ci-download": 55.0,
+          "ci-check": 0.2,
+          "ci-total": 190.8
+        }
+      },
+      {
+        "name": "largerDefault",
+        "path": "/api/images/4db8df016ac88396000781db489eb227",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "mime": "image/webp",
+        "cacheControl": "no-cache",
+        "ttfbMs": 644.2362919915468,
+        "totalMs": 1235.7692919904366,
+        "functionTimings": {
+          "ci-record": 35.7,
+          "ci-storage": 159.5,
+          "ci-url": 99.5,
+          "ci-download": 59.7,
+          "ci-check": 0.3,
+          "ci-total": 195.7
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 1,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 765.0516249996144,
+        "totalMs": 958.4848329832312,
+        "functionTimings": {
+          "ci-record": 29.8,
+          "ci-storage": 262.9,
+          "ci-check": 0.3,
+          "ci-total": 293.1
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 2,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 671.4763329946436,
+        "totalMs": 980.6494579825085,
+        "functionTimings": {
+          "ci-record": 53.6,
+          "ci-storage": 132.9,
+          "ci-check": 0.2,
+          "ci-total": 186.9
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 3,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 647.1187089919113,
+        "totalMs": 1192.5265419995412,
+        "functionTimings": {
+          "ci-record": 39.6,
+          "ci-storage": 133.8,
+          "ci-check": 0.2,
+          "ci-total": 173.8
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 4,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 798.5409999964759,
+        "totalMs": 856.5817500057165,
+        "functionTimings": {
+          "ci-record": 30.3,
+          "ci-storage": 145.7,
+          "ci-check": 0.3,
+          "ci-total": 176.9
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 5,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 537.4355840031058,
+        "totalMs": 644.7963340033311,
+        "functionTimings": {
+          "ci-record": 61.0,
+          "ci-storage": 0.0,
+          "ci-total": 61.2
+        }
+      },
+      {
+        "name": "smallOriginal",
+        "path": "/api/images/0e0afdc26a68209e00523aa031e56460",
+        "repeat": 6,
+        "status": 200,
+        "bytes": 63062,
+        "sha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+        "mime": "image/jpeg",
+        "cacheControl": "no-cache",
+        "ttfbMs": 518.8909999851603,
+        "totalMs": 610.7801249891054,
+        "functionTimings": {
+          "ci-record": 36.9,
+          "ci-storage": 0.0,
+          "ci-total": 37.0
+        }
+      }
+    ],
+    "unchangedPublicReadback": {
+      "program": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+      "exactMatches": 14,
+      "negativeStatus": 404,
+      "results": [
+        {
+          "url": "https://supplychainsai.com/blog/",
+          "status": 200,
+          "bytes": 31961,
+          "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+          "status": 200,
+          "bytes": 32746,
+          "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "status": 200,
+          "bytes": 37628,
+          "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+          "status": 200,
+          "bytes": 50451,
+          "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+          "status": 200,
+          "bytes": 51178,
+          "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+          "status": 200,
+          "bytes": 65170,
+          "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+          "status": 200,
+          "bytes": 69280,
+          "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+          "status": 200,
+          "bytes": 87330,
+          "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+          "status": 200,
+          "bytes": 135494,
+          "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+          "status": 200,
+          "bytes": 660144,
+          "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/",
+          "status": 200,
+          "bytes": 150371,
+          "sha256": "071660028a02283e6332a145a3ce68b920a3a9a218c16316f52317422620b9fd"
+        },
+        {
+          "url": "https://supplychainsai.com/robots.txt",
+          "status": 200,
+          "bytes": 557,
+          "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+        },
+        {
+          "url": "https://supplychainsai.com/sitemap-index.xml",
+          "status": 200,
+          "bytes": 262,
+          "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+        },
+        {
+          "url": "https://supplychainsai.com/sitemap-0.xml",
+          "status": 200,
+          "bytes": 55409,
+          "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+        }
+      ]
+    },
+    "headphoneChromeBaseline": {
+      "startedAt": "2026-11-21T23:39:23.921Z",
+      "release": "fcc3f9ac4a3c1c4359397f0e5ae184d40f017dc7",
+      "chrome": "157.0.8103.79",
+      "egressAtStart": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "egressAtEnd": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "observeAfterDomMs": 5500,
+      "profiles": {
+        "mobile": {
+          "view": {
+            "viewport": {
+              "width": 390,
+              "height": 844
+            },
+            "deviceScaleFactor": 2,
+            "isMobile": true,
+            "hasTouch": true
+          },
+          "cpu": 4,
+          "network": {
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          }
+        },
+        "desktop": {
+          "view": {
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "deviceScaleFactor": 1
+          },
+          "cpu": 1,
+          "network": {
+            "latency": 40,
+            "downloadThroughput": 1250000,
+            "uploadThroughput": 625000,
+            "connectionType": "ethernet"
+          }
+        }
+      },
+      "categories": {
+        "directory": "/headphones/"
+      },
+      "rows": [
+        {
+          "round": 1,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 1826.699999988079,
+            "lastByte": 2150.5999999940395,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 1072,
+            "tcpDuration": 59.89999997615814,
+            "tlsDuration": 251.40000000596046,
+            "requestStart": 1386.2999999821186,
+            "domContentLoaded": 4477.199999988079,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2708,
+            "lcp": {
+              "time": 3748,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.000431291259430727
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1944,
+            "firstByte": 3572,
+            "lastByte": 3738.199999988079,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 1835.199999988079,
+              "firstByte": 2488.5,
+              "lastByte": 2667.5999999940395,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 2,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 668.1999999880791,
+            "lastByte": 2347.0999999940395,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 52,
+            "tcpDuration": 58.900000005960464,
+            "tlsDuration": 220.89999997615814,
+            "requestStart": 338.5,
+            "domContentLoaded": 3783.699999988079,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1880,
+            "lcp": {
+              "time": 2416,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 811.0999999940395,
+            "firstByte": 2289.399999976158,
+            "lastByte": 2410.5999999940395,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 680.8999999761581,
+              "firstByte": 1422.2999999821186,
+              "lastByte": 1847.8999999761581,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 3,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 722.2999999821186,
+            "lastByte": 1290.7999999821186,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 56.900000005960464,
+            "tcpDuration": 58.79999998211861,
+            "tlsDuration": 252.60000002384186,
+            "requestStart": 370,
+            "domContentLoaded": 3536,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1784,
+            "lcp": {
+              "time": 1876,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.000431291259430727
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 844.0999999940395,
+            "firstByte": 1731.2999999821186,
+            "lastByte": 1860.699999988079,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 817.5,
+              "firstByte": 1458.4000000059605,
+              "lastByte": 1754,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 4,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 859.8999999761581,
+            "lastByte": 1148.5,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 57.400000005960464,
+            "tcpDuration": 58.69999998807907,
+            "tlsDuration": 255,
+            "requestStart": 372.2999999821186,
+            "domContentLoaded": 3009.699999988079,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1572,
+            "lcp": {
+              "time": 2148,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.0004476825060013717
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 996.5999999940395,
+            "firstByte": 2001.7999999821186,
+            "lastByte": 2136.399999976158,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 920.5,
+              "firstByte": 1492.0999999940395,
+              "lastByte": 1541.0999999940395,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 5,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 666.9000000059605,
+            "lastByte": 1382,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 53,
+            "tcpDuration": 58.29999998211861,
+            "tlsDuration": 228.10000002384186,
+            "requestStart": 344.7000000178814,
+            "domContentLoaded": 3816.9000000059605,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1816,
+            "lcp": {
+              "time": 2900,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.0004476825060013717
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 773.9000000059605,
+            "firstByte": 2394.9000000059605,
+            "lastByte": 2885.5,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 674.6000000238419,
+              "firstByte": 1337.2000000178814,
+              "lastByte": 1784,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 6,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "hero": {
+            "type": "image/jpeg",
+            "status": 200
+          },
+          "heroLoaded": true,
+          "canonical": "https://supplychainsai.com/headphones/",
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 947,
+            "lastByte": 1271.0999999940395,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 53.20000001788139,
+            "tcpDuration": 58.69999998807907,
+            "tlsDuration": 490.90000000596046,
+            "requestStart": 608.1999999880791,
+            "domContentLoaded": 3809.5999999940395,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1776,
+            "lcp": {
+              "time": 2356,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.0004476825060013717
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1064.800000011921,
+            "firstByte": 1859.300000011921,
+            "lastByte": 2345.199999988079,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 959.8000000119209,
+              "firstByte": 1564.699999988079,
+              "lastByte": 1745.199999988079,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 660061
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        }
+      ],
+      "finishedAt": "2026-11-21T23:40:20.564Z"
+    }
   }
 }
