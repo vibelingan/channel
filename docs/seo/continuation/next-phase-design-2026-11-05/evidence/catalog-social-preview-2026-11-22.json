@@ -3,12 +3,68 @@
     "baselineRun": 44954895157,
     "totalHtml": 589,
     "products": 528,
+    "changed": 70,
+    "publicImageCount": 67,
+    "unchangedDocumentContent": 589,
+    "snapshotSha256": "a24d04536417ad160ee210c169b29b23a468ae00b1a4f81182f2885bced95226"
+  },
+  "publicImageReadback": {
+    "checked": 67,
+    "failed": 0,
+    "minimumBytes": 13132,
+    "maximumBytes": 158060,
+    "totalBytes": 3886136,
+    "countsByRequestedWidth": {
+      "640": 0,
+      "1280": 67
+    },
+    "allWebpDecodedWithMatchingDimensions": true,
+    "acceptedSubsetOfInitiallyVerifiedBytes": true,
+    "samples": [
+      {
+        "page": "/products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/",
+        "image": "https://supplychainsai.com/api/images/01f3430d6aaa5d3a000a52150f24429b?w=1280",
+        "width": 1200,
+        "height": 1200,
+        "alt": "Perfect Sound WiredHeadset Gaming Earphones Over Ear Headphones With Mic for Pc"
+      },
+      {
+        "page": "/products/p-093dd5ef-8c43-4265-a852-ad9a60342f6f/",
+        "image": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=1280",
+        "width": 1280,
+        "height": 1280,
+        "alt": "Folding Wireless Gaming Active Noise Cancelling Headphones  Headset 5.0 Stereo Music"
+      },
+      {
+        "page": "/products/p-0f6699b8-2e2c-4b5b-a4d1-43c1f0fa582e/",
+        "image": "https://supplychainsai.com/api/images/3d00e15d6aaa6071000db02f4b2c8e84?w=1280",
+        "width": 1280,
+        "height": 1280,
+        "alt": "BH21 New Original Low Price Over Ear Cheap Headset Earphone Mobile Phone Stereo Headphone Wireless"
+      }
+    ]
+  },
+  "withdrawalRegression": {
+    "readyAndWarmBeforeWithdrawal": true,
+    "referenceCountAfter": 0,
+    "responseCodesByRequestedWidth": {
+      "160": 404,
+      "640": 404,
+      "1280": 404
+    },
+    "storageReadsAfterWithdrawal": 0,
+    "usesRealHttpAdapterWithLocalStorageFixture": true
+  },
+  "initialCandidate": {
+    "baselineRun": 44954895157,
+    "totalHtml": 589,
+    "products": 528,
     "changed": 131,
     "publicImageCount": 103,
     "unchangedDocumentContent": 589,
     "snapshotSha256": "a24d04536417ad160ee210c169b29b23a468ae00b1a4f81182f2885bced95226"
   },
-  "publicImageReadback": {
+  "initialPublicImageReadback": {
     "checked": 103,
     "failed": 0,
     "minimumBytes": 13132,
@@ -58,15 +114,29 @@
       }
     ]
   },
-  "withdrawalRegression": {
-    "readyAndWarmBeforeWithdrawal": true,
-    "referenceCountAfter": 0,
-    "responseCodesByRequestedWidth": {
-      "160": 404,
-      "640": 404,
-      "1280": 404
+  "conflictingImageAssignments": {
+    "initialFixCommit": "25ade54c098c6ec9f3c48aff143336dde1b59397",
+    "initialFixDispatched": false,
+    "withheldPages": 61,
+    "factoryPreviewPages": 458,
+    "example": {
+      "publicImage": "https://supplychainsai.com/api/images/3fbe8b166ac880a40039d6d048ce99e7?w=1280",
+      "visuallyVerifiedSubject": "White over-ear headphones",
+      "associatedProducts": [
+        {
+          "path": "/products/p-26f88014-7276-4c13-a123-a8550e2308d7/",
+          "publicName": "Gaming In-Ear Headphones Sound Quality Wireless Earphones Hand Free Headset Stereo Earbuds Earphone Headset for Sports"
+        },
+        {
+          "path": "/products/p-2e096d39-3eb3-41e8-a703-ce2ba02ba007/",
+          "publicName": "Hot sales Over Ear HIFI Stereo Headsets Wireless  Headphones Sports Gaming EarphonesSupport TF/AUX noise reduction"
+        },
+        {
+          "path": "/products/p-71c04ae9-b133-44da-a1d8-036d34d55f66/",
+          "publicName": "Wireless Noise Cancelling Earbuds In-ear Earphone Type Sport Running Music Headphones"
+        }
+      ]
     },
-    "storageReadsAfterWithdrawal": 0,
-    "usesRealHttpAdapterWithLocalStorageFixture": true
+    "rule": "Keep the generic artwork for first photos reused by published catalog entries with different approved names."
   }
 }

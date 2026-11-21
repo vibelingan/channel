@@ -16,7 +16,7 @@ import {
   productBreadcrumbs,
   productPageDescriptor,
 } from './product-page.ts';
-import { productPreviewImage } from './product-preview-image.ts';
+import { conflictingProductPhotoPaths, productPreviewImage } from './product-preview-image.ts';
 import {
   type ProductSnapshotEntry,
   collectProductSnapshotWithImages,
@@ -233,6 +233,30 @@ test('product previews do not use third-party images or an unverified gallery si
     productPreviewImage({ product, detail: thirdPartyDetail, revision: detail.revision }, origin),
     undefined,
   );
+});
+
+test('an image shared by different public product names stays out of previews', () => {
+  const source = '/api/images/image-1';
+  const origin = 'https://catalog-api.example';
+  const detail = {
+    ...detailFixture(),
+    revision: 'approved-r1',
+    imagePresentation: { [source]: [{ url: `${source}?w=640`, width: 640, height: 400 }] },
+  };
+  const entry = { product, detail, revision: detail.revision };
+  const alias = {
+    product: { ...product, _id: 'same-product', name: ' headset ', images: [origin + source] },
+    revision: 'legacy-r1',
+  };
+  const conflict = {
+    ...alias,
+    product: { ...alias.product, _id: 'different-product', name: 'In-ear earbuds' },
+  };
+  const allowed = conflictingProductPhotoPaths([entry, alias], origin);
+  assert.equal(productPreviewImage(entry, origin, allowed)?.path, `${source}?w=640`);
+  const rejected = conflictingProductPhotoPaths([entry, alias, conflict], origin);
+  assert.deepEqual([...rejected], [source]);
+  assert.equal(productPreviewImage(entry, origin, rejected), undefined);
 });
 
 test('one stable identity drives metadata schema and breadcrumbs without inferring variant-wide offers', () => {

@@ -15,23 +15,30 @@ import {
   productPageDescriptor,
 } from '../../lib/seo/product-page.ts';
 import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
-import { productPreviewImage } from '../../lib/seo/product-preview-image.ts';
+import { conflictingProductPhotoPaths, productPreviewImage } from '../../lib/seo/product-preview-image.ts';
 import '../../styles/product.css';
 
 export async function getStaticPaths() {
   const snapshot = await readProductSnapshot(import.meta.env.SITE_URL || 'http://localhost:4321');
   const site = getSiteContent(DEFAULT_LOCALE);
   const duplicateIds = duplicateProductTitleIds(snapshot.products, site.brand.name);
+  const apiOrigin = publicCatalogImageApiOrigin(snapshot.siteOrigin, import.meta.env.PUBLIC_API_BASE_URL);
+  const conflictingPhotos = conflictingProductPhotoPaths(snapshot.products, apiOrigin);
   return snapshot.products.map((entry) => ({
     params: { publicKey: productKey(entry.product._id) },
-    props: { entry, duplicateName: duplicateIds.has(entry.product._id) },
+    props: {
+      entry,
+      duplicateName: duplicateIds.has(entry.product._id),
+      socialImage: productPreviewImage(entry, apiOrigin, conflictingPhotos),
+    },
   }));
 }
 interface Props {
   entry: ProductSnapshotEntry;
   duplicateName: boolean;
+  socialImage: ReturnType<typeof productPreviewImage>;
 }
-const { entry, duplicateName } = Astro.props;
+const { entry, duplicateName, socialImage } = Astro.props;
 const site = getSiteContent(DEFAULT_LOCALE);
 const canonicalPath = productPath(entry.product._id);
 const catalogHref = productBreadcrumbs(entry.product).at(-2)?.href;
@@ -46,7 +53,6 @@ const page = productPageDescriptor(
   site.brand.name,
   duplicateName,
 );
-const socialImage = productPreviewImage(entry, heroImageApiOrigin);
 ---
 <DocumentLayout page={page} {...(socialImage ? { socialImage } : {})}>
   <SiteHeader brand={site.brand} nav={site.nav} />
