@@ -21,7 +21,7 @@ test('SiteHeader compiles with one desktop and one mobile catalog disclosure', a
 test('both disclosures render one hub link plus the same four registry families', () => {
   assert.equal(occurrences('href="/electronics-toys/"'), 2);
   assert.equal(occurrences('catalog.families.map'), 2);
-  assert.match(source, /item\.href !== '\/headphones'/);
+  assert.match(source, /item\.href !== '\/headphones\/'/);
   assert.match(source, /beforeCatalog/);
   assert.match(source, /afterCatalog/);
   assert.match(source, /getCatalogContent\(\)/);

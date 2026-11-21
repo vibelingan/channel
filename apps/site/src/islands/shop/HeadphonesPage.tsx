@@ -277,7 +277,7 @@ function HeadphonesList({
               {oemCta.primaryLabel}
             </a>
             <a
-              href="/oem"
+              href="/oem/"
               className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-7 py-3.5 text-base font-semibold text-ink transition hover:border-brand-300 hover:text-brand-700"
             >
               {oemCta.secondaryLabel}

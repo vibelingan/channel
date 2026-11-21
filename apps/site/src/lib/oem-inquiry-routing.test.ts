@@ -46,7 +46,7 @@ const routedPageSources = [
   source: readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'),
 }));
 
-test('canonical OEM inquiry links target the homepage form without changing navigation links', () => {
+test('OEM inquiry and navigation links use their canonical destinations', () => {
   assert.equal(OEM_INQUIRY_HREF, '/#oem-inquiry');
   assert.ok(
     siteContent.includes("primaryCta: { label: Start Your Project, href: '/#oem-inquiry' }"),
@@ -57,8 +57,10 @@ test('canonical OEM inquiry links target the homepage form without changing navi
   assert.ok(resultPage.includes("import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts'"));
   assert.ok(resultPage.includes('href={OEM_INQUIRY_HREF}'));
 
-  assert.ok(siteContent.includes("href: '/oem#what-we-do'"));
-  assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem' }"));
+  assert.ok(siteContent.includes("href: '/oem/#what-we-do'"));
+  assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem/' }"));
+  assert.ok(siteContent.includes("- { label: Headphones, href: '/headphones/' }"));
+  assert.ok(portfolioContent.includes("href: '/oem/#process'"));
   assert.ok(oemContent.includes("primaryCta: { label: Submit your project, href: '#submit' }"));
   assert.ok(oemContent.includes("secondaryCta: { label: See our process, href: '#process' }"));
   assert.ok(oemPageSource.includes('primaryCta={hero.primaryCta}'));

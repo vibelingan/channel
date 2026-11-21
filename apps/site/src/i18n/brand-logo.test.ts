@@ -163,13 +163,13 @@ test('OEM navigation remains first when its final URL includes the What We Do fr
   const ordered = orderPrimaryNavItems([
     { label: 'Success Stories', href: '/portfolio' },
     { label: 'Teardown Lab', href: '/teardown-lab' },
-    { label: 'OEM Development', href: '/oem#what-we-do' },
+    { label: 'OEM Development', href: '/oem/#what-we-do' },
     { label: 'Blue Ocean', href: '/blue-ocean' },
   ]);
 
   assert.deepEqual(
     ordered.map((item) => item.href),
-    ['/oem#what-we-do', '/portfolio', '/teardown-lab', '/blue-ocean'],
+    ['/oem/#what-we-do', '/portfolio', '/teardown-lab', '/blue-ocean'],
   );
 });
 
@@ -248,7 +248,7 @@ test('site content defines the exact shared Traditional-versus-AI What We Do con
     assert.ok(enUS.includes(copy), `missing confirmed What We Do copy: ${copy}`);
   }
 
-  assert.ok(enUS.includes("href: '/oem#what-we-do'"), 'OEM nav targets the shared section');
+  assert.ok(enUS.includes("href: '/oem/#what-we-do'"), 'OEM nav targets the shared section');
   assert.equal(
     [...enUS.matchAll(/highlight:\s*true/g)].length,
     2,

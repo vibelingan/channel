@@ -30,10 +30,10 @@ if (
   menuItems.push({ label: 'Insights', href: '/blog/' });
 }
 const orderedMenuItems = orderPrimaryNavItems(menuItems);
-const catalogPosition = orderedMenuItems.findIndex((item) => item.href === '/headphones');
+const catalogPosition = orderedMenuItems.findIndex((item) => item.href === '/headphones/');
 const beforeCatalog = orderedMenuItems.slice(0, Math.max(0, catalogPosition));
 const afterCatalog = orderedMenuItems
-  .filter((item) => item.href !== '/headphones')
+  .filter((item) => item.href !== '/headphones/')
   .slice(beforeCatalog.length);
 
 // The server-rendered default is the native mobile disclosure, so navigation

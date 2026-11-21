@@ -1,5 +1,13 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 21 日下午从 Search Console 复查
+
+新版地图已于 11 月 19 日成功读取。地图索引列出 584 个网页和 1 个视频，静态子地图列出 580 个网页和同一个视频。这里的数字是 Google 从地图里读出的地址。网页收录报告仍截至 11 月 16 日，显示 529 个已收录、989 个未收录。五张历史 4xx 图片的原复查任务仍是待检查 5、失败 0，沿用这次任务继续跟踪。 [Google 地图的统计口径](https://support.google.com/webmasters/answer/7451001) · [本次读取的网页索引报告](https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)
+
+网页搜索沿用三个月视图，数据更新到 11 月 19 日。当日增加 2 次展示，累计 95 次展示、3 次点击。视频收录和真实访客性能报告仍截至 11 月 19 日，视频收录为 0，手机和桌面均缺足够样本。 [网页搜索表现](https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)
+
+核对实际发布包时发现 584 份页面通过菜单、页脚或按钮给出不带斜杠的耳机和 OEM 地址。官网同一条内容的短地址和正式地址均返回 200，页面头及地图均声明带斜杠的地址。把站内链接统一为 `/headphones/`、`/oem/`，保留 `#what-we-do`、`#process` 等段落定位及原有询盘入口。用现行 528 件商品的归档重新生成 589 页，逐页核对站内链接、图片、规范网址与结构化数据，旧写法的链接由 2,338 个降为 0，地图与 robots 文件逐字节一致。这项修正让站内链接和网站地图指向同一地址，Google 重新抓取后才有后续结果。 [Google 规范网址说明](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
+
 ## 五张历史故障图复查的观察条件
 
 沿用 11 月 16 日在 HTTPS 官网属性发起的同一次复查。到 11 月 21 日所见状态是 5 个待检查、0 个失败。今天北京时间 11:02 至 12:21，五张图及工厂视频观看页的网关日志有 6 次成功请求，没有核实到 Googlebot。脚本减重版上线后，五张历史 4xx 图和一张旧 404 图已独立下载，均与修复后记录的字节一致。Google 通知、新的实际爬取或到常规复查点时，再在「索引 → 网页 → 因其他 4xx 问题被阻止 → 查看详情」读取原任务。Google 给出的通常耗时约两周，可能更久。 [正式站回读](https://github.com/vibelingan/channel/actions/runs/44864069637) · [Google 复查说明](https://support.google.com/webmasters/answer/7440203#see_validation_progress)

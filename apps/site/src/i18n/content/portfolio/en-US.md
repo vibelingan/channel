@@ -15,7 +15,7 @@ hero:
     worldwide — owning the full cycle from industrial design to tooling,
     production, quality control, and retail packaging.
   primaryCta: { label: Start your project, href: '/#oem-inquiry' }
-  secondaryCta: { label: See our OEM process, href: '/oem#process' }
+  secondaryCta: { label: See our OEM process, href: '/oem/#process' }
 
 stats:
   items:
