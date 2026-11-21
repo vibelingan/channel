@@ -1,0 +1,117 @@
+{
+  "release": {
+    "run": 44864069637,
+    "source": "60ae4c6ce5f225581368e4e5665c2f98f63b47e2",
+    "acceptedAt": "2026-11-21T04:38:16.264Z",
+    "currentPublicProducts": 528,
+    "mapsByteIdentical": true,
+    "readback": [
+      {
+        "path": "/",
+        "kind": "page",
+        "bytes": 167721,
+        "sha256": "7f964b70076a8b6f25e17ccb127b09db55b90c2a69092ff5bc6c5c3973789dee"
+      },
+      {
+        "path": "/headphones/",
+        "kind": "page",
+        "bytes": 139473,
+        "sha256": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21"
+      },
+      {
+        "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+        "kind": "page",
+        "bytes": 80975,
+        "sha256": "889b08404ba510c9f4a75651998bab3d53ead5382492004ae92ca53d7bb128f4"
+      },
+      {
+        "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+        "kind": "page",
+        "bytes": 65284,
+        "sha256": "69377702cf089ab38f63e144abab842913d95d8384b5d17e0883415d42bff133"
+      },
+      {
+        "path": "/account/",
+        "kind": "page",
+        "bytes": 26212,
+        "sha256": "185e3740a36ff5ebcd9c04e0d1094caaff3569fcf78c5f5282e31ee34792206c"
+      },
+      {
+        "path": "/admin/",
+        "kind": "page",
+        "bytes": 7004,
+        "sha256": "784f12278ff020be9becace4f0960d27abf0eaf25e315f3ec69a6e5fe8247ea5"
+      },
+      {
+        "path": "/_astro/storefront-validation.Biak3hVK.js",
+        "kind": "newAsset",
+        "bytes": 67263,
+        "sha256": "5f9f79e1194d43f052bd74a084b769904d1cc59cb6a9cf1feb7a9eaaea900ef9"
+      },
+      {
+        "path": "/_astro/alibaba-sync-workflow.CIKqAOa1.js",
+        "kind": "priorAsset",
+        "bytes": 105538,
+        "sha256": "5b7a01b32dfcd2b36ff4c5c170dd5df4560dd1e274b7b3ea82c7f5bb9699f5a8"
+      }
+    ]
+  },
+  "catalogRefresh": {
+    "codeSha": "60ae4c6ce5f225581368e4e5665c2f98f63b47e2",
+    "executorRef": "feat/seo-foundation",
+    "catalogTracked": true,
+    "acceptedRunId": "site-44864069637-1"
+  },
+  "liveBrowserComparison": [
+    {
+      "product": "p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+      "runs": [
+        {
+          "phase": "before",
+          "scripts": [643482, 643482, 643482],
+          "lcpMs": [3196, 2348, 3088],
+          "interactionMs": [7211, 7095, 7166],
+          "quoteOpensAndCloses": 3,
+          "nonReadRequests": 0,
+          "medianLcpMs": 3088,
+          "medianInteractionMs": 7166
+        },
+        {
+          "phase": "after",
+          "scripts": [607033, 607033, 607033],
+          "lcpMs": [3296, 2132, 2260],
+          "interactionMs": [7500, 6950, 6121],
+          "quoteOpensAndCloses": 3,
+          "nonReadRequests": 0,
+          "medianLcpMs": 2260,
+          "medianInteractionMs": 6950
+        }
+      ]
+    },
+    {
+      "product": "p-50633c37-434c-4374-a540-f071a00fc799",
+      "runs": [
+        {
+          "phase": "before",
+          "scripts": [643482, 643482, 643482],
+          "lcpMs": [3908, 3648, 2720],
+          "interactionMs": [6874, 6504, 6600],
+          "quoteOpensAndCloses": 3,
+          "nonReadRequests": 0,
+          "medianLcpMs": 3648,
+          "medianInteractionMs": 6600
+        },
+        {
+          "phase": "after",
+          "scripts": [607033, 607033, 607033],
+          "lcpMs": [3880, 3720, 3924],
+          "interactionMs": [10253, 6928, 7298],
+          "quoteOpensAndCloses": 3,
+          "nonReadRequests": 0,
+          "medianLcpMs": 3880,
+          "medianInteractionMs": 7298
+        }
+      ]
+    }
+  ]
+}

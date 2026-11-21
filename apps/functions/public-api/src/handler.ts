@@ -218,12 +218,22 @@ function positiveInt(value: number | undefined, fallback: number): number {
   return Math.max(1, Math.trunc(value));
 }
 
+export interface CatalogListTimings {
+  listMs?: number;
+  variantsMs?: number;
+  availabilityMs?: number;
+  imagesMs?: number;
+  totalMs?: number;
+}
+
 export async function listCatalog(
   collection: PublicCatalog,
   query: CatalogQuery,
   config: PublicApiConfig,
   viewer: CatalogViewer = ANONYMOUS_VIEWER,
+  timings?: CatalogListTimings,
 ): Promise<ApiResult<unknown>> {
+  const started = timings ? performance.now() : 0;
   const page = positiveInt(query.page, 1);
   const pageSize = Math.min(MAX_PUBLIC_PAGE_SIZE, positiveInt(query.pageSize, 24));
   const clauses: FilterClause[] = [{ field: 'published', op: 'isLiteralTrue' }];
@@ -270,6 +280,7 @@ export async function listCatalog(
     clauses.push({ field: 'category', op: 'in' as const, value: categories });
   }
 
+  const listStarted = timings ? performance.now() : 0;
   const result = await list({
     collection,
     page,
@@ -280,14 +291,18 @@ export async function listCatalog(
     filter: { combinator: 'and' as const, clauses },
     sort: [{ field: '_id', dir: 'asc' }],
   });
+  if (timings) timings.listMs = performance.now() - listStarted;
 
   const projections = result.items.map((doc) => publicItem(collection, doc, config, viewer));
   // Row configurations are not part of an approved version; only row-fallback
   // products keep them.
-  const variants = await attachVariants(
-    collection,
-    result.items.filter((_, index) => projections[index]?.kind === 'row'),
-  );
+  const rowProducts = result.items.filter((_, index) => projections[index]?.kind === 'row');
+  const variantsStarted = timings ? performance.now() : 0;
+  const variants = await attachVariants(collection, rowProducts);
+  if (timings && collection === 'products' && rowProducts.length > 0)
+    timings.variantsMs = performance.now() - variantsStarted;
+
+  const availabilityStarted = timings ? performance.now() : 0;
   const availability =
     collection === 'products'
       ? await pageAvailability(
@@ -295,6 +310,8 @@ export async function listCatalog(
           result.items.map((doc) => doc._id),
         )
       : null;
+  if (timings && availability) timings.availabilityMs = performance.now() - availabilityStarted;
+
   let items = result.items.map((doc, index) => {
     const base = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
     const projected = availability
@@ -305,8 +322,12 @@ export async function listCatalog(
     // legacy and Alibaba-linked payloads stay byte-identical.
     return own === undefined || own.length === 0 ? projected : { ...projected, variants: own };
   });
-  if (collection === 'products' && config.imagePresentation)
+  if (collection === 'products' && config.imagePresentation) {
+    const imagesStarted = timings ? performance.now() : 0;
     items = await presentCatalogImages(items);
+    if (timings) timings.imagesMs = performance.now() - imagesStarted;
+  }
+  if (timings) timings.totalMs = performance.now() - started;
   return ok({
     items,
     total: result.total,

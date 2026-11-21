@@ -980,6 +980,61 @@ test('gateway-normalized path cannot hide an unsafe original rawPath', async () 
   assert.equal(response.statusCode, 404);
 });
 
+function assertCatalogListTimings(response: HttpResponse, names: readonly string[]): void {
+  const header = response.headers['Server-Timing'];
+  assert.ok(header, 'successful product list includes Server-Timing');
+  const metrics = header.split(', ').map((entry) => {
+    const match = /^(cl-[a-z]+);dur=(\d+\.\d)$/.exec(entry);
+    assert.ok(match, `unexpected Server-Timing metric: ${entry}`);
+    assert.ok(Number(match[2]) <= 120_000);
+    return match[1];
+  });
+  assert.deepEqual(metrics.sort(), [...names].sort());
+}
+
+test('product list timing keeps the public body and private cache for guests and members', async () => {
+  setup();
+  const path = '/api/products?pageSize=1';
+  const config = { jwtSecret: JWT_SECRET };
+  const guest = await handlePublicApiEvent({ httpMethod: 'GET', path }, config);
+  const member = await handlePublicApiEvent(authEvent(path, await memberToken()), config);
+  const payload = body(guest) as { ok: true; data: { items: CollectionDoc[] } };
+  const memberPayload = body(member) as typeof payload;
+
+  assert.deepEqual(Object.keys(payload).sort(), ['data', 'ok']);
+  assert.deepEqual(Object.keys(payload.data).sort(), ['items', 'page', 'pageSize', 'total']);
+  assert.equal(payload.data.items[0]?._id, 'p-1');
+  assert.equal(Object.hasOwn(payload.data.items[0] ?? {}, 'vipPrice'), false);
+  assert.deepEqual(memberPayload, {
+    ...payload,
+    data: {
+      ...payload.data,
+      items: [{ ...payload.data.items[0], vipPrice: 8 }],
+    },
+  });
+  for (const response of [guest, member]) {
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['Cache-Control'], 'private, no-cache');
+    assert.equal(response.headers.Vary, 'Origin, Authorization');
+    assertCatalogListTimings(response, ['cl-list', 'cl-variants', 'cl-total']);
+  }
+});
+
+test('product list timing is absent on failed requests, preflight, and neighboring routes', async () => {
+  setup();
+  for (const [method, path, status] of [
+    ['GET', '/api/products?productFamily=garden', 400],
+    ['GET', '/api/products?productFamily=headphones&subcategoryIds=valid-but-unavailable', 400],
+    ['OPTIONS', '/api/products', 204],
+    ['GET', '/api/products/p-1', 200],
+    ['GET', '/api/overstock', 200],
+  ] as const) {
+    const response = await handlePublicApiEvent({ httpMethod: method, path }, {});
+    assert.equal(response.statusCode, status, path);
+    assert.equal(response.headers['Server-Timing'], undefined, path);
+  }
+});
+
 test('catalog responses Vary on Authorization so a shared cache never leaks VIP data', async () => {
   setup();
   for (const path of ['/api/products?pageSize=1', '/api/products/p-1']) {
@@ -1620,6 +1675,44 @@ async function listItems(config: Record<string, unknown>) {
   );
   return (body(response) as { data: { items: CollectionDoc[] } }).data.items;
 }
+
+test('product list timing includes only stages run for approved products', async () => {
+  const adapter = setup(versionStore());
+  const plain = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products' },
+    versionConfig,
+  );
+  assert.equal(plain.statusCode, 200);
+  assertCatalogListTimings(plain, ['cl-list', 'cl-total']);
+
+  const enhanced = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/products?media=responsive-v1' },
+    {
+      ...versionConfig,
+      catalogPages: {
+        siteOrigin: 'https://fixture.example',
+        read: async (ids) => {
+          assert.deepEqual(ids, ['manual-1', 'synced-1']);
+          return new Map([['synced-1', true]]);
+        },
+      },
+    },
+  );
+  assert.equal(enhanced.statusCode, 200);
+  assertCatalogListTimings(enhanced, ['cl-list', 'cl-availability', 'cl-images', 'cl-total']);
+  assert.equal(
+    adapter.listQueries.some((query) => query.collection === 'productVariants'),
+    false,
+  );
+  const payload = body(enhanced) as { data: { items: CollectionDoc[] } };
+  assert.deepEqual(
+    payload.data.items.map((item) => [item._id, item.publicPageReady]),
+    [
+      ['manual-1', false],
+      ['synced-1', true],
+    ],
+  );
+});
 
 test('approved products project their approved name, photos, description, price summary and MOQ', async () => {
   setup(versionStore());

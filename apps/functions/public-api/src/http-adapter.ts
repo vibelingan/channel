@@ -17,6 +17,7 @@ import { getPublicCatalogTaxonomy } from './catalog-taxonomy.ts';
 import {
   type BinaryResult,
   type CatalogImageTimings,
+  type CatalogListTimings,
   type CatalogQuery,
   type PublicApiConfig,
   getCatalogImage,
@@ -80,6 +81,16 @@ function catalogImageTimingHeaders(timings?: CatalogImageTimings): Record<string
     'ci-download': 'downloadMs',
     'ci-check': 'validationMs',
     'ci-total': 'totalMs',
+  });
+}
+
+function catalogListTimingHeaders(timings?: CatalogListTimings): Record<string, string> {
+  return fixedTimingHeaders(timings, {
+    'cl-list': 'listMs',
+    'cl-variants': 'variantsMs',
+    'cl-availability': 'availabilityMs',
+    'cl-images': 'imagesMs',
+    'cl-total': 'totalMs',
   });
 }
 
@@ -537,13 +548,12 @@ async function routeGet(
     const query = parseCatalogQuery(params);
     if ('ok' in query) return jsonResponse(event, config, query);
     const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
-    return jsonResponse(
-      event,
-      config,
-      await listCatalog(collection, query, config, viewer),
-      undefined,
-      CATALOG_CACHE_HEADERS,
-    );
+    const timings: CatalogListTimings | undefined = collection === 'products' ? {} : undefined;
+    const result = await listCatalog(collection, query, config, viewer, timings);
+    return jsonResponse(event, config, result, undefined, {
+      ...CATALOG_CACHE_HEADERS,
+      ...catalogListTimingHeaders(result.ok ? timings : undefined),
+    });
   }
 
   if (segments[0] === 'products' && segments[1] === 'slug' && segments.length === 3) {
