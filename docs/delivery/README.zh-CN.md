@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 22 日，70 个商品页的搜索和分享预览已使用自己公开图库里的首图，共 67 张。官网发布后逐页读回通过，528 件商品快照、Blog 和历史故障图均按发布前核对一致，商品自动更新已使用新程序，本次临时函数已清理。Google 五张历史 4xx 仍等平台复查。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44959546480) · [完整验收记录](../seo/continuation/next-phase-design-2026-11-05/evidence/catalog-social-preview-2026-11-22.json)
+
 11 月 22 日，官网更新了 337 个商品页的搜索与分享摘要。172 个摘要采用该商品已展示的规格，其余保留商品名和页面用途。正式包与线上抽查均通过，528 件商品的资料、报价和图片未发生回退，线上四个 Blog 页面和六张历史故障图读回一致。商品自动更新已切到新程序，本次临时函数已核对清理。Google 五张旧故障图的复查仍在等待，最新已核对的网页搜索为 95 次展示、3 次点击。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44954895157) · [数据和前后样例](../seo/continuation/next-phase-design-2026-11-05/evidence/product-snippet-supplier-intro-2026-11-22.json)
 
 11 月 22 日，官网耳机编号目录已让桌面浏览器更早读取第一张商品图。三个代表页的首屏最大内容由 2.73、3.12、3.18 秒降到 2.04、2.11、2.28 秒。随后把 36 次官网读图、读样式的请求与腾讯日志逐一对上，确认还存在新连接慢和读图上游等待两种情况，本次诊断没有再发布。五张 Google 历史 4xx 图及另一张旧 404 图在官网仍可完整读取，Google 的复查仍待处理。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44950036550) · [分段证据](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md#11-月-22-日同一张图对照新连接浏览器和腾讯计时)
