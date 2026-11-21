@@ -1,0 +1,119 @@
+{
+  "checkedAtUTC": "2026-11-21T12:22:04.199787+00:00",
+  "publishedRun": "https://github.com/vibelingan/channel/actions/runs/44900074902",
+  "sources": {
+    "productSnapshotSHA256": "f3112cb692d88d85980b65bea1f732611a712ec7b1b0689ae88f9a69f1bec3f9",
+    "staticSitemapSHA256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b",
+    "googleInspection": "case-navigation-and-index-recheck-2026-11-21.json"
+  },
+  "staticHtml": {
+    "files": 589,
+    "productPages": 528,
+    "productPagesInStaticSitemap": 528,
+    "productPagesByDistinctReferringPageCount": {
+      "1": 528
+    },
+    "pagesLinkingToLegacyProductRoute": 0,
+    "productToOtherProductLinks": 0
+  },
+  "productUrlsAwaitingIndexInInspection": [
+    {
+      "url": "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/headphones/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/headphones/page/4/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "googleIndexStatus": "Page indexing Page is not indexed: URL is unknown to Google",
+      "initialHtmlLinkSource": "/headphones/page/4/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "googleIndexStatus": "Page indexing Page is not indexed: URL is unknown to Google",
+      "initialHtmlLinkSource": "/headphones/page/6/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/headphones/page/26/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/misc/page/2/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/misc/page/2/"
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "googleIndexStatus": "Page indexing Page is not indexed: Discovered - currently not indexed",
+      "initialHtmlLinkSource": "/headphones/page/33/"
+    }
+  ],
+  "confirmedSpecConflicts": [
+    {
+      "url": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "status": 200,
+      "canonical": "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "sha256": "c89c80a8ae62db8715f57406ce9dda6a5b7068018e5b77b59ea5953e3f0972f1",
+      "headline": "Oem Manufacturer Fashion Design Over Ear Metallic Paint Process Bluetooth Wireless Headphones",
+      "specification": {
+        "label": "headphone form factor",
+        "value": "In ear"
+      },
+      "confirmedInInitialHtml": true
+    },
+    {
+      "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "status": 200,
+      "canonical": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "sha256": "a98e443850488f4d9a80edfa6e342363c3954b113d88bb99245c413481c4a27a",
+      "headline": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+      "specification": {
+        "label": "Noise Cancelling",
+        "value": "No Noise Cancellation"
+      },
+      "confirmedInInitialHtml": true
+    }
+  ],
+  "normalizedExactTitleDuplicates": {
+    "groups": 8,
+    "productPages": 20,
+    "jxlddDescriptionIdentical": true,
+    "jxlddSharedColorLabels": ["Aero", "Azure", "Bruno", "Liora", "Mira", "Noctis", "Puff"],
+    "jxlddExample": [
+      {
+        "url": "https://supplychainsai.com/products/p-1c4c1593-1b15-4951-a052-89fb59b066a9/",
+        "publicVariantCount": 7
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-25f9a3cf-f60e-46af-aeec-aea7a8e63e6f/",
+        "publicVariantCount": 7
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/",
+        "publicVariantCount": 7
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-5ae71519-914c-464d-ad5f-ff4782acddb3/",
+        "publicVariantCount": 7
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-862b69db-2dc0-4435-a996-3a497163d05d/",
+        "publicVariantCount": 7
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-9749adc9-acda-4536-a2a3-30282c44d3c7/",
+        "publicVariantCount": 7
+      }
+    ]
+  }
+}

@@ -1,5 +1,9 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 21 日，核对待收录商品是否有站内入口
+
+从已验收发布包的初始 HTML 检查了 528 个商品。每件商品都能从分类页直接点开，并在静态网站地图中。此前从 Google 逐个检查、仍未收录的八件商品也有这些入口。对两件显示“Google 未知”的商品，又从官网读取完整页面，均返回 200、可收录。两件的标题和公开规格各有一处实际矛盾，已经记下准确网址和核对项。Google 的历史 4xx 是另一组图片请求，继续沿用原复查任务。 [官网商品发现和内容证据](evidence/product-discovery-and-copy-2026-11-21.json) · [两件商品的核对项](04-product-results.zh-CN.md#11-月-21-日核对商品标题和公开规格) · [Google 页面索引状态解释](https://support.google.com/webmasters/answer/7440203)
+
 ## 11 月 21 日下午从 Search Console 复查
 
 新版地图已于 11 月 19 日成功读取。地图索引列出 584 个网页和 1 个视频，静态子地图列出 580 个网页和同一个视频。这里的数字是 Google 从地图里读出的地址。网页收录报告仍截至 11 月 16 日，显示 529 个已收录、989 个未收录。五张历史 4xx 图片的原复查任务仍是待检查 5、失败 0，沿用这次任务继续跟踪。 [Google 地图的统计口径](https://support.google.com/webmasters/answer/7451001) · [本次读取的网页索引报告](https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)

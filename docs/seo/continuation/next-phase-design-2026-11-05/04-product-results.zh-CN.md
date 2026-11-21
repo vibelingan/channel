@@ -6,6 +6,21 @@
 
 > 2026-11-12历史设计记录：普通页面收录与带价格的商品搜索展示分别验收；后续OFFER-1交付与OFFER-2待办按上方更新区分。
 
+## 11 月 21 日核对商品标题和公开规格
+
+对照已验收的官网发布包和 Search Console 的逐网址记录。528 个商品都在静态网站地图里。检查了发布包中的 589 份 HTML，每件商品都能从一个分类页的普通链接点进去。八个仍未进入索引的抽查商品也有同样的入口。包里没有指向旧商品入口的链接。商品详情之间没有互相推荐，适合在确有采购关系时补充内链。仅凭同属耳机分类，不能向买家推荐用途和规格不符的商品。 [正式发布包](https://github.com/vibelingan/channel/actions/runs/44900074902) · [链接和逐网址记录](evidence/product-discovery-and-copy-2026-11-21.json) · [Google 电商导航指南](https://developers.google.com/search/docs/specialty/ecommerce/help-google-understand-your-ecommerce-site-structure)
+
+从官网重新读取两个被 Google 逐网址检查标为“未知”的商品。两页都直接返回 HTTP 200，网页指向自己的正式地址，也允许收录。网页一打开就显示下列冲突，已批准的商品快照中也同时有这两种说法。两条抓取申请已经受理。Google 尚未给出抓取日期或拒绝原因，页面内容的矛盾需按商品事实单独处理。
+
+| 商品 | 标题写法 | 页面规格写法 | 需核对的事实 |
+|---|---|---|---|
+| [金属漆蓝牙耳机](https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/) | Over Ear，包耳式 | In ear，入耳式 | 以这款商品的原始型号资料确认实际佩戴方式 |
+| [折叠耳机](https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/) | Active Noise Cancelling，主动降噪 | No Noise Cancellation，无降噪 | 确认是否有主动降噪，以及规格是否只适用于某个配置 |
+
+另外核对了商品标题。忽略大小写和空格后有八组同名，涉及 20 个独立商品网址。其中六个 JXLDD-01 页面使用同一标题和描述，且都列出相同的七个颜色名称。官网分开保留这些商品记录。是否应合并，须先核对供应商商品与规格编号、公开报价、图片以及历史询盘引用。同名只作为核对线索，现有商品身份、网址和数据都保留。 [商品快照与两处线上正文核对](evidence/product-discovery-and-copy-2026-11-21.json) · [Google 对单页或多页展示商品规格的说明](https://developers.google.com/search/docs/appearance/structured-data/product-variants)
+
+商品负责人确认事实后，由后台更新并批准相应商品。已有自动更新流程负责生成新版公开 HTML。交付验收要重新核对标题、可见规格、网页声明的正式网址和已有询盘入口。从 Search Console 另查新抓取日期和索引结果。当页面只修改图片尺寸、渲染程序或发布脚本时，仍沿用原商品内容日期。
+
 ## 当前缺口与事实
 
 修复前，`apps/site/src/lib/seo/product-page.ts` 为商品生成不含offers的Product节点；没有真实review/aggregateRating时，不符合Google商品摘要的必要字段要求。商品正文仍可作为普通网页收录。本轮已先清理无效标记，完整报价适配另做。
