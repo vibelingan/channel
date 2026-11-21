@@ -10,6 +10,10 @@
 
 官网和 Blog 的导航已通过线上验收，查看[正式链接的发布记录](03-discovery-and-urls.zh-CN.md#11-月-21-日官网和-blog-直接链接到正式目录与-oem-网址)。从官网接受发布的北京时间 15:53:08 到 17:15:36，再查网关对那 12 个旧报表地址、五张历史故障图、案例页和工厂观看页的访问，共匹配 13 条，全部为 200。按 Google 公布的地址范围及请求标识核对，这 13 条中没有可确认的 Google 普通爬虫访问。这个时段证明有成功的网站读取。Google 复查与收录沿用上面标明日期的报表。 [Google 核对爬虫来源](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
 
+## 11 月 21 日晚，从原复查任务再次读回
+
+直接刷新 11 月 16 日开始的同一任务，仍列出五张图待检查、零失败，最后抓取日期仍是 11 月 3–7 日。网页索引汇总截至 11 月 16 日，529 个已收录、989 个未收录、八种原因。网页搜索截至 11 月 19 日，95 次展示、3 次点击，点击率 3.2%。另查北京时间 17:15:36 至 18:01:18 的官网网关记录，对已跟踪的 19 个网址共有 22 次匹配请求，全部 200，其中没有可确认来自 Google 普通爬虫的请求。这个时间段没有新的 Google 复查证据。 [Google 原复查](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [搜索表现](https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)
+
 ## 五张历史故障图复查的观察条件
 
 沿用 11 月 16 日在 HTTPS 官网属性发起的同一次复查。到 11 月 21 日所见状态是 5 个待检查、0 个失败。今天北京时间 11:02 至 12:21，五张图及工厂视频观看页的网关日志有 6 次成功请求，没有核实到 Googlebot。脚本减重版上线后，五张历史 4xx 图和一张旧 404 图已独立下载，均与修复后记录的字节一致。Google 通知、新的实际爬取或到常规复查点时，再在「索引 → 网页 → 因其他 4xx 问题被阻止 → 查看详情」读取原任务。Google 给出的通常耗时约两周，可能更久。 [正式站回读](https://github.com/vibelingan/channel/actions/runs/44864069637) · [Google 复查说明](https://support.google.com/webmasters/answer/7440203#see_validation_progress)
