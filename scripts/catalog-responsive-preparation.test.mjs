@@ -11,9 +11,49 @@ const { tsImport } = createRequire(new URL('../apps/site/package.json', import.m
 const {
   ResponsivePreparationPlanSchema,
   selectResponsivePreparationBatch,
+  readSelectedOriginal,
   runCatalogResponsivePreparation,
   assertResponsivePreparationInvocation,
 } = await tsImport('./images/prepare-responsive.ts', import.meta.url);
+const { MediaReadError } = await tsImport(
+  '../packages/media-storage/src/index.ts',
+  import.meta.url,
+);
+
+test('only a timed-out original read gets a second bounded attempt', async () => {
+  const source = { _id: 'selected-image', storageFileId: 'cloud://fixture/original', byteSize: 3 };
+  const body = Buffer.from('abc');
+  for (const [failures, expectedAttempts] of [
+    [[], 1],
+    [[new MediaReadError('timeout')], 2],
+    [[new MediaReadError('unavailable')], 1],
+    [[new MediaReadError('timeout'), new MediaReadError('timeout')], 2],
+  ]) {
+    const calls = [];
+    const read = async (id, options) => {
+      calls.push([id, options]);
+      const failure = failures[calls.length - 1];
+      if (failure) throw failure;
+      return { body: body.toString('base64') };
+    };
+    if (failures.length === expectedAttempts) {
+      await assert.rejects(
+        readSelectedOriginal(source, read),
+        (error) => error === failures.at(-1),
+      );
+    } else {
+      assert.deepEqual(await readSelectedOriginal(source, read), body);
+    }
+    assert.deepEqual(
+      calls,
+      Array.from({ length: expectedAttempts }, () => [
+        source.storageFileId,
+        { maxBytes: source.byteSize, timeoutMs: 30_000 },
+      ]),
+    );
+  }
+});
+
 const plan = {
   envId: 'diversity-123-d9grnqfux221323bb',
   region: 'ap-shanghai',

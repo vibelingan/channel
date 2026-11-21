@@ -115,5 +115,484 @@
     "https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F",
     "https://www.bing.com/webmasters/sitemaps?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F",
     "https://www.bing.com/webmasters/searchperf?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F"
-  ]
+  ],
+  "indexedExportComparison": {
+    "sitemapNow": 584,
+    "googleReportLastDate": "2026-11-16",
+    "indexedReportExamples": 528,
+    "indexedInCurrentSitemap": 528,
+    "indexedByType": {
+      "products": 518,
+      "other pages": 7,
+      "blog articles": 2,
+      "blog index": 1
+    },
+    "indexedOutsideCurrentSitemap": [],
+    "currentSitemapByType": {
+      "catalog pagination": 42,
+      "products": 528,
+      "other pages": 9,
+      "blog articles": 3,
+      "blog index": 1,
+      "videos": 1
+    },
+    "notInIndexedExportByType": {
+      "catalog pagination": 42,
+      "products": 10,
+      "other pages": 2,
+      "videos": 1,
+      "blog articles": 1
+    },
+    "knownDiscoveredRowsStillOutsideIndexedExport": [
+      "https://supplychainsai.com/privacy/",
+      "https://supplychainsai.com/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "https://supplychainsai.com/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "https://supplychainsai.com/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "https://supplychainsai.com/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "https://supplychainsai.com/toys/"
+    ],
+    "knownHistoricalNoindexRowsStillOutsideIndexedExport": [
+      "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    ],
+    "missingIndexedExportOtherUrls": [
+      "https://supplychainsai.com/ai-gadgets/page/2/",
+      "https://supplychainsai.com/ai-gadgets/page/3/",
+      "https://supplychainsai.com/headphones/page/10/",
+      "https://supplychainsai.com/headphones/page/11/",
+      "https://supplychainsai.com/headphones/page/12/",
+      "https://supplychainsai.com/headphones/page/13/",
+      "https://supplychainsai.com/headphones/page/14/",
+      "https://supplychainsai.com/headphones/page/15/",
+      "https://supplychainsai.com/headphones/page/16/",
+      "https://supplychainsai.com/headphones/page/17/",
+      "https://supplychainsai.com/headphones/page/18/",
+      "https://supplychainsai.com/headphones/page/19/",
+      "https://supplychainsai.com/headphones/page/2/",
+      "https://supplychainsai.com/headphones/page/20/",
+      "https://supplychainsai.com/headphones/page/21/",
+      "https://supplychainsai.com/headphones/page/22/",
+      "https://supplychainsai.com/headphones/page/23/",
+      "https://supplychainsai.com/headphones/page/24/",
+      "https://supplychainsai.com/headphones/page/25/",
+      "https://supplychainsai.com/headphones/page/26/",
+      "https://supplychainsai.com/headphones/page/27/",
+      "https://supplychainsai.com/headphones/page/28/",
+      "https://supplychainsai.com/headphones/page/29/",
+      "https://supplychainsai.com/headphones/page/3/",
+      "https://supplychainsai.com/headphones/page/30/",
+      "https://supplychainsai.com/headphones/page/31/",
+      "https://supplychainsai.com/headphones/page/32/",
+      "https://supplychainsai.com/headphones/page/33/",
+      "https://supplychainsai.com/headphones/page/34/",
+      "https://supplychainsai.com/headphones/page/35/",
+      "https://supplychainsai.com/headphones/page/36/",
+      "https://supplychainsai.com/headphones/page/37/",
+      "https://supplychainsai.com/headphones/page/38/",
+      "https://supplychainsai.com/headphones/page/39/",
+      "https://supplychainsai.com/headphones/page/4/",
+      "https://supplychainsai.com/headphones/page/5/",
+      "https://supplychainsai.com/headphones/page/6/",
+      "https://supplychainsai.com/headphones/page/7/",
+      "https://supplychainsai.com/headphones/page/8/",
+      "https://supplychainsai.com/headphones/page/9/",
+      "https://supplychainsai.com/misc/page/2/",
+      "https://supplychainsai.com/misc/page/3/",
+      "https://supplychainsai.com/videos/factory-overview/"
+    ],
+    "lastCrawlDateRange": ["2026-10-29", "2026-11-16"]
+  },
+  "paginationReadback": {
+    "checkedAt": "2026-11-21T16:09:12.380404+00:00",
+    "rows": [
+      {
+        "url": "https://supplychainsai.com/ai-gadgets/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/ai-gadgets/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "6f8cd7d7aa0f7801888fbe244f6a9e98ec4b78d1cc71ea83f8d9ca3e7d726a5a"
+      },
+      {
+        "url": "https://supplychainsai.com/ai-gadgets/page/2/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/ai-gadgets/page/2/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "6e488dbc4a17fca3ba22e9dae0fc418d2c40a8fd1d1c7c8b98707fdc7398eec4"
+      },
+      {
+        "url": "https://supplychainsai.com/ai-gadgets/page/3/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/ai-gadgets/page/3/",
+        "indexAllowed": true,
+        "productLinks": 7,
+        "sha256": "67a012eaa3731653c03ff7582d76db7e0c637ee6c98cfba88772f136b21da615"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "b7e8b03cbd47c54723c7eef7732b8f5950a08f22a86ca5bdb501f6ead0232372"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/10/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/10/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "299966e4f97bca5ae134da736f02694718f0ff5b45a755da1240e8d0ad249f90"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/11/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/11/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "ea8fbb3892fee8aa682fb81f2489e2e1eb9280a530118a145fdbed1242774b8c"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/12/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/12/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "76d03afe9bcfe58adf7bb1e399559b5f0bf0231dbea60ee71551d275fc50f77b"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/13/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/13/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "73b65b006ba3ffbf7e3b7e1d150eccd4263a14ae77b15ab74a664e23a2b265b8"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/14/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/14/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "4bfdf6871405c855f867c9934de3009a660238ea266f9fde5ab17752d8ae05c1"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/15/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/15/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "5bfde2e61c99926da441341d5df5d6d92a35926c2d28ac874b4cab88b498e72d"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/16/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/16/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "084b43b4fbb7f421e8434b9c6da53acbdd0136e9eee6dd05fe04d1b188d343eb"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/17/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/17/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "6740fa7b1216b6c8256d6de70ebfb8bc6c0ba4afde7337d651ca4d14b97222af"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/18/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/18/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "e17bd668a9cdfdb57b966542f0b52a8229268eb12e67884697138eedc8721299"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/19/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/19/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "304698daa84cd66e5e6d2845c10ebfb2fff91752a05e0958d74745f9e67fffce"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/2/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/2/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "6e8e6e8b409527f6ff871d5518fa2160b47e6449d6eb98c7a8fc9d01441dbe39"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/20/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/20/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "8f88f1d53c71b25c59f377f465a56b6ae16d74346d4fb5d65c561ca720cf25bf"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/21/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/21/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "d3ccfbc2df7000daa2072d25e160eb081b15743250c88f2a57a17d33df7a2102"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/22/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/22/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "20c64188654711fee0e6d86b83c7a3ec0444ec4ded603ab56451afffab67b4bd"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/23/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/23/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "c5b9028c951b226891dd12ef10bf6693221b416fbd55f0fddfba23d113dc5053"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/24/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/24/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "39ddf476c4e9b953e17529679232a853308935de48bb5882efc5c1f1841ae73c"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/25/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/25/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "af5b474d99a510f4c3150549cda0d93d80c3db2204e643bce7e23e64972124aa"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/26/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/26/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "2709597d6e57363a5b28d93a6331504960fb4e3382194bc6d5188bfe3e57a084"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/27/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/27/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "52d665d7f42ef2055a0cfee19805d2e66dd2d9a18093928b10fde583303548ef"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/28/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/28/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "61c1f0c8c26cdd27517e33da91d7dd44df4255587a3f3e7bfc60541902c46ba5"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/29/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/29/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "f694f05c2b12690a243794b52af0b35dd57a5e134faeb64bb29540cd1f09e36d"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/3/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/3/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "a30f42126b07d2f1ecb3035829f346e3aab55801681a06bb5a934074eec9c467"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/30/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/30/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "9676629f70b000ff49b28aff75ae1e6aea7e7e7c5d7fce6de083b42c9403b9f1"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/31/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/31/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "cf79ffb5af42021ae8499619311cac9f5b303c2d626cf42ce9b2def7917766ac"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/32/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/32/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "e6fb4d3ae77412f62f87d50331285a5e67419245ec62fd0a91842755e70f8d68"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/33/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/33/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "5b3d3f7d3e80aefd502484ba289c9fb00d16515b7e19132e343dc218ec298c9d"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/34/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/34/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "582e344e4db1b90e76538ea587aa5d46ae259ab788fd74e13ef372197b5204ca"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/35/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/35/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "614eb96c772b54bdc6ea2421d713e1f1366b08a27554aa6dca427c6e4101dbf4"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/36/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/36/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "0e918c33e85a6b8a0ef07e77c9e3976a4a67fdcafb13eacfc4dc2175022b0498"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/37/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/37/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "90721c70122708627a4ae0ec029715c603d74c9bf8bb7bb3e28e38971f59e04e"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/38/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/38/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "fec267c8db818056c42d5bcbac10ad0ebfd797d117df102f25bfd5a8e09ebd69"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/39/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/39/",
+        "indexAllowed": true,
+        "productLinks": 4,
+        "sha256": "341dc08308a32d51cae3d228d0e977075f65bf3703fe424588679a154c8b4490"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/4/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/4/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "4438509f851d829a18c3bd7c3c68d669878b6ac40e9e09cfc5a931d8ba6b2778"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/5/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/5/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "a1c3a0551949c0f2e95dda58d48fcee8d7f08204e59a63ef28ee47fe0347af64"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/6/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/6/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "71d7ed7c0e6601f8fbf041f1556075b8dcc88d83170c177c12c229281b5fe958"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/7/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/7/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "f20cec7ed0580e35a7a49e8f806da047bfbef056a38b8920693507846e166f60"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/8/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/8/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "4122e3983af64ac6383985e8a527222db82eefde968ce2e679dc65f2c5ca8bca"
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/page/9/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/headphones/page/9/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "0d005d30dd08fd73de0d57523e5b208894620c4ec0dbdbfbe684766d405ac774"
+      },
+      {
+        "url": "https://supplychainsai.com/misc/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/misc/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "3c59e216d9794bbe1d227c7a2dc5529920e67671f1dc777cd500b227748b3120"
+      },
+      {
+        "url": "https://supplychainsai.com/misc/page/2/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/misc/page/2/",
+        "indexAllowed": true,
+        "productLinks": 12,
+        "sha256": "5b459507127ae47f3f974da622d8aaea76a61be8815f5dbb73b3a493c64d8c22"
+      },
+      {
+        "url": "https://supplychainsai.com/misc/page/3/",
+        "status": 200,
+        "canonical": "https://supplychainsai.com/misc/page/3/",
+        "indexAllowed": true,
+        "productLinks": 8,
+        "sha256": "57cd7b818e9403f46960d411144325b79892e01d853151160dbe8091afa4b944"
+      }
+    ],
+    "unindexable": [],
+    "unreachable": [],
+    "paginationNavigation": {
+      "https://supplychainsai.com/ai-gadgets/": {
+        "shown": 2,
+        "reachable": 2,
+        "maxClicks": 1,
+        "unreachable": []
+      },
+      "https://supplychainsai.com/misc/": {
+        "shown": 2,
+        "reachable": 2,
+        "maxClicks": 1,
+        "unreachable": []
+      },
+      "https://supplychainsai.com/headphones/": {
+        "shown": 38,
+        "reachable": 38,
+        "maxClicks": 1,
+        "unreachable": []
+      }
+    },
+    "pageCount": 42
+  }
 }

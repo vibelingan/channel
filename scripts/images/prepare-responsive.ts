@@ -31,6 +31,10 @@ import {
 } from '../../packages/db/src/image-upload.ts';
 import { prepareCatalogWebVariants } from '../../packages/media-storage/src/catalog-web-prepare.ts';
 import { createCloudBaseMediaStorage } from '../../packages/media-storage/src/cloudbase.ts';
+import {
+  type MediaStorageAdapter,
+  isMediaReadError,
+} from '../../packages/media-storage/src/index.ts';
 import { createCatalogWebImage } from '../../packages/media-storage/src/web-image.ts';
 import type { CollectionDoc } from '../../packages/shared/src/index.ts';
 import { readFunctionRuntimeVersion } from '../blog/runtime-health.mjs';
@@ -114,6 +118,21 @@ function document(answer: unknown, id: string): CollectionDoc {
     .object({ _id: z.literal(id) })
     .passthrough()
     .parse(data);
+}
+
+export async function readSelectedOriginal(
+  source: { _id: string; storageFileId: string; byteSize: number },
+  read: MediaStorageAdapter['getObjectAsBase64'],
+): Promise<Buffer> {
+  const options = { maxBytes: source.byteSize, timeoutMs: 30_000 };
+  const result = await read(source.storageFileId, options).catch((error: unknown) => {
+    if (!isMediaReadError(error) || error.reason !== 'timeout') throw error;
+    console.warn('[responsive-images] original read timed out; retrying once', {
+      imageId: source._id,
+    });
+    return read(source.storageFileId, options);
+  });
+  return Buffer.from(result.body, 'base64');
 }
 
 /** Explicit operator entry; never starts from a page request, timer, or unbounded collection scan. */
@@ -220,15 +239,7 @@ export async function runCatalogResponsivePreparation(input: {
         'Unknown sizes must be preserved',
       );
       await save(`${source._id}.before.private.json`, source);
-      const bytes = Buffer.from(
-        (
-          await storage.getObjectAsBase64(source.storageFileId, {
-            maxBytes: source.byteSize,
-            timeoutMs: 30_000,
-          })
-        ).body,
-        'base64',
-      );
+      const bytes = await readSelectedOriginal(source, storage.getObjectAsBase64);
       assert.equal(bytes.length, source.byteSize);
       assert.equal(hash(bytes), target.sourceSha256);
       const persist = (command: CatalogWebBackfillCommand) =>
