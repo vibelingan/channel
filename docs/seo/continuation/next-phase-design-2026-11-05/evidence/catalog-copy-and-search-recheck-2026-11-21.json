@@ -1,0 +1,391 @@
+{
+  "websiteDelivery": 44855648951,
+  "source": "e0864a63b280f4b02970a9fcc2f4759cfecc6bbf",
+  "searchConsole": {
+    "readDate": "2026-11-21",
+    "pageIndexCoverage": {
+      "asOf": "2026-11-16",
+      "indexed": 529,
+      "notIndexed": 989,
+      "other4xxReported": 5,
+      "other4xxValidation": "Started"
+    },
+    "webSearchPerformance": {
+      "asOf": "2026-11-18",
+      "impressions": 93,
+      "clicks": 3
+    },
+    "videoIndexCoverage": {
+      "asOf": "2026-11-19",
+      "indexed": 0,
+      "notIndexed": 2
+    },
+    "coreWebVitals": {
+      "asOf": "2026-11-19",
+      "mobile": "insufficient data",
+      "desktop": "insufficient data"
+    }
+  },
+  "recentGatewayRead": {
+    "targetedPaths": 6,
+    "windowCloudBaseTime": {
+      "startTime": "2026-11-21 09:27:31",
+      "endTime": "2026-11-21 11:02:07"
+    },
+    "exactRows": 18,
+    "statuses": {
+      "200": 18
+    },
+    "verifiedGoogleRequests": [],
+    "unexpected": [],
+    "potentiallyTruncated": false
+  },
+  "historicalPhotoReadback": {
+    "readAt": "2026-11-21T03:09:18+00:00",
+    "images": [
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "bytes": 51178,
+        "type": "image/webp",
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "bytes": 65170,
+        "type": "image/webp",
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "bytes": 69280,
+        "type": "image/webp",
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "bytes": 87330,
+        "type": "image/webp",
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "bytes": 135494,
+        "type": "image/webp",
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "bytes": 660144,
+        "type": "image/jpeg",
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+      }
+    ]
+  },
+  "localPerformanceExperiment": {
+    "comparison": "The source is the same accepted catalog snapshot. Both builds use the same local HTTP route and fixed throttling. Captured public API responses are reused within the session after their first request, so the first original navigation also includes timing from the real upstream connection.",
+    "decision": "Did not deploy either implementation.",
+    "packageInventory": {
+      "productPageCount": 528,
+      "medianHtmlBytesSaved": 9080.0,
+      "range": [9078, 9082],
+      "intrinsicTagAndTextChanges": 0,
+      "moduleEntryGraph": {
+        "baseline": {
+          "entry": "ProductLanding.LbLGbl36.js",
+          "entryBytes": 1194,
+          "imports": {
+            "jsx-runtime.u17CrQMm.js": 479,
+            "index.DP38BoPS.js": 7746,
+            "public-quote-transport.CI5PG-a2.js": 12980,
+            "catalog-variant-state.LQTJgUdm.js": 262169,
+            "ProductMedia.DSb3nwCC.js": 3531
+          },
+          "htmlBytes": 93826
+        },
+        "candidate": {
+          "entry": "ProductLanding.Cya3_P7n.js",
+          "entryBytes": 1241,
+          "imports": {
+            "jsx-runtime.u17CrQMm.js": 479,
+            "index.DP38BoPS.js": 7746,
+            "public-quote-transport.CI5PG-a2.js": 12980,
+            "catalog-variant-state.LQTJgUdm.js": 262169,
+            "catalog.CGxqu-T4.js": 63210,
+            "ProductMedia.DSb3nwCC.js": 3531
+          },
+          "htmlBytes": 84745
+        },
+        "focused": {
+          "entry": "ProductLanding.7Y_6dybD.js",
+          "entryBytes": 1248,
+          "imports": {
+            "jsx-runtime.u17CrQMm.js": 479,
+            "index.DP38BoPS.js": 7746,
+            "public-quote-transport.CI5PG-a2.js": 12980,
+            "catalog-variant-state.LQTJgUdm.js": 262169,
+            "catalog-detail.B7R69Rwv.js": 6138,
+            "ProductMedia.DSb3nwCC.js": 3531
+          },
+          "htmlBytes": 84745
+        }
+      }
+    },
+    "measurements": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "browserSamples": [
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19312,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 70,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 498,
+          "heroCompleteMs": 3313,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 3344,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 6668,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 62,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 953,
+          "heroCompleteMs": 4973,
+          "htmlBytes": 63879,
+          "lcp": {
+            "ms": 4988,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19078,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 78,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 362,
+          "heroCompleteMs": 1096,
+          "htmlBytes": 69744,
+          "lcp": {
+            "ms": 1180,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 9787,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 38,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 363,
+          "heroCompleteMs": 2198,
+          "htmlBytes": 54800,
+          "lcp": {
+            "ms": 2208,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19393,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 72,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 356,
+          "heroCompleteMs": 1090,
+          "htmlBytes": 69744,
+          "lcp": {
+            "ms": 1180,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 10390,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 45,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 994,
+          "heroCompleteMs": 2847,
+          "htmlBytes": 54800,
+          "lcp": {
+            "ms": 2860,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19403,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 69,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 484,
+          "heroCompleteMs": 1138,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1188,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 10315,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 35,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 904,
+          "heroCompleteMs": 2784,
+          "htmlBytes": 63879,
+          "lcp": {
+            "ms": 2796,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19109,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 69,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 478,
+          "heroCompleteMs": 1131,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1172,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 9835,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 33,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 430,
+          "heroCompleteMs": 2341,
+          "htmlBytes": 63879,
+          "lcp": {
+            "ms": 2356,
+            "tag": "IMG"
+          },
+          "scriptRequests": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19378,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 70,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 355,
+          "heroCompleteMs": 1091,
+          "htmlBytes": 69744,
+          "lcp": {
+            "ms": 1172,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-50633c37-434c-4374-a540-f071a00fc799/",
+          "phase": "next-page",
+          "hydrationMs": 10400,
+          "hasAlternatives": false,
+          "openButtonReady": true,
+          "quoteOpenMs": 39,
+          "heroSource": "/api/images/4c2f81c76a87aa810006464f66008e31",
+          "heroStartMs": 1006,
+          "heroCompleteMs": 2859,
+          "htmlBytes": 54800,
+          "lcp": {
+            "ms": 2876,
+            "tag": "IMG"
+          },
+          "scriptRequests": 23,
+          "scriptTransferBytes": 656487
+        }
+      ],
+      "errors": []
+    }
+  }
+}
