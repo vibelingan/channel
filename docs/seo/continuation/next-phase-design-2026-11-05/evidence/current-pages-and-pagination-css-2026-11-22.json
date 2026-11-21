@@ -3423,5 +3423,1791 @@
       }
     ],
     "submittedInquiry": false
+  },
+  "production": {
+    "delivery": {
+      "source": "8a8c50407d363b5e37fdeeb1d065974b4895d3dc",
+      "renderer": 44943539589,
+      "site": 44943682010,
+      "siteAttempt": 1
+    },
+    "workflow": {
+      "conclusion": "success",
+      "createdAt": "2026-11-21T19:57:27Z",
+      "updatedAt": "2026-11-21T20:10:11Z"
+    },
+    "coordinator": {
+      "checkedAt": "2026-11-21T20:10:57.933Z",
+      "leaseState": "idle",
+      "ownerIsThisRun": false,
+      "active": null,
+      "baselineRun": "site-44943682010-1",
+      "dirtyRun": null,
+      "pending": null,
+      "run": {
+        "phase": "SUCCEEDED",
+        "acceptedAt": 1795291481440,
+        "stepCount": 6
+      }
+    },
+    "autoRefresh": {
+      "readAt": "2026-11-21T20:10:51.239Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "8a8c50407d363b5e37fdeeb1d065974b4895d3dc",
+        "executorSha": "8a8c50407d363b5e37fdeeb1d065974b4895d3dc",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44943682010-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "staticPackageAndReadback": {
+      "site": 44943682010,
+      "same528Products": true,
+      "sameProductImageWidths": true,
+      "publicHtmlChangedOnlyInStylesheet": 43,
+      "currentStylesheet": "_astro/headphones.B9voga9k.css",
+      "priorStylesheets": ["_astro/BaseLayout.CncUyMCw.css", "_astro/headphones.DDYvkQ2r.css"],
+      "files": [
+        {
+          "path": "ai-gadgets/page/2/index.html",
+          "status": 200,
+          "bytes": 180127,
+          "sha256": "84599ee60bfe3ebc7526baa0fa6043ef64223043554ca0c0c3868b5c74973ec1"
+        },
+        {
+          "path": "ai-gadgets/page/3/index.html",
+          "status": 200,
+          "bytes": 127232,
+          "sha256": "15e99af552f71d91daf17909d4779d2b85dbcf5803d6e1ac6855af136c9a224e"
+        },
+        {
+          "path": "headphones/page/10/index.html",
+          "status": 200,
+          "bytes": 138562,
+          "sha256": "dc9f6949a2097c444ff5a590a79df3acd73bd518791390e3de3b711be3204ca3"
+        },
+        {
+          "path": "headphones/page/11/index.html",
+          "status": 200,
+          "bytes": 131001,
+          "sha256": "262227cec3eb0a9f3708dd1fe5d6efa578d2bb10eae8e320eb627b9a5606205c"
+        },
+        {
+          "path": "headphones/page/12/index.html",
+          "status": 200,
+          "bytes": 128511,
+          "sha256": "1414f6f2f4416a77989ca492e10dc021c0ed8e300e3bf25867a50bba063b72c8"
+        },
+        {
+          "path": "headphones/page/13/index.html",
+          "status": 200,
+          "bytes": 138267,
+          "sha256": "6a089973bd597d4e1a204cb412fb1e70091c38cf4cdcb0413827633d39e4807b"
+        },
+        {
+          "path": "headphones/page/14/index.html",
+          "status": 200,
+          "bytes": 142621,
+          "sha256": "ad6550dbb04e4d5f29d14a0e42d7284d827357a175f71f83bef7758896eefde8"
+        },
+        {
+          "path": "headphones/page/15/index.html",
+          "status": 200,
+          "bytes": 128163,
+          "sha256": "820030a32982ccd3239516c27edb965a5b3f2bc23bd98904fe63a7413ec184eb"
+        },
+        {
+          "path": "headphones/page/16/index.html",
+          "status": 200,
+          "bytes": 131588,
+          "sha256": "6adca4e436eec4e219644bc006a9a9d77c7c8649568a928168f1e4132b8cfe2a"
+        },
+        {
+          "path": "headphones/page/17/index.html",
+          "status": 200,
+          "bytes": 128472,
+          "sha256": "e9d0994b331dd0300b724ead9f3d8ba2a5b1415c889abb45b5a1d0504f82c959"
+        },
+        {
+          "path": "headphones/page/18/index.html",
+          "status": 200,
+          "bytes": 134759,
+          "sha256": "14fab141e769a8b15ceb94d0332fadd50a29116adf38abf81d24a9d8e317c7e5"
+        },
+        {
+          "path": "headphones/page/19/index.html",
+          "status": 200,
+          "bytes": 126673,
+          "sha256": "8a26bb3a65822b249b75fb79a6d0bc75c3917524f258b03a45a4518bf0d4658f"
+        },
+        {
+          "path": "headphones/page/2/index.html",
+          "status": 200,
+          "bytes": 119941,
+          "sha256": "f991f3feede2b124cea719be1ad53edbef390324fbb2f123b6323539b29b6965"
+        },
+        {
+          "path": "headphones/page/20/index.html",
+          "status": 200,
+          "bytes": 143766,
+          "sha256": "89d2db572aa6d4d4529c9d6dc6cdfd562b88d44ec6e4966eea8044674e657bc0"
+        },
+        {
+          "path": "headphones/page/21/index.html",
+          "status": 200,
+          "bytes": 129229,
+          "sha256": "73b0bd4a1a2dbf4c616462c9ef648e156ac2b9fe3528f2d89ba3d73255ec5441"
+        },
+        {
+          "path": "headphones/page/22/index.html",
+          "status": 200,
+          "bytes": 133423,
+          "sha256": "5d100730a32700a753c839da42a965af92267175f1cda645cc306e2806dde0da"
+        },
+        {
+          "path": "headphones/page/23/index.html",
+          "status": 200,
+          "bytes": 126118,
+          "sha256": "645f0396dc06b48dee48102e0f07e85a328f8f93986148cea8e62d3e5a9ea4d7"
+        },
+        {
+          "path": "headphones/page/24/index.html",
+          "status": 200,
+          "bytes": 134753,
+          "sha256": "10bd10b4f9b99ee9e27b8afbd2e5f7fea3798090a7c54c9e3552c9f41567b322"
+        },
+        {
+          "path": "headphones/page/25/index.html",
+          "status": 200,
+          "bytes": 132025,
+          "sha256": "c64bef8566854f9657ab811f40a2135ab773b5873dae67cc91f56479d7eb7e22"
+        },
+        {
+          "path": "headphones/page/26/index.html",
+          "status": 200,
+          "bytes": 123631,
+          "sha256": "cec9e7a69391c6cad2d21a755282b3fd554a178a0d424183c779157915a89831"
+        },
+        {
+          "path": "headphones/page/27/index.html",
+          "status": 200,
+          "bytes": 134435,
+          "sha256": "2d89838d73b04c202b9b6c0324ef1f69e85c1a45a0acd9803c93581b373ee7b9"
+        },
+        {
+          "path": "headphones/page/28/index.html",
+          "status": 200,
+          "bytes": 124253,
+          "sha256": "66bd7569c35ded35e8ff15110b1afb9ff13a461207ec4d1363104642813e1607"
+        },
+        {
+          "path": "headphones/page/29/index.html",
+          "status": 200,
+          "bytes": 134302,
+          "sha256": "1fcc9ecbf0caae9c0d6579bbaea624813f5fa97c42a0afff24583dde6283c491"
+        },
+        {
+          "path": "headphones/page/3/index.html",
+          "status": 200,
+          "bytes": 132393,
+          "sha256": "2fe375199afd8e8e579a1297c785a06490ccec86e9e56a63619687ed49474d33"
+        },
+        {
+          "path": "headphones/page/30/index.html",
+          "status": 200,
+          "bytes": 136096,
+          "sha256": "798c8c96929faa8e9b29a14ec3f0e9ccdf4ce5b15b46e1dacbac7097cfc311fd"
+        },
+        {
+          "path": "headphones/page/31/index.html",
+          "status": 200,
+          "bytes": 135720,
+          "sha256": "81b44ad965dc7b14c19f10726e99934cfc2a36241bf6e8ef77acc73345c221fa"
+        },
+        {
+          "path": "headphones/page/32/index.html",
+          "status": 200,
+          "bytes": 122241,
+          "sha256": "9be1d6e67131502ceb4bb631e5fa26ed3cff61f6207f18ecfb1705edead3b741"
+        },
+        {
+          "path": "headphones/page/33/index.html",
+          "status": 200,
+          "bytes": 134979,
+          "sha256": "cd920aa79a9e59dc8427c349fdeac958846d8429393df9f6eb188d90c2a2ba9d"
+        },
+        {
+          "path": "headphones/page/34/index.html",
+          "status": 200,
+          "bytes": 131049,
+          "sha256": "214cccb75ff4f74478dc3e9a4db156527b3f9faeddeed53f0e48cdb521becfe9"
+        },
+        {
+          "path": "headphones/page/35/index.html",
+          "status": 200,
+          "bytes": 137700,
+          "sha256": "4e33eac9f38567e64dbb316d9576672eef052e311d021f8cccea6bd30fd61ee7"
+        },
+        {
+          "path": "headphones/page/36/index.html",
+          "status": 200,
+          "bytes": 128193,
+          "sha256": "8d3c3ed2aadeaaddcc200af633c1469cdbf7afb9c1770c3e11e3c064275f8e71"
+        },
+        {
+          "path": "headphones/page/37/index.html",
+          "status": 200,
+          "bytes": 129512,
+          "sha256": "3cf284c647b865e0394ab869beb02d0264a9bf19f70f35b76f7a25c56a9190d9"
+        },
+        {
+          "path": "headphones/page/38/index.html",
+          "status": 200,
+          "bytes": 139563,
+          "sha256": "849f62a2171e32a4eb3f87e62e06aaaea4387428d6006b770ecb5288c9be448e"
+        },
+        {
+          "path": "headphones/page/39/index.html",
+          "status": 200,
+          "bytes": 82822,
+          "sha256": "0275dde5d3c4107212473c587f283958b79c3cd3d2422b4ccc3cb4c9bd616fb9"
+        },
+        {
+          "path": "headphones/page/4/index.html",
+          "status": 200,
+          "bytes": 132797,
+          "sha256": "a59d3ed5f41ef7a73eab21e96561260b4a97d89413496c9a6f22ad86a6ef7d24"
+        },
+        {
+          "path": "headphones/page/5/index.html",
+          "status": 200,
+          "bytes": 138921,
+          "sha256": "0c717a3094d7a5941595634a6163ada2baff1e7935c9d39e49dfd57ceda6f9af"
+        },
+        {
+          "path": "headphones/page/6/index.html",
+          "status": 200,
+          "bytes": 129079,
+          "sha256": "cd4de88dc6fe8301e2dda5742a60b5e3c0213185a23a334ec317349d7bb8b618"
+        },
+        {
+          "path": "headphones/page/7/index.html",
+          "status": 200,
+          "bytes": 133778,
+          "sha256": "faac8abf559d4fbb9bb7c6845b0130a41def54e8f2f7358f3afcd4c96108c9d4"
+        },
+        {
+          "path": "headphones/page/8/index.html",
+          "status": 200,
+          "bytes": 140162,
+          "sha256": "60ec04c7aed003e84b4e309f28093911c055cdf4eeaa342484249815ae715f58"
+        },
+        {
+          "path": "headphones/page/9/index.html",
+          "status": 200,
+          "bytes": 139085,
+          "sha256": "9de443abe678bd28e0886c9e1849e81cb6e407d3c26cfe4fadb4a826c2a38804"
+        },
+        {
+          "path": "misc/page/2/index.html",
+          "status": 200,
+          "bytes": 130331,
+          "sha256": "3f11c329c63f84899c82dc4b27da1a3732f784d9ca54851b11787425d0ab8ea2"
+        },
+        {
+          "path": "misc/page/3/index.html",
+          "status": 200,
+          "bytes": 99561,
+          "sha256": "4febeffbfd4ac08518317b8c793f42374327c7e3d000ec52e8cac9489ef29f2c"
+        },
+        {
+          "path": "headphones/index.html",
+          "status": 200,
+          "bytes": 150371,
+          "sha256": "0029eb9e83aca5d081923ad07b185b633f6fe6b4968fa8128a951d03a2c89bb3"
+        },
+        {
+          "path": "_astro/headphones.B9voga9k.css",
+          "status": 200,
+          "bytes": 60278,
+          "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17"
+        },
+        {
+          "path": "_astro/BaseLayout.CncUyMCw.css",
+          "status": 200,
+          "bytes": 102102,
+          "sha256": "9cb3e665fe83ef8ff2aa00a51782784eafe0c87e80c6468c1c68247c875a4ee7"
+        },
+        {
+          "path": "_astro/headphones.DDYvkQ2r.css",
+          "status": 200,
+          "bytes": 60044,
+          "sha256": "09678181598e492c6c36117cd3c8a5a32cb7751a71aac7ad7579651ba9cbadba"
+        },
+        {
+          "path": "sitemap-index.xml",
+          "status": 200,
+          "bytes": 262,
+          "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+        },
+        {
+          "path": "sitemap-0.xml",
+          "status": 200,
+          "bytes": 55409,
+          "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+        },
+        {
+          "path": "robots.txt",
+          "status": 200,
+          "bytes": 557,
+          "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+        }
+      ]
+    },
+    "blogAndHistoricalPictures": [
+      {
+        "url": "https://supplychainsai.com/blog/",
+        "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123",
+        "bytes": 31961,
+        "mime": "text/html"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9",
+        "bytes": 32746,
+        "mime": "text/html"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "bytes": 37628,
+        "mime": "text/html"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+        "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1",
+        "bytes": 50451,
+        "mime": "text/html"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "bytes": 51178,
+        "mime": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "bytes": 65170,
+        "mime": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "bytes": 69280,
+        "mime": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17",
+        "bytes": 87330,
+        "mime": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659",
+        "bytes": 135494,
+        "mime": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876",
+        "bytes": 660144,
+        "mime": "image/jpeg"
+      }
+    ],
+    "browserInteractions": {
+      "results": [
+        {
+          "version": "live",
+          "width": 390,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "live",
+          "width": 1440,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        }
+      ],
+      "submittedInquiry": false
+    },
+    "productionInventory": {
+      "previous": {
+        "tree": "site-payload-44937759126-1",
+        "manifestEntriesVerified": 2159,
+        "publicFiles": 2156,
+        "developmentFiles": [],
+        "archiveOnlyPaths": [
+          "compatibility.json",
+          "payload-manifest.json",
+          "product-snapshot.json",
+          "static-manifest.json"
+        ],
+        "debugContentMatches": {},
+        "types": {
+          ".css": {
+            "files": 73,
+            "bytes": 5993149
+          },
+          ".html": {
+            "files": 589,
+            "bytes": 53848703
+          },
+          ".ico": {
+            "files": 1,
+            "bytes": 3332
+          },
+          ".jpg": {
+            "files": 42,
+            "bytes": 5100866
+          },
+          ".js": {
+            "files": 1403,
+            "bytes": 66080203
+          },
+          ".json": {
+            "files": 3,
+            "bytes": 452076
+          },
+          ".mp4": {
+            "files": 4,
+            "bytes": 43217378
+          },
+          ".png": {
+            "files": 9,
+            "bytes": 5446621
+          },
+          ".svg": {
+            "files": 3,
+            "bytes": 12025
+          },
+          ".txt": {
+            "files": 1,
+            "bytes": 557
+          },
+          ".webp": {
+            "files": 26,
+            "bytes": 1488644
+          },
+          ".xml": {
+            "files": 2,
+            "bytes": 55671
+          }
+        }
+      },
+      "accepted": {
+        "tree": "site-payload-44943682010-1",
+        "manifestEntriesVerified": 2160,
+        "publicFiles": 2157,
+        "developmentFiles": [],
+        "archiveOnlyPaths": [
+          "compatibility.json",
+          "payload-manifest.json",
+          "product-snapshot.json",
+          "static-manifest.json"
+        ],
+        "debugContentMatches": {},
+        "types": {
+          ".css": {
+            "files": 74,
+            "bytes": 6053427
+          },
+          ".html": {
+            "files": 589,
+            "bytes": 53848703
+          },
+          ".ico": {
+            "files": 1,
+            "bytes": 3332
+          },
+          ".jpg": {
+            "files": 42,
+            "bytes": 5100866
+          },
+          ".js": {
+            "files": 1403,
+            "bytes": 66080203
+          },
+          ".json": {
+            "files": 3,
+            "bytes": 452076
+          },
+          ".mp4": {
+            "files": 4,
+            "bytes": 43217378
+          },
+          ".png": {
+            "files": 9,
+            "bytes": 5446621
+          },
+          ".svg": {
+            "files": 3,
+            "bytes": 12025
+          },
+          ".txt": {
+            "files": 1,
+            "bytes": 557
+          },
+          ".webp": {
+            "files": 26,
+            "bytes": 1488644
+          },
+          ".xml": {
+            "files": 2,
+            "bytes": 55671
+          }
+        }
+      }
+    },
+    "after": {
+      "startedAt": "2026-11-21T20:08:05.865Z",
+      "release": "site-44943682010-1",
+      "chrome": "157.0.8103.79",
+      "egressAtStart": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "egressAtEnd": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "observeAfterDomMs": 5500,
+      "profiles": {
+        "mobile": {
+          "view": {
+            "viewport": {
+              "width": 390,
+              "height": 844
+            },
+            "deviceScaleFactor": 2,
+            "isMobile": true,
+            "hasTouch": true
+          },
+          "cpu": 4,
+          "network": {
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          }
+        },
+        "desktop": {
+          "view": {
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "deviceScaleFactor": 1
+          },
+          "cpu": 1,
+          "network": {
+            "latency": 40,
+            "downloadThroughput": 1250000,
+            "uploadThroughput": 625000,
+            "connectionType": "ethernet"
+          }
+        }
+      },
+      "categories": {
+        "directory": "/headphones/",
+        "page2": "/headphones/page/2/"
+      },
+      "rows": [
+        {
+          "round": 1,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 1550.5,
+            "lastByte": 2326.2999999970198,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 52.5,
+            "tcpDuration": 88.29999999701977,
+            "tlsDuration": 1034.6000000089407,
+            "requestStart": 1181.2999999970198,
+            "domContentLoaded": 5563.5,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2896,
+            "lcp": {
+              "time": 3772,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.000623181002813999
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1726.5,
+            "firstByte": 3141.8999999910593,
+            "lastByte": 3766.7999999970198,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 1593.5999999940395,
+              "firstByte": 2369.2999999970198,
+              "lastByte": 2859.7999999970198,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 7
+          }
+        },
+        {
+          "round": 1,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 922.9000000059605,
+            "lastByte": 2079,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 55.5,
+            "tcpDuration": 57.3999999910593,
+            "tlsDuration": 252.30000001192093,
+            "requestStart": 367.29999999701977,
+            "domContentLoaded": 3414.2000000029802,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2052,
+            "lcp": {
+              "time": 2116,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1055.4000000059605,
+            "firstByte": 1988.2999999970198,
+            "lastByte": 2099.2000000029802,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 984.2000000029802,
+              "firstByte": 1663.5,
+              "lastByte": 2015.7000000029802,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 1,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 3669.2000000029802,
+            "lastByte": 4413.5,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 3045.3999999910593,
+            "tcpDuration": 59.20000000298023,
+            "tlsDuration": 224.5,
+            "requestStart": 3330.5,
+            "domContentLoaded": 6316.4000000059605,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 4836,
+            "lcp": {
+              "time": 4908,
+              "url": null,
+              "element": "H1"
+            },
+            "cls": 0.03699959512048189
+          },
+          "lcpResource": null,
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 3845.1000000089407,
+              "firstByte": 4448.70000000298,
+              "lastByte": 4804.600000008941,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 7
+          }
+        },
+        {
+          "round": 1,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 879.2000000029802,
+            "lastByte": 1119.7000000029802,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 55.400000005960464,
+            "tcpDuration": 61.900000005960464,
+            "tlsDuration": 252.79999999701977,
+            "requestStart": 372.29999999701977,
+            "domContentLoaded": 3641.2000000029802,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 1572,
+            "lcp": {
+              "time": 3824,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "element": "IMG"
+            },
+            "cls": 0.00035332215443887173
+          },
+          "lcpResource": {
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+            "start": 1583.4000000059605,
+            "firstByte": 0,
+            "lastByte": 3817.2000000029802,
+            "encoded": 0,
+            "protocol": ""
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 940.0999999940395,
+              "firstByte": 1448.7999999970198,
+              "lastByte": 1540.5999999940395,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 2,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 776,
+            "lastByte": 1219.199999988079,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 56.29999999701977,
+            "tcpDuration": 59.70000000298023,
+            "tlsDuration": 224.69999998807907,
+            "requestStart": 342.8999999910593,
+            "domContentLoaded": 4397,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 2312,
+            "lcp": {
+              "time": 5748,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+              "element": "IMG"
+            },
+            "cls": 0.00026402669940629286
+          },
+          "lcpResource": {
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+            "start": 2320.0999999940395,
+            "firstByte": 0,
+            "lastByte": 5732.399999991059,
+            "encoded": 0,
+            "protocol": ""
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 788.2999999970198,
+              "firstByte": 1708.8999999910593,
+              "lastByte": 2281.2999999970198,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 2,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 690.5,
+            "lastByte": 1437.5,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 59.1000000089407,
+            "tcpDuration": 57.099999994039536,
+            "tlsDuration": 250.90000000596046,
+            "requestStart": 368.30000001192093,
+            "domContentLoaded": 4365.4000000059605,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 1968,
+            "lcp": {
+              "time": 2036,
+              "url": null,
+              "element": "H1"
+            },
+            "cls": 0.04253046243230651
+          },
+          "lcpResource": null,
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 733.4000000059605,
+              "firstByte": 1259.1000000089407,
+              "lastByte": 1938.2000000029802,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 5
+          }
+        },
+        {
+          "round": 2,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 1613.9000000059605,
+            "lastByte": 3297.2000000029802,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 51.900000005960464,
+            "tcpDuration": 60,
+            "tlsDuration": 1089.4000000059605,
+            "requestStart": 1208,
+            "domContentLoaded": 4298.5,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2684,
+            "lcp": {
+              "time": 2928,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1733.9000000059605,
+            "firstByte": 2770.7000000029802,
+            "lastByte": 2904.9000000059605,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 1626.0999999940395,
+              "firstByte": 2357.5999999940395,
+              "lastByte": 2646.7999999970198,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 2,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 1004.4000000059605,
+            "lastByte": 1968.6000000089407,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 57,
+            "tcpDuration": 57.70000000298023,
+            "tlsDuration": 540,
+            "requestStart": 655.9000000059605,
+            "domContentLoaded": 4416,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2164,
+            "lcp": {
+              "time": 2520,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.0004896853631158791
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1195,
+            "firstByte": 2159.7000000029802,
+            "lastByte": 2515.4000000059605,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 1045.4000000059605,
+              "firstByte": 1652.9000000059605,
+              "lastByte": 2135.4000000059605,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 7
+          }
+        },
+        {
+          "round": 3,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 694.0999999940395,
+            "lastByte": 1797.5,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 56.70000000298023,
+            "tcpDuration": 56.3999999910593,
+            "tlsDuration": 249.20000000298023,
+            "requestStart": 363.29999999701977,
+            "domContentLoaded": 4485.4000000059605,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 2052,
+            "lcp": {
+              "time": 3104,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.000623181002813999
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1077.9000000059605,
+            "firstByte": 2313.5999999940395,
+            "lastByte": 3101.2000000029802,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 952.2999999970198,
+              "firstByte": 1586.4000000059605,
+              "lastByte": 2023.4000000059605,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 11
+          }
+        },
+        {
+          "round": 3,
+          "kind": "directory",
+          "path": "/headphones/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/",
+            "start": 0,
+            "firstByte": 924.7999999970198,
+            "lastByte": 2203.699999988079,
+            "encoded": 150371,
+            "protocol": "http/1.1",
+            "dnsDuration": 55.900000005960464,
+            "tcpDuration": 315.29999999701977,
+            "tlsDuration": 223.3999999910593,
+            "requestStart": 597.7999999970198,
+            "domContentLoaded": 3624.0999999940395,
+            "headerAndBodyTransfer": 150671
+          },
+          "paints": {
+            "fcp": 1656,
+            "lcp": {
+              "time": 2140,
+              "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+              "element": "IMG"
+            },
+            "cls": 0.00035271026234567904
+          },
+          "lcpResource": {
+            "url": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+            "start": 1029.0999999940395,
+            "firstByte": 1985.8999999910593,
+            "lastByte": 2122.0999999940395,
+            "encoded": 63062,
+            "protocol": "http/1.1"
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 936,
+              "firstByte": 1448.2999999970198,
+              "lastByte": 1639.8999999910593,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 28,
+            "bytes": 659767
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        },
+        {
+          "round": 3,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "mobile",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 1510.7000000029802,
+            "lastByte": 2185.300000011921,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 57.400000005960464,
+            "tcpDuration": 63,
+            "tlsDuration": 1066.5,
+            "requestStart": 1188,
+            "domContentLoaded": 4294.4000000059605,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 2532,
+            "lcp": {
+              "time": 2604,
+              "url": null,
+              "element": "H1"
+            },
+            "cls": 0.03699959512048189
+          },
+          "lcpResource": null,
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 1556.5,
+              "firstByte": 2138.6000000089407,
+              "lastByte": 2502.7000000029802,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 1,
+            "blockingBeyond50Ms": 7
+          }
+        },
+        {
+          "round": 3,
+          "kind": "page2",
+          "path": "/headphones/page/2/",
+          "device": "desktop",
+          "status": 200,
+          "errors": [],
+          "failed": [],
+          "navigation": {
+            "url": "https://supplychainsai.com/headphones/page/2/",
+            "start": 0,
+            "firstByte": 770.5,
+            "lastByte": 1162.2999999970198,
+            "encoded": 119941,
+            "protocol": "http/1.1",
+            "dnsDuration": 56.1000000089407,
+            "tcpDuration": 58,
+            "tlsDuration": 248.79999999701977,
+            "requestStart": 364.5,
+            "domContentLoaded": 3495.5,
+            "headerAndBodyTransfer": 120241
+          },
+          "paints": {
+            "fcp": 1592,
+            "lcp": {
+              "time": 4564,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+              "element": "IMG"
+            },
+            "cls": 0.0004247938033157579
+          },
+          "lcpResource": {
+            "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+            "start": 1602.2000000029802,
+            "firstByte": 0,
+            "lastByte": 4558.0999999940395,
+            "encoded": 0,
+            "protocol": ""
+          },
+          "localStylesheets": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "start": 863.9000000059605,
+              "firstByte": 1507.9000000059605,
+              "lastByte": 1557.0999999940395,
+              "encoded": 60278,
+              "protocol": "http/1.1"
+            }
+          ],
+          "localScripts": {
+            "count": 27,
+            "bytes": 659420
+          },
+          "mainThread": {
+            "count": 0,
+            "blockingBeyond50Ms": 0
+          }
+        }
+      ],
+      "finishedAt": "2026-11-21T20:10:05.909Z"
+    }
+  },
+  "separatePhotoHostExperiment": {
+    "directFullReads": {
+      "checkedAt": "2026-11-21T19:52:14.452739+00:00",
+      "path": "/api/images/4c2f81c76a9fcec6013312533613a7fb",
+      "rows": [
+        {
+          "round": 1,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.001614,
+          "time_connect": 0.0594,
+          "time_appconnect": 0.310959,
+          "time_pretransfer": 0.311005,
+          "time_starttransfer": 1.005082,
+          "time_total": 1.111276,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 1,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.002042,
+          "time_connect": 1.061065,
+          "time_appconnect": 1.890547,
+          "time_pretransfer": 1.89061,
+          "time_starttransfer": 5.75192,
+          "time_total": 6.803584,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 2,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003488,
+          "time_connect": 0.146485,
+          "time_appconnect": 0.891766,
+          "time_pretransfer": 0.891807,
+          "time_starttransfer": 1.443431,
+          "time_total": 1.794682,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 2,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003824,
+          "time_connect": 0.061745,
+          "time_appconnect": 0.546402,
+          "time_pretransfer": 0.546422,
+          "time_starttransfer": 1.434845,
+          "time_total": 1.540611,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 3,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.002704,
+          "time_connect": 0.060839,
+          "time_appconnect": 0.281027,
+          "time_pretransfer": 0.281092,
+          "time_starttransfer": 0.788114,
+          "time_total": 1.231925,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 3,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003476,
+          "time_connect": 0.06167,
+          "time_appconnect": 1.085507,
+          "time_pretransfer": 1.085573,
+          "time_starttransfer": 2.923221,
+          "time_total": 3.624852,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 4,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003025,
+          "time_connect": 0.061533,
+          "time_appconnect": 0.811968,
+          "time_pretransfer": 0.812021,
+          "time_starttransfer": 3.737955,
+          "time_total": 4.105479,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 4,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003561,
+          "time_connect": 0.061918,
+          "time_appconnect": 0.320172,
+          "time_pretransfer": 0.32024,
+          "time_starttransfer": 0.85577,
+          "time_total": 0.971136,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 5,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003557,
+          "time_connect": 0.061377,
+          "time_appconnect": 0.319427,
+          "time_pretransfer": 0.319501,
+          "time_starttransfer": 1.060308,
+          "time_total": 1.132252,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 5,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.002355,
+          "time_connect": 0.060216,
+          "time_appconnect": 0.809851,
+          "time_pretransfer": 0.809908,
+          "time_starttransfer": 1.458107,
+          "time_total": 1.794812,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 6,
+          "host": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.002628,
+          "time_connect": 0.060677,
+          "time_appconnect": 0.859949,
+          "time_pretransfer": 0.860001,
+          "time_starttransfer": 1.400883,
+          "time_total": 1.774487,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        },
+        {
+          "round": 6,
+          "host": "https://supplychainsai.com",
+          "code": 0,
+          "sha256": "4b12891a167c30f323ebe2df849d637eb412acaab6eb2594ebf56ecf36be229d",
+          "response_code": 200,
+          "http_version": "1.1",
+          "time_namelookup": 0.003428,
+          "time_connect": 0.061874,
+          "time_appconnect": 0.285959,
+          "time_pretransfer": 0.286037,
+          "time_starttransfer": 0.914111,
+          "time_total": 0.978086,
+          "size_download": 34698,
+          "content_type": "image/jpeg"
+        }
+      ]
+    },
+    "chromeWithoutDeployment": {
+      "route": "/headphones/page/2/",
+      "photo": "/api/images/4c2f81c76a9fcec6013312533613a7fb",
+      "scope": "One image URL on an intercepted public HTML document",
+      "rows": [
+        {
+          "round": 1,
+          "mode": "cloud",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 6456,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "tag": "IMG"
+            },
+            "fcp": 4400
+          },
+          "requests": [
+            {
+              "requestHost": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": false,
+              "timing": {
+                "requestTime": 124689.346705,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": 0,
+                "dnsEnd": 56.842,
+                "connectStart": 57.191,
+                "connectEnd": 1977.075,
+                "sslStart": 419.092,
+                "sslEnd": 1977.062,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 1977.223,
+                "sendEnd": 1977.288,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 3136.513,
+                "receiveHeadersEnd": 3141.07
+              },
+              "transferred": 35708,
+              "startMs": 4405,
+              "ttfbMs": 3151,
+              "totalMs": 3238
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 1,
+          "mode": "same-site",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 3068,
+              "url": "https://supplychainsai.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "tag": "IMG"
+            },
+            "fcp": 1452
+          },
+          "requests": [
+            {
+              "requestHost": "supplychainsai.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": false,
+              "timing": {
+                "requestTime": 124696.503438,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": 0,
+                "dnsEnd": 0,
+                "connectStart": 0,
+                "connectEnd": 103.208,
+                "sslStart": 0,
+                "sslEnd": 103.204,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 103.426,
+                "sendEnd": 103.457,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 762.86,
+                "receiveHeadersEnd": 764.604
+              },
+              "transferred": 35622,
+              "startMs": 1460,
+              "ttfbMs": 1095,
+              "totalMs": 1601
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "mode": "same-site",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 3012,
+              "url": "https://supplychainsai.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "tag": "IMG"
+            },
+            "fcp": 1420
+          },
+          "requests": [
+            {
+              "requestHost": "supplychainsai.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": true,
+              "timing": {
+                "requestTime": 124701.656076,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": -1,
+                "dnsEnd": -1,
+                "connectStart": -1,
+                "connectEnd": -1,
+                "sslStart": -1,
+                "sslEnd": -1,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 166.881,
+                "sendEnd": 166.961,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 824.934,
+                "receiveHeadersEnd": 825.134
+              },
+              "transferred": 35607,
+              "startMs": 1430,
+              "ttfbMs": 1105,
+              "totalMs": 1572
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "mode": "cloud",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 3424,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "tag": "IMG"
+            },
+            "fcp": 1484
+          },
+          "requests": [
+            {
+              "requestHost": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": false,
+              "timing": {
+                "requestTime": 124707.025936,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": 0.244,
+                "dnsEnd": 58.719,
+                "connectStart": 58.91,
+                "connectEnd": 852.69,
+                "sslStart": 117.884,
+                "sslEnd": 852.673,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 852.905,
+                "sendEnd": 853.042,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 1522.24,
+                "receiveHeadersEnd": 1522.851
+              },
+              "transferred": 35707,
+              "startMs": 1494,
+              "ttfbMs": 1855,
+              "totalMs": 3116
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "mode": "cloud",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 3732,
+              "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "tag": "IMG"
+            },
+            "fcp": 2076
+          },
+          "requests": [
+            {
+              "requestHost": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": false,
+              "timing": {
+                "requestTime": 124712.911908,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": 0.126,
+                "dnsEnd": 59.398,
+                "connectStart": 59.592,
+                "connectEnd": 1127.386,
+                "sslStart": 418.226,
+                "sslEnd": 1127.382,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 1127.43,
+                "sendEnd": 1127.463,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 1775.214,
+                "receiveHeadersEnd": 1776.042
+              },
+              "transferred": 35700,
+              "startMs": 2088,
+              "ttfbMs": 1796,
+              "totalMs": 2133
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "mode": "same-site",
+          "style": "/_astro/BaseLayout.CncUyMCw.css",
+          "paints": {
+            "lcp": {
+              "ms": 5068,
+              "url": "https://supplychainsai.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "tag": "IMG"
+            },
+            "fcp": 4032
+          },
+          "requests": [
+            {
+              "requestHost": "supplychainsai.com",
+              "status": 200,
+              "protocol": "http/1.1",
+              "reused": false,
+              "timing": {
+                "requestTime": 124721.360034,
+                "proxyStart": -1,
+                "proxyEnd": -1,
+                "dnsStart": 0,
+                "dnsEnd": 0,
+                "connectStart": 0,
+                "connectEnd": 167.286,
+                "sslStart": 0,
+                "sslEnd": 167.273,
+                "workerStart": -1,
+                "workerReady": -1,
+                "workerFetchStart": -1,
+                "workerRespondWithSettled": -1,
+                "sendStart": 167.386,
+                "sendEnd": 167.451,
+                "pushStart": 0,
+                "pushEnd": 0,
+                "receiveHeadersStart": 782.443,
+                "receiveHeadersEnd": 783.375
+              },
+              "transferred": 35601,
+              "startMs": 4039,
+              "ttfbMs": 928,
+              "totalMs": 1014
+            }
+          ],
+          "errors": []
+        }
+      ]
+    }
   }
 }
