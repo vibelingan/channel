@@ -577,5 +577,113 @@
       }
     },
     "decision": "Test a scoped public list change with real session and routing regression before rollout. Faster download does not prove LCP improvement or warmed connection reuse."
+  },
+  "actualChromeListStartTrace": {
+    "browser": "157.0.8103.79",
+    "pageUrl": "https://supplychainsai.com/headphones/",
+    "siteRun": 44868271676,
+    "sameHtmlSha256": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21",
+    "networkEgress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "networkProfile": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpuSlowdownFactor": 4,
+    "samples": [
+      {
+        "sample": 1,
+        "documentFirstByteMs": 2130,
+        "documentFullBodyMs": 2843,
+        "scriptCountBeforeList": 28,
+        "transferredScriptBytes": 676598,
+        "reactClient": {
+          "path": "/_astro/client.CR28Oxrx.js",
+          "startMs": 3572,
+          "finishMs": 5842,
+          "transferredBytes": 182894
+        },
+        "reactIntegrationIndex": {
+          "path": "/_astro/index.B12p2oPd.js",
+          "startMs": 5845,
+          "finishMs": 6255,
+          "transferredBytes": 4255
+        },
+        "preview": {
+          "path": "/_astro/SharedCatalogPreview.CfSDbRGz.js",
+          "startMs": 6309,
+          "finishMs": 7064,
+          "transferredBytes": 5157
+        },
+        "lastBlockingPreviewDependency": {
+          "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+          "startMs": 6311,
+          "finishMs": 9346,
+          "transferredBytes": 262772
+        },
+        "initialListRequestStartMs": 9396,
+        "waitAfterBlockingDependencyMs": 50,
+        "mainThreadBusyMsBeforeList": 709.8,
+        "browserLongTasksBeforeList": [
+          {
+            "at": 8180,
+            "duration": 59
+          }
+        ],
+        "latestTaxonomyResponseMsBeforeList": 8188
+      },
+      {
+        "sample": 2,
+        "documentFirstByteMs": 685,
+        "documentFullBodyMs": 1624,
+        "scriptCountBeforeList": 28,
+        "transferredScriptBytes": 676598,
+        "reactClient": {
+          "path": "/_astro/client.CR28Oxrx.js",
+          "startMs": 1892,
+          "finishMs": 4497,
+          "transferredBytes": 182894
+        },
+        "reactIntegrationIndex": {
+          "path": "/_astro/index.B12p2oPd.js",
+          "startMs": 4501,
+          "finishMs": 4872,
+          "transferredBytes": 4255
+        },
+        "preview": {
+          "path": "/_astro/SharedCatalogPreview.CfSDbRGz.js",
+          "startMs": 4922,
+          "finishMs": 5425,
+          "transferredBytes": 5157
+        },
+        "lastBlockingPreviewDependency": {
+          "path": "/_astro/catalog-variant-state.tqVmpUOl.js",
+          "startMs": 4924,
+          "finishMs": 8410,
+          "transferredBytes": 262772
+        },
+        "initialListRequestStartMs": 8450,
+        "waitAfterBlockingDependencyMs": 40,
+        "mainThreadBusyMsBeforeList": 440.1,
+        "browserLongTasksBeforeList": [
+          {
+            "at": 7191,
+            "duration": 55
+          }
+        ],
+        "latestTaxonomyResponseMsBeforeList": 7863
+      }
+    ],
+    "sourceFiles": [
+      "apps/site/src/islands/shop/CatalogFamilyPage.tsx",
+      "apps/site/src/islands/shop/SharedCatalogPreview.tsx"
+    ],
+    "finding": "The live list mounts inside the lazily loaded product-preview wrapper. In both samples the first list request follows the last required preview download by at most 50 ms. The main thread was busy for under one second over the entire elapsed period.",
+    "scope": "Two traces localize the dependency in this mobile profile. No change to JavaScript loading order or list routing was deployed from this experiment."
   }
 }
