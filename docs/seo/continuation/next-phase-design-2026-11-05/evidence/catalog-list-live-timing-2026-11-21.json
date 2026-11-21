@@ -1,0 +1,434 @@
+{
+  "release": {
+    "run": 44871621485,
+    "source": "94ee3bc84ee77d86cf9a5b7d578c097317798e06"
+  },
+  "formalDeploymentDurationSeconds": 87,
+  "backupArtifact": 14694395610,
+  "acceptanceArtifact": 14694028915,
+  "backupPackageSha256": "25dec25e699b6fda4b8510d57a8419b62f14a841f0b55e1a6d6de51f5530631b",
+  "acceptedPackageSha256": "5eb21da4ed34f6cd93ac4d6ffc1c109cb81d0817be56259364b44155fce51353",
+  "runtime": "Nodejs20.19",
+  "artifactReadbackMatchesAppliedPackage": true,
+  "historicalImageChecksPassed": 5,
+  "newImagesWritten": 0,
+  "contractComparisons": [
+    {
+      "label": "browser-product-list",
+      "status": 200,
+      "bytes": 32238,
+      "sha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 4326,
+      "afterElapsedMs": 2431,
+      "afterServerTimingMs": {
+        "cl-list": 220.2,
+        "cl-availability": 45.9,
+        "cl-images": 162.8,
+        "cl-total": 620.7
+      }
+    },
+    {
+      "label": "same-domain-list",
+      "status": 200,
+      "bytes": 32238,
+      "sha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 1581,
+      "afterElapsedMs": 1056,
+      "afterServerTimingMs": {
+        "cl-list": 154.6,
+        "cl-availability": 128.8,
+        "cl-images": 273.5,
+        "cl-total": 592.8
+      }
+    },
+    {
+      "label": "plain-list",
+      "status": 200,
+      "bytes": 28870,
+      "sha256": "65662c085c1d96fdc60bef6aa667b0824e7fde0c675cc3d5208a5f205d46352e",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 1122,
+      "afterElapsedMs": 1051,
+      "afterServerTimingMs": {
+        "cl-list": 181,
+        "cl-availability": 48.5,
+        "cl-total": 247.7
+      }
+    },
+    {
+      "label": "taxonomy-control",
+      "status": 200,
+      "bytes": 334,
+      "sha256": "0e0bb51eb73455a710491be7745f630ee3d1420f7163eaaad0f4eaa6c5e04372",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 447,
+      "afterElapsedMs": 354,
+      "afterServerTimingMs": {}
+    },
+    {
+      "label": "public-articles-control",
+      "status": 200,
+      "bytes": 1767,
+      "sha256": "096118bb34911c4e37ef98ca99ff33e0a110095f0d32ff293b0385316cc5a44b",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 350,
+      "afterElapsedMs": 344,
+      "afterServerTimingMs": {}
+    },
+    {
+      "label": "rejected-format",
+      "status": 400,
+      "bytes": 92,
+      "sha256": "e110d8f25bb0b0c224dc97a9b7cb432de3324b2e1c4b0fededa274673b522a54",
+      "unchangedHeaders": [
+        "cache-control",
+        "vary",
+        "content-type",
+        "access-control-allow-origin",
+        "access-control-expose-headers",
+        "timing-allow-origin"
+      ],
+      "beforeElapsedMs": 611,
+      "afterElapsedMs": 298,
+      "afterServerTimingMs": {}
+    }
+  ],
+  "twoAdditionalCurrentBrowserRouteReads": [
+    {
+      "elapsedMs": 1374,
+      "serverTimingMs": {
+        "cl-list": 191,
+        "cl-availability": 123.8,
+        "cl-images": 125.5,
+        "cl-total": 545.4
+      }
+    },
+    {
+      "elapsedMs": 2414,
+      "serverTimingMs": {
+        "cl-list": 182.7,
+        "cl-availability": 82.9,
+        "cl-images": 209.1,
+        "cl-total": 487.4
+      }
+    }
+  ],
+  "coldConnectionComparison": {
+    "observedAt": "2026-11-21T05:39:32.013550+00:00",
+    "release": "94ee3bc84ee77d86cf9a5b7d578c097317798e06",
+    "path": "/api/products?productFamily=headphones&page=1&pageSize=12&media=responsive-v1",
+    "sameResponseSha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+    "comparison": "Six alternating pairs on the same local network and same CloudBase revision. Fresh curl process and connection for each documented public request; this is a single resource, not a browser page timing.",
+    "observations": [
+      {
+        "pair": 1,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 192.0,
+        "tcpAfterDnsMs": 58.4,
+        "tlsAfterTcpMs": 2603.6,
+        "firstByteMs": 3999.7,
+        "requestReadyToFirstByteMs": 1145.7,
+        "bodyAfterFirstByteMs": 346.2,
+        "totalMs": 4345.8,
+        "serverTimingMs": {
+          "cl-list": 162.2,
+          "cl-availability": 104.6,
+          "cl-images": 207.0,
+          "cl-total": 633.1
+        }
+      },
+      {
+        "pair": 1,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 581.9,
+        "tcpAfterDnsMs": 58.6,
+        "tlsAfterTcpMs": 253.0,
+        "firstByteMs": 1745.1,
+        "requestReadyToFirstByteMs": 851.6,
+        "bodyAfterFirstByteMs": 459.6,
+        "totalMs": 2204.7,
+        "serverTimingMs": {
+          "cl-list": 166.9,
+          "cl-availability": 49.3,
+          "cl-images": 149.6,
+          "cl-total": 422.0
+        }
+      },
+      {
+        "pair": 2,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 2.9,
+        "tcpAfterDnsMs": 60.1,
+        "tlsAfterTcpMs": 307.7,
+        "firstByteMs": 1329.9,
+        "requestReadyToFirstByteMs": 959.2,
+        "bodyAfterFirstByteMs": 92.0,
+        "totalMs": 1421.9,
+        "serverTimingMs": {
+          "cl-list": 150.5,
+          "cl-availability": 100.5,
+          "cl-images": 213.2,
+          "cl-total": 549.8
+        }
+      },
+      {
+        "pair": 2,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.4,
+        "tcpAfterDnsMs": 57.9,
+        "tlsAfterTcpMs": 1005.8,
+        "firstByteMs": 1911.1,
+        "requestReadyToFirstByteMs": 843.8,
+        "bodyAfterFirstByteMs": 632.2,
+        "totalMs": 2543.3,
+        "serverTimingMs": {
+          "cl-list": 176.1,
+          "cl-availability": 48.5,
+          "cl-images": 122.4,
+          "cl-total": 354.9
+        }
+      },
+      {
+        "pair": 3,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.3,
+        "tcpAfterDnsMs": 57.7,
+        "tlsAfterTcpMs": 1637.2,
+        "firstByteMs": 2761.3,
+        "requestReadyToFirstByteMs": 1063.0,
+        "bodyAfterFirstByteMs": 965.5,
+        "totalMs": 3726.9,
+        "serverTimingMs": {
+          "cl-list": 184.0,
+          "cl-availability": 179.5,
+          "cl-images": 196.2,
+          "cl-total": 566.2
+        }
+      },
+      {
+        "pair": 3,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.6,
+        "tcpAfterDnsMs": 57.7,
+        "tlsAfterTcpMs": 251.6,
+        "firstByteMs": 1128.7,
+        "requestReadyToFirstByteMs": 815.8,
+        "bodyAfterFirstByteMs": 549.2,
+        "totalMs": 1677.9,
+        "serverTimingMs": {
+          "cl-list": 194.0,
+          "cl-availability": 46.6,
+          "cl-images": 123.5,
+          "cl-total": 385.8
+        }
+      },
+      {
+        "pair": 4,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.4,
+        "tcpAfterDnsMs": 1059.5,
+        "tlsAfterTcpMs": 253.0,
+        "firstByteMs": 2360.7,
+        "requestReadyToFirstByteMs": 1044.7,
+        "bodyAfterFirstByteMs": 74.5,
+        "totalMs": 2435.1,
+        "serverTimingMs": {
+          "cl-list": 146.6,
+          "cl-availability": 105.9,
+          "cl-images": 265.8,
+          "cl-total": 525.8
+        }
+      },
+      {
+        "pair": 4,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.0,
+        "tcpAfterDnsMs": 59.0,
+        "tlsAfterTcpMs": 1536.8,
+        "firstByteMs": 2428.7,
+        "requestReadyToFirstByteMs": 830.0,
+        "bodyAfterFirstByteMs": 348.0,
+        "totalMs": 2776.7,
+        "serverTimingMs": {
+          "cl-list": 149.8,
+          "cl-availability": 48.1,
+          "cl-images": 114.0,
+          "cl-total": 318.7
+        }
+      },
+      {
+        "pair": 5,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.1,
+        "tcpAfterDnsMs": 1059.7,
+        "tlsAfterTcpMs": 785.1,
+        "firstByteMs": 2794.9,
+        "requestReadyToFirstByteMs": 947.0,
+        "bodyAfterFirstByteMs": 708.4,
+        "totalMs": 3503.3,
+        "serverTimingMs": {
+          "cl-list": 173.0,
+          "cl-availability": 109.7,
+          "cl-images": 171.9,
+          "cl-total": 461.4
+        }
+      },
+      {
+        "pair": 5,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.2,
+        "tcpAfterDnsMs": 57.3,
+        "tlsAfterTcpMs": 252.3,
+        "firstByteMs": 1035.0,
+        "requestReadyToFirstByteMs": 722.1,
+        "bodyAfterFirstByteMs": 101.4,
+        "totalMs": 1136.4,
+        "serverTimingMs": {
+          "cl-list": 158.5,
+          "cl-availability": 56.1,
+          "cl-images": 106.9,
+          "cl-total": 328.0
+        }
+      },
+      {
+        "pair": 6,
+        "endpoint": "same-domain-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.8,
+        "tcpAfterDnsMs": 1058.5,
+        "tlsAfterTcpMs": 223.7,
+        "firstByteMs": 2438.2,
+        "requestReadyToFirstByteMs": 1152.0,
+        "bodyAfterFirstByteMs": 64.7,
+        "totalMs": 2502.9,
+        "serverTimingMs": {
+          "cl-list": 160.9,
+          "cl-availability": 89.2,
+          "cl-images": 261.0,
+          "cl-total": 519.0
+        }
+      },
+      {
+        "pair": 6,
+        "endpoint": "browser-product-list",
+        "status": 200,
+        "httpVersion": "1.1",
+        "bytes": 32238,
+        "dnsMs": 3.4,
+        "tcpAfterDnsMs": 59.2,
+        "tlsAfterTcpMs": 799.1,
+        "firstByteMs": 2239.9,
+        "requestReadyToFirstByteMs": 1378.1,
+        "bodyAfterFirstByteMs": 370.9,
+        "totalMs": 2610.8,
+        "serverTimingMs": {
+          "cl-list": 177.6,
+          "cl-availability": 48.3,
+          "cl-images": 115.4,
+          "cl-total": 414.0
+        }
+      }
+    ],
+    "medians": {
+      "browser-product-list": {
+        "dnsMs": 3.3,
+        "tcpAfterDnsMs": 58.7,
+        "tlsAfterTcpMs": 1271.3,
+        "firstByteMs": 2595.0,
+        "requestReadyToFirstByteMs": 1005.0,
+        "bodyAfterFirstByteMs": 501.6,
+        "totalMs": 3140.0,
+        "serverTimingMs": {
+          "cl-list": 174.6,
+          "cl-availability": 76.5,
+          "cl-images": 147.2,
+          "cl-total": 437.7
+        }
+      },
+      "same-domain-list": {
+        "dnsMs": 3.5,
+        "tcpAfterDnsMs": 59.4,
+        "tlsAfterTcpMs": 252.7,
+        "firstByteMs": 1537.5,
+        "requestReadyToFirstByteMs": 905.4,
+        "bodyAfterFirstByteMs": 96.7,
+        "totalMs": 1941.3,
+        "serverTimingMs": {
+          "cl-list": 159.7,
+          "cl-availability": 72.7,
+          "cl-images": 181.4,
+          "cl-total": 470.5
+        }
+      }
+    }
+  }
+}
