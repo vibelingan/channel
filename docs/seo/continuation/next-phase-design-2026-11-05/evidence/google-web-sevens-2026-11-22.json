@@ -1,0 +1,94 @@
+{
+  "observedAt": "2026-11-21T17:33:54+00:00",
+  "source": "Google Search Console, Performance, 3 months, Web, Days",
+  "property": "https://supplychainsai.com/",
+  "totalThrough": "2026-11-19",
+  "allDisplayedImpressions": 95,
+  "allDisplayedClicks": 3,
+  "sevenDayWindows": [
+    {
+      "from": "2026-11-06",
+      "through": "2026-11-12",
+      "clicks": 1,
+      "impressions": 36
+    },
+    {
+      "from": "2026-11-13",
+      "through": "2026-11-19",
+      "clicks": 0,
+      "impressions": 27
+    }
+  ],
+  "dailyRows": [
+    {
+      "date": "2026-11-06",
+      "clicks": 0,
+      "impressions": 1
+    },
+    {
+      "date": "2026-11-07",
+      "clicks": 0,
+      "impressions": 7
+    },
+    {
+      "date": "2026-11-08",
+      "clicks": 0,
+      "impressions": 2
+    },
+    {
+      "date": "2026-11-09",
+      "clicks": 1,
+      "impressions": 9
+    },
+    {
+      "date": "2026-11-10",
+      "clicks": 0,
+      "impressions": 6
+    },
+    {
+      "date": "2026-11-11",
+      "clicks": 0,
+      "impressions": 8
+    },
+    {
+      "date": "2026-11-12",
+      "clicks": 0,
+      "impressions": 3
+    },
+    {
+      "date": "2026-11-13",
+      "clicks": 0,
+      "impressions": 5
+    },
+    {
+      "date": "2026-11-14",
+      "clicks": 0,
+      "impressions": 3
+    },
+    {
+      "date": "2026-11-15",
+      "clicks": 0,
+      "impressions": 4
+    },
+    {
+      "date": "2026-11-16",
+      "clicks": 0,
+      "impressions": 3
+    },
+    {
+      "date": "2026-11-17",
+      "clicks": 0,
+      "impressions": 2
+    },
+    {
+      "date": "2026-11-18",
+      "clicks": 0,
+      "impressions": 8
+    },
+    {
+      "date": "2026-11-19",
+      "clicks": 0,
+      "impressions": 2
+    }
+  ]
+}
