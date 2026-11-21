@@ -1,0 +1,215 @@
+{
+  "settings": {
+    "chrome": "157.0.8103.79",
+    "egress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    }
+  },
+  "cpuThrottlingRate": 4,
+  "liveBaselineAcceptedRun": 44838400903,
+  "sitemapsAndRobotsByteIdentical": true,
+  "preInteractionDetailScriptBytes": 262169,
+  "hypotheses": {
+    "live": {
+      "live": {
+        "samples": [
+          {
+            "listResponseHeadersMs": 9879,
+            "lcpMs": 2912,
+            "clickToDetailHeadingMs": 1408,
+            "navigationToDetailHeadingMs": 11297
+          },
+          {
+            "listResponseHeadersMs": 10899,
+            "lcpMs": 3536,
+            "clickToDetailHeadingMs": 1406,
+            "navigationToDetailHeadingMs": 12315
+          },
+          {
+            "listResponseHeadersMs": 17830,
+            "lcpMs": 12384,
+            "clickToDetailHeadingMs": 1414,
+            "navigationToDetailHeadingMs": 19269
+          }
+        ],
+        "medians": {
+          "listResponseHeadersMs": 10899,
+          "lcpMs": 3536,
+          "clickToDetailHeadingMs": 1408,
+          "navigationToDetailHeadingMs": 12315
+        }
+      }
+    },
+    "clickOnlyExperiment": {
+      "base": {
+        "samples": [
+          {
+            "listResponseHeadersMs": 7343,
+            "lcpMs": 3084,
+            "clickToDetailHeadingMs": 942,
+            "navigationToDetailHeadingMs": 8296
+          },
+          {
+            "listResponseHeadersMs": 7987,
+            "lcpMs": 3676,
+            "clickToDetailHeadingMs": 1898,
+            "navigationToDetailHeadingMs": 9893
+          },
+          {
+            "listResponseHeadersMs": 7120,
+            "lcpMs": 4352,
+            "clickToDetailHeadingMs": 999,
+            "navigationToDetailHeadingMs": 8127
+          }
+        ],
+        "medians": {
+          "listResponseHeadersMs": 7343,
+          "lcpMs": 3676,
+          "clickToDetailHeadingMs": 999,
+          "navigationToDetailHeadingMs": 8296
+        }
+      },
+      "candidate": {
+        "samples": [
+          {
+            "listResponseHeadersMs": 5958,
+            "lcpMs": 3216,
+            "clickToDetailHeadingMs": 3928,
+            "navigationToDetailHeadingMs": 9898
+          },
+          {
+            "listResponseHeadersMs": 5140,
+            "lcpMs": 3024,
+            "clickToDetailHeadingMs": 5923,
+            "navigationToDetailHeadingMs": 11073
+          },
+          {
+            "listResponseHeadersMs": 4871,
+            "lcpMs": 2852,
+            "clickToDetailHeadingMs": 4444,
+            "navigationToDetailHeadingMs": 9325
+          }
+        ],
+        "medians": {
+          "listResponseHeadersMs": 5140,
+          "lcpMs": 3024,
+          "clickToDetailHeadingMs": 4444,
+          "navigationToDetailHeadingMs": 9898
+        }
+      }
+    },
+    "parallelWarmExperiment": {
+      "base": {
+        "samples": [
+          {
+            "listResponseHeadersMs": 6780,
+            "lcpMs": 5188,
+            "clickToDetailHeadingMs": 892,
+            "navigationToDetailHeadingMs": 7680
+          },
+          {
+            "listResponseHeadersMs": 16864,
+            "lcpMs": 3224,
+            "clickToDetailHeadingMs": 1900,
+            "navigationToDetailHeadingMs": 18772
+          },
+          {
+            "listResponseHeadersMs": 8342,
+            "lcpMs": 3712,
+            "clickToDetailHeadingMs": 1383,
+            "navigationToDetailHeadingMs": 9735
+          }
+        ],
+        "medians": {
+          "listResponseHeadersMs": 8342,
+          "lcpMs": 3712,
+          "clickToDetailHeadingMs": 1383,
+          "navigationToDetailHeadingMs": 9735
+        }
+      },
+      "candidate": {
+        "samples": [
+          {
+            "listResponseHeadersMs": 5839,
+            "lcpMs": 3720,
+            "clickToDetailHeadingMs": 3410,
+            "navigationToDetailHeadingMs": 9262
+          },
+          {
+            "listResponseHeadersMs": 6961,
+            "lcpMs": 3668,
+            "clickToDetailHeadingMs": 1460,
+            "navigationToDetailHeadingMs": 8431
+          },
+          {
+            "listResponseHeadersMs": 5237,
+            "lcpMs": 3068,
+            "clickToDetailHeadingMs": 3901,
+            "navigationToDetailHeadingMs": 9147
+          }
+        ],
+        "medians": {
+          "listResponseHeadersMs": 5839,
+          "lcpMs": 3668,
+          "clickToDetailHeadingMs": 3410,
+          "navigationToDetailHeadingMs": 9147
+        }
+      }
+    }
+  },
+  "productionAstroBuildWithReadOnlyLiveApis": {
+    "previous": {
+      "mode": "reproduce",
+      "product": "003a6310-5244-4766-adfa-eb1002ad0fb4",
+      "countWhileViewing": 2,
+      "listUrls": [
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12"
+      ],
+      "backFocusRestored": true
+    },
+    "fixed": {
+      "mode": "verify",
+      "product": "003a6310-5244-4766-adfa-eb1002ad0fb4",
+      "countWhileViewing": 1,
+      "listUrls": [
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12"
+      ],
+      "backFocusRestored": true
+    }
+  },
+  "shipDecision": "Defer only the redundant listing request while a card-opened detail is active. Keep the current detail script loading order.",
+  "initialCardLinksCanonicalAndStylesCompared": [
+    "headphones",
+    "headphones/page/3",
+    "misc",
+    "ai-gadgets",
+    "toys"
+  ],
+  "localBuildComparison": {
+    "changedExistingPathsByExtension": {
+      ".html": 46
+    },
+    "newPathsByExtension": {
+      ".js": 1
+    }
+  }
+}

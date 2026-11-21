@@ -250,6 +250,7 @@ function CatalogFamilyController({
   const abortRef = useRef<AbortController | null>(null);
   const requestQueryRef = useRef<NumberedCatalogQuery | null>(null);
   const invalidSelectionRef = useRef(false);
+  const openedSharedDetailFromList = useRef(false);
   const listTopRef = useRef<HTMLDivElement>(null);
   const focusGenerationRef = useRef<number | null>(null);
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
@@ -375,6 +376,10 @@ function CatalogFamilyController({
 
   const readLocation = useCallback(
     (event?: PopStateEvent) => {
+      if (openedSharedDetailFromList.current) {
+        if (detailIsOpen()) return;
+        openedSharedDetailFromList.current = false;
+      }
       const filteredTarget = catalogFilteredPathRedirect(window.location.href);
       if (filteredTarget) {
         window.location.replace(filteredTarget);
@@ -574,6 +579,9 @@ function CatalogFamilyController({
         if (current.committed) restoreInputs(current.committed);
       }
       if (onOpenProduct) {
+        // Opening a card already cancels its list refresh. Until Back, the
+        // preview's URL changes should not start a new hidden list request.
+        openedSharedDetailFromList.current = true;
         onOpenProduct(productId);
         return;
       }
