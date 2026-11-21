@@ -9,7 +9,7 @@ import {
   initialCatalogTaxonomy,
   matchesFilter,
 } from '@vibelingan-channel/shared';
-import { getProductDetail } from './catalog-detail.ts';
+import { createApprovedProductReader, getProductDetail } from './catalog-detail.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -102,6 +102,31 @@ test('an approved manual product (no configurations, website price) serves the s
       revision: 'r1',
       variants: { items: [], total: 0, page: 1, pageSize: 50, hasMore: false },
     });
+});
+
+test('approved detail reads optional image sizes through its injected list reader', async () => {
+  const source = '/api/images/approved-photo';
+  const product = approved('responsive', {
+    catalogDetailPublication: {
+      state: 'approved',
+      revision: 'r1',
+      header: { ...header('responsive'), images: [source] },
+      variantCount: 0,
+      variantStorage: 'immutable-v1',
+    },
+  });
+  const imageLists: unknown[] = [];
+  const readDetail = createApprovedProductReader({
+    get: async () => product,
+    list: async (query) => {
+      if (query.collection === 'images') imageLists.push(query.filter?.clauses[0]?.value);
+      return { items: [], total: 0, page: 1, pageSize: query.pageSize ?? 1 };
+    },
+  });
+  const result = await readDetail('responsive', 1, 50, undefined, false, false, false, false, true);
+  assert.ok(result.ok);
+  assert.deepEqual(result.data.images, [source]);
+  assert.deepEqual(imageLists, [['approved-photo']]);
 });
 
 test('a product not yet approved, or with a mismatched version, is not found (row fallback page)', async () => {

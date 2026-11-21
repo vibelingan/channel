@@ -84,7 +84,11 @@ import type {
   DbAdapter,
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
-import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+import {
+  ALIBABA_SYNC_LEASE_COLLECTION,
+  catalogImagePresentationQuery,
+  holdsAlibabaLease,
+} from './adapter.ts';
 export type {
   ProductOperationRecord,
   ProductOperationResult,
@@ -153,6 +157,8 @@ export {
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
+  CATALOG_IMAGE_PRESENTATION_BATCH_SIZE,
+  catalogImagePresentationQuery,
 } from './adapter.ts';
 
 export type {
@@ -364,6 +370,15 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     ...(query.filter ? { filter: query.filter } : {}),
     ...(query.sort ? { sort: query.sort } : {}),
   });
+}
+
+export async function readCatalogImagePresentationRows(
+  imageIds: readonly string[],
+): Promise<CollectionDoc[]> {
+  const adapter = db();
+  if (adapter.readCatalogImagePresentationRows)
+    return adapter.readCatalogImagePresentationRows(imageIds);
+  return (await adapter.list(catalogImagePresentationQuery(imageIds))).items;
 }
 
 export function get(collection: string, id: string): Promise<CollectionDoc | null> {

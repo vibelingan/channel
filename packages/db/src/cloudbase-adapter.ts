@@ -96,6 +96,7 @@ import type {
 } from './adapter.ts';
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
+  catalogImagePresentationQuery,
   holdsAlibabaLease,
   listSearchFields,
   planCatalogProductSave,
@@ -941,12 +942,7 @@ export async function findUnfinishedApprovalImageInCloudBase(
   return approvalImageHoldAnswer(response.data);
 }
 
-/** Native list implementation shared by the production adapter and contract tests. */
-export async function listDocumentsInCloudBase(
-  db: WxDatabase,
-  query: AdapterListQuery,
-): Promise<ListResult<CollectionDoc>> {
-  const summary = usesProductListView(query);
+function cloudBaseListQuery(db: WxDatabase, query: AdapterListQuery): WxQuery {
   const def = getCollection(query.collection);
   const collection = db.collection(query.collection);
   const _ = db.command;
@@ -995,12 +991,14 @@ export async function listDocumentsInCloudBase(
 
   const where = ands.length === 0 ? undefined : ands.length === 1 ? ands[0] : _.and(ands);
 
-  const base = where ? collection.where(where) : collection;
-  const countRes = sdkAnswer(await base.count());
-  if (!countRes || !Number.isSafeInteger(countRes.total) || countRes.total < 0)
-    throw Error('Catalog list count was not confirmed');
-  const total = countRes.total;
+  return where ? collection.where(where) : collection;
+}
 
+async function readCloudBaseListRows(
+  base: WxQuery,
+  query: AdapterListQuery,
+  summary: boolean,
+): Promise<CollectionDoc[]> {
   // Apply sort (default: newest first), then page.
   let q = base;
   const sort = query.catalogReadiness
@@ -1029,13 +1027,34 @@ export async function listDocumentsInCloudBase(
   )
     throw Error('Catalog list rows were not confirmed');
 
+  return res.data.map(normalize);
+}
+
+/** Native list implementation shared by the production adapter and contract tests. */
+export async function listDocumentsInCloudBase(
+  db: WxDatabase,
+  query: AdapterListQuery,
+): Promise<ListResult<CollectionDoc>> {
+  const summary = usesProductListView(query);
+  const base = cloudBaseListQuery(db, query);
+  const countRes = sdkAnswer(await base.count());
+  if (!countRes || !Number.isSafeInteger(countRes.total) || countRes.total < 0)
+    throw Error('Catalog list count was not confirmed');
   const result = {
-    items: (res.data as Record<string, unknown>[]).map(normalize),
-    total,
+    items: await readCloudBaseListRows(base, query, summary),
+    total: countRes.total,
     page: query.page,
     pageSize: query.pageSize,
   };
   return summary ? projectProductListResult(result) : result;
+}
+
+export function readCatalogImagePresentationRowsInCloudBase(
+  db: WxDatabase,
+  imageIds: readonly string[],
+): Promise<CollectionDoc[]> {
+  const query = catalogImagePresentationQuery(imageIds);
+  return readCloudBaseListRows(cloudBaseListQuery(db, query), query, false);
 }
 
 export const cloudBaseAdapter: DbAdapter = {
@@ -1119,6 +1138,9 @@ export const cloudBaseAdapter: DbAdapter = {
   },
   async list(query): Promise<ListResult<CollectionDoc>> {
     return listDocumentsInCloudBase(database(), query);
+  },
+  readCatalogImagePresentationRows(imageIds) {
+    return readCatalogImagePresentationRowsInCloudBase(database(), imageIds);
   },
 
   async get(collection, id): Promise<CollectionDoc | null> {

@@ -70,6 +70,28 @@ export interface AdapterListQuery {
   sort?: SortClause[];
 }
 
+export const CATALOG_IMAGE_PRESENTATION_BATCH_SIZE = 100;
+
+export function catalogImagePresentationQuery(imageIds: readonly string[]): AdapterListQuery {
+  if (imageIds.length === 0 || imageIds.length > CATALOG_IMAGE_PRESENTATION_BATCH_SIZE)
+    throw new RangeError('Invalid image presentation batch size');
+  return {
+    collection: 'images',
+    page: 1,
+    pageSize: imageIds.length,
+    search: '',
+    sort: [{ field: '_id', dir: 'asc' }],
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: '_id', op: 'in', value: imageIds },
+        { field: 'storageProvider', op: 'in', value: ['cloudbase-storage', 'local-disk'] },
+        { field: 'status', op: 'eq', value: 'active' },
+      ],
+    },
+  };
+}
+
 import type { ImageDeletionCommand, ImageDeletionResult } from './image-deletion.ts';
 
 export type ImageMutationAcquireResult = 'acquired' | 'missing' | 'busy' | 'corrupt';
@@ -601,6 +623,8 @@ export interface DbAdapter {
   /** Internal targeted query; older adapters retain the paged full-job fallback. */
   findUnfinishedApprovalUsingImage?(imageId: string, startedAfter: string): Promise<string | null>;
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
+  /** Read a bounded batch of optional image metadata without a pagination count. */
+  readCatalogImagePresentationRows?(imageIds: readonly string[]): Promise<CollectionDoc[]>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */
   findByField(collection: string, field: string, value: unknown): Promise<CollectionDoc | null>;

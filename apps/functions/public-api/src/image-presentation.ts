@@ -1,5 +1,7 @@
 import {
+  CATALOG_IMAGE_PRESENTATION_BATCH_SIZE,
   CATALOG_IMAGE_REFERENCE_LEDGER_FIELD,
+  catalogImagePresentationQuery,
   emptyCatalogImageReferenceCount,
   list,
   type readCatalogImageReference,
@@ -34,10 +36,18 @@ export function budgetImagePresentation(
 const MAX_DETAIL_REFERENCE_CHECKS = 4;
 const MAX_DOCUMENTS_PER_REFERENCE_CHECK = 8;
 
+type ImagePresentationReader = (imageIds: readonly string[]) => Promise<CollectionDoc[]>;
+
+async function readPagedImagePresentationRows(
+  imageIds: readonly string[],
+): Promise<CollectionDoc[]> {
+  return (await list(catalogImagePresentationQuery(imageIds))).items;
+}
+
 /** Called only after the product/detail has passed its ordinary public projection. */
 export async function publicImagePresentation(
   sources: readonly string[],
-  read = list,
+  read: ImagePresentationReader = readPagedImagePresentationRows,
   readReference?: typeof readCatalogImageReference,
 ): Promise<CatalogImagePresentation> {
   const urls = [...new Set(sources)].filter((source) =>
@@ -65,24 +75,11 @@ export async function publicImagePresentation(
     }
     byId.set(image._id, candidates);
   };
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const group = ids.slice(offset, offset + 100);
-    let rows: Awaited<ReturnType<typeof read>>;
+  for (let offset = 0; offset < ids.length; offset += CATALOG_IMAGE_PRESENTATION_BATCH_SIZE) {
+    const group = ids.slice(offset, offset + CATALOG_IMAGE_PRESENTATION_BATCH_SIZE);
+    let rows: CollectionDoc[];
     try {
-      rows = await read({
-        collection: 'images',
-        page: 1,
-        pageSize: group.length,
-        sort: [{ field: '_id', dir: 'asc' }],
-        filter: {
-          combinator: 'and',
-          clauses: [
-            { field: '_id', op: 'in', value: group },
-            { field: 'storageProvider', op: 'in', value: ['cloudbase-storage', 'local-disk'] },
-            { field: 'status', op: 'eq', value: 'active' },
-          ],
-        },
-      });
+      rows = await read(group);
     } catch (error) {
       const value = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
       const code =
@@ -91,7 +88,7 @@ export async function publicImagePresentation(
       return {};
     }
     // Keep source order so the primary gallery takes precedence over later variant photos.
-    const batch = new Map(rows.items.map((image) => [image._id, image]));
+    const batch = new Map(rows.map((image) => [image._id, image]));
     for (const id of group) {
       const image = batch.get(id);
       if (!image) continue;
@@ -153,13 +150,14 @@ export async function publicImagePresentation(
 
 export async function presentCatalogImages<T extends Record<string, unknown>>(
   items: T[],
+  read?: ImagePresentationReader,
 ): Promise<T[]> {
   const sources = items.map((item) =>
     Array.isArray(item.images)
       ? item.images.filter((value): value is string => typeof value === 'string')
       : [],
   );
-  const all = await publicImagePresentation(sources.flat());
+  const all = await publicImagePresentation(sources.flat(), read);
   // Reserve envelope space; hints may be omitted, business fields may not.
   let available = 2 * 1024 * 1024 - 512 - Buffer.byteLength(JSON.stringify(items));
   return items.map((item, index) => {

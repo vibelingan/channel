@@ -5,6 +5,7 @@ import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   type AdapterListQuery,
   type DbAdapter,
+  catalogImagePresentationQuery,
   incrementField,
   nextCounterValue,
   setAdapter,
@@ -2058,15 +2059,16 @@ test('width requests serve only exact ready sizes and preserve publication gates
   assert.equal(updated.body, files.get(replacement.storageFileId)?.toString('base64'));
   assert.equal(reads.length, 5, 'A changed source does not reuse prior bytes');
   source.catalogWebVariants = { '160': small, '640': medium };
-  store.products ??= [];
-  store.products.push({
+  const presentationProduct: CollectionDoc = {
     _id: 'presentation-product',
     name: 'Ready photo product',
     productFamily: 'headphones',
     published: true,
     archived: false,
     imageIds: [source._id],
-  });
+  };
+  store.products ??= [];
+  store.products.push(presentationProduct);
   const product = (query = '') =>
     handlePublicApiEvent(
       { httpMethod: 'GET', path: `/api/products/presentation-product${query}` },
@@ -2090,4 +2092,57 @@ test('width requests serve only exact ready sizes and preserve publication gates
   assert.equal(enhancedResponse.body.includes('cloud://'), false);
   assert.equal((await product('?media=responsive-v1&media=responsive-v1')).statusCode, 400);
   assert.equal(reads.length, 5, 'Product metadata does not download any original/derivative bytes');
+
+  store.products = [
+    presentationProduct,
+    { _id: 'second-product', name: 'Second product', published: true },
+  ];
+  const responsiveList = () =>
+    handlePublicApiEvent(
+      { httpMethod: 'GET', path: '/api/products?media=responsive-v1&pageSize=1' },
+      {},
+    );
+  const fallback = setup(store);
+  const fallbackList = await responsiveList();
+  assert.equal(fallbackList.statusCode, 200);
+  const fallbackData = JSON.parse(fallbackList.body).data;
+  assert.equal(fallbackData.total, 2);
+  assert.equal(fallbackData.items.length, 1);
+  assert.deepEqual(fallbackData.items[0].imagePresentation, imagePresentation);
+  const fallbackQuery = fallback.listQueries.find((query) => query.collection === 'images');
+  assert.ok(fallbackQuery);
+
+  const imageReads = new MemoryAdapter(store);
+  let failImageRead = false;
+  class RowsOnlyAdapter extends MemoryAdapter {
+    async readCatalogImagePresentationRows(imageIds: readonly string[]): Promise<CollectionDoc[]> {
+      if (failImageRead) throw Error('Image sizes are unavailable');
+      return (await imageReads.list(catalogImagePresentationQuery(imageIds))).items;
+    }
+  }
+  const adapter = new RowsOnlyAdapter(store);
+  setAdapter(adapter);
+  const optimized = await responsiveList();
+  assert.equal(optimized.statusCode, 200);
+  assert.equal(optimized.body, fallbackList.body);
+  assert.deepEqual(imageReads.listQueries, [fallbackQuery]);
+  assert.equal(adapter.listQueries.filter((query) => query.collection === 'products').length, 1);
+  assert.equal(
+    adapter.listQueries.some((query) => query.collection === 'images'),
+    false,
+  );
+
+  const detail = await product('?media=responsive-v1');
+  assert.equal(detail.body, enhancedResponse.body);
+  assert.equal(adapter.listQueries.filter((query) => query.collection === 'images').length, 1);
+  assert.deepEqual(imageReads.listQueries, [fallbackQuery]);
+
+  failImageRead = true;
+  const withoutHints = await responsiveList();
+  assert.equal(withoutHints.statusCode, 200);
+  assert.deepEqual(JSON.parse(withoutHints.body).data, {
+    ...fallbackData,
+    items: [ordinary],
+  });
+  assert.equal(adapter.listQueries.filter((query) => query.collection === 'images').length, 1);
 });

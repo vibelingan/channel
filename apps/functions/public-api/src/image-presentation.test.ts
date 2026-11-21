@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { list, readCatalogImageReference, setAdapter } from '@vibelingan-channel/db';
+import { readCatalogImageReference, setAdapter } from '@vibelingan-channel/db';
 import { bindCatalogWebImage, catalogWebImagePath } from '@vibelingan-channel/db/catalog-web-image';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { CatalogImagePresentationSchema } from '@vibelingan-channel/shared/catalog-image-presentation';
@@ -49,16 +49,10 @@ function image(id: string): CollectionDoc {
 test('opted-in metadata batches 101 image identities into two bounded reads without storage IDs or fake widths', async () => {
   const rows = Array.from({ length: 101 }, (_, index) => image(`image-${index}`));
   let calls = 0;
-  const read: typeof list = async (query) => {
+  const read = async (ids: readonly string[]) => {
     calls++;
-    assert.equal(query.collection, 'images');
-    assert.ok(query.pageSize && query.pageSize <= 100);
-    const clause = query.filter?.clauses[0];
-    assert.ok(clause?.op === 'in' && Array.isArray(clause.value));
-    const ids = clause.value;
-    assert.ok(query.filter?.clauses.some((filter) => filter.field === 'storageProvider'));
-    const items = rows.filter((row) => ids.includes(row._id));
-    return { items, total: items.length, page: 1, pageSize: query.pageSize };
+    assert.equal(ids.length, calls === 1 ? 100 : 1);
+    return rows.filter((row) => ids.includes(row._id));
   };
   const urls = rows.map((row) => `/api/images/${row._id}`);
   const result = await publicImagePresentation(
@@ -82,7 +76,7 @@ test('private, corrupt, unprepared and unresolved images do not acquire public s
   if (rows[1]) rows[1].catalogWebVariants = {};
   if (rows[2]) rows[2].catalogWebVariants = { '320': {} };
   if (rows[3]) rows[3].publishedRefCount = '1';
-  const read: typeof list = async () => ({ items: rows, total: rows.length, page: 1, pageSize: 4 });
+  const read = async () => rows;
   assert.deepEqual(
     await publicImagePresentation(
       rows.map((row) => `/api/images/${row._id}`),
@@ -141,8 +135,8 @@ test('approved detail can resolve pending image links with bounded read-only che
     return readCatalogImageReference(command);
   };
   const sources = [...rows, visible].map((row) => `/api/images/${row._id}`);
-  assert.deepEqual(await publicImagePresentation(sources, list), {});
-  const result = await publicImagePresentation(sources, list, read);
+  assert.deepEqual(await publicImagePresentation(sources), {});
+  const result = await publicImagePresentation(sources, undefined, read);
   assert.deepEqual(Object.keys(result), ['/api/images/visible']);
   assert.deepEqual(
     calls.sort(),
@@ -169,7 +163,7 @@ test('optional size hints respect the response byte budget without truncating an
 
 test('optional image lookup failure keeps existing URLs and stops further batch reads', async () => {
   let calls = 0;
-  const read: typeof list = async () => {
+  const read = async () => {
     calls++;
     throw Error('Private provider diagnostics must not enter a public response');
   };

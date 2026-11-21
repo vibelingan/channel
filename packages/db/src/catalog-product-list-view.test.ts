@@ -1,17 +1,106 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import type { AdapterListQuery } from './adapter.ts';
 import {
   projectProductListResult,
   projectProductListRow,
   usesProductListView,
 } from './catalog-product-list-view.ts';
-import { listDocumentsInCloudBase } from './cloudbase-adapter.ts';
+import {
+  listDocumentsInCloudBase,
+  readCatalogImagePresentationRowsInCloudBase,
+} from './cloudbase-adapter.ts';
 const require = createRequire(import.meta.url);
 const wx = require('wx-server-sdk');
 wx.init({ env: 'owned-list-view-contract' });
 const view = 'admin-product-list-v1' as const;
 const marker = '_adminProductListView';
+
+test('known image batch retains the native list query but skips count and point reads', async () => {
+  const terminalCalls: string[] = [];
+  const conditions: unknown[] = [];
+  const raw = [
+    { _id: 'image-a', status: 'active' },
+    { _id: 'image-b', status: 'active' },
+  ];
+  const native = {
+    where: (condition: object) => {
+      conditions.push(condition);
+      return native;
+    },
+    orderBy: (field: string, order: string) => {
+      assert.deepEqual([field, order], ['_id', 'asc']);
+      return native;
+    },
+    skip: (offset: number) => {
+      assert.equal(offset, 0);
+      return native;
+    },
+    limit: (size: number) => {
+      assert.equal(size, 2);
+      return native;
+    },
+    count: async () => {
+      terminalCalls.push('count');
+      return { total: 2 };
+    },
+    get: async () => {
+      terminalCalls.push('get');
+      return { data: raw };
+    },
+    field: (): never => {
+      throw Error('Image list must retain the full row for permission and derivative selection');
+    },
+    doc: (): never => {
+      throw Error('Image presentation must not read each document separately');
+    },
+    add: (): never => {
+      throw Error('Image presentation must not write');
+    },
+  };
+  const database = {
+    command: wx.database().command,
+    RegExp: (): never => {
+      throw Error('Unexpected regexp');
+    },
+    collection: (name: string) => {
+      assert.equal(name, 'images');
+      return native;
+    },
+  };
+  const imageIds = ['image-b', 'image-a'];
+  const requested: AdapterListQuery = {
+    collection: 'images',
+    page: 1,
+    pageSize: 2,
+    search: '',
+    sort: [{ field: '_id', dir: 'asc' }],
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: '_id', op: 'in', value: imageIds },
+        { field: 'storageProvider', op: 'in', value: ['cloudbase-storage', 'local-disk'] },
+        { field: 'status', op: 'eq', value: 'active' },
+      ],
+    },
+  };
+  const full = await listDocumentsInCloudBase(database, requested);
+  assert.equal(full.total, 2);
+  assert.deepEqual(terminalCalls, ['count', 'get']);
+  const rows = await readCatalogImagePresentationRowsInCloudBase(database, imageIds);
+  assert.deepEqual(terminalCalls, ['count', 'get', 'get']);
+  assert.deepEqual(conditions[1], conditions[0]);
+  assert.deepEqual(rows, full.items);
+  for (const invalid of [[], Array.from({ length: 101 }, (_, index) => `image-${index}`)]) {
+    assert.throws(
+      () => readCatalogImagePresentationRowsInCloudBase(database, invalid),
+      /Invalid image presentation batch size/,
+    );
+  }
+  assert.deepEqual(terminalCalls, ['count', 'get', 'get']);
+});
+
 for (const optIn of [true, false])
   test(`native get projects before transport only when opted in: ${optIn}`, async () => {
     const events: string[] = [];

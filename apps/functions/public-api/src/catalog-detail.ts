@@ -1,5 +1,6 @@
 /** Approved canonical detail only. Never reads source observations or evidence. */
 import {
+  catalogImagePresentationQuery,
   get as defaultGet,
   list as defaultList,
   readCatalogImageReference,
@@ -157,7 +158,7 @@ export function createApprovedProductReader(read: {
               ...(decoded.value.descriptionImages ?? []),
               ...decoded.value.variants.items.flatMap((variant) => variant.images),
             ],
-            list,
+            async (imageIds) => (await list(catalogImagePresentationQuery(imageIds))).items,
             readCatalogImageReference,
           ),
           available,

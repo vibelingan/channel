@@ -6,6 +6,7 @@ import {
   findByField,
   get,
   list,
+  readCatalogImagePresentationRows,
   readCatalogImageReference,
 } from '@vibelingan-channel/db';
 import type { CatalogSeoPageReader } from '@vibelingan-channel/db/catalog-seo-pages';
@@ -324,7 +325,7 @@ export async function listCatalog(
   });
   if (collection === 'products' && config.imagePresentation) {
     const imagesStarted = timings ? performance.now() : 0;
-    items = await presentCatalogImages(items);
+    items = await presentCatalogImages(items, readCatalogImagePresentationRows);
     if (timings) timings.imagesMs = performance.now() - imagesStarted;
   }
   if (timings) timings.totalMs = performance.now() - started;
