@@ -18,6 +18,8 @@
 
 约一小时后从已登录的 Search Console 再打开原验证。仍是待检查 5、失败 0，五个网址最近一次抓取仍停在 11 月 3 日至 7 日。网页索引报告仍截至 11 月 16 日，529 个网址收录、989 个排除。网页搜索截至 11 月 19 日，95 次展示、3 次点击。另查北京时间 18:53:46 至 19:26:33 的官网网关日志，限定 23 个重点路径，包括那十个历史 4xx 请求涉及的图标、网页和图片。共匹配 42 条请求，全部为 200，其中没有核实到来自 Google 普通爬虫的请求。继续沿用原先提交的验证。 [Google 的 4xx 验证详情](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC)
 
+北京时间 19:26:34 至 20:02:51 再看同一组 23 个重点路径。网关匹配 29 次请求，28 次为 200，一次网站图标请求记录为 499。这段日志没有核实到 Googlebot。上文 Search Console 的索引与搜索效果仍按原报表日期。 [本次网关读回](evidence/jxl-image-tail-2026-11-21.json)
+
 ## 五张历史故障图复查的观察条件
 
 沿用 11 月 16 日在 HTTPS 官网属性发起的同一次复查。到 11 月 21 日所见状态是 5 个待检查、0 个失败。今天北京时间 11:02 至 12:21，五张图及工厂视频观看页的网关日志有 6 次成功请求，没有核实到 Googlebot。脚本减重版上线后，五张历史 4xx 图和一张旧 404 图已独立下载，均与修复后记录的字节一致。Google 通知、新的实际爬取或到常规复查点时，再在「索引 → 网页 → 因其他 4xx 问题被阻止 → 查看详情」读取原任务。Google 给出的通常耗时约两周，可能更久。 [正式站回读](https://github.com/vibelingan/channel/actions/runs/44864069637) · [Google 复查说明](https://support.google.com/webmasters/answer/7440203#see_validation_progress)

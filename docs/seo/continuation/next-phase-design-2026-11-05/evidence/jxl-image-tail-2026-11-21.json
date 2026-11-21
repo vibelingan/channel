@@ -1,0 +1,523 @@
+{
+  "liveRelease": 44900074902,
+  "exactBrowserGatewayJoins": {
+    "pageUrl": "https://supplychainsai.com/products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/",
+    "testSetup": {
+      "pageUrl": "https://supplychainsai.com/products/p-3b3e28a8-dbf9-4bdc-ae84-68870f81a704/",
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true,
+        "locale": "en-US"
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4
+    },
+    "gatewayMatches": 12,
+    "sourceWindowUtc": {
+      "start": "2026-11-21T12:03:14.138Z",
+      "end": "2026-11-21T12:04:51.709Z"
+    },
+    "rows": [
+      {
+        "condition": "shaped",
+        "lcpMs": 3040,
+        "requestStartedMs": 1706,
+        "beforeSendMs": 195,
+        "sendToHeadersMs": 811,
+        "bodyDownloadMs": 293,
+        "paintedAfterBodyMs": 13,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 589,
+        "cloudFunction": {
+          "record": 38.5,
+          "storage": 222.8,
+          "url": 127.8,
+          "download": 94.9,
+          "check": 0.2,
+          "total": 263.1
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2748,
+        "requestStartedMs": 1342,
+        "beforeSendMs": 372,
+        "sendToHeadersMs": 738,
+        "bodyDownloadMs": 290,
+        "paintedAfterBodyMs": 6,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 514,
+        "cloudFunction": {
+          "record": 34.9,
+          "storage": 154.9,
+          "url": 81.6,
+          "download": 73.1,
+          "check": 1.3,
+          "total": 191.7
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2756,
+        "requestStartedMs": 1594,
+        "beforeSendMs": 99,
+        "sendToHeadersMs": 742,
+        "bodyDownloadMs": 273,
+        "paintedAfterBodyMs": 8,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 551,
+        "cloudFunction": {
+          "record": 40,
+          "storage": 173.1,
+          "url": 98.1,
+          "download": 74.3,
+          "check": 0.2,
+          "total": 219
+        }
+      },
+      {
+        "condition": "shaped",
+        "lcpMs": 2888,
+        "requestStartedMs": 1353,
+        "beforeSendMs": 268,
+        "sendToHeadersMs": 909,
+        "bodyDownloadMs": 336,
+        "paintedAfterBodyMs": 12,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 510,
+        "cloudFunction": {
+          "record": 34.4,
+          "storage": 178.1,
+          "url": 91.3,
+          "download": 86.7,
+          "check": 0.2,
+          "total": 213.4
+        }
+      },
+      {
+        "condition": "shaped",
+        "lcpMs": 3040,
+        "requestStartedMs": 1519,
+        "beforeSendMs": 385,
+        "sendToHeadersMs": 810,
+        "bodyDownloadMs": 314,
+        "paintedAfterBodyMs": 7,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 458,
+        "cloudFunction": {
+          "record": 29.1,
+          "storage": 144.8,
+          "url": 61.2,
+          "download": 83.4,
+          "check": 0.2,
+          "total": 175.4
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2624,
+        "requestStartedMs": 1236,
+        "beforeSendMs": 290,
+        "sendToHeadersMs": 755,
+        "bodyDownloadMs": 327,
+        "paintedAfterBodyMs": 16,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 505,
+        "cloudFunction": {
+          "record": 35,
+          "storage": 185.4,
+          "url": 99.7,
+          "download": 85.6,
+          "check": 0.2,
+          "total": 221.2
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2452,
+        "requestStartedMs": 1720,
+        "beforeSendMs": 89,
+        "sendToHeadersMs": 544,
+        "bodyDownloadMs": 78,
+        "paintedAfterBodyMs": 10,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 344,
+        "cloudFunction": {
+          "record": 55.8,
+          "storage": 0,
+          "total": 56.3
+        }
+      },
+      {
+        "condition": "shaped",
+        "lcpMs": 3964,
+        "requestStartedMs": 2149,
+        "beforeSendMs": 201,
+        "sendToHeadersMs": 798,
+        "bodyDownloadMs": 801,
+        "paintedAfterBodyMs": 9,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 632,
+        "cloudFunction": {
+          "record": 47.1,
+          "storage": 277.6,
+          "url": 132.2,
+          "download": 145.2,
+          "check": 0.2,
+          "total": 325.6
+        }
+      },
+      {
+        "condition": "shaped",
+        "lcpMs": 2608,
+        "requestStartedMs": 1233,
+        "beforeSendMs": 195,
+        "sendToHeadersMs": 533,
+        "bodyDownloadMs": 548,
+        "paintedAfterBodyMs": 91,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 337,
+        "cloudFunction": {
+          "record": 39.6,
+          "storage": 0,
+          "total": 40.2
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2604,
+        "requestStartedMs": 1515,
+        "beforeSendMs": 310,
+        "sendToHeadersMs": 600,
+        "bodyDownloadMs": 166,
+        "paintedAfterBodyMs": 12,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 324,
+        "cloudFunction": {
+          "record": 28.2,
+          "storage": 0,
+          "total": 28.7
+        }
+      },
+      {
+        "condition": "natural",
+        "lcpMs": 2244,
+        "requestStartedMs": 1173,
+        "beforeSendMs": 95,
+        "sendToHeadersMs": 726,
+        "bodyDownloadMs": 236,
+        "paintedAfterBodyMs": 13,
+        "protocol": "http/1.1",
+        "reusedConnection": false,
+        "fileBytes": 48680,
+        "gatewayMs": 477,
+        "cloudFunction": {
+          "record": 39.7,
+          "storage": 129.1,
+          "url": 71.3,
+          "download": 57.6,
+          "check": 0.2,
+          "total": 169.6
+        }
+      },
+      {
+        "condition": "shaped",
+        "lcpMs": 2524,
+        "requestStartedMs": 1287,
+        "beforeSendMs": 202,
+        "sendToHeadersMs": 507,
+        "bodyDownloadMs": 509,
+        "paintedAfterBodyMs": 8,
+        "protocol": "http/1.1",
+        "reusedConnection": true,
+        "fileBytes": 48680,
+        "gatewayMs": 341,
+        "cloudFunction": {
+          "record": 44,
+          "storage": 0,
+          "total": 44.5
+        }
+      }
+    ]
+  },
+  "summaries": {
+    "shaped": {
+      "lcpMs": {
+        "min": 2524,
+        "median": 2964.0,
+        "max": 3964
+      },
+      "sendToHeadersMs": {
+        "min": 507,
+        "median": 804.0,
+        "max": 909
+      },
+      "requestStartedMs": {
+        "min": 1233,
+        "median": 1436.0,
+        "max": 2149
+      },
+      "gatewayMs": {
+        "min": 337,
+        "median": 484.0,
+        "max": 632
+      }
+    },
+    "natural": {
+      "lcpMs": {
+        "min": 2244,
+        "median": 2614.0,
+        "max": 2756
+      },
+      "sendToHeadersMs": {
+        "min": 544,
+        "median": 732.0,
+        "max": 755
+      },
+      "requestStartedMs": {
+        "min": 1173,
+        "median": 1428.5,
+        "max": 1720
+      },
+      "gatewayMs": {
+        "min": 324,
+        "median": 491.0,
+        "max": 551
+      }
+    }
+  },
+  "previousSamplesComparableStartByClock": [
+    {
+      "trial": 1,
+      "lcpMs": 2900,
+      "sendToResponseHeaderMs": 902,
+      "gatewayStartAfterBrowserSendMs": 94,
+      "gatewayMs": 620,
+      "applicationMs": 290.3
+    },
+    {
+      "trial": 2,
+      "lcpMs": 2924,
+      "sendToResponseHeaderMs": 1016,
+      "gatewayStartAfterBrowserSendMs": 97,
+      "gatewayMs": 560,
+      "applicationMs": 241.9
+    },
+    {
+      "trial": 3,
+      "lcpMs": 2532,
+      "sendToResponseHeaderMs": 683,
+      "gatewayStartAfterBrowserSendMs": 96,
+      "gatewayMs": 462,
+      "applicationMs": 193.8
+    },
+    {
+      "trial": 4,
+      "lcpMs": 2804,
+      "sendToResponseHeaderMs": 633,
+      "gatewayStartAfterBrowserSendMs": 94,
+      "gatewayMs": 323,
+      "applicationMs": 45.3
+    },
+    {
+      "trial": 5,
+      "lcpMs": 6376,
+      "sendToResponseHeaderMs": 3191,
+      "gatewayStartAfterBrowserSendMs": 95,
+      "gatewayMs": 2870,
+      "applicationMs": 214.8
+    }
+  ],
+  "clockMatching": {
+    "exactReferenceRecords": 12,
+    "sameSourceAndBrowserShape": true,
+    "normalArrivalAfterBrowserSendMs": [94, 98],
+    "historicalMatchUsesRequestClockWidthAndBytes": true,
+    "historicalBrowserRequestIdsUnavailable": true
+  },
+  "sameVisitThumbnailGatewayMs": 1861,
+  "historicalFunctionLink": {
+    "gatewayTiming": {
+      "timeCost": "2870"
+    },
+    "gatewayFieldNamesOfInterest": ["endAt", "startAt", "startTime", "timeCost", "timestamp"],
+    "hasUpstreamId": false,
+    "loggedFunctionRecordsInWindow": 90,
+    "matchingUpstreamFunctionRecords": 0,
+    "availableFunctionTimings": []
+  },
+  "currentRuntimeIdComparisons": {
+    "gatewayJoined": 8,
+    "runtimeMatched": 8,
+    "runtimeDurationRead": 8,
+    "rows": [
+      {
+        "round": 1,
+        "mode": "concurrent",
+        "width": 640,
+        "startedAt": 1795262959531,
+        "bytes": 48680,
+        "protocol": "1.1",
+        "handshakeMs": 1078,
+        "firstByteMs": 2057,
+        "functionMs": 302.8,
+        "gatewayMs": 646,
+        "runtimeDurationMs": 304,
+        "billableDurationMs": 304
+      },
+      {
+        "round": 1,
+        "mode": "concurrent",
+        "width": 160,
+        "startedAt": 1795262959532,
+        "bytes": 3912,
+        "protocol": "1.1",
+        "handshakeMs": 1078,
+        "firstByteMs": 1791,
+        "functionMs": 326.1,
+        "gatewayMs": 535,
+        "runtimeDurationMs": 328,
+        "billableDurationMs": 328
+      },
+      {
+        "round": 2,
+        "mode": "sequential",
+        "width": 640,
+        "startedAt": 1795262961734,
+        "bytes": 48680,
+        "protocol": "1.1",
+        "handshakeMs": 600,
+        "firstByteMs": 1532,
+        "functionMs": 218.4,
+        "gatewayMs": 528,
+        "runtimeDurationMs": 220,
+        "billableDurationMs": 220
+      },
+      {
+        "round": 2,
+        "mode": "sequential",
+        "width": 160,
+        "startedAt": 1795262963449,
+        "bytes": 3912,
+        "protocol": "1.1",
+        "handshakeMs": 413,
+        "firstByteMs": 993,
+        "functionMs": 237.6,
+        "gatewayMs": 415,
+        "runtimeDurationMs": 239,
+        "billableDurationMs": 239
+      },
+      {
+        "round": 3,
+        "mode": "sequential",
+        "width": 640,
+        "startedAt": 1795262964458,
+        "bytes": 48680,
+        "protocol": "1.1",
+        "handshakeMs": 471,
+        "firstByteMs": 1063,
+        "functionMs": 47.3,
+        "gatewayMs": 347,
+        "runtimeDurationMs": 48,
+        "billableDurationMs": 48
+      },
+      {
+        "round": 3,
+        "mode": "sequential",
+        "width": 160,
+        "startedAt": 1795262965875,
+        "bytes": 3912,
+        "protocol": "1.1",
+        "handshakeMs": 576,
+        "firstByteMs": 1160,
+        "functionMs": 231.2,
+        "gatewayMs": 400,
+        "runtimeDurationMs": 233,
+        "billableDurationMs": 233
+      },
+      {
+        "round": 4,
+        "mode": "concurrent",
+        "width": 640,
+        "startedAt": 1795262967054,
+        "bytes": 48680,
+        "protocol": "1.1",
+        "handshakeMs": 375,
+        "firstByteMs": 1057,
+        "functionMs": 40.8,
+        "gatewayMs": 362,
+        "runtimeDurationMs": 43,
+        "billableDurationMs": 43
+      },
+      {
+        "round": 4,
+        "mode": "concurrent",
+        "width": 160,
+        "startedAt": 1795262967055,
+        "bytes": 3912,
+        "protocol": "1.1",
+        "handshakeMs": 375,
+        "firstByteMs": 1071,
+        "functionMs": 235.1,
+        "gatewayMs": 399,
+        "runtimeDurationMs": 236,
+        "billableDurationMs": 236
+      }
+    ]
+  },
+  "searchGatewayFollowUp": {
+    "targetedPaths": 23,
+    "windowCloudBaseTime": {
+      "startTime": "2026-11-21 19:26:34",
+      "endTime": "2026-11-21 20:02:51"
+    },
+    "exactRows": 29,
+    "statuses": {
+      "200": 28,
+      "499": 1
+    },
+    "verifiedGoogleRequests": [],
+    "unexpected": [
+      {
+        "path": "/favicon.svg",
+        "width": null,
+        "status": 499,
+        "method": "GET",
+        "utc": "2026-11-21T11:55:42.940Z"
+      }
+    ],
+    "potentiallyTruncated": false
+  }
+}
