@@ -95,7 +95,7 @@ const renderGrid = (
 
 test('a numbered catalog can use the public website image route for known product pictures', () => {
   const storageApi = 'https://catalog-images.example.com';
-  const source = storageApi + '/api/images/catalog-photo';
+  const source = `${storageApi}/api/images/catalog-photo`;
   const state = {
     ...readyState(),
     products: [
