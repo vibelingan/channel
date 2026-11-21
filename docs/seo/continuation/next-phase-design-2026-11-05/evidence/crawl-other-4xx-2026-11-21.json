@@ -1,0 +1,147 @@
+{
+  "checkedAt": "2026-11-21T00:24:06.387035+00:00",
+  "reportThrough": "11/18/26",
+  "totalOther4xxRequests": 10,
+  "report": "Crawl stats > Other client error (4XX)",
+  "examples": [
+    {
+      "asDisplayed": "11/9/26, 10:38 AM",
+      "url": "https://supplychainsai.com/favicon.ico",
+      "reason": "Other client error (4XX)",
+      "kind": "favicon ico",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/vnd.microsoft.icon",
+      "xRobotsTagNow": null,
+      "bytesNow": 3332,
+      "sha256Now": "1ab3fdd21a673954bd8353b1e170e14b88a9dc1850eb5686e3e8c7038833d8e4"
+    },
+    {
+      "asDisplayed": "11/9/26, 10:38 AM",
+      "url": "https://supplychainsai.com/favicon.svg",
+      "reason": "Other client error (4XX)",
+      "kind": "favicon svg",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/svg+xml",
+      "xRobotsTagNow": null,
+      "bytesNow": 466,
+      "sha256Now": "e263ccf7b16ca05dc8cb36d3184539c5aa01917de282ca85147abfdadb478b36"
+    },
+    {
+      "asDisplayed": "11/8/26, 9:47 AM",
+      "url": "https://supplychainsai.com/headphones/",
+      "reason": "Other client error (4XX)",
+      "kind": "HTML",
+      "canonical": "https://supplychainsai.com/headphones/",
+      "h1Count": 1,
+      "metaRobots": [],
+      "httpStatusNow": 200,
+      "contentTypeNow": "text/html",
+      "xRobotsTagNow": null,
+      "bytesNow": 139470,
+      "sha256Now": "4107a8fd2abc89d8ab98f792c13d0caccc4796d1a34df9590333b5b4b3e2c3d1"
+    },
+    {
+      "asDisplayed": "11/8/26, 7:17 AM",
+      "url": "https://supplychainsai.com/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/",
+      "reason": "Other client error (4XX)",
+      "kind": "HTML",
+      "canonical": "https://supplychainsai.com/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/",
+      "h1Count": 1,
+      "metaRobots": [],
+      "httpStatusNow": 200,
+      "contentTypeNow": "text/html",
+      "xRobotsTagNow": null,
+      "bytesNow": 90093,
+      "sha256Now": "424dcd0bddab53fdef17ac99690263b4112bb5de34af3d8b1ad83c481ccbdcde"
+    },
+    {
+      "asDisplayed": "11/8/26, 6:02 AM",
+      "url": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1",
+      "reason": "Other client error (4XX)",
+      "kind": "HTML",
+      "canonical": "https://supplychainsai.com/headphones/",
+      "h1Count": 1,
+      "metaRobots": [],
+      "httpStatusNow": 200,
+      "contentTypeNow": "text/html",
+      "xRobotsTagNow": null,
+      "bytesNow": 139470,
+      "sha256Now": "4107a8fd2abc89d8ab98f792c13d0caccc4796d1a34df9590333b5b4b3e2c3d1"
+    },
+    {
+      "asDisplayed": "11/7/26, 2:39 PM",
+      "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "reason": "Other client error (4XX)",
+      "kind": "product image",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/webp",
+      "xRobotsTagNow": null,
+      "bytesNow": 51178,
+      "sha256Now": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+    },
+    {
+      "asDisplayed": "11/6/26, 6:58 PM",
+      "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "reason": "Other client error (4XX)",
+      "kind": "product image",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/webp",
+      "xRobotsTagNow": null,
+      "bytesNow": 65170,
+      "sha256Now": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+    },
+    {
+      "asDisplayed": "11/3/26, 6:14 PM",
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "reason": "Other client error (4XX)",
+      "kind": "product image",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/webp",
+      "xRobotsTagNow": null,
+      "bytesNow": 69280,
+      "sha256Now": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+    },
+    {
+      "asDisplayed": "11/3/26, 5:48 PM",
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "reason": "Other client error (4XX)",
+      "kind": "product image",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/webp",
+      "xRobotsTagNow": null,
+      "bytesNow": 87330,
+      "sha256Now": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+    },
+    {
+      "asDisplayed": "11/3/26, 5:22 PM",
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "reason": "Other client error (4XX)",
+      "kind": "product image",
+      "httpStatusNow": 200,
+      "contentTypeNow": "image/webp",
+      "xRobotsTagNow": null,
+      "bytesNow": 135494,
+      "sha256Now": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+    }
+  ],
+  "historicalGatewaySearch": {
+    "range": {
+      "startTime": "2026-11-08 00:00:00",
+      "endTime": "2026-11-10 23:59:59"
+    },
+    "matchingRows": 0,
+    "currentControlMatchingRows": 13
+  },
+  "pageIndexReport": {
+    "through": "2026-11-16",
+    "indexed": 529,
+    "notIndexed": 989,
+    "other4xx": 5,
+    "validation": "Started"
+  },
+  "webSearchPerformance": {
+    "through": "2026-11-18",
+    "impressions": 93,
+    "clicks": 3
+  }
+}

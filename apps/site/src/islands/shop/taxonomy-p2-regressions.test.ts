@@ -55,6 +55,7 @@ function bindHandlers<Handlers>(
     catalogDocumentTarget,
     deliveredPageCount: Number.POSITIVE_INFINITY,
     requestQueryRef: { current: null },
+    openedSharedDetailFromList: { current: false },
     ...provided,
   };
   const source = `const { ${Object.keys(bindings).join(', ')} } = bindings;
@@ -238,6 +239,8 @@ test('a supplied static page still requests current data once and keeps cards du
   const needsRefresh = { current: true };
   const abortRef = { current: new AbortController() };
   const requestQueryRef: { current: NumberedCatalogQuery | null } = { current: null };
+  const openedSharedDetailFromList = { current: false };
+  let detailOpen = false;
   const { readLocation } = bindHandlers<{ readLocation: () => void }>(
     new URL('./CatalogFamilyPage.tsx', import.meta.url),
     ['readLocation'],
@@ -252,6 +255,7 @@ test('a supplied static page still requests current data once and keeps cards du
       invalidSelectionRef: { current: false },
       abortRef,
       requestQueryRef,
+      openedSharedDetailFromList,
       content: { list: { errorLabel: 'Failed' } },
       catalogPathPage,
       catalogFilteredPathRedirect,
@@ -259,7 +263,7 @@ test('a supplied static page still requests current data once and keeps cards du
       parseTaxonomyCatalogQuery,
       parseCatalogQuery,
       catalogRequestIsPending: () => false,
-      detailIsOpen: () => false,
+      detailIsOpen: () => detailOpen,
       restoreInputs: () => {},
       commit: () => {
         throw new Error('A ready page did not need a state change');
@@ -291,6 +295,23 @@ test('a supplied static page still requests current data once and keeps cards du
   stateRef.current = { ...stateRef.current, recovered: false, requested: requestQueryRef.current };
   readLocation();
   assert.equal(requests.length, 1, 'a late taxonomy result must not cancel the pending search');
+
+  stateRef.current = initialNumberedCatalogState(bootstrap);
+  requestQueryRef.current = null;
+  openedSharedDetailFromList.current = true;
+  detailOpen = true;
+  readLocation();
+  assert.equal(requests.length, 1, 'an open preview must not restart the hidden list refresh');
+  detailOpen = false;
+  readLocation();
+  assert.equal(openedSharedDetailFromList.current, false);
+  assert.deepEqual(requests.at(-1), [
+    { page: 2, search: '', categories: null },
+    'replace',
+    false,
+    true,
+  ]);
+  assert.equal(requests.length, 2, 'returning to the list restarts its unfinished refresh once');
 });
 
 function taxonomy(
