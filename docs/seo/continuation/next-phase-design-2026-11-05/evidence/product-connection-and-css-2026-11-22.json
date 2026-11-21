@@ -1,0 +1,3398 @@
+{
+  "productionReference": "https://github.com/vibelingan/channel/actions/runs/44930233839",
+  "productionChangesFromThisMeasurement": false,
+  "documentTransport": {
+    "started": "2026-11-21T18:03:46.453039+00:00",
+    "country": "JP",
+    "colo": "NRT",
+    "requestBudget": 18,
+    "samples": [
+      {
+        "path": "/",
+        "round": 1,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 990.92,
+          "connect": 1051.33,
+          "appconnect": 1305.65,
+          "pretransfer": 1305.74,
+          "starttransfer": 1883.83,
+          "total": 2179.59
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 327
+      },
+      {
+        "path": "/",
+        "round": 1,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.11,
+          "starttransfer": 368.32,
+          "total": 474.13
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 270
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 1,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 2.96,
+          "connect": 1062.87,
+          "appconnect": 1285.21,
+          "pretransfer": 1285.29,
+          "starttransfer": 1736.46,
+          "total": 1949.24
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 320
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 1,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 0.04,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.12,
+          "starttransfer": 347.91,
+          "total": 442.08
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 214
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 1,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 37628,
+        "transferredBytes": 9829,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 3.09,
+          "connect": 62.83,
+          "appconnect": 1102.53,
+          "pretransfer": 1102.59,
+          "starttransfer": 2169.67,
+          "total": 2286.65
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 610
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 1,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 37628,
+        "transferredBytes": 9829,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.14,
+          "starttransfer": 760.66,
+          "total": 761.49
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 502
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 2,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 37628,
+        "transferredBytes": 9828,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 2.65,
+          "connect": 61.21,
+          "appconnect": 284.79,
+          "pretransfer": 284.89,
+          "starttransfer": 1043.59,
+          "total": 1046.57
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 491
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 2,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 37628,
+        "transferredBytes": 9829,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.06,
+          "starttransfer": 610.94,
+          "total": 682.53
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 522
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 2,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 3.28,
+          "connect": 64.55,
+          "appconnect": 291.36,
+          "pretransfer": 291.44,
+          "starttransfer": 624.03,
+          "total": 928.67
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 202
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 2,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.11,
+          "starttransfer": 337.42,
+          "total": 448.3
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 206
+      },
+      {
+        "path": "/",
+        "round": 2,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 2.27,
+          "connect": 61.28,
+          "appconnect": 281.67,
+          "pretransfer": 281.72,
+          "starttransfer": 541.9,
+          "total": 1731.77
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 178
+      },
+      {
+        "path": "/",
+        "round": 2,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 0.01,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.02,
+          "starttransfer": 385.05,
+          "total": 1394.88
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 301
+      },
+      {
+        "path": "/",
+        "round": 3,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 3.97,
+          "connect": 65.49,
+          "appconnect": 1139.51,
+          "pretransfer": 1139.57,
+          "starttransfer": 1512.67,
+          "total": 1819.94
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 270
+      },
+      {
+        "path": "/",
+        "round": 3,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 167725,
+        "transferredBytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378",
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.08,
+          "starttransfer": 340.76,
+          "total": 462.35
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 241
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 3,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 2.54,
+          "connect": 1060.25,
+          "appconnect": 1317.67,
+          "pretransfer": 1317.73,
+          "starttransfer": 1813.94,
+          "total": 2055.61
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 218
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "round": 3,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 92540,
+        "transferredBytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0",
+        "timingsMs": {
+          "namelookup": 0.04,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.12,
+          "starttransfer": 350.66,
+          "total": 469.79
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "",
+          "x-cloudbase-upstream-type": "Tencent-COS",
+          "x-channel-blog-version": ""
+        },
+        "gatewayMs": 202
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 3,
+        "position": 1,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 1,
+        "bytes": 37628,
+        "transferredBytes": 9828,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 3.24,
+          "connect": 64.61,
+          "appconnect": 294.95,
+          "pretransfer": 295.0,
+          "starttransfer": 937.69,
+          "total": 1013.42
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 559
+      },
+      {
+        "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "round": 3,
+        "position": 2,
+        "protocol": "1.1",
+        "status": 200,
+        "newConnections": 0,
+        "bytes": 37628,
+        "transferredBytes": 9828,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0.0,
+          "appconnect": 0.0,
+          "pretransfer": 0.13,
+          "starttransfer": 599.49,
+          "total": 740.81
+        },
+        "headers": {
+          "content-type": "text/html",
+          "content-encoding": "gzip",
+          "x-cloudbase-upstream-type": "Tencent-CloudBaseRun",
+          "x-channel-blog-version": "ae2e8d73d9364ef48c7ec947d97f5548fc044668"
+        },
+        "gatewayMs": 508
+      }
+    ]
+  },
+  "pinnedPublicAddresses": {
+    "utc": "2026-11-21T18:09:53+00:00",
+    "ips": ["43.173.130.130", "43.173.153.178"],
+    "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+    "rows": [
+      {
+        "round": 1,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 57.83,
+          "tls": 315.1,
+          "firstByte": 898.45,
+          "complete": 1079.66
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 1,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 59.28,
+          "tls": 281.76,
+          "firstByte": 833.66,
+          "complete": 1071.22
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 2,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 1061.71,
+          "tls": 1339.9,
+          "firstByte": 1958.43,
+          "complete": 4167.87
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 2,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 1061.89,
+          "tls": 1288.79,
+          "firstByte": 1959.6,
+          "complete": 2623.05
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 3,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 1060.51,
+          "tls": 1288.86,
+          "firstByte": 1816.96,
+          "complete": 1998.44
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 3,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 59.47,
+          "tls": 313.18,
+          "firstByte": 864.41,
+          "complete": 1044.94
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 4,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 59.8,
+          "tls": 319.99,
+          "firstByte": 813.53,
+          "complete": 1025.33
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 4,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 58.9,
+          "tls": 310.38,
+          "firstByte": 816.55,
+          "complete": 1051.47
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 5,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 1059.38,
+          "tls": 1316.87,
+          "firstByte": 1888.8,
+          "complete": 2072.29
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 5,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 146.45,
+          "tls": 398.94,
+          "firstByte": 754.01,
+          "complete": 999.21
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 6,
+        "pin": "43.173.153.178",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.153.178",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 59.61,
+          "tls": 310.87,
+          "firstByte": 819.4,
+          "complete": 1052.61
+        },
+        "samePublishedBytes": true
+      },
+      {
+        "round": 6,
+        "pin": "43.173.130.130",
+        "curlStatus": 0,
+        "status": 200,
+        "actual": "43.173.130.130",
+        "protocol": "1.1",
+        "timesMs": {
+          "dns": 0.02,
+          "connect": 59.51,
+          "tls": 394.69,
+          "firstByte": 741.1,
+          "complete": 987.88
+        },
+        "samePublishedBytes": true
+      }
+    ]
+  },
+  "liveStylesheetRevalidation": {
+    "normal": {
+      "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+      "status": 200,
+      "bytes": 55677,
+      "sha256": "1e9e797c939043228073a30d513ec0d0ac15abf9304d483aa51915d93d72064d",
+      "headers": {
+        "Cache-Control": "no-cache",
+        "ETag": "\"047bdc4cc2b0186a2644952ee7cfaac2\"",
+        "Last-Modified": "Fri, 20 Nov 2026 18:03:28 GMT",
+        "Content-Encoding": null,
+        "Vary": "Origin",
+        "Age": null
+      }
+    },
+    "etagRevalidation": {
+      "url": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+      "status": 200,
+      "bytes": 55677,
+      "sha256": "1e9e797c939043228073a30d513ec0d0ac15abf9304d483aa51915d93d72064d",
+      "headers": {
+        "Cache-Control": "no-cache",
+        "ETag": "\"047bdc4cc2b0186a2644952ee7cfaac2\"",
+        "Last-Modified": "Fri, 20 Nov 2026 18:03:28 GMT",
+        "Content-Encoding": null,
+        "Vary": "Origin",
+        "Age": null
+      }
+    }
+  },
+  "liveChromeRepeatNavigation": {
+    "browser": "157.0.8103.79",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "samples": [
+      {
+        "round": 1,
+        "visit": "cold",
+        "url": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 2954.0999999940395,
+          "stylesheetStart": 1680.2000000029802,
+          "htmlFirstByte": 1632.8999999910593,
+          "firstPaint": 2996
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": false,
+            "reportedLength": 560
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "visit": "next-product",
+        "url": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 1155.7999999970198,
+          "stylesheetStart": 430.09999999403954,
+          "htmlFirstByte": 378.70000000298023,
+          "firstPaint": 1164
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": true,
+            "reportedLength": 560
+          }
+        ]
+      },
+      {
+        "round": 2,
+        "visit": "cold",
+        "url": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 2242.5999999940395,
+          "stylesheetStart": 1366.5,
+          "htmlFirstByte": 1307.7999999970198,
+          "firstPaint": 2276
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": true,
+            "reportedLength": 560
+          }
+        ]
+      },
+      {
+        "round": 2,
+        "visit": "next-product",
+        "url": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 1224.2999999970198,
+          "stylesheetStart": 460,
+          "htmlFirstByte": 389.09999999403954,
+          "firstPaint": 1244
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": true,
+            "reportedLength": 560
+          }
+        ]
+      },
+      {
+        "round": 3,
+        "visit": "cold",
+        "url": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 2228.800000011921,
+          "stylesheetStart": 1477.2000000029802,
+          "htmlFirstByte": 1417.5,
+          "firstPaint": 2260
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": false,
+            "reportedLength": 560
+          }
+        ]
+      },
+      {
+        "round": 3,
+        "visit": "next-product",
+        "url": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+        "stats": {
+          "stylesheetBody": 55677,
+          "stylesheetTransfer": 55977,
+          "stylesheetEnd": 1227.8999999910593,
+          "stylesheetStart": 449,
+          "htmlFirstByte": 386.19999998807907,
+          "firstPaint": 1236
+        },
+        "networkResponses": [
+          {
+            "status": 200,
+            "diskCache": false,
+            "protocol": "http/1.1",
+            "connectionReused": true,
+            "reportedLength": 560
+          }
+        ]
+      }
+    ]
+  },
+  "tailwindSourceExperiment": {
+    "tailwindVersion": "4.3.1",
+    "models": {
+      "current": {
+        "bytes": 56184,
+        "sha256": "5398a8482121893c0ed885339b965f81b0d2903bc206b833833264b95b0d5b6f"
+      },
+      "isolated": {
+        "bytes": 50133,
+        "sha256": "cebfa6080050a65506871dec29a807615dc58e81737ded3c3ea3519fee562d13"
+      }
+    },
+    "omitted": [
+      "CatalogFamilyPage.tsx",
+      "CategoryFilter.tsx",
+      "FeaturedProducts.tsx",
+      "HeadphonesCatalog.tsx",
+      "HeadphonesPage.tsx",
+      "HeadphonesProductCard.tsx",
+      "HeadphonesProductDetail.tsx",
+      "InquiryCartBar.tsx",
+      "InquiryForm.tsx",
+      "OverstockDetail.tsx",
+      "PriceBlock.tsx",
+      "ProductCard.tsx",
+      "ProductDetail.tsx",
+      "ProductGrid.tsx",
+      "SharedCatalogPreview.tsx",
+      "StockBadge.tsx",
+      "catalog-taxonomy.ts",
+      "headphonesCatalogState.ts",
+      "inquiryCart.ts",
+      "session.ts",
+      "types.ts"
+    ],
+    "reachable": [
+      "catalog/application/CatalogDetailController.tsx",
+      "catalog/application/catalog-detail-pages.ts",
+      "catalog/application/catalog-image-prefetch.ts",
+      "catalog/application/catalog-media.ts",
+      "catalog/application/catalog-offer-view.ts",
+      "catalog/application/catalog-product-detail-state.ts",
+      "catalog/application/catalog-quantity-state.ts",
+      "catalog/application/catalog-quote-draft.ts",
+      "catalog/application/catalog-quote-transport.ts",
+      "catalog/application/catalog-variant-labels.ts",
+      "catalog/application/catalog-variant-media.ts",
+      "catalog/application/catalog-variant-state.ts",
+      "catalog/application/local-quote-transport.ts",
+      "catalog/application/public-quote-transport.ts",
+      "catalog/application/use-catalog-image-prefetch.ts",
+      "catalog/detail-limits.ts",
+      "catalog/infrastructure/catalog-detail-api.ts",
+      "catalog/presentation/CatalogCompactPrice.tsx",
+      "catalog/presentation/CatalogDescriptionImages.tsx",
+      "catalog/presentation/CatalogDetail.tsx",
+      "catalog/presentation/CatalogQuoteConditions.tsx",
+      "catalog/presentation/CatalogQuotePanel.tsx",
+      "catalog/presentation/CatalogQuoteSheet.tsx",
+      "catalog/presentation/CatalogSpecifications.tsx",
+      "catalog/presentation/CatalogVariantGallery.tsx",
+      "catalog/presentation/CatalogVariantSelector.tsx",
+      "catalog/presentation/catalog-content-view.ts",
+      "catalog/presentation/responsive-images.ts",
+      "catalog/presentation/use-local-day.ts",
+      "components/AssistantHost.astro",
+      "components/SiteFooter.astro",
+      "components/SiteHeader.astro",
+      "components/form/CountryPicker.tsx",
+      "i18n/catalog.ts",
+      "i18n/site.ts",
+      "islands/ai/AssistantWidget.tsx",
+      "islands/auth/AccountMenu.tsx",
+      "islands/auth/useSession.ts",
+      "islands/shop/AlibabaCatalogPricingBlock.tsx",
+      "islands/shop/CatalogFamilyGrid.tsx",
+      "islands/shop/CatalogPagination.tsx",
+      "islands/shop/EffectiveCatalogPricingBlock.tsx",
+      "islands/shop/Gallery.tsx",
+      "islands/shop/ProductLanding.tsx",
+      "islands/shop/ProductMedia.tsx",
+      "islands/shop/QuantityTierPricingBlock.tsx",
+      "islands/shop/SharedDetailPreview.tsx",
+      "islands/shop/SkuDetailPage.tsx",
+      "islands/shop/api.ts",
+      "islands/shop/catalog-pricing.ts",
+      "islands/shop/catalog-types.ts",
+      "islands/shop/numbered-catalog-state.ts",
+      "islands/shop/shared-detail-navigation.ts",
+      "islands/shop/shared-detail-preview-target.ts",
+      "layouts/DocumentLayout.astro",
+      "lib/api-envelope.ts",
+      "lib/api-url.ts",
+      "lib/catalog-seo.ts",
+      "lib/safe-return-path.ts",
+      "lib/seo/page.ts",
+      "lib/seo/product-identity.ts",
+      "lib/seo/product-page.ts",
+      "lib/seo/product-snapshot-images.ts",
+      "lib/seo/product-snapshot.ts",
+      "lib/seo/public-offer.ts",
+      "lib/seo/route-policy.ts",
+      "lib/session.ts",
+      "lib/site-navigation.ts",
+      "pages/products/[publicKey].astro"
+    ]
+  },
+  "localReplay": {
+    "scope": "Two production HTML responses, their common stylesheet and the real responsive hero images. Site scripts and other assets were disabled for this experiment. Local response delays and throttling are fixed inputs, not measurements of production traffic.",
+    "liveCacheBehavior": {
+      "cachePolicy": "Stylesheet returns 200 on initial and repeat navigation.",
+      "probe": {
+        "htmlDelayMs": 300,
+        "cssDelayMs": 750,
+        "imageDelayMs": 550,
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "dpr": 2,
+        "cpu": 4,
+        "network": {
+          "offline": false,
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "chrome": "157.0.8103.79",
+      "cssBytes": 55677,
+      "compressedStylesBytes": 10844,
+      "layouts": {
+        "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/": {
+          "layout": {
+            "h1": {
+              "x": 16,
+              "y": 667.5,
+              "width": 358,
+              "height": 120
+            },
+            "photo": {
+              "x": 37,
+              "y": 193,
+              "width": 316,
+              "height": 289.5
+            },
+            "text": "XY-30 2025 New Classic Retro Studio DJ Stereo Over-Ear Headsets V 5.3 Wireless Music Good Mobile Phone Travel",
+            "font": "24px",
+            "color": "rgb(11, 16, 48)"
+          },
+          "canonical": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/"
+        },
+        "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/": {
+          "layout": {
+            "h1": {
+              "x": 16,
+              "y": 667.5,
+              "width": 358,
+              "height": 150
+            },
+            "photo": {
+              "x": 37,
+              "y": 193,
+              "width": 316,
+              "height": 289.5
+            },
+            "text": "Soyto VJE902 Wireless Bt HiFi Over Ear Music Headphone Headset Earphone Casque Audio Fone Sem Fio for Gamer Students Ladys ODM",
+            "font": "24px",
+            "color": "rgb(11, 16, 48)"
+          },
+          "canonical": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/"
+        }
+      },
+      "samples": [
+        {
+          "block": 1,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1596,
+          "lcp": {
+            "time": 1596,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 304.80000001192093
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1502.6000000089407
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 588.9000000059605,
+              "end": 1360.5
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1544,
+          "lcp": {
+            "time": 1544,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 302.6000000089407
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1521.7000000029802
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 583.6000000089407,
+              "end": 1416.6000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1252,
+          "lcp": {
+            "time": 1272,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 301.30000001192093
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1168.4000000059605
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 584.1000000089407,
+              "end": 1263.800000011921
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1188,
+          "lcp": {
+            "time": 1308,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 301.40000000596046
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1167.9000000059605
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 583.5,
+              "end": 1294.1000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1224,
+          "lcp": {
+            "time": 1224,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 301.70000000298023
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1136.1000000089407
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 370.40000000596046,
+              "end": 1039.6000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1152,
+          "lcp": {
+            "time": 1152,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 303
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1131
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 366.20000000298023,
+              "end": 1055.9000000059605
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 672,
+          "lcp": {
+            "time": 1536,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148169,
+            "raw": 148169,
+            "ttfb": 303.70000000298023
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 865,
+              "end": 1529.2999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148169
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 648,
+          "lcp": {
+            "time": 1564,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146534,
+            "raw": 146534,
+            "ttfb": 302.8999999910593
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 866.3999999910593,
+              "end": 1555.2999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146534
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline-early",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 660,
+          "lcp": {
+            "time": 1148,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 358.19999998807907,
+              "end": 1137.699999988079
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline-early",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 640,
+          "lcp": {
+            "time": 1212,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 302.59999999403954
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 353.79999999701977,
+              "end": 1193.9000000059605
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline-early",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 656,
+          "lcp": {
+            "time": 1144,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 302.59999999403954
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 350,
+              "end": 1130
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline-early",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 632,
+          "lcp": {
+            "time": 1200,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 300.6000000089407
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 350.40000000596046,
+              "end": 1187.800000011921
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 672,
+          "lcp": {
+            "time": 1528,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148169,
+            "raw": 148169,
+            "ttfb": 303.20000000298023
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 861.7999999970198,
+              "end": 1519.5999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148169
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 648,
+          "lcp": {
+            "time": 1560,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146534,
+            "raw": 146534,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 861.3999999910593,
+              "end": 1551.2999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146534
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1212,
+          "lcp": {
+            "time": 1212,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 303
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1130
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 366.29999999701977,
+              "end": 1033.0999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1152,
+          "lcp": {
+            "time": 1152,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 302.70000000298023
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1130.7000000029802
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 368.6000000089407,
+              "end": 1064.5
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1252,
+          "lcp": {
+            "time": 1276,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 301.59999999403954
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1166.8999999910593
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 580.3999999910593,
+              "end": 1263.0999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1196,
+          "lcp": {
+            "time": 1312,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 302.29999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1174.0999999940395
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 589,
+              "end": 1301.5999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1576,
+          "lcp": {
+            "time": 1576,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 300.8999999910593
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1496.3999999910593
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 584.0999999940395,
+              "end": 1354.7999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1540,
+          "lcp": {
+            "time": 1540,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1520.3999999910593
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 584.3999999910593,
+              "end": 1415.3999999910593
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1256,
+          "lcp": {
+            "time": 1272,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 301.79999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1169.2999999970198
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 584.5999999940395,
+              "end": 1264.7999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1192,
+          "lcp": {
+            "time": 1312,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 303.20000000298023
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1169.8999999910593
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 587.2999999970198,
+              "end": 1298.0999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 676,
+          "lcp": {
+            "time": 1532,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148169,
+            "raw": 148169,
+            "ttfb": 303.20000000298023
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 868.7999999970198,
+              "end": 1525.5
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148169
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 648,
+          "lcp": {
+            "time": 1568,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146534,
+            "raw": 146534,
+            "ttfb": 302.40000000596046
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 865.1000000089407,
+              "end": 1561.1000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146534
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1572,
+          "lcp": {
+            "time": 1572,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 302.09999999403954
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1490.7000000029802
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 582.5,
+              "end": 1353.3999999910593
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1548,
+          "lcp": {
+            "time": 1548,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 303.20000000298023
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1525.7000000029802
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 590.6000000089407,
+              "end": 1420.1000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline-early",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 664,
+          "lcp": {
+            "time": 1152,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 303.5
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 354.90000000596046,
+              "end": 1134.4000000059605
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline-early",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 648,
+          "lcp": {
+            "time": 1204,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 302.6000000089407
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 356.80000001192093,
+              "end": 1195.9000000059605
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1216,
+          "lcp": {
+            "time": 1216,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 304
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1136.1000000089407
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 373.70000000298023,
+              "end": 1039.7000000029802
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 1152,
+          "lcp": {
+            "time": 1152,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 303.20000000298023
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1132.3999999910593
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 369.29999999701977,
+              "end": 1064.0999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        }
+      ]
+    },
+    "reusableStylesheet": {
+      "cachePolicy": "When requested, external stylesheet has a fresh browser cache window of 3600 seconds. The inline arm also preloads the exact responsive hero image.",
+      "probe": {
+        "htmlDelayMs": 300,
+        "cssDelayMs": 750,
+        "imageDelayMs": 550,
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "dpr": 2,
+        "cpu": 4,
+        "network": {
+          "offline": false,
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "chrome": "157.0.8103.79",
+      "cssBytes": 55677,
+      "compressedStylesBytes": 10844,
+      "layouts": {
+        "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/": {
+          "layout": {
+            "h1": {
+              "x": 16,
+              "y": 667.5,
+              "width": 358,
+              "height": 120
+            },
+            "photo": {
+              "x": 37,
+              "y": 193,
+              "width": 316,
+              "height": 289.5
+            },
+            "text": "XY-30 2025 New Classic Retro Studio DJ Stereo Over-Ear Headsets V 5.3 Wireless Music Good Mobile Phone Travel",
+            "font": "24px",
+            "color": "rgb(11, 16, 48)"
+          },
+          "canonical": "https://supplychainsai.com/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/"
+        },
+        "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/": {
+          "layout": {
+            "h1": {
+              "x": 16,
+              "y": 667.5,
+              "width": 358,
+              "height": 150
+            },
+            "photo": {
+              "x": 37,
+              "y": 193,
+              "width": 316,
+              "height": 289.5
+            },
+            "text": "Soyto VJE902 Wireless Bt HiFi Over Ear Music Headphone Headset Earphone Casque Audio Fone Sem Fio for Gamer Students Ladys ODM",
+            "font": "24px",
+            "color": "rgb(11, 16, 48)"
+          },
+          "canonical": "https://supplychainsai.com/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/"
+        }
+      },
+      "samples": [
+        {
+          "block": 1,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1700,
+          "lcp": {
+            "time": 1700,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 305.59999999403954
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1500.5999999940395
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 588.7999999970198,
+              "end": 1358.2000000029802
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 372,
+          "lcp": {
+            "time": 1292,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 0,
+              "end": 345.19999998807907
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 584.0999999940395,
+              "end": 1272.3999999910593
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1252,
+          "lcp": {
+            "time": 1284,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1171.5
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 589,
+              "end": 1270.2000000029802
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 364,
+          "lcp": {
+            "time": 1276,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 300.79999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 341.90000000596046
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 580.2000000029802,
+              "end": 1270.6000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1212,
+          "lcp": {
+            "time": 1212,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 301.6000000089407
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1129.800000011921
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 364.90000000596046,
+              "end": 1023.1000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 348,
+          "lcp": {
+            "time": 1080,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 303.69999998807907
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 328
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 376.3999999910593,
+              "end": 1070.7999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 656,
+          "lcp": {
+            "time": 1144,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 301.5
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 351.5,
+              "end": 1129.1000000089407
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 1,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 636,
+          "lcp": {
+            "time": 1200,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 302.79999999701977
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 349.29999999701977,
+              "end": 1192
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 656,
+          "lcp": {
+            "time": 1164,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 302.5
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 350.20000000298023,
+              "end": 1130.7000000029802
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 636,
+          "lcp": {
+            "time": 1208,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 301.29999999701977
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 351.20000000298023,
+              "end": 1188.2000000029802
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1220,
+          "lcp": {
+            "time": 1220,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 302.09999999403954
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1136.7999999970198
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 367.09999999403954,
+              "end": 1031.5
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 348,
+          "lcp": {
+            "time": 1080,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 304.5
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 326.5
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 374.20000000298023,
+              "end": 1069.2999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1252,
+          "lcp": {
+            "time": 1296,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 303.79999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1173.9000000059605
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 591,
+              "end": 1273
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 380,
+          "lcp": {
+            "time": 1284,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 302.90000000596046
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 347.70000000298023
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 587,
+              "end": 1276.9000000059605
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1580,
+          "lcp": {
+            "time": 1580,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 303.09999999403954
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1497.5999999940395
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 591.3999999910593,
+              "end": 1361.5999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 2,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 368,
+          "lcp": {
+            "time": 1280,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 303
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 0,
+              "end": 345.79999999701977
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 586.2999999970198,
+              "end": 1274.7999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-css",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1256,
+          "lcp": {
+            "time": 1272,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 302
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1167.4000000059605
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 581,
+              "end": 1265.7999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-css",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 368,
+          "lcp": {
+            "time": 1280,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 302.6000000089407
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 341.90000000596046
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 581.7000000029802,
+              "end": 1274
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 652,
+          "lcp": {
+            "time": 1160,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 148611,
+            "raw": 148611,
+            "ttfb": 301.8999999910593
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 21624,
+              "start": 348.29999999701977,
+              "end": 1129.2999999970198
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 148611
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "inline",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 636,
+          "lcp": {
+            "time": 1216,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 146976,
+            "raw": 146976,
+            "ttfb": 301.40000000596046
+          },
+          "styles": [],
+          "image": [
+            {
+              "body": 28024,
+              "start": 348.70000000298023,
+              "end": 1190.5999999940395
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 146976
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "external",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1576,
+          "lcp": {
+            "time": 1576,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 92540,
+            "raw": 92540,
+            "ttfb": 301.59999999403954
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 55977,
+              "end": 1490.199999988079
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 582.0999999940395,
+              "end": 1354.699999988079
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": null,
+              "bodyBytes": 92540
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": null,
+              "bodyBytes": 55677
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "external",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 372,
+          "lcp": {
+            "time": 1284,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 90905,
+            "raw": 90905,
+            "ttfb": 301.90000000596046
+          },
+          "styles": [
+            {
+              "body": 55677,
+              "transfer": 0,
+              "end": 350.20000000298023
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 586.0999999940395,
+              "end": 1277
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": null,
+              "bodyBytes": 90905
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-all",
+          "visit": "cold",
+          "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+          "fcp": 1208,
+          "lcp": {
+            "time": 1208,
+            "url": "/api/images/4db8df016ac8807100074013562ea3a9?w=640"
+          },
+          "html": {
+            "body": 18115,
+            "raw": 92540,
+            "ttfb": 302.29999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 11144,
+              "end": 1130.2999999970198
+            }
+          ],
+          "image": [
+            {
+              "body": 21624,
+              "start": 365.69999998807907,
+              "end": 1024.699999988079
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+              "encoding": "gzip",
+              "bodyBytes": 18115
+            },
+            {
+              "pathname": "/_astro/_publicKey_.crkQf_Zw.css",
+              "encoding": "gzip",
+              "bodyBytes": 10844
+            },
+            {
+              "pathname": "/api/images/4db8df016ac8807100074013562ea3a9",
+              "encoding": null,
+              "bodyBytes": 21624
+            }
+          ]
+        },
+        {
+          "block": 3,
+          "arm": "gzip-all",
+          "visit": "next-product",
+          "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+          "fcp": 340,
+          "lcp": {
+            "time": 1060,
+            "url": "/api/images/66baec6f6ac87f8e007275260273b5de?w=640"
+          },
+          "html": {
+            "body": 17901,
+            "raw": 90905,
+            "ttfb": 303.29999999701977
+          },
+          "styles": [
+            {
+              "body": 10844,
+              "transfer": 0,
+              "end": 323.59999999403954
+            }
+          ],
+          "image": [
+            {
+              "body": 28024,
+              "start": 367.5,
+              "end": 1055.8999999910593
+            }
+          ],
+          "requests": [
+            {
+              "pathname": "/products/p-cc1a41cf-0123-4114-a373-441f6ac25ac8/",
+              "encoding": "gzip",
+              "bodyBytes": 17901
+            },
+            {
+              "pathname": "/api/images/66baec6f6ac87f8e007275260273b5de",
+              "encoding": null,
+              "bodyBytes": 28024
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
