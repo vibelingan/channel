@@ -1,3 +1,4 @@
+import { catalogCardImageSizes } from '../../catalog/presentation/responsive-images.ts';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
 import { isPlainProductClick, productBrowserPath } from '../../lib/seo/product-identity.ts';
 import { CatalogPagination, type NativePageNavigation } from './CatalogPagination.tsx';
@@ -69,7 +70,7 @@ function CatalogProductCard({
       <div className="aspect-square shrink-0 overflow-hidden bg-surface-alt">
         <ProductMedia
           imagePresentation={product.imagePresentation}
-          sizes="(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)"
+          sizes={catalogCardImageSizes}
           sources={product.images ?? []}
           preferSiteImage={Boolean(cardImageApiOrigin)}
           siteImageApiOrigin={cardImageApiOrigin}

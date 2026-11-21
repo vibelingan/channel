@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import {
+  catalogCardImagePreload,
+  catalogCardImageSizes,
+} from '../../catalog/presentation/responsive-images.ts';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
 import {
   CatalogFamilyGrid,
@@ -112,6 +116,38 @@ test('a numbered catalog can use the public website image route for known produc
   assert.match(renderGrid(state, storageApi), /src="\/api\/images\/catalog-photo"/);
   assert.match(renderGrid(state, storageApi), /src="https:\/\/supplier.example.com\/photo.webp"/);
   assert.ok(renderGrid(state).includes(`src="${source}"`));
+});
+
+test('catalog preload and the first product card request the same responsive sizes', () => {
+  const origin = 'https://catalog-images.example.test';
+  const photo = `${origin}/api/images/first-card`;
+  const widths = [160, 640, 1280];
+  const presentation = {
+    [photo]: widths.map((width) => ({ url: `${photo}?w=${width}`, width, height: width })),
+  };
+  const state = {
+    ...readyState(),
+    products: [
+      { _id: 'front', name: 'First card', images: [' ', photo], imagePresentation: presentation },
+    ],
+    total: 1,
+  };
+  const preload = catalogCardImagePreload(state.products[0].images, presentation, origin);
+  assert.ok(preload);
+  const html = renderGrid(state, origin);
+  assert.ok(html.includes(`srcSet="${preload.srcSet}"`));
+  assert.ok(html.includes(`sizes="${catalogCardImageSizes}"`));
+  assert.equal(preload.sizes, catalogCardImageSizes);
+  assert.equal(catalogCardImagePreload([photo], undefined, origin), undefined);
+  assert.equal(catalogCardImagePreload([photo], presentation, undefined), undefined);
+  assert.equal(
+    catalogCardImagePreload(
+      ['https://supplier.example.test/photo.webp', photo],
+      presentation,
+      origin,
+    ),
+    undefined,
+  );
 });
 
 test('family catalog replaces twelve-card pages and rejects stale responses', () => {

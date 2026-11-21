@@ -1,0 +1,4993 @@
+{
+  "experiments": {
+    "desktopAndMobile": {
+      "date": "2026-11-21T20:50:35.318Z",
+      "version": "157.0.8103.79",
+      "url": "https://supplychainsai.com/headphones/page/2/",
+      "selectedUrl": "/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+      "entries": [
+        {
+          "round": 1,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 3404,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 3420,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 4848,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035332215443887173,
+          "fcp": 3404,
+          "ttfb": 2328.6000000089407,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 2333,
+              "status": 200,
+              "header": 2790,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 3359,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 3408,
+              "status": 200,
+              "header": 4830,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 4839,
+              "bytes": 10868
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4777,
+              "status": 200,
+              "header": 5775,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5774,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5777,
+              "status": 200,
+              "header": 6509,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6506,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5778,
+              "status": 200,
+              "header": 6875,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6873,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5778,
+              "status": 200,
+              "header": 6917,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6906,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5779,
+              "status": 200,
+              "header": 7029,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7028,
+              "bytes": 8109
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5780,
+              "status": 200,
+              "header": 7009,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7007,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5782,
+              "status": 200,
+              "header": 7457,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7454,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 1,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1376,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1400,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1932,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00043613639590835054,
+          "fcp": 1376,
+          "ttfb": 671.8000000119209,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 676,
+              "status": 200,
+              "header": 1145,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1340,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 676,
+              "status": 200,
+              "header": 1894,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1900,
+              "bytes": 10867
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4502,
+              "status": 200,
+              "header": 5492,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5491,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5495,
+              "status": 200,
+              "header": 5998,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5997,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5495,
+              "status": 200,
+              "header": 5949,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5948,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5496,
+              "status": 200,
+              "header": 6018,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6017,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5497,
+              "status": 200,
+              "header": 6005,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6005,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5498,
+              "status": 200,
+              "header": 6069,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6068,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5500,
+              "status": 200,
+              "header": 6067,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6067,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1460,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1484,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1876,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00036466474703146436,
+          "fcp": 1460,
+          "ttfb": 780.4000000059605,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 787,
+              "status": 200,
+              "header": 1255,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1429,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 787,
+              "status": 200,
+              "header": 1846,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1853,
+              "bytes": 10874
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4064,
+              "status": 200,
+              "header": 4445,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4444,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4447,
+              "status": 200,
+              "header": 5398,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5393,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4448,
+              "status": 200,
+              "header": 5611,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5609,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4448,
+              "status": 200,
+              "header": 6226,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6225,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4449,
+              "status": 200,
+              "header": 6104,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6103,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4450,
+              "status": 200,
+              "header": 5700,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5698,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4452,
+              "status": 200,
+              "header": 5745,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5744,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1292,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1320,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2740,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1292,
+          "ttfb": 616.4000000059605,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 623,
+              "status": 200,
+              "header": 1092,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1261,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1304,
+              "status": 200,
+              "header": 2713,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2729,
+              "bytes": 10867
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3664,
+              "status": 200,
+              "header": 3960,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3959,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3962,
+              "status": 200,
+              "header": 5608,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5605,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3963,
+              "status": 200,
+              "header": 6067,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6065,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3963,
+              "status": 200,
+              "header": 6116,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6115,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3965,
+              "status": 200,
+              "header": 6104,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6103,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3966,
+              "status": 200,
+              "header": 5966,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5964,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3968,
+              "status": 200,
+              "header": 6099,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6095,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1176,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1200,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 3132,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035332215443887173,
+          "fcp": 1176,
+          "ttfb": 582.2999999970198,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 588,
+              "status": 200,
+              "header": 931,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1139,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1188,
+              "status": 200,
+              "header": 3103,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 3112,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4174,
+              "status": 200,
+              "header": 5185,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5185,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5190,
+              "status": 200,
+              "header": 5916,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5914,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5191,
+              "status": 200,
+              "header": 6263,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6260,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5191,
+              "status": 200,
+              "header": 6395,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6394,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5191,
+              "status": 200,
+              "header": 6404,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6404,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5192,
+              "status": 200,
+              "header": 6381,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6380,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5193,
+              "status": 200,
+              "header": 6303,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6302,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1308,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1332,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1828,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1308,
+          "ttfb": 708.0999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 714,
+              "status": 200,
+              "header": 1144,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1271,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 715,
+              "status": 200,
+              "header": 1805,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1812,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4489,
+              "status": 200,
+              "header": 5041,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5040,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5043,
+              "status": 200,
+              "header": 7238,
+              "protocol": "h2",
+              "reused": false,
+              "end": 7237,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5044,
+              "status": 200,
+              "header": 7534,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7531,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5044,
+              "status": 200,
+              "header": 7668,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7668,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5045,
+              "status": 200,
+              "header": 7683,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7683,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5046,
+              "status": 200,
+              "header": 7619,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7617,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5048,
+              "status": 200,
+              "header": 7654,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7653,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 4,
+          "device": "mobile",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1660,
+              "url": "",
+              "element": "SPAN"
+            },
+            {
+              "time": 1740,
+              "url": "",
+              "element": "H1"
+            }
+          ],
+          "cls": 0.019321388379669863,
+          "fcp": 1660,
+          "ttfb": 729.6000000089407,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 771.75,
+            "size": 310
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 741,
+              "status": 200,
+              "header": 1293,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1630,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1729,
+              "status": 200,
+              "header": 2382,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2599,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3888,
+              "status": 200,
+              "header": 4390,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4446,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4459,
+              "status": 200,
+              "header": 6618,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6617,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4460,
+              "status": 200,
+              "header": 7136,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7135,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4460,
+              "status": 200,
+              "header": 5921,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5920,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4462,
+              "status": 200,
+              "header": 5965,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5965,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4464,
+              "status": 200,
+              "header": 6792,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6790,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4467,
+              "status": 200,
+              "header": 6392,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6391,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 4,
+          "device": "mobile",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 4164,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 4248,
+              "url": "",
+              "element": "H1"
+            }
+          ],
+          "cls": 0.05632098350015176,
+          "fcp": 4164,
+          "ttfb": 918.0999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 919.75,
+            "size": 310
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 930,
+              "status": 200,
+              "header": 3665,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 4129,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 4236,
+              "status": 200,
+              "header": 7114,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 7286,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 6342,
+              "status": 200,
+              "header": 6739,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6738,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6742,
+              "status": 200,
+              "header": 9372,
+              "protocol": "h2",
+              "reused": true,
+              "end": 9340,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6742,
+              "status": 200,
+              "header": 9304,
+              "protocol": "h2",
+              "reused": false,
+              "end": 9303,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6743,
+              "status": 200,
+              "header": 8516,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8516,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6745,
+              "status": 200,
+              "header": 8593,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8592,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6746,
+              "status": 200,
+              "header": 9388,
+              "protocol": "h2",
+              "reused": true,
+              "end": 9385,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 6749,
+              "status": 200,
+              "header": 8848,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8846,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 5,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1172,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1196,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2028,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035332215443887173,
+          "fcp": 1172,
+          "ttfb": 575.4000000059605,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 584,
+              "status": 200,
+              "header": 967,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1139,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1182,
+              "status": 200,
+              "header": 2003,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2010,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3127,
+              "status": 200,
+              "header": 3623,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3622,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3625,
+              "status": 200,
+              "header": 4410,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4402,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3625,
+              "status": 200,
+              "header": 4723,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4720,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3625,
+              "status": 200,
+              "header": 4753,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4747,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3626,
+              "status": 200,
+              "header": 4434,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4433,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3627,
+              "status": 200,
+              "header": 4895,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4893,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3628,
+              "status": 200,
+              "header": 4939,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4939,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 5,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1512,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1532,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2056,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0,
+          "fcp": 1512,
+          "ttfb": 761.1000000089407,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 767,
+              "status": 200,
+              "header": 1302,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1493,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 767,
+              "status": 200,
+              "header": 2031,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2044,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4100,
+              "status": 200,
+              "header": 4649,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4648,
+              "bytes": 1441
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4652
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4652
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4653
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4653
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4654
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdOD2MVsiEuQPQ&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4656
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 6,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1500,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1524,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1568,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00017081685635288068,
+          "fcp": 1500,
+          "ttfb": 596.5,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 600,
+              "status": 200,
+              "header": 1292,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1473,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 600,
+              "status": 200,
+              "header": 1541,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1549,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4192,
+              "status": 200,
+              "header": 4735,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4734,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4737,
+              "status": 200,
+              "header": 7384,
+              "protocol": "h2",
+              "reused": false,
+              "end": 7381,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4737
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4737
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4738
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4740
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4742
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 6,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1160,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1184,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2420,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1160,
+          "ttfb": 585.5999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 591,
+              "status": 200,
+              "header": 946,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1128,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1171,
+              "status": 200,
+              "header": 2389,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 2396,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3481,
+              "status": 200,
+              "header": 3775,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3775,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3776,
+              "status": 200,
+              "header": 6252,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6248,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3776,
+              "status": 200,
+              "header": 6372,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6371,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3776,
+              "status": 200,
+              "header": 6355,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6355,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3777,
+              "status": 200,
+              "header": 6332,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6328,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3777,
+              "status": 200,
+              "header": 6299,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6298,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3778,
+              "status": 200,
+              "header": 6328,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6327,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 7,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1476,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 1500,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 3420,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0,
+          "fcp": 1476,
+          "ttfb": 682.7000000029802,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 688,
+              "status": 200,
+              "header": 1034,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1444,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1484,
+              "status": 200,
+              "header": 3404,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 3411,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 2916,
+              "status": 200,
+              "header": 3643,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3698,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3700
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3700
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3701
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3702
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3702
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3704
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 7,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 3992,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 4012,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 3992,
+          "ttfb": 920.5,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 927,
+              "status": 200,
+              "header": 3662,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 3955,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 927,
+              "status": 200,
+              "header": 3880,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 3890,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 6132,
+              "status": 200,
+              "header": 7131,
+              "protocol": "h2",
+              "reused": false,
+              "end": 7130,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7133,
+              "status": 200,
+              "header": 7848,
+              "protocol": "h2",
+              "reused": false,
+              "end": 7845,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7133,
+              "status": 200,
+              "header": 8356,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8355,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7134,
+              "status": 200,
+              "header": 8260,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8259,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7135,
+              "status": 200,
+              "header": 7868,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7858,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7136,
+              "status": 200,
+              "header": 8212,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8209,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 7138,
+              "status": 200,
+              "header": 8396,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8395,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 8,
+          "device": "mobile",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 2192,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 2260,
+              "url": "",
+              "element": "H1"
+            }
+          ],
+          "cls": 0.04253046243230651,
+          "fcp": 2192,
+          "ttfb": 1379,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 890.5,
+            "size": 310
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 1392,
+              "status": 200,
+              "header": 1736,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2155,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 2247,
+              "status": 200,
+              "header": 3214,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 3416,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4564,
+              "status": 200,
+              "header": 5156,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5155,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5158
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5158
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5159
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5161
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5162
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5165
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 8,
+          "device": "mobile",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1600,
+              "url": "",
+              "element": "SPAN"
+            },
+            {
+              "time": 1676,
+              "url": "",
+              "element": "H1"
+            }
+          ],
+          "cls": 0.019321388379669863,
+          "fcp": 1600,
+          "ttfb": 891.6000000089407,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 771.75,
+            "size": 310
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 910,
+              "status": 200,
+              "header": 1241,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1564,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1668,
+              "status": 200,
+              "header": 2442,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2650,
+              "bytes": 10813
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3966,
+              "status": 200,
+              "header": 4563,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4563,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4569,
+              "status": 200,
+              "header": 6529,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6528,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4570,
+              "status": 200,
+              "header": 6544,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6537,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4570,
+              "status": 200,
+              "header": 6206,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6206,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4571,
+              "status": 200,
+              "header": 5427,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5426,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4572,
+              "status": 200,
+              "header": 6615,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6581,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4575,
+              "status": 200,
+              "header": 6469,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6468,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        }
+      ]
+    },
+    "threePriorities": {
+      "date": "2026-11-21T20:53:09.194Z",
+      "version": "157.0.8103.79",
+      "url": "https://supplychainsai.com/headphones/page/2/",
+      "selectedUrl": "/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+      "entries": [
+        {
+          "round": 1,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1940,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1956,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 3400,
+              "url": "https://supplychainsai.com/api/images/96d9cd126ac87ee3006dbd0b368967e4",
+              "element": "IMG"
+            }
+          ],
+          "cls": 9.32098430534122e-5,
+          "fcp": 1940,
+          "ttfb": 930.7999999970198,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 934,
+              "status": 200,
+              "header": 1701,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1899,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1941,
+              "status": 200,
+              "header": 4822,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 4829,
+              "bytes": 10874
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4556,
+              "status": 200,
+              "header": 5666,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5665,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5684
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5684,
+              "status": 200,
+              "header": 8323,
+              "protocol": "h2",
+              "reused": false,
+              "end": 8322,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5684,
+              "status": 200,
+              "header": 8347,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8345,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5685,
+              "status": 200,
+              "header": 8346,
+              "protocol": "h2",
+              "reused": true,
+              "end": 8333,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5685
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5686
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 1,
+          "device": "desktop",
+          "arm": "auto",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1240,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1260,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2760,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1240,
+          "ttfb": 694.5999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 698,
+              "status": 200,
+              "header": 1034,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1210,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 698,
+              "status": 200,
+              "header": 2741,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2748,
+              "bytes": 10875
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4077,
+              "status": 200,
+              "header": 4465,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4464,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4467,
+              "status": 200,
+              "header": 6018,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6014,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4467,
+              "status": 200,
+              "header": 6454,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6451,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4467,
+              "status": 200,
+              "header": 6485,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6460,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4469,
+              "status": 200,
+              "header": 6486,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6461,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4470,
+              "status": 200,
+              "header": 6175,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6173,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4471,
+              "status": 200,
+              "header": 6486,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6482,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 1,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1312,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1340,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2604,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00034416899085862486,
+          "fcp": 1312,
+          "ttfb": 577.2000000029802,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 583,
+              "status": 200,
+              "header": 1065,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1278,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 583,
+              "status": 200,
+              "header": 2583,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 2589,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3375,
+              "status": 200,
+              "header": 4493,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4494,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4494,
+              "status": 200,
+              "header": 5065,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5064,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4494,
+              "status": 200,
+              "header": 4951,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4950,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4494,
+              "status": 200,
+              "header": 4976,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4960,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4495,
+              "status": 200,
+              "header": 5076,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5075,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4495,
+              "status": 200,
+              "header": 5123,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5122,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4496,
+              "status": 200,
+              "header": 5094,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5094,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1428,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1456,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1764,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 1.1342592592592592e-5,
+          "fcp": 1428,
+          "ttfb": 680.2000000029802,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 685,
+              "status": 200,
+              "header": 1214,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1403,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 685,
+              "status": 200,
+              "header": 1739,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1747,
+              "bytes": 10873
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 4054,
+              "status": 200,
+              "header": 5609,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5609,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5625
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5626
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5626
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5627
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5628
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5630
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1356,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 1384,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 4348,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1356,
+          "ttfb": 565.5,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 571,
+              "status": 200,
+              "header": 1136,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1328,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1368,
+              "status": 200,
+              "header": 4330,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 4337,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3126,
+              "status": 200,
+              "header": 3418,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3417,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3420,
+              "status": 200,
+              "header": 5921,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5919,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3420,
+              "status": 200,
+              "header": 5054,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5053,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3420,
+              "status": 200,
+              "header": 6039,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6038,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3421,
+              "status": 200,
+              "header": 5075,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5063,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3422,
+              "status": 200,
+              "header": 6649,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6646,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3424
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 2,
+          "device": "desktop",
+          "arm": "auto",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 2176,
+              "url": "https://supplychainsai.com/media/logo-channel.svg",
+              "element": "IMG"
+            },
+            {
+              "time": 2204,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0002638052983539095,
+          "fcp": 2176,
+          "ttfb": 542,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 548,
+              "status": 200,
+              "header": 1489,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 2145,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 548,
+              "status": 200,
+              "header": 1347,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1353,
+              "bytes": 10874
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3950,
+              "status": 200,
+              "header": 4243,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4243,
+              "bytes": 1441
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4244,
+              "status": 200,
+              "header": 6854,
+              "protocol": "h2",
+              "reused": false,
+              "end": 6852,
+              "bytes": 37912
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4244,
+              "status": 200,
+              "header": 6908,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6907,
+              "bytes": 37574
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4244
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4244
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdND2MVsiEu&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4244,
+              "status": 200,
+              "header": 7434,
+              "protocol": "h2",
+              "reused": true,
+              "end": 7432,
+              "bytes": 37574
+            },
+            {
+              "url": "https://fonts.gstatic.com/l/font?kit=UcCB3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfU5NJeWUdIOjBeTGbXZdOD2MVsiEuQPQ&skey=c491285d6722e4fa&v=v20",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4245
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "device": "desktop",
+          "arm": "auto",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1576,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1604,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1812,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004247938033157579,
+          "fcp": 1576,
+          "ttfb": 552.0999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 558,
+              "status": 200,
+              "header": 907,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1548,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 558,
+              "status": 200,
+              "header": 1786,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1794,
+              "bytes": 10814
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3913,
+              "status": 200,
+              "header": 4211,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4210,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4213,
+              "status": 200,
+              "header": 5686,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5682,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4214,
+              "status": 200,
+              "header": 5739,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5738,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4214,
+              "status": 200,
+              "header": 5802,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5801,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4215,
+              "status": 200,
+              "header": 5789,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5788,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4216,
+              "status": 200,
+              "header": 5796,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5794,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4218,
+              "status": 200,
+              "header": 5811,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5807,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1368,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1392,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1792,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035551158345121744,
+          "fcp": 1368,
+          "ttfb": 702.6999999880791,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 709,
+              "status": 200,
+              "header": 1172,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1335,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 709,
+              "status": 200,
+              "header": 1770,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1776,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3981,
+              "status": 200,
+              "header": 4506,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4505,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4516,
+              "status": 200,
+              "header": 5156,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5154,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4516,
+              "status": 200,
+              "header": 5317,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5316,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4516,
+              "status": 200,
+              "header": 5109,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5108,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4517,
+              "status": 200,
+              "header": 5150,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5149,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4518,
+              "status": 200,
+              "header": 5358,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5357,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4519,
+              "status": 200,
+              "header": 5221,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5220,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 3,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1340,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1368,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2384,
+              "url": "https://supplychainsai.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035332215443887173,
+          "fcp": 1340,
+          "ttfb": 576.7000000029802,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 582,
+              "status": 200,
+              "header": 1123,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1310,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1352,
+              "status": 200,
+              "header": 2807,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2814,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3426,
+              "status": 200,
+              "header": 3970,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3970,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3971,
+              "status": 200,
+              "header": 5434,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5433,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3971,
+              "status": 200,
+              "header": 5529,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5527,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3971,
+              "status": 200,
+              "header": 5506,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5505,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3971,
+              "status": 200,
+              "header": 5548,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5547,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3971,
+              "status": 200,
+              "header": 5575,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5574,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3972,
+              "status": 200,
+              "header": 5557,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5557,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 4,
+          "device": "desktop",
+          "arm": "auto",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1332,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1352,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1876,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0,
+          "fcp": 1332,
+          "ttfb": 709.9000000059605,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 712,
+              "status": 200,
+              "header": 1156,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1314,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 713,
+              "status": 200,
+              "header": 1839,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1846,
+              "bytes": 10867
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3817,
+              "status": 200,
+              "header": 4112,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4112,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4114
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4115
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4115
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4116
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4117
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 4119
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 4,
+          "device": "desktop",
+          "arm": "baseline",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1372,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1392,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 2396,
+              "url": "https://supplychainsai.com/api/images/4c2f81c76a9fcec6013312533613a7fb",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.00035332215443887173,
+          "fcp": 1372,
+          "ttfb": 574.0999999940395,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 577,
+              "status": 200,
+              "header": 1147,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1351,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "Low",
+              "start": 1381,
+              "status": 200,
+              "header": 2603,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 2610,
+              "bytes": 10866
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3446,
+              "status": 200,
+              "header": 3819,
+              "protocol": "h2",
+              "reused": false,
+              "end": 3819,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3821,
+              "status": 200,
+              "header": 4453,
+              "protocol": "h2",
+              "reused": false,
+              "end": 4452,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3821,
+              "status": 200,
+              "header": 4900,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4899,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3822,
+              "status": 200,
+              "header": 4967,
+              "protocol": "h2",
+              "reused": true,
+              "end": 4967,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3823,
+              "status": 200,
+              "header": 5348,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5347,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3824,
+              "status": 200,
+              "header": 5311,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5308,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 3826,
+              "status": 200,
+              "header": 5375,
+              "protocol": "h2",
+              "reused": true,
+              "end": 5375,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        },
+        {
+          "round": 4,
+          "device": "desktop",
+          "arm": "high",
+          "sourceSize": 119122,
+          "lcp": [
+            {
+              "time": 1216,
+              "url": "",
+              "element": "SUMMARY"
+            },
+            {
+              "time": 1240,
+              "url": "",
+              "element": "H1"
+            },
+            {
+              "time": 1260,
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "element": "IMG"
+            }
+          ],
+          "cls": 0.0004269832323281036,
+          "fcp": 1216,
+          "ttfb": 581.7999999970198,
+          "firstCard": {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+            "top": 661.25,
+            "size": 279
+          },
+          "requests": [
+            {
+              "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+              "type": "Stylesheet",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 587,
+              "status": 200,
+              "header": 984,
+              "protocol": "http/1.1",
+              "reused": true,
+              "end": 1183,
+              "bytes": 60838
+            },
+            {
+              "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+              "type": "Image",
+              "initiator": "parser",
+              "priority": "High",
+              "start": 587,
+              "status": 200,
+              "header": 1228,
+              "protocol": "http/1.1",
+              "reused": false,
+              "end": 1217,
+              "bytes": 10806
+            },
+            {
+              "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap",
+              "type": "Stylesheet",
+              "initiator": "script",
+              "priority": "VeryHigh",
+              "start": 3889,
+              "status": 200,
+              "header": 5278,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5277,
+              "bytes": 1373
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5280,
+              "status": 200,
+              "header": 6392,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6390,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5280,
+              "status": 200,
+              "header": 5997,
+              "protocol": "h2",
+              "reused": false,
+              "end": 5995,
+              "bytes": 48983
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5280,
+              "status": 200,
+              "header": 6020,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6006,
+              "bytes": 7965
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5281,
+              "status": 200,
+              "header": 6492,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6491,
+              "bytes": 8108
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5282,
+              "status": 200,
+              "header": 6475,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6473,
+              "bytes": 48511
+            },
+            {
+              "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2",
+              "type": "Font",
+              "initiator": "parser",
+              "priority": "VeryHigh",
+              "start": 5284,
+              "status": 200,
+              "header": 6522,
+              "protocol": "h2",
+              "reused": true,
+              "end": 6521,
+              "bytes": 19171
+            }
+          ],
+          "errors": []
+        }
+      ]
+    }
+  },
+  "currentSiteBeforeRelease": {
+    "startedAt": "2026-11-21T20:57:19.294Z",
+    "release": "site-44946822544-1",
+    "chrome": "157.0.8103.79",
+    "egressAtStart": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "egressAtEnd": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "observeAfterDomMs": 5500,
+    "profiles": {
+      "mobile": {
+        "view": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "isMobile": true,
+          "hasTouch": true
+        },
+        "cpu": 4,
+        "network": {
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "desktop": {
+        "view": {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "deviceScaleFactor": 1
+        },
+        "cpu": 1,
+        "network": {
+          "latency": 40,
+          "downloadThroughput": 1250000,
+          "uploadThroughput": 625000,
+          "connectionType": "ethernet"
+        }
+      }
+    },
+    "categories": {
+      "page2": "/headphones/page/2/",
+      "page11": "/headphones/page/11/",
+      "page38": "/headphones/page/38/"
+    },
+    "rows": [
+      {
+        "round": 1,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 730.5,
+          "lastByte": 1043.5,
+          "encoded": 119122,
+          "protocol": "http/1.1",
+          "dnsDuration": 53.400000005960464,
+          "tcpDuration": 57.29999999701977,
+          "tlsDuration": 251.3999999910593,
+          "requestStart": 366.69999998807907,
+          "domContentLoaded": 3751.3999999910593,
+          "headerAndBodyTransfer": 119422
+        },
+        "paints": {
+          "fcp": 1612,
+          "lcp": {
+            "time": 4028,
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+            "element": "IMG"
+          },
+          "cls": 0.00035332215443887173
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+          "start": 1615.2999999970198,
+          "firstByte": 3996,
+          "lastByte": 4007.3999999910593,
+          "encoded": 9934,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 739,
+            "firstByte": 1433.699999988079,
+            "lastByte": 1572.199999988079,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "page11",
+        "path": "/headphones/page/11/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/11/",
+          "start": 0,
+          "firstByte": 688.4000000059605,
+          "lastByte": 1211.6000000089407,
+          "encoded": 129995,
+          "protocol": "http/1.1",
+          "dnsDuration": 52.20000000298023,
+          "tcpDuration": 58.19999998807907,
+          "tlsDuration": 222.5,
+          "requestStart": 339.1000000089407,
+          "domContentLoaded": 4268.5,
+          "headerAndBodyTransfer": 130295
+        },
+        "paints": {
+          "fcp": 1684,
+          "lcp": {
+            "time": 3116,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+          "start": 1693.2000000029802,
+          "firstByte": 3065.6000000089407,
+          "lastByte": 3086.7000000029802,
+          "encoded": 12078,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 698.8000000119209,
+            "firstByte": 1543.5,
+            "lastByte": 1648.300000011921,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 1,
+        "kind": "page38",
+        "path": "/headphones/page/38/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/38/",
+          "start": 0,
+          "firstByte": 713,
+          "lastByte": 1198.7999999970198,
+          "encoded": 138558,
+          "protocol": "http/1.1",
+          "dnsDuration": 53,
+          "tcpDuration": 58.30000001192093,
+          "tlsDuration": 223.79999999701977,
+          "requestStart": 340.90000000596046,
+          "domContentLoaded": 3812.9000000059605,
+          "headerAndBodyTransfer": 138858
+        },
+        "paints": {
+          "fcp": 1656,
+          "lcp": {
+            "time": 4184,
+            "url": "https://supplychainsai.com/api/images/3d00e15d6aaa5abb000d52e777284353",
+            "element": "IMG"
+          },
+          "cls": 0.0004247938033157579
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/3d00e15d6aaa5abb000d52e777284353",
+          "start": 1666.5999999940395,
+          "firstByte": 4095.4000000059605,
+          "lastByte": 4169.5999999940395,
+          "encoded": 59997,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 720.9000000059605,
+            "firstByte": 1530.0999999940395,
+            "lastByte": 1624.5,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "page38",
+        "path": "/headphones/page/38/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/38/",
+          "start": 0,
+          "firstByte": 677.2000000029802,
+          "lastByte": 1173.5,
+          "encoded": 138558,
+          "protocol": "http/1.1",
+          "dnsDuration": 54.099999994039536,
+          "tcpDuration": 58,
+          "tlsDuration": 228.29999999701977,
+          "requestStart": 344.90000000596046,
+          "domContentLoaded": 4221.100000008941,
+          "headerAndBodyTransfer": 138858
+        },
+        "paints": {
+          "fcp": 1628,
+          "lcp": {
+            "time": 3184,
+            "url": "https://supplychainsai.com/api/images/4c2f81c76aa15ed5014a024268d38eb1",
+            "element": "IMG"
+          },
+          "cls": 0.0004247938033157579
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/4c2f81c76aa15ed5014a024268d38eb1",
+          "start": 1640.1000000089407,
+          "firstByte": 2758.7999999970198,
+          "lastByte": 3174.2000000029802,
+          "encoded": 77891,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 688.5,
+            "firstByte": 1492.2999999970198,
+            "lastByte": 1599.9000000059605,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "page11",
+        "path": "/headphones/page/11/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/11/",
+          "start": 0,
+          "firstByte": 972.4000000059605,
+          "lastByte": 1280.9000000059605,
+          "encoded": 129995,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.70000000298023,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 498.59999999403954,
+          "requestStart": 615.2000000029802,
+          "domContentLoaded": 4382,
+          "headerAndBodyTransfer": 130295
+        },
+        "paints": {
+          "fcp": 1816,
+          "lcp": {
+            "time": 3380,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+            "element": "IMG"
+          },
+          "cls": 0.0004247938033157579
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+          "start": 1828,
+          "firstByte": 3281.9000000059605,
+          "lastByte": 3357.300000011921,
+          "encoded": 12078,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 983.7000000029802,
+            "firstByte": 1608.4000000059605,
+            "lastByte": 1787.4000000059605,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 2,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 714.6999999880791,
+          "lastByte": 1015.8999999910593,
+          "encoded": 119122,
+          "protocol": "http/1.1",
+          "dnsDuration": 52.8999999910593,
+          "tcpDuration": 57.79999999701977,
+          "tlsDuration": 254.20000000298023,
+          "requestStart": 370.09999999403954,
+          "domContentLoaded": 3172.199999988079,
+          "headerAndBodyTransfer": 119422
+        },
+        "paints": {
+          "fcp": 1440,
+          "lcp": {
+            "time": 2520,
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+            "element": "IMG"
+          },
+          "cls": 9.32098430534122e-5
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+          "start": 1451.699999988079,
+          "firstByte": 2498.0999999940395,
+          "lastByte": 2507.0999999940395,
+          "encoded": 9934,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 876.1999999880791,
+            "firstByte": 1362.8999999910593,
+            "lastByte": 1411.5,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "page2",
+        "path": "/headphones/page/2/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/2/",
+          "start": 0,
+          "firstByte": 1129.2999999970198,
+          "lastByte": 2326,
+          "encoded": 119122,
+          "protocol": "http/1.1",
+          "dnsDuration": 57.29999999701977,
+          "tcpDuration": 58.099999994039536,
+          "tlsDuration": 681.4000000059605,
+          "requestStart": 798.5,
+          "domContentLoaded": 4219.79999999702,
+          "headerAndBodyTransfer": 119422
+        },
+        "paints": {
+          "fcp": 2136,
+          "lcp": {
+            "time": 2728,
+            "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac87ebb00071d744e63f0da",
+          "start": 2141.7000000029802,
+          "firstByte": 2705.4000000059605,
+          "lastByte": 2721.2000000029802,
+          "encoded": 9934,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 1141.5,
+            "firstByte": 1754.5,
+            "lastByte": 2105.7000000029802,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "page11",
+        "path": "/headphones/page/11/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/11/",
+          "start": 0,
+          "firstByte": 708.6999999880791,
+          "lastByte": 1967.3999999910593,
+          "encoded": 129995,
+          "protocol": "http/1.1",
+          "dnsDuration": 56.20000000298023,
+          "tcpDuration": 60.70000000298023,
+          "tlsDuration": 252.19999998807907,
+          "requestStart": 373.79999999701977,
+          "domContentLoaded": 3481.0999999940395,
+          "headerAndBodyTransfer": 130295
+        },
+        "paints": {
+          "fcp": 1892,
+          "lcp": {
+            "time": 2384,
+            "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+            "element": "IMG"
+          },
+          "cls": 0
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa4e03000972a00fe10de3",
+          "start": 1893.7999999970198,
+          "firstByte": 2313.5,
+          "lastByte": 2376.5999999940395,
+          "encoded": 12078,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 804.0999999940395,
+            "firstByte": 1414.8999999910593,
+            "lastByte": 1859.3999999910593,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      },
+      {
+        "round": 3,
+        "kind": "page38",
+        "path": "/headphones/page/38/",
+        "device": "desktop",
+        "status": 200,
+        "errors": [],
+        "failed": [],
+        "navigation": {
+          "url": "https://supplychainsai.com/headphones/page/38/",
+          "start": 0,
+          "firstByte": 655,
+          "lastByte": 1204.5999999940395,
+          "encoded": 138558,
+          "protocol": "http/1.1",
+          "dnsDuration": 53.400000005960464,
+          "tcpDuration": 57.70000000298023,
+          "tlsDuration": 223.8999999910593,
+          "requestStart": 340.59999999403954,
+          "domContentLoaded": 3676,
+          "headerAndBodyTransfer": 138858
+        },
+        "paints": {
+          "fcp": 1668,
+          "lcp": {
+            "time": 2628,
+            "url": "https://supplychainsai.com/api/images/54767b9d6a9fc7ec025c2bc17b100796",
+            "element": "IMG"
+          },
+          "cls": 0.0004247938033157579
+        },
+        "lcpResource": {
+          "url": "https://supplychainsai.com/api/images/54767b9d6a9fc7ec025c2bc17b100796",
+          "start": 1677.5,
+          "firstByte": 2522.2000000029802,
+          "lastByte": 2619.2999999970198,
+          "encoded": 45978,
+          "protocol": "http/1.1"
+        },
+        "localStylesheets": [
+          {
+            "url": "https://supplychainsai.com/_astro/headphones.B9voga9k.css",
+            "start": 665.5999999940395,
+            "firstByte": 1466,
+            "lastByte": 1642.7999999970198,
+            "encoded": 60278,
+            "protocol": "http/1.1"
+          }
+        ],
+        "localScripts": {
+          "count": 27,
+          "bytes": 659692
+        },
+        "mainThread": {
+          "count": 0,
+          "blockingBeyond50Ms": 0
+        }
+      }
+    ],
+    "finishedAt": "2026-11-21T20:58:45.411Z"
+  },
+  "local": {
+    "scope": {
+      "checkedPages": 42,
+      "hints": 7,
+      "rows": [
+        {
+          "page": "ai-gadgets/page/2/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "ai-gadgets/page/3/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/10/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/11/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/01f3430d6aaa4e03000972a00fe10de3?w=160 160w, /api/images/01f3430d6aaa4e03000972a00fe10de3?w=640 640w, /api/images/01f3430d6aaa4e03000972a00fe10de3?w=1280 800w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/12/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/66baec6f6ac87f63007272a63bb14d45?w=160 160w, /api/images/66baec6f6ac87f63007272a63bb14d45?w=640 640w, /api/images/66baec6f6ac87f63007272a63bb14d45?w=1280 1280w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/13/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/01f3430d6aab522f0012c37e6ec7de52?w=160 160w, /api/images/01f3430d6aab522f0012c37e6ec7de52?w=640 640w, /api/images/01f3430d6aab522f0012c37e6ec7de52?w=1280 1280w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/14/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/15/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/16/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/17/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/18/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/19/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/2/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/4db8df016ac87ebb00071d744e63f0da?w=160 160w, /api/images/4db8df016ac87ebb00071d744e63f0da?w=640 640w, /api/images/4db8df016ac87ebb00071d744e63f0da?w=1280 1280w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/20/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/21/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/22/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/23/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/24/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/25/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/26/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/27/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/28/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/29/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/3/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/30/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/31/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/32/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/33/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/34/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/35/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/ea7765a56aaa601200299dd24496c764?w=160 160w, /api/images/ea7765a56aaa601200299dd24496c764?w=640 640w, /api/images/ea7765a56aaa601200299dd24496c764?w=1280 1200w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/36/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/37/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/38/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/54767b9d6a9fc7ec025c2bc17b100796?w=160 160w, /api/images/54767b9d6a9fc7ec025c2bc17b100796?w=640 640w, /api/images/54767b9d6a9fc7ec025c2bc17b100796?w=1280 1200w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/39/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/4/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/5/index.html",
+          "eligible": true,
+          "preload": {
+            "rel": "preload",
+            "as": "image",
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "imagesrcset": "/api/images/96d9cd126ac88058006dd174533543e0?w=160 160w, /api/images/96d9cd126ac88058006dd174533543e0?w=640 640w, /api/images/96d9cd126ac88058006dd174533543e0?w=1280 800w",
+            "imagesizes": "(min-width: 1280px) 280px, (min-width: 1024px) calc(25vw - 52px), (min-width: 640px) calc(50vw - 56px), calc(100vw - 80px)",
+            "referrerpolicy": "no-referrer"
+          }
+        },
+        {
+          "page": "headphones/page/6/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/7/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/8/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "headphones/page/9/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "misc/page/2/index.html",
+          "eligible": false,
+          "preload": null
+        },
+        {
+          "page": "misc/page/3/index.html",
+          "eligible": false,
+          "preload": null
+        }
+      ]
+    },
+    "photo": {
+      "live": false,
+      "results": [
+        {
+          "mode": "base",
+          "width": 1440,
+          "height": 900,
+          "expected": false,
+          "hint": null,
+          "fcp": 88,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:57196",
+              "search": "?w=640",
+              "startMs": 62,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 200,
+              "headerMs": 1626
+            }
+          ]
+        },
+        {
+          "mode": "candidate",
+          "width": 1440,
+          "height": 900,
+          "expected": true,
+          "hint": {
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "applies": true
+          },
+          "fcp": 72,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:57197",
+              "search": "?w=640",
+              "startMs": 12,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 200,
+              "headerMs": 518
+            }
+          ]
+        },
+        {
+          "mode": "candidate",
+          "width": 390,
+          "height": 844,
+          "expected": false,
+          "hint": {
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "applies": false
+          },
+          "fcp": 40,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:57197",
+              "search": "?w=640",
+              "startMs": 45,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 200,
+              "headerMs": 404
+            }
+          ]
+        },
+        {
+          "mode": "candidate",
+          "width": 1024,
+          "height": 768,
+          "expected": false,
+          "hint": {
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "applies": false
+          },
+          "fcp": 56,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:57197",
+              "search": "?w=640",
+              "startMs": 38,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 200,
+              "headerMs": 704
+            }
+          ]
+        },
+        {
+          "mode": "candidate",
+          "width": 1440,
+          "height": 900,
+          "expected": true,
+          "injectFailure": true,
+          "hint": {
+            "media": "(min-width: 1024px) and (min-height: 800px)",
+            "applies": true
+          },
+          "fcp": 60,
+          "requests": [
+            {
+              "origin": "http://127.0.0.1:57197",
+              "search": "?w=640",
+              "startMs": 10,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 503,
+              "headerMs": 12
+            },
+            {
+              "origin": "http://127.0.0.1:57197",
+              "search": "?w=640",
+              "startMs": 19,
+              "initiator": "parser",
+              "priority": "Low",
+              "status": 503,
+              "headerMs": 22
+            },
+            {
+              "origin": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+              "search": "?w=640",
+              "startMs": 1025,
+              "initiator": "other",
+              "priority": "Low",
+              "status": 200,
+              "headerMs": 2767
+            }
+          ]
+        }
+      ]
+    },
+    "buyerJourney": {
+      "results": [
+        {
+          "version": "current",
+          "width": 390,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "current",
+          "width": 1440,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "candidate",
+          "width": 390,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        },
+        {
+          "version": "candidate",
+          "width": 1440,
+          "htmlStatus": 200,
+          "publicReads": [200, 200, 200, 200, 200],
+          "searchCleared": true,
+          "openedPreview": true,
+          "openedQuote": true,
+          "countrySelected": "Brazil",
+          "quoteClosed": true
+        }
+      ],
+      "submittedInquiry": false
+    }
+  }
+}

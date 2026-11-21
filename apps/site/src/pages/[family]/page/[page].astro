@@ -1,5 +1,6 @@
 ---
 import { publicCatalogImageApiOrigin } from '../../../../../../scripts/release/site-policy.mjs';
+import { catalogCardImagePreload } from '../../../catalog/presentation/responsive-images.ts';
 import AssistantHost from '../../../components/AssistantHost.astro';
 import SiteFooter from '../../../components/SiteFooter.astro';
 import SiteHeader from '../../../components/SiteHeader.astro';
@@ -53,8 +54,26 @@ const cardImageApiOrigin = publicCatalogImageApiOrigin(
   Astro.site?.origin,
   import.meta.env.PUBLIC_API_BASE_URL,
 );
+const firstCard = bootstrap.items[0];
+const cardImagePreload = catalogCardImagePreload(
+  firstCard?.images ?? [],
+  firstCard?.imagePresentation,
+  cardImageApiOrigin,
+);
 ---
 <DocumentLayout page={page}>
+  <Fragment slot="head">
+    {cardImagePreload && (
+      <link
+        rel="preload"
+        as="image"
+        media="(min-width: 1024px) and (min-height: 800px)"
+        imagesrcset={cardImagePreload.srcSet}
+        imagesizes={cardImagePreload.sizes}
+        referrerpolicy="no-referrer"
+      />
+    )}
+  </Fragment>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <section class="border-b border-slate-200 bg-surface-alt">
