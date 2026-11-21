@@ -38,6 +38,7 @@ import {
 } from './hosting-contract.mjs';
 import {
   hostedAssetManifest,
+  hostingBuildPaths,
   publishVerifiedAssets,
   verifyHostedAssets,
 } from './hosting-integrity.mjs';
@@ -638,6 +639,7 @@ async function deployWebApp() {
 
 assertPublicProductBuild(resolve(siteRootPath, 'dist'), siteUrl);
 hostingContractHashes(resolve(siteRootPath, 'dist'));
+if (!coordinatedSite) hostingBuildPaths(resolve(siteRootPath, 'dist'));
 // Inspect existing HTML policy before any cloud write, including function updates.
 // Changing the error document is allowed by this release; a stale-cache policy is not.
 const hostingBefore = await auditHostingContract(siteUrl, { cacheOnly: true });

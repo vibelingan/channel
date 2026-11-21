@@ -1,0 +1,128 @@
+{
+  "scope": "Local candidate compared with GitHub candidate archive from site delivery 44864069637, plus two builds from the same local source path",
+  "package": {
+    "priorWebsiteRun": 44864069637,
+    "firstHtmlRoutes": 589,
+    "productCategoryCounts": {
+      "/headphones/": 460,
+      "/misc/": 32,
+      "/ai-gadgets/": 31,
+      "/toys/": 5
+    },
+    "rawInventory": {
+      "rawChanged": 588,
+      "byteEqual": 1
+    },
+    "unchangedMaps": {
+      "robots.txt": true,
+      "sitemap-index.xml": true,
+      "sitemap-0.xml": true,
+      "products/manifest.json": true,
+      "catalog-pages/manifest.json": true,
+      "seo-manifest.json": true
+    },
+    "changedIslandReferences": [
+      {
+        "component": "AdminApp",
+        "before": "/_astro/AdminApp.BzgmLGFP.js",
+        "after": "/_astro/AdminApp.CGy8oNxA.js",
+        "pages": 1
+      },
+      {
+        "component": "ProductLanding",
+        "before": "/_astro/ProductLanding.Bs5Pr6Bh.js",
+        "after": "/_astro/ProductLanding.DPQGREq7.js",
+        "pages": 528
+      }
+    ],
+    "unexpectedAfterNormalization": []
+  },
+  "browser": [
+    {
+      "id": "187fb9ae-4a73-4c60-af66-649b293fb725",
+      "js": false,
+      "href": "/headphones/",
+      "followed": true
+    },
+    {
+      "id": "187fb9ae-4a73-4c60-af66-649b293fb725",
+      "js": true,
+      "href": "/headphones/",
+      "followed": true
+    },
+    {
+      "id": "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+      "js": false,
+      "href": "/headphones/",
+      "followed": true
+    },
+    {
+      "id": "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+      "js": true,
+      "href": "/headphones/",
+      "followed": true
+    },
+    {
+      "id": "258394ec-d04d-4777-a0ab-fa1b14ba4375",
+      "js": false,
+      "href": "/toys/",
+      "followed": true
+    },
+    {
+      "id": "258394ec-d04d-4777-a0ab-fa1b14ba4375",
+      "js": true,
+      "href": "/toys/",
+      "followed": true
+    },
+    {
+      "dynamicIdRoute": true,
+      "href": "/electronics-toys/"
+    },
+    {
+      "anonymousAdminRedirectedToLogin": true,
+      "addedCatalogBackLinks": 0
+    }
+  ],
+  "sameSourceBuildComparison": {
+    "admin/index.html": {
+      "htmlByteEqual": true,
+      "islandsChanged": {},
+      "islandsByteEqual": {
+        "AdminApp": true
+      }
+    },
+    "products/item/index.html": {
+      "htmlByteEqual": true,
+      "islandsChanged": {},
+      "islandsByteEqual": {
+        "AccountMenu": true,
+        "SkuDetailPage": true,
+        "AssistantWidget": true
+      }
+    },
+    "headphones/index.html": {
+      "htmlByteEqual": true,
+      "islandsChanged": {},
+      "islandsByteEqual": {
+        "AccountMenu": true,
+        "AssistantWidget": true,
+        "CatalogFamilyPage": true,
+        "ProductMedia": true
+      }
+    },
+    "products/p-187fb9ae-4a73-4c60-af66-649b293fb725/index.html": {
+      "htmlByteEqual": false,
+      "islandsChanged": {
+        "ProductLanding": [
+          "/_astro/ProductLanding.MKsobKHl.js",
+          "/_astro/ProductLanding.D57PQmMm.js"
+        ]
+      },
+      "islandsByteEqual": {
+        "AccountMenu": true,
+        "ProductLanding": false,
+        "AssistantWidget": true
+      }
+    }
+  }
+}

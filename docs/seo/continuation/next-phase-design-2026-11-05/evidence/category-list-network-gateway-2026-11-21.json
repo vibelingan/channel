@@ -1,0 +1,169 @@
+{
+  "windowStart": "2026-11-21T04:30:47.357+00:00",
+  "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+  "configuredHost": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+  "apexControl": "https://supplychainsai.com",
+  "control": "New curl process and cold HTTP/1.1 connection each GET, no mobile throttling or credentials. Curl pretransfer approximates request start. Three configured and two apex requests alternate. Full bytes parsed and verified.",
+  "samples": [
+    {
+      "sample": 1,
+      "route": "configured-cloudbase",
+      "requestedAt": "2026-11-21T04:30:47.358+00:00",
+      "receivedAt": "2026-11-21T04:30:49.525+00:00",
+      "status": 200,
+      "protocol": "1.1",
+      "exitCode": 0,
+      "validPageEnvelope": true,
+      "bodyBytes": 32238,
+      "bodySha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "serverTimings": {},
+      "timingsMs": {
+        "dns": 164.5,
+        "tcp": 58.7,
+        "tls": 731.4,
+        "toHttpStart": 954.6,
+        "requestToFirstByte": 869.4,
+        "firstByte": 1824,
+        "body": 333.2
+      },
+      "gatewayMs": 454
+    },
+    {
+      "sample": 2,
+      "route": "apex-alternative",
+      "requestedAt": "2026-11-21T04:30:49.527+00:00",
+      "receivedAt": "2026-11-21T04:30:52.718+00:00",
+      "status": 200,
+      "protocol": "1.1",
+      "exitCode": 0,
+      "validPageEnvelope": true,
+      "bodyBytes": 32238,
+      "bodySha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "serverTimings": {},
+      "timingsMs": {
+        "dns": 1492.7,
+        "tcp": 57.5,
+        "tls": 689.3,
+        "toHttpStart": 2239.6,
+        "requestToFirstByte": 821.7,
+        "firstByte": 3061.3,
+        "body": 103.9
+      },
+      "gatewayMs": 651
+    },
+    {
+      "sample": 3,
+      "route": "configured-cloudbase",
+      "requestedAt": "2026-11-21T04:30:52.719+00:00",
+      "receivedAt": "2026-11-21T04:30:56.737+00:00",
+      "status": 200,
+      "protocol": "1.1",
+      "exitCode": 0,
+      "validPageEnvelope": true,
+      "bodyBytes": 32238,
+      "bodySha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "serverTimings": {},
+      "timingsMs": {
+        "dns": 2.9,
+        "tcp": 63.6,
+        "tls": 747.1,
+        "toHttpStart": 813.7,
+        "requestToFirstByte": 2835.7,
+        "firstByte": 3649.4,
+        "body": 349.2
+      },
+      "gatewayMs": 1357
+    },
+    {
+      "sample": 4,
+      "route": "apex-alternative",
+      "requestedAt": "2026-11-21T04:30:56.738+00:00",
+      "receivedAt": "2026-11-21T04:30:58.048+00:00",
+      "status": 200,
+      "protocol": "1.1",
+      "exitCode": 0,
+      "validPageEnvelope": true,
+      "bodyBytes": 32238,
+      "bodySha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "serverTimings": {},
+      "timingsMs": {
+        "dns": 2.1,
+        "tcp": 58.5,
+        "tls": 254,
+        "toHttpStart": 314.6,
+        "requestToFirstByte": 878,
+        "firstByte": 1192.6,
+        "body": 104.2
+      },
+      "gatewayMs": 709
+    },
+    {
+      "sample": 5,
+      "route": "configured-cloudbase",
+      "requestedAt": "2026-11-21T04:30:58.049+00:00",
+      "receivedAt": "2026-11-21T04:31:02.840+00:00",
+      "status": 200,
+      "protocol": "1.1",
+      "exitCode": 0,
+      "validPageEnvelope": true,
+      "bodyBytes": 32238,
+      "bodySha256": "c9488245e066b5412f788c8c508c7ae15a9c7951dbb4773cad5b5c19a4ad504f",
+      "serverTimings": {},
+      "timingsMs": {
+        "dns": 3,
+        "tcp": 1059.5,
+        "tls": 736.1,
+        "toHttpStart": 1798.7,
+        "requestToFirstByte": 2953.5,
+        "firstByte": 4752.1,
+        "body": 15.1
+      },
+      "gatewayMs": 1688
+    }
+  ],
+  "joinedRecords": 5,
+  "identicalBody": true,
+  "method": "Exact x-cloudbase-request-id to CloudBase CLS access log requestId in current Shanghai env. Times are separately measured wall intervals.",
+  "conclusion": "Current CloudBase route has both client setup variation and server-path variation. Gateway timeCost bundles provider and app processing. Product list emitted no per-stage Server-Timing. No matching historic 12.56s sample and insufficient evidence to change host or attribute to any database function.",
+  "upstreamFields": {
+    "matched": 5,
+    "expected": 5,
+    "samples": [
+      {
+        "ordinal": 1,
+        "route": "configured-cloudbase",
+        "gatewayMs": 454,
+        "upstreamMs": null,
+        "hasUpstreamRequestId": false
+      },
+      {
+        "ordinal": 2,
+        "route": "apex-alternative",
+        "gatewayMs": 651,
+        "upstreamMs": null,
+        "hasUpstreamRequestId": false
+      },
+      {
+        "ordinal": 3,
+        "route": "configured-cloudbase",
+        "gatewayMs": 1357,
+        "upstreamMs": null,
+        "hasUpstreamRequestId": false
+      },
+      {
+        "ordinal": 4,
+        "route": "apex-alternative",
+        "gatewayMs": 709,
+        "upstreamMs": null,
+        "hasUpstreamRequestId": false
+      },
+      {
+        "ordinal": 5,
+        "route": "configured-cloudbase",
+        "gatewayMs": 1688,
+        "upstreamMs": null,
+        "hasUpstreamRequestId": false
+      }
+    ]
+  }
+}

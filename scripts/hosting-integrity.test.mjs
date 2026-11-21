@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   hostedAssetManifest,
+  hostingBuildPaths,
   publishVerifiedAssets,
   verifyHostedAssets,
 } from './hosting-integrity.mjs';
@@ -39,6 +40,20 @@ test('manifest includes nested entry pages and lazy chunks, not unrelated media'
   } finally {
     rmSync(dist, { recursive: true, force: true });
   }
+});
+
+test('direct hosting preflight rejects development files even outside the readback manifest', (t) => {
+  const dist = mkdtempSync(join(tmpdir(), 'channel-hosting-test-'));
+  t.after(() => rmSync(dist, { recursive: true, force: true }));
+  writeFileSync(join(dist, 'index.html'), '<main>Public site</main>');
+  mkdirSync(join(dist, 'tests'));
+  const sample = join(dist, 'tests/probe.json');
+  assert.deepEqual(hostingBuildPaths(dist), ['index.html']);
+  writeFileSync(sample, '{}');
+  assert.throws(() => hostingBuildPaths(dist), /Development artifact.*tests\/probe\.json/);
+  assert.throws(() => hostedAssetManifest(dist), /Development artifact.*tests\/probe\.json/);
+  rmSync(sample);
+  assert.equal(hostedAssetManifest(dist).length, 1);
 });
 
 test('hosting integrity checks bytes, MIME and status, not just an upload success', async () => {

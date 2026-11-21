@@ -11,7 +11,11 @@ import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts'
 import { ProductLanding } from '../../islands/shop/ProductLanding.tsx';
 import { LegacySkuDetailPage, SkuDetailView } from '../../islands/shop/SkuDetailPage.tsx';
 import { isPlainProductClick, productPath } from './product-identity.ts';
-import { duplicateProductTitleIds, productPageDescriptor } from './product-page.ts';
+import {
+  duplicateProductTitleIds,
+  productBreadcrumbs,
+  productPageDescriptor,
+} from './product-page.ts';
 import {
   type ProductSnapshotEntry,
   collectProductSnapshotWithImages,
@@ -47,6 +51,29 @@ test('initial HTML uses the existing detail view for both canonical and no-slug 
     assert.match(html, /<h1[^>]*>Headset<\/h1>/);
     assert.match(html, bootstrap ? /Approved public body\./ : /Legacy public body\./);
     assert.doesNotMatch(html, /Loading product|data-catalog-schema/);
+  }
+});
+
+test('initial product HTML links back to the catalog category shown in its breadcrumbs', () => {
+  for (const { productFamily, href } of [
+    { productFamily: 'headphones', href: '/headphones/' },
+    { productFamily: 'toys', href: '/toys/' },
+    { productFamily: undefined, href: '/electronics-toys/' },
+  ] as const) {
+    const entry = productFamily ? { ...product, productFamily } : product;
+    const catalogHref = productBreadcrumbs(entry).at(-2)?.href;
+    const html = renderToStaticMarkup(
+      createElement(ProductLanding, {
+        bootstrap: { ...detailFixture(), revision: 'approved-r1' },
+        copy: content.sharedDetail,
+        canonicalPath: productPath(product._id),
+        catalogHref,
+      }),
+    );
+    const backLink = html.match(
+      /<a href="([^"]+)"[^>]*><span aria-hidden="true">←<\/span>Back to catalog<\/a>/,
+    );
+    assert.equal(backLink?.[1], href);
   }
 });
 

@@ -1,0 +1,872 @@
+{
+  "sourceRun": 44864069637,
+  "sourceArtifact": "payload-audit-download-44864069637",
+  "browser": "157.0.8103.79",
+  "egress": {
+    "colo": "NRT",
+    "loc": "JP"
+  },
+  "device": {
+    "viewport": {
+      "width": 412,
+      "height": 823
+    },
+    "deviceScaleFactor": 1.75,
+    "isMobile": true,
+    "hasTouch": true,
+    "locale": "en-US"
+  },
+  "network": {
+    "offline": false,
+    "latency": 150,
+    "downloadThroughput": 200000,
+    "uploadThroughput": 93750,
+    "connectionType": "cellular4g"
+  },
+  "cpuRate": 4,
+  "sameOrigin": "Exact static artifact served to browser under normal public website URLs, using byte-identical files. One header attribute changed between arms. Backend GETs stay in Chrome direct to actual public hosts.",
+  "htmlDigest": {
+    "base": "1b27fa7187e4224ab7b2f6965c4cd945676adc39485309d3e1dd81d807e27e21",
+    "candidate": "579d4a17783b4a87adcc230e1bead846af9de9f0be219c2795460d6f87ff99c5"
+  },
+  "samples": [
+    {
+      "arm": "base",
+      "index": 1,
+      "errors": [],
+      "metrics": {
+        "lcp": {
+          "ms": 2140,
+          "tag": "IMG"
+        },
+        "search": 634,
+        "hydratedCards": 634,
+        "filters": 3406,
+        "readiness": 13323
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 569,
+          "status": 200,
+          "header": 3397,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.002000000000000224,
+          "connectMs": 806.79,
+          "tlsMs": 744.698,
+          "finish": 3396,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 569,
+          "status": 200,
+          "header": 1913,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 821.942,
+          "tlsMs": 762.717,
+          "finish": 1912,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 570,
+          "status": 200,
+          "header": 4326,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 4325,
+          "bytes": 924
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 570,
+          "status": 200,
+          "header": 3891,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 3885,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 758,
+          "status": 200,
+          "header": 13318,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0029999999999998916,
+          "connectMs": 2955.683,
+          "tlsMs": 2898.77
+        }
+      ],
+      "menu": {
+        "started": 13473,
+        "familyLinkMs": 77,
+        "headphoneSubmenuMs": 81,
+        "foreignReadyMs": 0,
+        "foreignAlreadyLoaded": true,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 569,
+          "status": 200,
+          "header": 3397,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.002000000000000224,
+          "connectMs": 806.79,
+          "tlsMs": 744.698,
+          "finish": 3396,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 569,
+          "status": 200,
+          "header": 1913,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 821.942,
+          "tlsMs": 762.717,
+          "finish": 1912,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 570,
+          "status": 200,
+          "header": 4326,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 4325,
+          "bytes": 924
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 570,
+          "status": 200,
+          "header": 3891,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 3885,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 758,
+          "status": 200,
+          "header": 13318,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0029999999999998916,
+          "connectMs": 2955.683,
+          "tlsMs": 2898.77,
+          "finish": 13485,
+          "bytes": 33137
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "index": 2,
+      "errors": [],
+      "metrics": {
+        "lcp": {
+          "ms": 1948,
+          "tag": "IMG"
+        },
+        "search": 320,
+        "hydratedCards": 320,
+        "filters": 3743,
+        "readiness": 5829
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 402,
+          "status": 200,
+          "header": 5825,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0020000000000000018,
+          "connectMs": 1936.3999999999999,
+          "tlsMs": 1877.13
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 403,
+          "status": 200,
+          "header": 3726,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 2811.244,
+          "tlsMs": 2754.278,
+          "finish": 3725,
+          "bytes": 1182
+        }
+      ],
+      "menu": {
+        "started": 5910,
+        "familyLinkMs": 31,
+        "headphoneSubmenuMs": 58,
+        "foreignReadyMs": 558,
+        "foreignAlreadyLoaded": false,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 402,
+          "status": 200,
+          "header": 5825,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0020000000000000018,
+          "connectMs": 1936.3999999999999,
+          "tlsMs": 1877.13,
+          "finish": 6014,
+          "bytes": 33138
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 403,
+          "status": 200,
+          "header": 3726,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 2811.244,
+          "tlsMs": 2754.278,
+          "finish": 3725,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 5950,
+          "status": 200,
+          "header": 6464,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 6463,
+          "bytes": 937
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 5951
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 5951
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "index": 3,
+      "errors": [],
+      "metrics": {
+        "lcp": {
+          "ms": 2884,
+          "tag": "IMG"
+        },
+        "search": 270,
+        "hydratedCards": 270,
+        "filters": 2627,
+        "readiness": 3120
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 362,
+          "status": 200,
+          "header": 2512,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0010000000000000009,
+          "connectMs": 772.346,
+          "tlsMs": 708.3960000000001,
+          "finish": 2684,
+          "bytes": 33137
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 363,
+          "status": 200,
+          "header": 2619,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 1777.1399999999999,
+          "tlsMs": 1713.18,
+          "finish": 2619,
+          "bytes": 1182
+        }
+      ],
+      "menu": {
+        "started": 3146,
+        "familyLinkMs": 83,
+        "headphoneSubmenuMs": 117,
+        "foreignReadyMs": 560,
+        "foreignAlreadyLoaded": false,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 362,
+          "status": 200,
+          "header": 2512,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0010000000000000009,
+          "connectMs": 772.346,
+          "tlsMs": 708.3960000000001,
+          "finish": 2684,
+          "bytes": 33137
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 363,
+          "status": 200,
+          "header": 2619,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 1777.1399999999999,
+          "tlsMs": 1713.18,
+          "finish": 2619,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 3236,
+          "status": 200,
+          "header": 3704,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 3703,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 3237
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 3237
+        }
+      ]
+    },
+    {
+      "arm": "base",
+      "index": 4,
+      "errors": [],
+      "metrics": {
+        "lcp": {
+          "ms": 2060,
+          "tag": "IMG"
+        },
+        "search": 197,
+        "hydratedCards": 197,
+        "filters": 1612,
+        "readiness": 3070
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 160,
+          "status": 200,
+          "header": 1605,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.46900000000001,
+          "connectMs": 811.736,
+          "tlsMs": 748.845,
+          "finish": 1605,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 160,
+          "status": 200,
+          "header": 1591,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.46900000000001,
+          "connectMs": 820.606,
+          "tlsMs": 757.7909999999999,
+          "finish": 1591,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 161,
+          "status": 200,
+          "header": 1545,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.437,
+          "connectMs": 801.135,
+          "tlsMs": 738.2829999999999,
+          "finish": 1544,
+          "bytes": 924
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 161,
+          "status": 200,
+          "header": 1613,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.395,
+          "connectMs": 824.38,
+          "tlsMs": 763.41,
+          "finish": 1612,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 295,
+          "status": 200,
+          "header": 3068,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0,
+          "connectMs": 853.344,
+          "tlsMs": 817.115
+        }
+      ],
+      "menu": {
+        "started": 3106,
+        "familyLinkMs": 79,
+        "headphoneSubmenuMs": 82,
+        "foreignReadyMs": 0,
+        "foreignAlreadyLoaded": true,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 160,
+          "status": 200,
+          "header": 1605,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.46900000000001,
+          "connectMs": 811.736,
+          "tlsMs": 748.845,
+          "finish": 1605,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 160,
+          "status": 200,
+          "header": 1591,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.46900000000001,
+          "connectMs": 820.606,
+          "tlsMs": 757.7909999999999,
+          "finish": 1591,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 161,
+          "status": 200,
+          "header": 1545,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.437,
+          "connectMs": 801.135,
+          "tlsMs": 738.2829999999999,
+          "finish": 1544,
+          "bytes": 924
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 161,
+          "status": 200,
+          "header": 1613,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 107.395,
+          "connectMs": 824.38,
+          "tlsMs": 763.41,
+          "finish": 1612,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 295,
+          "status": 200,
+          "header": 3068,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0,
+          "connectMs": 853.344,
+          "tlsMs": 817.115
+        }
+      ]
+    },
+    {
+      "arm": "base",
+      "index": 5,
+      "errors": [],
+      "metrics": {
+        "search": 187,
+        "hydratedCards": 187,
+        "lcp": {
+          "ms": 128,
+          "tag": "H1"
+        },
+        "filters": 1480,
+        "readiness": 2012
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 131,
+          "status": 200,
+          "header": 1471,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 43.053,
+          "connectMs": 793.954,
+          "tlsMs": 733.17,
+          "finish": 1470,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 132
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 132
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 132,
+          "status": 200,
+          "header": 1480,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 42.982,
+          "connectMs": 804.135,
+          "tlsMs": 743.281,
+          "finish": 1479,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 258,
+          "status": 200,
+          "header": 2006,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 854.586,
+          "tlsMs": 796.3430000000001
+        }
+      ],
+      "menu": {
+        "started": 2118,
+        "familyLinkMs": 61,
+        "headphoneSubmenuMs": 74,
+        "foreignReadyMs": 940,
+        "foreignAlreadyLoaded": false,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 131,
+          "status": 200,
+          "header": 1471,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 43.053,
+          "connectMs": 793.954,
+          "tlsMs": 733.17,
+          "finish": 1470,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 132,
+          "status": 200,
+          "header": 3054,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 43.053000000000004,
+          "connectMs": 777.721,
+          "tlsMs": 716.97,
+          "finish": 3053,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 132,
+          "status": 200,
+          "header": 2100,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 43.005,
+          "connectMs": 938.245,
+          "tlsMs": 877.4240000000001,
+          "finish": 2071,
+          "bytes": 924
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 132,
+          "status": 200,
+          "header": 1480,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 42.982,
+          "connectMs": 804.135,
+          "tlsMs": 743.281,
+          "finish": 1479,
+          "bytes": 933
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 258,
+          "status": 200,
+          "header": 2006,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 854.586,
+          "tlsMs": 796.3430000000001,
+          "finish": 2542,
+          "bytes": 33137
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "index": 6,
+      "errors": [],
+      "metrics": {
+        "search": 220,
+        "hydratedCards": 220,
+        "lcp": {
+          "ms": 1560,
+          "tag": "IMG"
+        },
+        "filters": 2858,
+        "readiness": 3071
+      },
+      "visibleFilterCount": 3,
+      "beforeMenuRequests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 298,
+          "status": 200,
+          "header": 1979,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0020000000000000018,
+          "connectMs": 828.508,
+          "tlsMs": 770.615,
+          "finish": 2422,
+          "bytes": 33137
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 300,
+          "status": 200,
+          "header": 2850,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 2076.304,
+          "tlsMs": 2019.1109999999999,
+          "finish": 2849,
+          "bytes": 1182
+        }
+      ],
+      "menu": {
+        "started": 3113,
+        "familyLinkMs": 46,
+        "headphoneSubmenuMs": 73,
+        "foreignReadyMs": 829,
+        "foreignAlreadyLoaded": false,
+        "rootHref": "/ai-gadgets/",
+        "headphoneHref": "/headphones/?category=headphones-wired&page=1"
+      },
+      "requests": [
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+          "start": 298,
+          "status": 200,
+          "header": 1979,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0020000000000000018,
+          "connectMs": 828.508,
+          "tlsMs": 770.615,
+          "finish": 2422,
+          "bytes": 33137
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=headphones",
+          "start": 300,
+          "status": 200,
+          "header": 2850,
+          "protocol": "http/1.1",
+          "reused": false,
+          "dnsMs": 0.0040000000000000036,
+          "connectMs": 2076.304,
+          "tlsMs": 2019.1109999999999,
+          "finish": 2849,
+          "bytes": 1182
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=ai-gadgets",
+          "start": 3168,
+          "status": 200,
+          "header": 3937,
+          "protocol": "http/1.1",
+          "reused": true,
+          "dnsMs": null,
+          "connectMs": null,
+          "tlsMs": null,
+          "finish": 3937,
+          "bytes": 936
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=toys",
+          "start": 3168
+        },
+        {
+          "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+          "path": "/api/catalog-taxonomy?family=misc",
+          "start": 3168
+        }
+      ]
+    }
+  ],
+  "staticFiles": [
+    "/_astro/AccountMenu.Cj-dDv0h.js",
+    "/_astro/AssistantWidget.DTFzLaKg.js",
+    "/_astro/CatalogFamilyPage.D6mkqujl.js",
+    "/_astro/CatalogQuoteConditions.BecTC-sI.js",
+    "/_astro/EffectiveCatalogPricingBlock.BM1CIPw4.js",
+    "/_astro/Gallery.C-V37pXm.js",
+    "/_astro/ProductMedia.BYggSBip.js",
+    "/_astro/ProductMedia.DyotpW6o.js",
+    "/_astro/SharedCatalogPreview.CfSDbRGz.js",
+    "/_astro/SiteHeader.astro_astro_type_script_index_0_lang.Ce8-Zirg.js",
+    "/_astro/SkuDetailPage.DbVw9bhE.js",
+    "/_astro/api-envelope.Bag5qg8o.js",
+    "/_astro/api.Bf9RNMc1.js",
+    "/_astro/catalog-taxonomy.Bzwn2p62.js",
+    "/_astro/catalog-variant-state.tqVmpUOl.js",
+    "/_astro/client.CR28Oxrx.js",
+    "/_astro/headphones.DDYvkQ2r.css",
+    "/_astro/index.B12p2oPd.js",
+    "/_astro/index.DP38BoPS.js",
+    "/_astro/index.V_KxlPMr.js",
+    "/_astro/jsx-runtime.u17CrQMm.js",
+    "/_astro/numbered-catalog-state.DRBcgeOa.js",
+    "/_astro/product-detail.B2Cdw66K.js",
+    "/_astro/public-quote-transport.B4vw6Bx4.js",
+    "/_astro/quote-draft.DpEs7tvM.js",
+    "/_astro/session.C2rGolPi.js",
+    "/_astro/shared-detail-preview-target.BRtzeZp8.js",
+    "/_astro/storefront-validation.Biak3hVK.js",
+    "/_astro/useSession.CsT0KFYc.js",
+    "/media/logo-channel.svg"
+  ]
+}

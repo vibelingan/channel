@@ -13,12 +13,14 @@ export function ProductLanding({
   imagePresentation,
   copy,
   canonicalPath,
+  catalogHref,
   heroImageApiOrigin,
 }: {
   bootstrap: DetailPage;
   imagePresentation?: Product['imagePresentation'];
   copy: SharedDetailContent;
   canonicalPath: string;
+  catalogHref?: string | undefined;
   heroImageApiOrigin?: string | undefined;
 }) {
   const [variant, setVariant] = useState<string>();
@@ -50,6 +52,17 @@ export function ProductLanding({
           productId={bootstrap._id}
           bootstrap={presentedBootstrap}
           copy={copy}
+          backNavigation={
+            catalogHref === undefined ? undefined : (
+              <a
+                href={catalogHref}
+                className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-brand-700 focus-visible:outline-brand-700"
+              >
+                <span aria-hidden="true">←</span>
+                {copy.backLabel}
+              </a>
+            )
+          }
           requestedId={variant}
           onVariantChange={(id) => {
             const params = new URLSearchParams(window.location.search);

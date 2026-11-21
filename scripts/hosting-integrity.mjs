@@ -1,25 +1,38 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertNoDevelopmentArtifact } from './release/site-files.mjs';
 import { fetchFully } from './smoke-http.mjs';
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
-/** Build outputs only: HTML entries and every generated Astro dependency. */
-export function hostedAssetManifest(dist) {
-  const assets = [];
+export function hostingBuildPaths(dist) {
+  const paths = [];
   function visit(relative = '') {
     for (const entry of readdirSync(join(dist, relative), { withFileTypes: true })) {
       const path = relative ? `${relative}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) visit(path);
-      else if (entry.isFile() && (path.startsWith('_astro/') || path.endsWith('.html'))) {
-        const body = readFileSync(join(dist, path));
-        assets.push({ path, bytes: body.length, sha256: digest(body) });
+      if (entry.isDirectory()) {
+        visit(path);
+        continue;
       }
+      assertNoDevelopmentArtifact(path);
+      if (!entry.isFile()) throw new Error(`Unexpected entry in static build: ${path}`);
+      paths.push(path);
     }
   }
   visit();
-  return assets.sort((a, b) => a.path.localeCompare(b.path));
+  return paths;
+}
+
+/** Build outputs only: HTML entries and every generated Astro dependency. */
+export function hostedAssetManifest(dist) {
+  return hostingBuildPaths(dist)
+    .filter((path) => path.startsWith('_astro/') || path.endsWith('.html'))
+    .sort((a, b) => a.localeCompare(b))
+    .map((path) => {
+      const body = readFileSync(join(dist, path));
+      return { path, bytes: body.length, sha256: digest(body) };
+    });
 }
 
 export async function verifyHostedAssets(assets, origin, request = fetchFully) {
