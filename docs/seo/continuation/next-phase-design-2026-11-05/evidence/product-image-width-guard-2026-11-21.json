@@ -1,19 +1,11 @@
 {
   "deliverySource": "f207b3b672a9f7aa72bf4f14278a99333133a7ae",
-  "remoteChecks": [
-    44896850536,
-    44896850526,
-    44896850484
-  ],
+  "remoteChecks": [44896850536, 44896850526, 44896850484],
   "regressionArchiveTest": {
     "baseline": 44890771752,
     "refused": 44893473638,
     "accepted": 44894839153,
-    "missingWidths": [
-      160,
-      640,
-      1280
-    ]
+    "missingWidths": [160, 640, 1280]
   },
   "formalAcceptance": {
     "delivery": 44897302085,
@@ -21,11 +13,7 @@
     "acceptedAt": "2026-11-21T11:13:50.462Z",
     "renderer": "ae2e8d73d9364ef48c7ec947d97f5548fc044668",
     "approvedProducts": 528,
-    "retainedImageWidths": [
-      160,
-      640,
-      1280
-    ],
+    "retainedImageWidths": [160, 640, 1280],
     "staticFilesWithSameBytes": 2156,
     "formalMapAndRobotsMatches": true,
     "independentlyDownloadedStaticPaths": 8,
@@ -36,9 +24,7 @@
   "independentRuntimeCleanup": {
     "readAt": "2026-11-21T11:20:41.366Z",
     "functionCount": 9,
-    "runs": [
-      44897302085
-    ],
+    "runs": [44897302085],
     "leftovers": []
   },
   "realVariantSelection": {
@@ -201,37 +187,25 @@
       "mobile-baseline": {
         "width": null,
         "bytes": 158060,
-        "measuredMs": [
-          1156,
-          1136,
-          1136
-        ],
+        "measuredMs": [1156, 1136, 1136],
         "medianMs": 1136
       },
       "mobile-candidate": {
         "width": "640",
         "bytes": 48680,
-        "measuredMs": [
-          588,
-          580,
-          584
-        ],
+        "measuredMs": [588, 580, 584],
         "medianMs": 584
       },
       "desktop-baseline": {
         "width": null,
         "bytes": 158060,
-        "measuredMs": [
-          1140
-        ],
+        "measuredMs": [1140],
         "medianMs": 1140
       },
       "desktop-candidate": {
         "width": "1280",
         "bytes": 158060,
-        "measuredMs": [
-          1136
-        ],
+        "measuredMs": [1136],
         "medianMs": 1136
       }
     }
