@@ -1,0 +1,1177 @@
+{
+  "release": {
+    "workflowRun": 44950036550,
+    "sourceSha": "24d416fab6a33d9614eda550e03ec2d779f4333d",
+    "site": "https://supplychainsai.com"
+  },
+  "method": {
+    "client": "Ten serial pairs, alternating order, one curl process per pair, no retries. The second request in every pair reused the first connection.",
+    "browser": "Eight new Chrome contexts with cache disabled. Compared the same stylesheet and responsive first-card photo from the live page. Only public GET and HEAD requests allowed.",
+    "logJoin": "CloudBase gateway and public-api cloud function log measurements joined using their respective response request IDs. Timings cover overlapping parts of the request and must not be added together.",
+    "browserStage": "Chrome sendToHeaders uses CDP receiveHeadersStart minus sendEnd. It includes request/response travel and the configured 40 ms latency.",
+    "cssControl": "The CSS request uses the same public hostname as the photo and a different backend. The control does not isolate shared gateway overhead by subtraction."
+  },
+  "curlPairs": {
+    "startedUtc": "2026-11-21T21:40:25.206917+00:00",
+    "country": "JP",
+    "colo": "NRT",
+    "paths": {
+      "photo": "/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+      "css": "/_astro/headphones.B9voga9k.css"
+    },
+    "requestBudget": 20,
+    "samples": [
+      {
+        "round": 1,
+        "position": 1,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:25.207581+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 2.26,
+          "connect": 60.57,
+          "appconnect": 312.11,
+          "pretransfer": 312.16,
+          "starttransfer": 932.58,
+          "total": 932.75
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 455,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 258,
+        "applicationTiming": "ci-record;dur=41.4, ci-storage;dur=212.9, ci-url;dur=88.5, ci-download;dur=124.0, ci-check;dur=0.1, ci-total;dur=255.8",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 445,
+        "waitingAfterConnectionMs": 620.42
+      },
+      {
+        "round": 1,
+        "position": 2,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:25.207581+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 0.01,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.02,
+          "starttransfer": 504.98,
+          "total": 583.52
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 206,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 196,
+        "waitingAfterConnectionMs": 504.96
+      },
+      {
+        "round": 2,
+        "position": 1,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:26.737658+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 2.98,
+          "connect": 60.73,
+          "appconnect": 519.22,
+          "pretransfer": 519.28,
+          "starttransfer": 851.22,
+          "total": 1027.61
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 198,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 188,
+        "waitingAfterConnectionMs": 331.94
+      },
+      {
+        "round": 2,
+        "position": 2,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:26.737658+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 0.04,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.09,
+          "starttransfer": 579.73,
+          "total": 581.23
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 433,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 223,
+        "applicationTiming": "ci-record;dur=33.6, ci-storage;dur=187.6, ci-url;dur=94.4, ci-download;dur=93.0, ci-check;dur=0.1, ci-total;dur=221.6",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 428,
+        "waitingAfterConnectionMs": 579.64
+      },
+      {
+        "round": 3,
+        "position": 1,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:28.369238+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 3.21,
+          "connect": 62.07,
+          "appconnect": 285.29,
+          "pretransfer": 285.36,
+          "starttransfer": 645.25,
+          "total": 646.62
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 214,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 40,
+        "applicationTiming": "ci-record;dur=39.3, ci-storage;dur=0.0, ci-total;dur=39.7",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 206,
+        "waitingAfterConnectionMs": 359.89
+      },
+      {
+        "round": 3,
+        "position": 2,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:28.369238+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.12,
+          "starttransfer": 339.63,
+          "total": 512.91
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 204,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 192,
+        "waitingAfterConnectionMs": 339.51
+      },
+      {
+        "round": 4,
+        "position": 1,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:29.553538+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 3.23,
+          "connect": 1061.51,
+          "appconnect": 1314.79,
+          "pretransfer": 1314.85,
+          "starttransfer": 1878.77,
+          "total": 2086.32
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 206,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 196,
+        "waitingAfterConnectionMs": 563.92
+      },
+      {
+        "round": 4,
+        "position": 2,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:29.553538+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.1,
+          "starttransfer": 381.57,
+          "total": 382.34
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 220,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 48,
+        "applicationTiming": "ci-record;dur=44.4, ci-storage;dur=0.0, ci-total;dur=45.7",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 215,
+        "waitingAfterConnectionMs": 381.47
+      },
+      {
+        "round": 5,
+        "position": 1,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:32.045687+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 3.31,
+          "connect": 61.66,
+          "appconnect": 283.41,
+          "pretransfer": 283.47,
+          "starttransfer": 635.59,
+          "total": 636.04
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 204,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 34,
+        "applicationTiming": "ci-record;dur=32.3, ci-storage;dur=0.0, ci-total;dur=32.7",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 192,
+        "waitingAfterConnectionMs": 352.12
+      },
+      {
+        "round": 5,
+        "position": 2,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:32.045687+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.12,
+          "starttransfer": 324.06,
+          "total": 497.84
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 187,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 179,
+        "waitingAfterConnectionMs": 323.94
+      },
+      {
+        "round": 6,
+        "position": 1,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:33.201709+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 4.11,
+          "connect": 1062.45,
+          "appconnect": 1282.58,
+          "pretransfer": 1282.63,
+          "starttransfer": 1818.42,
+          "total": 2024.51
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 210,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 200,
+        "waitingAfterConnectionMs": 535.79
+      },
+      {
+        "round": 6,
+        "position": 2,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:33.201709+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 0.01,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.03,
+          "starttransfer": 544.65,
+          "total": 546.01
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 400,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 222,
+        "applicationTiming": "ci-record;dur=40.2, ci-storage;dur=180.5, ci-url;dur=101.5, ci-download;dur=78.8, ci-check;dur=0.1, ci-total;dur=221.3",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 396,
+        "waitingAfterConnectionMs": 544.62
+      },
+      {
+        "round": 7,
+        "position": 1,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:35.804086+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 3.02,
+          "connect": 60.63,
+          "appconnect": 314.86,
+          "pretransfer": 314.91,
+          "starttransfer": 836.38,
+          "total": 837.05
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 357,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 188,
+        "applicationTiming": "ci-record;dur=27.9, ci-storage;dur=158.2, ci-url;dur=82.8, ci-download;dur=75.3, ci-check;dur=0.1, ci-total;dur=187.4",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 356,
+        "waitingAfterConnectionMs": 521.47
+      },
+      {
+        "round": 7,
+        "position": 2,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:35.804086+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.1,
+          "starttransfer": 481.93,
+          "total": 649.39
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 204,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 195,
+        "waitingAfterConnectionMs": 481.83
+      },
+      {
+        "round": 8,
+        "position": 1,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:37.311901+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 3.58,
+          "connect": 62.5,
+          "appconnect": 312.27,
+          "pretransfer": 312.3,
+          "starttransfer": 881.72,
+          "total": 1087.65
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 201,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 192,
+        "waitingAfterConnectionMs": 569.42
+      },
+      {
+        "round": 8,
+        "position": 2,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:37.311901+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.08,
+          "starttransfer": 409.42,
+          "total": 411.11
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 249,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 56,
+        "applicationTiming": "ci-record;dur=52.8, ci-storage;dur=0.0, ci-total;dur=54.2",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 248,
+        "waitingAfterConnectionMs": 409.34
+      },
+      {
+        "round": 9,
+        "position": 1,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:38.834216+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 3.54,
+          "connect": 61.48,
+          "appconnect": 312.46,
+          "pretransfer": 312.52,
+          "starttransfer": 664.78,
+          "total": 667.2
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 194,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 41,
+        "applicationTiming": "ci-record;dur=39.4, ci-storage;dur=0.0, ci-total;dur=39.8",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 193,
+        "waitingAfterConnectionMs": 352.26
+      },
+      {
+        "round": 9,
+        "position": 2,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:38.834216+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 0.02,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.09,
+          "starttransfer": 292.5,
+          "total": 492.41
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 141,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 119,
+        "waitingAfterConnectionMs": 292.41
+      },
+      {
+        "round": 10,
+        "position": 1,
+        "kind": "css",
+        "pairStartedUtc": "2026-11-21T21:40:40.017051+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 1,
+        "transferredBytes": 60278,
+        "bytes": 60278,
+        "timingsMs": {
+          "namelookup": 3.53,
+          "connect": 1062.62,
+          "appconnect": 1285.32,
+          "pretransfer": 1285.38,
+          "starttransfer": 1607.07,
+          "total": 1846.04
+        },
+        "sha256": "a71247098e9c7ab2f793593b3c1ecf9dc683e01908f5780a8e3c4842b1435d17",
+        "gateway": {
+          "status": 200,
+          "ms": 189,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 179,
+        "waitingAfterConnectionMs": 321.69
+      },
+      {
+        "round": 10,
+        "position": 2,
+        "kind": "photo",
+        "pairStartedUtc": "2026-11-21T21:40:40.017051+00:00",
+        "status": 200,
+        "protocol": "1.1",
+        "newConnections": 0,
+        "transferredBytes": 9934,
+        "bytes": 9934,
+        "timingsMs": {
+          "namelookup": 0.03,
+          "connect": 0,
+          "appconnect": 0,
+          "pretransfer": 0.12,
+          "starttransfer": 523.18,
+          "total": 523.93
+        },
+        "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+        "gateway": {
+          "status": 200,
+          "ms": 376,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 211,
+        "applicationTiming": "ci-record;dur=43.4, ci-storage;dur=164.0, ci-url;dur=81.6, ci-download;dur=82.3, ci-check;dur=0.1, ci-total;dur=207.9",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 374,
+        "waitingAfterConnectionMs": 523.06
+      }
+    ],
+    "finishedUtc": "2026-11-21T21:40:42.415004+00:00",
+    "logWindowUtc": {
+      "from": "2026-11-21T21:40:22.206Z",
+      "to": "2026-11-21T21:40:46.415Z"
+    },
+    "gatewayMatches": 20,
+    "functionMatches": 10
+  },
+  "chromeLoads": {
+    "startedUtc": "2026-11-21T21:41:48.620Z",
+    "chrome": "157.0.8103.79",
+    "route": "/headphones/page/2/",
+    "paths": {
+      "photo": "/api/images/4db8df016ac87ebb00071d744e63f0da?w=640",
+      "css": "/_astro/headphones.B9voga9k.css"
+    },
+    "network": {
+      "offline": false,
+      "latency": 40,
+      "downloadThroughput": 1250000,
+      "uploadThroughput": 625000,
+      "connectionType": "ethernet"
+    },
+    "view": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "deviceScaleFactor": 1
+    },
+    "observations": [
+      {
+        "round": 1,
+        "fcpMs": 2348,
+        "lcpMs": 2364,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 2,
+        "fcpMs": 2360,
+        "lcpMs": 2728,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 3,
+        "fcpMs": 1624,
+        "lcpMs": 1652,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 4,
+        "fcpMs": 1692,
+        "lcpMs": 1796,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 5,
+        "fcpMs": 1712,
+        "lcpMs": 1740,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 6,
+        "fcpMs": 2020,
+        "lcpMs": 2044,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 7,
+        "fcpMs": 1800,
+        "lcpMs": 1828,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      },
+      {
+        "round": 8,
+        "fcpMs": 1620,
+        "lcpMs": 1884,
+        "isLcpPhoto": true,
+        "photoBytes": 9934
+      }
+    ],
+    "samples": [
+      {
+        "kind": "photo",
+        "round": 1,
+        "requestUtc": "2026-11-21T21:41:50.141Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 319.11,
+          "sendToHeaders": 557.75,
+          "body": 9.94,
+          "dns": 0.01,
+          "tcpAndTls": 305.04
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 400,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 231,
+        "applicationTiming": "ci-record;dur=36.4, ci-storage;dur=192.3, ci-url;dur=101.4, ci-download;dur=90.7, ci-check;dur=0.1, ci-total;dur=229.2",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 396
+      },
+      {
+        "kind": "css",
+        "round": 1,
+        "requestUtc": "2026-11-21T21:41:50.149Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 287.34,
+          "sendToHeaders": 347.7,
+          "body": 580.44,
+          "dns": 0.0,
+          "tcpAndTls": 277.79
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 213,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 201
+      },
+      {
+        "kind": "photo",
+        "round": 2,
+        "requestUtc": "2026-11-21T21:41:59.586Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 318.94,
+          "sendToHeaders": 1100.17,
+          "body": 27.56,
+          "dns": 0.01,
+          "tcpAndTls": 310.85
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 934,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 342,
+        "applicationTiming": "ci-record;dur=41.0, ci-storage;dur=299.5, ci-url;dur=206.7, ci-download;dur=92.6, ci-check;dur=0.1, ci-total;dur=341.1",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 931
+      },
+      {
+        "kind": "css",
+        "round": 2,
+        "requestUtc": "2026-11-21T21:41:59.587Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 286.48,
+          "sendToHeaders": 363.21,
+          "body": 399.06,
+          "dns": 0.01,
+          "tcpAndTls": 279.32
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 228,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 211
+      },
+      {
+        "kind": "photo",
+        "round": 3,
+        "requestUtc": "2026-11-21T21:42:08.856Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": true,
+        "timingsMs": {
+          "beforeSend": 291.61,
+          "sendToHeaders": 362.37,
+          "body": 15.03,
+          "dns": null,
+          "tcpAndTls": null
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 203,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 44,
+        "applicationTiming": "ci-record;dur=42.4, ci-storage;dur=0.0, ci-total;dur=42.7",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 202
+      },
+      {
+        "kind": "css",
+        "round": 3,
+        "requestUtc": "2026-11-21T21:42:08.857Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 280.21,
+          "sendToHeaders": 315.89,
+          "body": 180.73,
+          "dns": 0,
+          "tcpAndTls": 273.89
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 183,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 171
+      },
+      {
+        "kind": "photo",
+        "round": 4,
+        "requestUtc": "2026-11-21T21:42:17.719Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 293.22,
+          "sendToHeaders": 520.59,
+          "body": 9.9,
+          "dns": 0.0,
+          "tcpAndTls": 284.64
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 377,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 219,
+        "applicationTiming": "ci-record;dur=38.3, ci-storage;dur=178.8, ci-url;dur=87.6, ci-download;dur=90.9, ci-check;dur=0.1, ci-total;dur=217.5",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 376
+      },
+      {
+        "kind": "css",
+        "round": 4,
+        "requestUtc": "2026-11-21T21:42:17.719Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": true,
+        "timingsMs": {
+          "beforeSend": 286.89,
+          "sendToHeaders": 355.77,
+          "body": 54.19,
+          "dns": null,
+          "tcpAndTls": null
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 205,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 189
+      },
+      {
+        "kind": "photo",
+        "round": 5,
+        "requestUtc": "2026-11-21T21:42:26.615Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 369.22,
+          "sendToHeaders": 349.54,
+          "body": 9.02,
+          "dns": 0.01,
+          "tcpAndTls": 277.61
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 195,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 40,
+        "applicationTiming": "ci-record;dur=38.5, ci-storage;dur=0.0, ci-total;dur=38.9",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 194
+      },
+      {
+        "kind": "css",
+        "round": 5,
+        "requestUtc": "2026-11-21T21:42:26.701Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": true,
+        "timingsMs": {
+          "beforeSend": 213.62,
+          "sendToHeaders": 348.0,
+          "body": 55.73,
+          "dns": null,
+          "tcpAndTls": null
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 196,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 185
+      },
+      {
+        "kind": "photo",
+        "round": 6,
+        "requestUtc": "2026-11-21T21:42:35.198Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 409.51,
+          "sendToHeaders": 680.66,
+          "body": 9.15,
+          "dns": 0.01,
+          "tcpAndTls": 308.33
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 222,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 57,
+        "applicationTiming": "ci-record;dur=55.4, ci-storage;dur=0.0, ci-total;dur=55.9",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 207
+      },
+      {
+        "kind": "css",
+        "round": 6,
+        "requestUtc": "2026-11-21T21:42:35.199Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 315.72,
+          "sendToHeaders": 281.36,
+          "body": 565.29,
+          "dns": 0,
+          "tcpAndTls": 304.72
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 133,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 124
+      },
+      {
+        "kind": "photo",
+        "round": 7,
+        "requestUtc": "2026-11-21T21:42:44.471Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 364.82,
+          "sendToHeaders": 338.3,
+          "body": 18.46,
+          "dns": 0.01,
+          "tcpAndTls": 279.79
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 191,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 28,
+        "applicationTiming": "ci-record;dur=26.6, ci-storage;dur=0.0, ci-total;dur=27.0",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 189
+      },
+      {
+        "kind": "css",
+        "round": 7,
+        "requestUtc": "2026-11-21T21:42:44.551Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 202.72,
+          "sendToHeaders": 337.54,
+          "body": 180.91,
+          "dns": 0,
+          "tcpAndTls": 198.75
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 204,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 194
+      },
+      {
+        "kind": "photo",
+        "round": 8,
+        "requestUtc": "2026-11-21T21:42:53.410Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": false,
+        "timingsMs": {
+          "beforeSend": 334.98,
+          "sendToHeaders": 496.12,
+          "body": 11.12,
+          "dns": 0.01,
+          "tcpAndTls": 284.23
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 355,
+          "responseBytes": 9934
+        },
+        "functionLogMs": 194,
+        "applicationTiming": "ci-record;dur=26.5, ci-storage;dur=166.0, ci-url;dur=81.5, ci-download;dur=84.3, ci-check;dur=0.1, ci-total;dur=193.0",
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 346
+      },
+      {
+        "kind": "css",
+        "round": 8,
+        "requestUtc": "2026-11-21T21:42:53.458Z",
+        "protocol": "http/1.1",
+        "status": 200,
+        "connectionReused": true,
+        "timingsMs": {
+          "beforeSend": 177.68,
+          "sendToHeaders": 293.61,
+          "body": 49.13,
+          "dns": null,
+          "tcpAndTls": null
+        },
+        "gateway": {
+          "status": 200,
+          "ms": 145,
+          "responseBytes": 60278
+        },
+        "functionLogMs": null,
+        "applicationTiming": null,
+        "contentEncoding": null,
+        "cacheControl": "no-cache",
+        "upstreamResponseMs": 137
+      }
+    ],
+    "egressBefore": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "egressAfter": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "finishedUtc": "2026-11-21T21:43:01.859Z",
+    "logWindowUtc": {
+      "from": "2026-11-21T21:41:45.620Z",
+      "to": "2026-11-21T21:43:05.859Z"
+    },
+    "gatewayMatches": 16,
+    "functionMatches": 8
+  },
+  "historicalImageRead": {
+    "fileBytes": 9934,
+    "sha256": "f7c8192bb15cccb3855e75dc5146181123be9ca7da05fa97fca9c10299537c1e",
+    "dnsMs": 2.718,
+    "connectedMs": 1062.886,
+    "readyMs": 1285.49,
+    "firstByteMs": 2491.816,
+    "readyToFirstByteMs": 1206.326,
+    "functionReportedMs": 45.2,
+    "gatewayMatch": "unknown; the historical client did not retain the request ID"
+  },
+  "historicalChromeWindow": {
+    "photoRequestStartToFirstByteMs": 3104.4,
+    "lcpMs": 3796,
+    "gatewayMatch": "unknown; the historical client did not retain request IDs or the resource wall time",
+    "candidateGatewayMs": [411, 340, 316],
+    "note": "Three anonymous HeadlessChrome records with exact host, path and completed body size in the overall run window. Matching by count and order alone is insufficient to identify the slow request."
+  },
+  "publicRedirectControl": {
+    "path": "/headphones/page/2/?seo_redirect_probe=1",
+    "directHttp": 200,
+    "directHttps": 200,
+    "wwwHttp": 301,
+    "wwwHttps": 301,
+    "wwwDestination": "https://supplychainsai.com/headphones/page/2/?seo_redirect_probe=1"
+  }
+}
