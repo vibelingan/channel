@@ -2043,15 +2043,20 @@ test('width requests serve only exact ready sizes and preserve publication gates
   ])
     assert.equal((await request(query)).statusCode, 400, query);
   assert.equal(reads.length, 4, 'Invalid sizes do not fetch any image bytes');
+  source.publishedRefCount = 0;
+  for (const query of ['?w=160', '?w=640', '?w=1280'])
+    assert.equal((await request(query)).statusCode, 404);
+  assert.equal(
+    reads.length,
+    4,
+    'Prepared or previously cached sizes do not expose a private image',
+  );
+  source.publishedRefCount = 1;
   source.catalogWebVariants = { '160': small };
   const unavailable = await request('?w=640');
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.headers['Retry-After'], '30');
   assert.equal(reads.length, 4, 'An unprepared size never falls back to a larger body');
-  source.publishedRefCount = 0;
-  assert.equal((await request('?w=160')).statusCode, 404);
-  assert.equal(reads.length, 4, 'Knowing a ready size does not expose a private image');
-  source.publishedRefCount = 1;
   const replacement = descriptor(640, '-replaced');
   source.catalogWebVariants = { '160': small, '640': replacement };
   const updated = await request('?w=640');

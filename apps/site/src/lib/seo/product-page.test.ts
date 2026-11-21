@@ -16,6 +16,7 @@ import {
   productBreadcrumbs,
   productPageDescriptor,
 } from './product-page.ts';
+import { productPreviewImage } from './product-preview-image.ts';
 import {
   type ProductSnapshotEntry,
   collectProductSnapshotWithImages,
@@ -148,6 +149,92 @@ test('capture, save and initial HTML retain configuration-photo sizes separately
   assert.match(html, /srcSet="[^"]*configuration-photo\?w=640 640w/);
   assert.doesNotMatch(html, /general-photo\?w=160/);
 });
+test('a product preview uses the initially visible configuration photo at its largest suitable size', () => {
+  const fixture = detailFixture(1);
+  const general = fixture.images[0] ?? '';
+  const specific = '/api/images/configuration-photo';
+  const detail = {
+    ...fixture,
+    revision: 'approved-r1',
+    variants: {
+      ...fixture.variants,
+      items: fixture.variants.items.map((variant) => ({ ...variant, images: [specific] })),
+    },
+  };
+  const entry: ProductSnapshotEntry = {
+    product: {
+      ...product,
+      imagePresentation: {
+        [general]: [{ url: `${general}?w=1280`, width: 1280, height: 800 }],
+        [specific]: [{ url: `${specific}?w=640`, width: 640, height: 400 }],
+      },
+    },
+    detail: {
+      ...detail,
+      imagePresentation: {
+        [specific]: [
+          { url: `${specific}?w=1280`, width: 1200, height: 700 },
+          { url: `${specific}?w=640`, width: 640, height: 400 },
+        ],
+      },
+    },
+    revision: detail.revision,
+  };
+  const origin = 'https://catalog-api.example';
+  const image = productPreviewImage(entry, origin);
+  assert.deepEqual(image, {
+    path: `${specific}?w=1280`,
+    alt: 'Headset',
+    width: 1200,
+    height: 700,
+    mimeType: 'image/webp',
+  });
+  const wrongSize = {
+    ...entry.detail,
+    ...detail,
+    imagePresentation: {
+      [specific]: [
+        { url: `${specific}?w=1280`, width: 1280, height: 330 },
+        { url: `${specific}?w=640`, width: 640, height: 330 },
+      ],
+    },
+  };
+  assert.equal(
+    productPreviewImage({ ...entry, detail: wrongSize }, origin)?.path,
+    `${specific}?w=640`,
+  );
+  assert.equal(
+    productPreviewImage({ ...entry, product: { ...entry.product, published: false } }, origin),
+    undefined,
+  );
+  assert.equal(
+    productPreviewImage({ ...entry, revision: 'different-revision' }, origin),
+    undefined,
+  );
+  assert.equal(productPreviewImage(entry, undefined), undefined);
+});
+
+test('product previews do not use third-party images or an unverified gallery size', () => {
+  const detail = { ...detailFixture(), revision: 'approved-r1' };
+  const foreign = 'https://cdn.example/api/images/foreign';
+  const thirdPartyDetail = {
+    ...detail,
+    images: [foreign],
+    imagePresentation: {
+      [foreign]: [{ url: `${foreign}?w=1280`, width: 1280, height: 900 }],
+    },
+  };
+  const origin = 'https://catalog-api.example';
+  assert.equal(
+    productPreviewImage({ product, detail, revision: detail.revision }, origin),
+    undefined,
+  );
+  assert.equal(
+    productPreviewImage({ product, detail: thirdPartyDetail, revision: detail.revision }, origin),
+    undefined,
+  );
+});
+
 test('one stable identity drives metadata schema and breadcrumbs without inferring variant-wide offers', () => {
   const detail = {
     ...detailFixture(51),

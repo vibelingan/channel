@@ -1,0 +1,72 @@
+{
+  "candidate": {
+    "baselineRun": 44954895157,
+    "totalHtml": 589,
+    "products": 528,
+    "changed": 131,
+    "publicImageCount": 103,
+    "unchangedDocumentContent": 589,
+    "snapshotSha256": "a24d04536417ad160ee210c169b29b23a468ae00b1a4f81182f2885bced95226"
+  },
+  "publicImageReadback": {
+    "checked": 103,
+    "failed": 0,
+    "minimumBytes": 13132,
+    "maximumBytes": 158060,
+    "totalBytes": 5675246,
+    "countsByRequestedWidth": {
+      "640": 0,
+      "1280": 103
+    },
+    "allWebpDecodedWithMatchingDimensions": true,
+    "samples": [
+      {
+        "page": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "image": "https://supplychainsai.com/api/images/3fbe8b166ac87fe100399e2350d0ba96?w=1280",
+        "width": 835,
+        "height": 838,
+        "alt": "Factory Wholesale Jerry Scheme Wireless V5.4 EDR Over Ear Headphones, 40mm Driver ANC Headset 4-6H Playtime 400mA Battery",
+        "actualBytes": 26498,
+        "sha256": "9ec17aa0f57f00eb3fd18e35e938f6296356b82797190f696c95d9a22862b16a"
+      },
+      {
+        "page": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "image": "https://supplychainsai.com/api/images/96d9cd126ac88331006e00e70a70f03c?w=1280",
+        "width": 1280,
+        "height": 1489,
+        "alt": "USB colorful computer microphone game competitive mobile phone live singing recording noise reduction condenser microphone set",
+        "actualBytes": 85496,
+        "sha256": "ab9c0c0ab1c2423c06ec7ae4c46f2088f382cad65bb78fea9273470055593314"
+      },
+      {
+        "page": "/products/p-01121e8b-9503-4095-a889-0742a14c7f4c/",
+        "image": "https://supplychainsai.com/api/images/01f3430d6aaa66a9000adad14c173991?w=1280",
+        "width": 1200,
+        "height": 1200,
+        "alt": "High Quality Foldable Headband Headphones Wireless Headset Wireless Headphones With Noise Cancellations",
+        "actualBytes": 65630,
+        "sha256": "fae8ec22079dd08075b7c4ae59f16d01881adb640f1746129361ee11ebda00b7"
+      },
+      {
+        "page": "/products/p-028f12d4-9b6e-4896-ae56-8774edf6bc45/",
+        "image": "https://supplychainsai.com/api/images/01f3430d6aaa5d3a000a52150f24429b?w=1280",
+        "width": 1200,
+        "height": 1200,
+        "alt": "Perfect Sound WiredHeadset Gaming Earphones Over Ear Headphones With Mic for Pc",
+        "actualBytes": 78816,
+        "sha256": "8bf3130b265cd70f608655e7045bd6b524e03b8dca6ef345b95d48a9d1595d97"
+      }
+    ]
+  },
+  "withdrawalRegression": {
+    "readyAndWarmBeforeWithdrawal": true,
+    "referenceCountAfter": 0,
+    "responseCodesByRequestedWidth": {
+      "160": 404,
+      "640": 404,
+      "1280": 404
+    },
+    "storageReadsAfterWithdrawal": 0,
+    "usesRealHttpAdapterWithLocalStorageFixture": true
+  }
+}

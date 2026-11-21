@@ -15,6 +15,7 @@ import {
   productPageDescriptor,
 } from '../../lib/seo/product-page.ts';
 import { type ProductSnapshotEntry, readProductSnapshot } from '../../lib/seo/product-snapshot.ts';
+import { productPreviewImage } from '../../lib/seo/product-preview-image.ts';
 import '../../styles/product.css';
 
 export async function getStaticPaths() {
@@ -45,8 +46,9 @@ const page = productPageDescriptor(
   site.brand.name,
   duplicateName,
 );
+const socialImage = productPreviewImage(entry, heroImageApiOrigin);
 ---
-<DocumentLayout page={page}>
+<DocumentLayout page={page} {...(socialImage ? { socialImage } : {})}>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     {entry.detail ? (
