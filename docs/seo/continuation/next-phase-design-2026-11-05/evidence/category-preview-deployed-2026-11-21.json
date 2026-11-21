@@ -1,0 +1,177 @@
+{
+  "release": {
+    "archive": 44844914455,
+    "site": 44845124397,
+    "source": "c3a0597806e43f4184a412739b136baa78cf460b",
+    "siteCandidateArtifact": 14682962422,
+    "requiredChecks": {
+      "seo": 44844330251,
+      "blogServer": 44844330252,
+      "blogDummy": 44844330317
+    }
+  },
+  "website": {
+    "priorRun": 44838400903,
+    "run": 44845124397,
+    "attempt": 1,
+    "source": "c3a0597806e43f4184a412739b136baa78cf460b",
+    "runTimes": {
+      "startedAt": "2026-11-21T00:38:07Z",
+      "updatedAt": "2026-11-21T00:56:13Z"
+    },
+    "acceptedAt": "2026-11-21T00:48:27.904Z",
+    "identicalPublicProductRecords": 528,
+    "identicalRobotsAndSitemaps": true,
+    "changedFiles": {
+      ".html": 46
+    },
+    "addedFiles": {
+      ".js": 1
+    },
+    "regionalHelpersClean": true,
+    "deploymentBusinessWrites": 0,
+    "publicHtmlMatchesArtifact": [
+      {
+        "route": "/headphones/",
+        "crawlableProductLinks": 12,
+        "loadedModule": "/_astro/CatalogFamilyPage.DxeUwXtC.js",
+        "httpStatus": 200,
+        "htmlSha256": "839261b9bd79b4e0e507e609a74a614df0e2182605b8da2181f5fa8b0412dc01"
+      },
+      {
+        "route": "/headphones/page/3/",
+        "crawlableProductLinks": 12,
+        "loadedModule": "/_astro/CatalogFamilyPage.DxeUwXtC.js",
+        "httpStatus": 200,
+        "htmlSha256": "77309e11d84648b42857ceb5e7aa397dc89d0bb75ece67ccfd6df85cf8fba9d8"
+      },
+      {
+        "route": "/ai-gadgets/",
+        "crawlableProductLinks": 12,
+        "loadedModule": "/_astro/CatalogFamilyPage.DxeUwXtC.js",
+        "httpStatus": 200,
+        "htmlSha256": "3efeb280e4ec332abfcf6134181511f1ef66a523e5334f8710eccde5db9cd7aa"
+      },
+      {
+        "route": "/toys/",
+        "crawlableProductLinks": 5,
+        "loadedModule": "/_astro/CatalogFamilyPage.DxeUwXtC.js",
+        "httpStatus": 200,
+        "htmlSha256": "351c6e10bc79c229fc7ed879326589f866f65f771eed0069580bc919253233b5"
+      },
+      {
+        "route": "/misc/",
+        "crawlableProductLinks": 12,
+        "loadedModule": "/_astro/CatalogFamilyPage.DxeUwXtC.js",
+        "httpStatus": 200,
+        "htmlSha256": "f87784cba8067ad0b93a5de567681c89211aa72f96f3ed460a8c6efcabb98ad3"
+      }
+    ],
+    "secondsFromActionsStartToCompletion": 1086
+  },
+  "publicPackage": {
+    "verifiedManifestFiles": 2123,
+    "publicFiles": 2120,
+    "publicFileTypes": {
+      ".js": 1367,
+      ".css": 73,
+      ".html": 589,
+      ".json": 3,
+      ".ico": 1,
+      ".svg": 3,
+      ".webp": 26,
+      ".jpg": 42,
+      ".png": 9,
+      ".mp4": 4,
+      ".txt": 1,
+      ".xml": 2
+    },
+    "flagged": [],
+    "comparedToPrevious": {
+      "new": 1,
+      "dropped": 0,
+      "changed": {
+        ".html": 46
+      }
+    }
+  },
+  "buyerFlow": {
+    "previousBuildRequestsBeforeBack": 2,
+    "officialWebsite": {
+      "mode": "online",
+      "product": "003a6310-5244-4766-adfa-eb1002ad0fb4",
+      "countWhileViewing": 1,
+      "listUrls": [
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12",
+        "/api/products?media=responsive-v1&productFamily=headphones&page=1&pageSize=12"
+      ],
+      "backFocusRestored": true
+    }
+  },
+  "publishedArticlesMatchPreviousPublicRecords": 3,
+  "historicalImagesWithMatchingBytes": 6,
+  "cloudCleanup": {
+    "readAt": "2026-11-21T00:57:44.159Z",
+    "functionCount": 9,
+    "runs": [
+      44845124397
+    ],
+    "leftovers": []
+  },
+  "catalogAutomaticUpdate": {
+    "readAt": "2026-11-21T00:57:51.679Z",
+    "enabled": true,
+    "functionActive": true,
+    "cadence": "{\"cron\":\"0 * * * * * *\"}",
+    "triggerEnabled": null,
+    "active": {
+      "codeSha": "c3a0597806e43f4184a412739b136baa78cf460b",
+      "executorSha": "c3a0597806e43f4184a412739b136baa78cf460b",
+      "executorRef": "feat/seo-foundation",
+      "catalogTracked": true,
+      "acceptedRunId": "site-44845124397-1"
+    },
+    "checkedFunctions": 9,
+    "leftoverFunctions": 0,
+    "pendingAtReadback": false
+  },
+  "isolatedLab": {
+    "chrome": "157.0.8103.79",
+    "egress": {
+      "colo": "NRT",
+      "loc": "JP"
+    },
+    "device": {
+      "viewport": {
+        "width": 412,
+        "height": 823
+      },
+      "deviceScaleFactor": 1.75,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "clickToProductVisibleMilliseconds": {
+      "base": [
+        980.3,
+        1441.7,
+        2406.5
+      ],
+      "candidate": [
+        1404.3,
+        1408.5,
+        1445.7
+      ]
+    },
+    "mediansMilliseconds": {
+      "base": 1441.7,
+      "candidate": 1408.5
+    }
+  }
+}
