@@ -1,0 +1,273 @@
+{
+  "observedAt": "2026-11-22T03:29:28+09:00",
+  "searchConsole": {
+    "property": "https://supplychainsai.com/",
+    "sitemapIndex": {
+      "lastRead": "2026-11-19",
+      "status": "Success",
+      "discoveredPages": 584,
+      "discoveredVideos": 1
+    },
+    "staticSitemap": {
+      "lastRead": "2026-11-19",
+      "status": "Success",
+      "discoveredPages": 580,
+      "discoveredVideos": 1
+    },
+    "allKnown": {
+      "reportDate": "2026-11-16",
+      "indexed": 529,
+      "notIndexed": 989,
+      "reasons": {
+        "redirect": 4,
+        "robotsBlocked": 1,
+        "crawledNotIndexed": 960,
+        "discoveredNotIndexed": 12,
+        "other4xx": 5,
+        "alternateCanonical": 5,
+        "noindex": 1,
+        "notFound404": 1
+      }
+    },
+    "allSubmitted": {
+      "reportDate": "2026-11-16",
+      "indexed": 528,
+      "notIndexed": 13,
+      "noindex": 1,
+      "discoveredNotIndexed": 12,
+      "crawledNotIndexed": 0
+    },
+    "other4xx": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0
+    },
+    "search": {
+      "lastDay": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3
+    },
+    "videoIndex": {
+      "reportDate": "2026-11-19",
+      "indexed": 0,
+      "notIndexed": 2,
+      "exampleReason": "Video is not on a watch page"
+    },
+    "coreWebVitals": {
+      "reportDate": "2026-11-20",
+      "mobile": "insufficient usage data",
+      "desktop": "insufficient usage data"
+    }
+  },
+  "publicCoverage": {
+    "siteRelease": 44930233839,
+    "sitemaps": {
+      "https://supplychainsai.com/blog/sitemap.xml": 4,
+      "https://supplychainsai.com/sitemap-0.xml": 580
+    },
+    "sitemapUrlCount": 584,
+    "allReachableFromHome": 584,
+    "depthCounts": {
+      "0": 1,
+      "1": 10,
+      "2": 86,
+      "3": 487
+    },
+    "unreachable": [],
+    "htmlIssues": {},
+    "missingAnchorCandidates": {},
+    "missingAstroAssets": {},
+    "blogHttp": {
+      "/blog/": {
+        "status": 200,
+        "final": "https://supplychainsai.com/blog/",
+        "robots": null
+      },
+      "/blog/oem-project-brief-acceptance-40249243887/": {
+        "status": 200,
+        "final": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "robots": null
+      },
+      "/blog/oem-headphone-sample-inspection-wecom-20261027/": {
+        "status": 200,
+        "final": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "robots": null
+      },
+      "/blog/prototype-to-mass-production-oem-odm/": {
+        "status": 200,
+        "final": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+        "robots": null
+      }
+    }
+  },
+  "gatewayGooglebot": {
+    "startLocal": "2026-11-20 00:00:00",
+    "endLocal": "2026-11-22 02:24:55",
+    "timeZone": "UTC+08:00",
+    "creationTime": "2026-11-20T15:45:50.000000",
+    "queries": 9,
+    "segments": [
+      {
+        "startTime": "2026-11-20 00:00:00",
+        "endTime": "2026-11-20 05:59:59",
+        "candidates": 32,
+        "verified": 32
+      },
+      {
+        "startTime": "2026-11-20 06:00:00",
+        "endTime": "2026-11-20 11:59:59",
+        "candidates": 66,
+        "verified": 66
+      },
+      {
+        "startTime": "2026-11-20 12:00:00",
+        "endTime": "2026-11-20 17:59:59",
+        "candidates": 70,
+        "verified": 70
+      },
+      {
+        "startTime": "2026-11-20 18:00:00",
+        "endTime": "2026-11-20 23:59:59",
+        "candidates": 32,
+        "verified": 32
+      },
+      {
+        "startTime": "2026-11-21 00:00:00",
+        "endTime": "2026-11-21 05:59:59",
+        "candidates": 1,
+        "verified": 1
+      },
+      {
+        "startTime": "2026-11-21 06:00:00",
+        "endTime": "2026-11-21 11:59:59",
+        "candidates": 40,
+        "verified": 40
+      },
+      {
+        "startTime": "2026-11-21 12:00:00",
+        "endTime": "2026-11-21 17:59:59",
+        "candidates": 0,
+        "verified": 0
+      },
+      {
+        "startTime": "2026-11-21 18:00:00",
+        "endTime": "2026-11-21 23:59:59",
+        "candidates": 3,
+        "verified": 3
+      },
+      {
+        "startTime": "2026-11-22 00:00:00",
+        "endTime": "2026-11-22 02:24:55",
+        "candidates": 26,
+        "verified": 26
+      }
+    ],
+    "statusCounts": {
+      "200": 270
+    },
+    "verifiedRequestsByType": {
+      "other": 67,
+      "astroAssets": 188,
+      "productImage": 5,
+      "blog": 2,
+      "productPage": 8
+    },
+    "numberOfDistinctPaths": 115,
+    "historical4xxImagesRequested": 0,
+    "sampleInspectionArticleRequested": false,
+    "factoryWatchPageRequested": false
+  },
+  "liveReadbackOfAcceptedFiles": {
+    "rows": [
+      {
+        "path": "/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 167725,
+        "sha256": "86340b784a4bf8f842dee75a3896dd728e9d3c1fb15466c620178e95975a6378"
+      },
+      {
+        "path": "/oem/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 119004,
+        "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e"
+      },
+      {
+        "path": "/portfolio/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 78697,
+        "sha256": "18967641b716bb31a0145fcd6127bdc5d6f4255378266d0fab03d73102c9ad49"
+      },
+      {
+        "path": "/toys/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 82740,
+        "sha256": "241c176091ecdccfd3b5b5597e261d1813871250c90b2562f91c6dc2f7c86e40"
+      },
+      {
+        "path": "/headphones/page/39/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 82821,
+        "sha256": "b98145f66a0aaaca6500a2872f496b6b447a3547106909e23a2b9729d8c3b59a"
+      },
+      {
+        "path": "/videos/factory-overview/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 32614,
+        "sha256": "2f88bdacb817fe39d741aadbe9141c9304a851050c404b4f3cd963862fa4698d"
+      },
+      {
+        "path": "/products/p-973e0179-3ea9-4b9a-a9b2-4379b29e443d/",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 92540,
+        "sha256": "4cbaf2f16af8ef5f4f445571f00d4448b581d1a0e03810fb2bf7e3a200e26ca0"
+      },
+      {
+        "path": "/sitemap-0.xml",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 55409,
+        "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+      },
+      {
+        "path": "/sitemap-index.xml",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 262,
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+      },
+      {
+        "path": "/robots.txt",
+        "status": 200,
+        "robots": null,
+        "sameReleaseBytes": true,
+        "bytes": 557,
+        "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+      }
+    ],
+    "robotsPolicy": {
+      "/": true,
+      "/headphones/page/39/": true,
+      "/videos/factory-overview/": true,
+      "/blog/oem-headphone-sample-inspection-wecom-20261027/": true,
+      "/api/images/example": true,
+      "/register": false,
+      "/admin/": false
+    }
+  }
+}
