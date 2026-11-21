@@ -1,0 +1,4490 @@
+{
+  "githubReadOnlyLighthouseRun": 44961201031,
+  "artifactIds": {
+    "mobile": 14729038833,
+    "desktop": 14729642496
+  },
+  "liveSiteReleaseReadBeforeAndAfter": "site-44959546480-1",
+  "previousThreeByNineEvidence": {
+    "baseline": 43741817103,
+    "nov19": 44391963796
+  },
+  "conditions": {
+    "mobile": {
+      "phase": "after",
+      "scope": "all",
+      "checkedAt": "2026-11-21T23:19:37.190Z",
+      "profile": "mobile",
+      "sourceSha": "9e21503daa034da2706c87752a3fe9ba704dd679",
+      "urls": [
+        {
+          "index": 0,
+          "url": "https://supplychainsai.com/"
+        },
+        {
+          "index": 1,
+          "url": "https://supplychainsai.com/headphones/"
+        },
+        {
+          "index": 2,
+          "url": "https://supplychainsai.com/oem/"
+        },
+        {
+          "index": 3,
+          "url": "https://supplychainsai.com/portfolio/"
+        },
+        {
+          "index": 4,
+          "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+        },
+        {
+          "index": 5,
+          "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+        },
+        {
+          "index": 6,
+          "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+        },
+        {
+          "index": 7,
+          "url": "https://supplychainsai.com/blog/"
+        },
+        {
+          "index": 8,
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+        }
+      ],
+      "egressCountry": "US",
+      "colo": "PDX",
+      "locationEvidence": "Cloudflare trace loc for hosted runner; not GPS simulation",
+      "node": "v22.23.5",
+      "lighthouse": "13.0.1",
+      "chromeVersions": ["157.0.0.0"],
+      "chromeVersionEvidence": "Lighthouse environment.hostUserAgent; unknown until a report completes",
+      "repeats": 3,
+      "fieldInp": null
+    },
+    "desktop": {
+      "phase": "after",
+      "scope": "all",
+      "checkedAt": "2026-11-21T23:19:37.584Z",
+      "profile": "desktop",
+      "sourceSha": "9e21503daa034da2706c87752a3fe9ba704dd679",
+      "urls": [
+        {
+          "index": 0,
+          "url": "https://supplychainsai.com/"
+        },
+        {
+          "index": 1,
+          "url": "https://supplychainsai.com/headphones/"
+        },
+        {
+          "index": 2,
+          "url": "https://supplychainsai.com/oem/"
+        },
+        {
+          "index": 3,
+          "url": "https://supplychainsai.com/portfolio/"
+        },
+        {
+          "index": 4,
+          "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/"
+        },
+        {
+          "index": 5,
+          "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/"
+        },
+        {
+          "index": 6,
+          "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/"
+        },
+        {
+          "index": 7,
+          "url": "https://supplychainsai.com/blog/"
+        },
+        {
+          "index": 8,
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/"
+        }
+      ],
+      "egressCountry": "US",
+      "colo": "PDX",
+      "locationEvidence": "Cloudflare trace loc for hosted runner; not GPS simulation",
+      "node": "v22.23.5",
+      "lighthouse": "13.0.1",
+      "chromeVersions": ["157.0.0.0"],
+      "chromeVersionEvidence": "Lighthouse environment.hostUserAgent; unknown until a report completes",
+      "repeats": 3,
+      "fieldInp": null
+    }
+  },
+  "match": "Same URLs, Lighthouse, Chrome major-reported version, throttling, screen and form factor. US Cloudflare egress colo mobile matches the 11/19 run; desktop varies across releases; time and network conditions remain observational.",
+  "lighthouseSamples": [
+    {
+      "device": "mobile",
+      "index": 0,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 2583.908,
+        "fcpMs": 2554.408,
+        "ttfbMs": 379,
+        "cls": 0.049535,
+        "tbtMs": 70,
+        "speedIndexMs": 3857.164616,
+        "transferBytes": 929467
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1238.792,
+        "elementRenderDelay": 454.848
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 40
+    },
+    {
+      "device": "mobile",
+      "index": 0,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 1933.5455,
+        "fcpMs": 1933.5455,
+        "ttfbMs": 382,
+        "cls": 0.071909,
+        "tbtMs": 0,
+        "speedIndexMs": 2792.983205,
+        "transferBytes": 929462
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 772.061,
+        "elementRenderDelay": 417.762
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 40
+    },
+    {
+      "device": "mobile",
+      "index": 0,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 2525.7995,
+        "fcpMs": 2525.7995,
+        "ttfbMs": 345,
+        "cls": 0.071909,
+        "tbtMs": 3,
+        "speedIndexMs": 2999.88028,
+        "transferBytes": 929462
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 733.170999999985,
+        "elementRenderDelay": 449.2570000000149
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 40
+    },
+    {
+      "device": "mobile",
+      "index": 1,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 2922.951,
+        "fcpMs": 2922.951,
+        "ttfbMs": 438,
+        "cls": 0.035199,
+        "tbtMs": 4.5,
+        "speedIndexMs": 3770.209936,
+        "transferBytes": 1708937
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 831.812,
+        "elementRenderDelay": 887.823
+      },
+      "lcpElementSelector": "div.relative > div.grid > div.reveal > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 51
+    },
+    {
+      "device": "mobile",
+      "index": 1,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 3042.003,
+        "fcpMs": 3042.003,
+        "ttfbMs": 418,
+        "cls": 0.036909,
+        "tbtMs": 0,
+        "speedIndexMs": 4143.848646,
+        "transferBytes": 1708800
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1022.067,
+        "elementRenderDelay": 825.266
+      },
+      "lcpElementSelector": "div.relative > div.grid > div.reveal > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 51
+    },
+    {
+      "device": "mobile",
+      "index": 1,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 2579.847,
+        "fcpMs": 2579.847,
+        "ttfbMs": 374,
+        "cls": 0.036909,
+        "tbtMs": 0,
+        "speedIndexMs": 3345.527714,
+        "transferBytes": 1708935
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 757.4360000000298,
+        "elementRenderDelay": 765.0739999999702
+      },
+      "lcpElementSelector": "div.relative > div.grid > div.reveal > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 51
+    },
+    {
+      "device": "mobile",
+      "index": 2,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 3120.49,
+        "fcpMs": 2942.652,
+        "ttfbMs": 420,
+        "cls": 0.038053,
+        "tbtMs": 0,
+        "speedIndexMs": 3709.346493,
+        "transferBytes": 684972
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 808.64,
+        "elementRenderDelay": 919.999
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 2,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 2965.828,
+        "fcpMs": 2888.38,
+        "ttfbMs": 349,
+        "cls": 0.038053,
+        "tbtMs": 0,
+        "speedIndexMs": 3737.633633,
+        "transferBytes": 684972
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 736.92,
+        "elementRenderDelay": 1030.524
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 2,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 3054.7515,
+        "fcpMs": 2973.098,
+        "ttfbMs": 374,
+        "cls": 0.038053,
+        "tbtMs": 0,
+        "speedIndexMs": 3820.498777,
+        "transferBytes": 684973
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 943.4909999999702,
+        "elementRenderDelay": 846.9700000000298
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 3,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 3379.594,
+        "fcpMs": 3379.594,
+        "ttfbMs": 399,
+        "cls": 0.014741,
+        "tbtMs": 0,
+        "speedIndexMs": 3832.279956,
+        "transferBytes": 1003507
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 784.5909999999702,
+        "elementRenderDelay": 845.0620000000298
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 3,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 3358.69,
+        "fcpMs": 3358.69,
+        "ttfbMs": 299,
+        "cls": 0.014741,
+        "tbtMs": 0,
+        "speedIndexMs": 3708.926458,
+        "transferBytes": 1014375
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 682.772,
+        "elementRenderDelay": 863.138
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 3,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 3369.308,
+        "fcpMs": 3369.308,
+        "ttfbMs": 365,
+        "cls": 0.014741,
+        "tbtMs": 0,
+        "speedIndexMs": 3839.7295,
+        "transferBytes": 1014375
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 751.007,
+        "elementRenderDelay": 862.401
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "mobile",
+      "index": 4,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 3857.2785,
+        "fcpMs": 2714.766,
+        "ttfbMs": 370,
+        "cls": 0.001591,
+        "tbtMs": 4.5,
+        "speedIndexMs": 5405.868155,
+        "transferBytes": 959334
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 838.416,
+        "resourceLoadDelay": 384.551,
+        "resourceLoadDuration": 1315.675,
+        "elementRenderDelay": 8.515
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 43
+    },
+    {
+      "device": "mobile",
+      "index": 4,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 3810.613,
+        "fcpMs": 2257.913,
+        "ttfbMs": 315,
+        "cls": 0.001591,
+        "tbtMs": 7,
+        "speedIndexMs": 5049.08955,
+        "transferBytes": 959080
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 707.741,
+        "resourceLoadDelay": 384.194,
+        "resourceLoadDuration": 1249.479,
+        "elementRenderDelay": 7.817
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 43
+    },
+    {
+      "device": "mobile",
+      "index": 4,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 3924.443,
+        "fcpMs": 2726.027,
+        "ttfbMs": 315,
+        "cls": 0.001591,
+        "tbtMs": 3.5,
+        "speedIndexMs": 3705.547954,
+        "transferBytes": 959178
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 704.75,
+        "resourceLoadDelay": 387.022,
+        "resourceLoadDuration": 1054.165,
+        "elementRenderDelay": 7.904
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 43
+    },
+    {
+      "device": "mobile",
+      "index": 5,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 3367.0745,
+        "fcpMs": 2497.85,
+        "ttfbMs": 391,
+        "cls": 0.006346,
+        "tbtMs": 5,
+        "speedIndexMs": 4207.288412,
+        "transferBytes": 915403
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1053.353,
+        "resourceLoadDelay": 382.345,
+        "resourceLoadDuration": 799.04,
+        "elementRenderDelay": 24.063
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "mobile",
+      "index": 5,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 3248.841,
+        "fcpMs": 2713.866,
+        "ttfbMs": 377,
+        "cls": 0.006346,
+        "tbtMs": 7,
+        "speedIndexMs": 5250.111056,
+        "transferBytes": 915285
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 770.081,
+        "resourceLoadDelay": 384.194,
+        "resourceLoadDuration": 977.238,
+        "elementRenderDelay": 24.636
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "mobile",
+      "index": 5,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 3218.382,
+        "fcpMs": 2654.376,
+        "ttfbMs": 374,
+        "cls": 0.006492,
+        "tbtMs": 5.5,
+        "speedIndexMs": 3701.649564,
+        "transferBytes": 915153
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 759.573,
+        "resourceLoadDelay": 380.866,
+        "resourceLoadDuration": 609.975,
+        "elementRenderDelay": 6.598
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "mobile",
+      "index": 6,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 3428.96,
+        "fcpMs": 2737.416,
+        "ttfbMs": 379,
+        "cls": 0.001591,
+        "tbtMs": 2.5,
+        "speedIndexMs": 3883.647204,
+        "transferBytes": 1154675
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 761.687,
+        "resourceLoadDelay": 381.2,
+        "resourceLoadDuration": 987.671,
+        "elementRenderDelay": 10.205
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 47
+    },
+    {
+      "device": "mobile",
+      "index": 6,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 2940.801,
+        "fcpMs": 2558.426,
+        "ttfbMs": 323,
+        "cls": 0.003545,
+        "tbtMs": 5.5,
+        "speedIndexMs": 4523.434954,
+        "transferBytes": 1143583
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1211.7629999999403,
+        "resourceLoadDelay": 384.3200000000596,
+        "resourceLoadDuration": 952.49,
+        "elementRenderDelay": 7.103
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 47
+    },
+    {
+      "device": "mobile",
+      "index": 6,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 2942.324,
+        "fcpMs": 2622.186,
+        "ttfbMs": 379,
+        "cls": 0.001591,
+        "tbtMs": 7,
+        "speedIndexMs": 3647.328916,
+        "transferBytes": 1154567
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 769.115,
+        "resourceLoadDelay": 385.988,
+        "resourceLoadDuration": 637.357,
+        "elementRenderDelay": 22.098
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 47
+    },
+    {
+      "device": "mobile",
+      "index": 7,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 2610.29,
+        "fcpMs": 2269.357,
+        "ttfbMs": 632,
+        "cls": 0.035749,
+        "tbtMs": 0,
+        "speedIndexMs": 3083.672318,
+        "transferBytes": 188845
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1018.1009999999404,
+        "elementRenderDelay": 486.4990000000596
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "mobile",
+      "index": 7,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 2627.634,
+        "fcpMs": 2627.634,
+        "ttfbMs": 415,
+        "cls": 0.035749,
+        "tbtMs": 0,
+        "speedIndexMs": 3106.229478,
+        "transferBytes": 188763
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 802.9260000000596,
+        "elementRenderDelay": 619.2449999999404
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "mobile",
+      "index": 7,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 2608.615,
+        "fcpMs": 2608.615,
+        "ttfbMs": 471,
+        "cls": 0.035749,
+        "tbtMs": 0,
+        "speedIndexMs": 3512.421054,
+        "transferBytes": 188825
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1143.5199999999404,
+        "elementRenderDelay": 577.2790000000596
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "mobile",
+      "index": 8,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 3665.866,
+        "fcpMs": 2644.159,
+        "ttfbMs": 630,
+        "cls": 0.029946,
+        "tbtMs": 0,
+        "speedIndexMs": 4180.473878,
+        "transferBytes": 293517
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1015.853,
+        "resourceLoadDelay": 190.519,
+        "resourceLoadDuration": 1446.335,
+        "elementRenderDelay": 10.735
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    },
+    {
+      "device": "mobile",
+      "index": 8,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 3770.164,
+        "fcpMs": 2536.348,
+        "ttfbMs": 668,
+        "cls": 0.029946,
+        "tbtMs": 0,
+        "speedIndexMs": 4514.946684,
+        "transferBytes": 293507
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1055.5170000000596,
+        "resourceLoadDelay": 62.73199999994039,
+        "resourceLoadDuration": 1846.311,
+        "elementRenderDelay": 19.987
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    },
+    {
+      "device": "mobile",
+      "index": 8,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 3676.106,
+        "fcpMs": 2654.645,
+        "ttfbMs": 674,
+        "cls": 0.031571,
+        "tbtMs": 0,
+        "speedIndexMs": 3954.20277,
+        "transferBytes": 293590
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1065.291,
+        "resourceLoadDelay": 56.828,
+        "resourceLoadDuration": 1195.3649999999404,
+        "elementRenderDelay": 12.347000000059605
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    },
+    {
+      "device": "desktop",
+      "index": 0,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 1451.4515,
+        "fcpMs": 1447.4515,
+        "ttfbMs": 420,
+        "cls": 0.003966,
+        "tbtMs": 7,
+        "speedIndexMs": 1813.285399,
+        "transferBytes": 1435163
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1210.445,
+        "elementRenderDelay": 512.194
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 46
+    },
+    {
+      "device": "desktop",
+      "index": 0,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 1653.3875,
+        "fcpMs": 1653.3875,
+        "ttfbMs": 387,
+        "cls": 0.004178,
+        "tbtMs": 0,
+        "speedIndexMs": 1653.3875,
+        "transferBytes": 1435163
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 776.727,
+        "elementRenderDelay": 437.548
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 46
+    },
+    {
+      "device": "desktop",
+      "index": 0,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/",
+      "metrics": {
+        "lcpMs": 1645.146,
+        "fcpMs": 1645.146,
+        "ttfbMs": 389,
+        "cls": 0.004178,
+        "tbtMs": 0,
+        "speedIndexMs": 1668.163189,
+        "transferBytes": 1435159
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 773.684,
+        "elementRenderDelay": 455.086
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.mx-auto > h1.reveal",
+      "resourceErrors": [],
+      "resourceCount": 46
+    },
+    {
+      "device": "desktop",
+      "index": 1,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 2986.147,
+        "fcpMs": 2062.007,
+        "ttfbMs": 377,
+        "cls": 0.001875,
+        "tbtMs": 0,
+        "speedIndexMs": 2062.007,
+        "transferBytes": 2433330
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 765.059,
+        "resourceLoadDelay": 192.821,
+        "resourceLoadDuration": 1290.444,
+        "elementRenderDelay": 19.721
+      },
+      "lcpElementSelector": "div.reveal > div.relative > astro-island > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 58
+    },
+    {
+      "device": "desktop",
+      "index": 1,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 3388.457,
+        "fcpMs": 2053.888,
+        "ttfbMs": 378,
+        "cls": 0.003768,
+        "tbtMs": 0,
+        "speedIndexMs": 2090.012652,
+        "transferBytes": 2433379
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 982.139,
+        "resourceLoadDelay": 193.38,
+        "resourceLoadDuration": 1428.391,
+        "elementRenderDelay": 33.629
+      },
+      "lcpElementSelector": "div.reveal > div.relative > astro-island > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 58
+    },
+    {
+      "device": "desktop",
+      "index": 1,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/headphones/",
+      "metrics": {
+        "lcpMs": 3377.0075,
+        "fcpMs": 2048.453,
+        "ttfbMs": 374,
+        "cls": 0.003768,
+        "tbtMs": 0,
+        "speedIndexMs": 2048.453,
+        "transferBytes": 2433200
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 759.105,
+        "resourceLoadDelay": 191.764,
+        "resourceLoadDuration": 1398.702,
+        "elementRenderDelay": 20.631
+      },
+      "lcpElementSelector": "div.reveal > div.relative > astro-island > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 58
+    },
+    {
+      "device": "desktop",
+      "index": 2,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 1280.435,
+        "fcpMs": 1254.86,
+        "ttfbMs": 375,
+        "cls": 0.003351,
+        "tbtMs": 0,
+        "speedIndexMs": 1574.07401,
+        "transferBytes": 684972
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 759.671,
+        "elementRenderDelay": 867.648
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "desktop",
+      "index": 2,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 1352.4715,
+        "fcpMs": 1322.599,
+        "ttfbMs": 381,
+        "cls": 0.003351,
+        "tbtMs": 0,
+        "speedIndexMs": 1615.51814,
+        "transferBytes": 684978
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 772.421,
+        "elementRenderDelay": 875.078
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "desktop",
+      "index": 2,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/oem/",
+      "metrics": {
+        "lcpMs": 1351.235,
+        "fcpMs": 1321.422,
+        "ttfbMs": 328,
+        "cls": 0.004232,
+        "tbtMs": 0,
+        "speedIndexMs": 1587.627763,
+        "transferBytes": 684972
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 733.5,
+        "elementRenderDelay": 863.044
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 37
+    },
+    {
+      "device": "desktop",
+      "index": 3,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 2282.807,
+        "fcpMs": 2282.807,
+        "ttfbMs": 382,
+        "cls": 0.001993,
+        "tbtMs": 0,
+        "speedIndexMs": 2282.807,
+        "transferBytes": 1142375
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 770.88,
+        "elementRenderDelay": 827.071
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 3,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 1146.25,
+        "fcpMs": 1146.25,
+        "ttfbMs": 374,
+        "cls": 0.003696,
+        "tbtMs": 0,
+        "speedIndexMs": 1516.659337,
+        "transferBytes": 1142374
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 764.894,
+        "elementRenderDelay": 828.628
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 3,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/portfolio/",
+      "metrics": {
+        "lcpMs": 2282.661,
+        "fcpMs": 2282.661,
+        "ttfbMs": 376,
+        "cls": 0.003696,
+        "tbtMs": 0,
+        "speedIndexMs": 2282.661,
+        "transferBytes": 1142373
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1101.7,
+        "elementRenderDelay": 856.677
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > h1.mt-4",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 4,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 1675.323,
+        "fcpMs": 1219.602,
+        "ttfbMs": 378,
+        "cls": 0.046072,
+        "tbtMs": 0,
+        "speedIndexMs": 2271.394352,
+        "transferBytes": 1323224
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 961.1800000000596,
+        "resourceLoadDelay": 381.7979999999404,
+        "resourceLoadDuration": 1190.614,
+        "elementRenderDelay": 15.832
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "desktop",
+      "index": 4,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 1522.925,
+        "fcpMs": 1338.581,
+        "ttfbMs": 368,
+        "cls": 0.069261,
+        "tbtMs": 0,
+        "speedIndexMs": 1720.610636,
+        "transferBytes": 1323056
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 753.215,
+        "resourceLoadDelay": 381.673,
+        "resourceLoadDuration": 999.628,
+        "elementRenderDelay": 16.901
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "desktop",
+      "index": 4,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "metrics": {
+        "lcpMs": 1678.649,
+        "fcpMs": 1145.766,
+        "ttfbMs": 389,
+        "cls": 0.069261,
+        "tbtMs": 0,
+        "speedIndexMs": 1713.565571,
+        "transferBytes": 1323002
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 778.5759999999404,
+        "resourceLoadDelay": 386.3470000000596,
+        "resourceLoadDuration": 1263.86,
+        "elementRenderDelay": 14.597
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 45
+    },
+    {
+      "device": "desktop",
+      "index": 5,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 1367.235,
+        "fcpMs": 1262.793,
+        "ttfbMs": 369,
+        "cls": 0.002976,
+        "tbtMs": 0,
+        "speedIndexMs": 1651.185262,
+        "transferBytes": 6910222
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 751.956,
+        "resourceLoadDelay": 380.531,
+        "resourceLoadDuration": 804.467,
+        "elementRenderDelay": 22.44
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 62
+    },
+    {
+      "device": "desktop",
+      "index": 5,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 1267.5735,
+        "fcpMs": 1202.397,
+        "ttfbMs": 375,
+        "cls": 0.001251,
+        "tbtMs": 0,
+        "speedIndexMs": 1823.16421,
+        "transferBytes": 6911323
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 943.0390000000596,
+        "resourceLoadDelay": 385.2009999999404,
+        "resourceLoadDuration": 881.756,
+        "elementRenderDelay": 16.732
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 62
+    },
+    {
+      "device": "desktop",
+      "index": 5,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "metrics": {
+        "lcpMs": 1703.2415,
+        "fcpMs": 1222.125,
+        "ttfbMs": 379,
+        "cls": 0.001122,
+        "tbtMs": 0,
+        "speedIndexMs": 1781.224561,
+        "transferBytes": 6911430
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 764.974,
+        "resourceLoadDelay": 381.181,
+        "resourceLoadDuration": 1150.124,
+        "elementRenderDelay": 37.711
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 62
+    },
+    {
+      "device": "desktop",
+      "index": 6,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 1475.742,
+        "fcpMs": 1392.628,
+        "ttfbMs": 359,
+        "cls": 0.002406,
+        "tbtMs": 0,
+        "speedIndexMs": 1685.383843,
+        "transferBytes": 1485417
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 746.796,
+        "resourceLoadDelay": 381.977,
+        "resourceLoadDuration": 768.413,
+        "elementRenderDelay": 14.306
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 6,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 1221.5225,
+        "fcpMs": 1154.768,
+        "ttfbMs": 385,
+        "cls": 0.000991,
+        "tbtMs": 0,
+        "speedIndexMs": 1648.710753,
+        "transferBytes": 1485345
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 767.785,
+        "resourceLoadDelay": 379.162,
+        "resourceLoadDuration": 832.078,
+        "elementRenderDelay": 15.421
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 6,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "metrics": {
+        "lcpMs": 1221.7345,
+        "fcpMs": 1154.806,
+        "ttfbMs": 378,
+        "cls": 0.000991,
+        "tbtMs": 0,
+        "speedIndexMs": 1662.657132,
+        "transferBytes": 1485138
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 783.632,
+        "resourceLoadDelay": 381.288,
+        "resourceLoadDuration": 836.685,
+        "elementRenderDelay": 16.061
+      },
+      "lcpElementSelector": "section > div.mx-auto > div.h-[min(85vw,340px)] > img.h-full",
+      "resourceErrors": [],
+      "resourceCount": 50
+    },
+    {
+      "device": "desktop",
+      "index": 7,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 1750.81,
+        "fcpMs": 1750.81,
+        "ttfbMs": 413,
+        "cls": 0.000292,
+        "tbtMs": 0,
+        "speedIndexMs": 1894.226956,
+        "transferBytes": 188910
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1196.843,
+        "elementRenderDelay": 588.77
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "desktop",
+      "index": 7,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 1729.81,
+        "fcpMs": 1729.81,
+        "ttfbMs": 428,
+        "cls": 0.000292,
+        "tbtMs": 0,
+        "speedIndexMs": 1729.81,
+        "transferBytes": 188762
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 811.383,
+        "elementRenderDelay": 586.456
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "desktop",
+      "index": 7,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/blog/",
+      "metrics": {
+        "lcpMs": 1736.382,
+        "fcpMs": 1736.382,
+        "ttfbMs": 456,
+        "cls": 0.000292,
+        "tbtMs": 0,
+        "speedIndexMs": 1736.382,
+        "transferBytes": 177886
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 841.483,
+        "elementRenderDelay": 578.66
+      },
+      "lcpElementSelector": "section.relative > div.relative > div.max-w-3xl > p.mt-6",
+      "resourceErrors": [],
+      "resourceCount": 16
+    },
+    {
+      "device": "desktop",
+      "index": 8,
+      "repeat": 1,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 2211.01325,
+        "fcpMs": 1699.155,
+        "ttfbMs": 590,
+        "cls": 0.000347,
+        "tbtMs": 0,
+        "speedIndexMs": 2166.533698,
+        "transferBytes": 293444
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 980.144,
+        "resourceLoadDelay": 61.083,
+        "resourceLoadDuration": 1486.428,
+        "elementRenderDelay": 19.32
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    },
+    {
+      "device": "desktop",
+      "index": 8,
+      "repeat": 2,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 2143.5395,
+        "fcpMs": 1764.429,
+        "ttfbMs": 570,
+        "cls": 0.00043,
+        "tbtMs": 0,
+        "speedIndexMs": 2003.757741,
+        "transferBytes": 293485
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 958.1930000000596,
+        "resourceLoadDelay": 62.7329999999404,
+        "resourceLoadDuration": 1115.847,
+        "elementRenderDelay": 23.125
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    },
+    {
+      "device": "desktop",
+      "index": 8,
+      "repeat": 3,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "metrics": {
+        "lcpMs": 2323.023,
+        "fcpMs": 1782.004,
+        "ttfbMs": 745,
+        "cls": 0.000347,
+        "tbtMs": 0,
+        "speedIndexMs": 2216.457618,
+        "transferBytes": 293559
+      },
+      "observedLcpPhasesMs": {
+        "timeToFirstByte": 1153.6529999999404,
+        "resourceLoadDelay": 191.0110000000596,
+        "resourceLoadDuration": 1151.913,
+        "elementRenderDelay": 17.977
+      },
+      "lcpElementSelector": "article.mx-auto > div.article-body > figure.article-image > img",
+      "resourceErrors": [],
+      "resourceCount": 18
+    }
+  ],
+  "lighthouseComparison": [
+    {
+      "device": "mobile",
+      "index": 0,
+      "url": "https://supplychainsai.com/",
+      "baseline": {
+        "lcpMs": 3202.988,
+        "fcpMs": 3124.196,
+        "ttfbMs": 395,
+        "cls": 0.05,
+        "tbtMs": 0,
+        "speedIndexMs": 4398.94,
+        "transferBytes": 1003160
+      },
+      "nov19": {
+        "lcpMs": 3699.495,
+        "fcpMs": 3231.36,
+        "ttfbMs": 390,
+        "cls": 0.05,
+        "tbtMs": 0,
+        "speedIndexMs": 4643.411,
+        "transferBytes": 1005322
+      },
+      "current": {
+        "lcpMs": 2525.7995,
+        "fcpMs": 2525.7995,
+        "ttfbMs": 379,
+        "cls": 0.071909,
+        "tbtMs": 3,
+        "speedIndexMs": 2999.88028,
+        "transferBytes": 929462
+      },
+      "currentLcpRangeMs": [1933.5455, 2583.908],
+      "currentLcpAbove2500Count": 2
+    },
+    {
+      "device": "mobile",
+      "index": 1,
+      "url": "https://supplychainsai.com/headphones/",
+      "baseline": {
+        "lcpMs": 3873.378,
+        "fcpMs": 3518.222,
+        "ttfbMs": 396,
+        "cls": 0.035,
+        "tbtMs": 0,
+        "speedIndexMs": 4416.918,
+        "transferBytes": 1587003
+      },
+      "nov19": {
+        "lcpMs": 4072.112,
+        "fcpMs": 3731.814,
+        "ttfbMs": 366,
+        "cls": 0.035,
+        "tbtMs": 0,
+        "speedIndexMs": 4206.35,
+        "transferBytes": 1749460
+      },
+      "current": {
+        "lcpMs": 2922.951,
+        "fcpMs": 2922.951,
+        "ttfbMs": 418,
+        "cls": 0.036909,
+        "tbtMs": 0,
+        "speedIndexMs": 3770.209936,
+        "transferBytes": 1708935
+      },
+      "currentLcpRangeMs": [2579.847, 3042.003],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 2,
+      "url": "https://supplychainsai.com/oem/",
+      "baseline": {
+        "lcpMs": 3925.46,
+        "fcpMs": 3265.868,
+        "ttfbMs": 403,
+        "cls": 0.039,
+        "tbtMs": 0,
+        "speedIndexMs": 4149.176,
+        "transferBytes": 753910
+      },
+      "nov19": {
+        "lcpMs": 3273.41,
+        "fcpMs": 3169.026,
+        "ttfbMs": 382,
+        "cls": 0.039,
+        "tbtMs": 0,
+        "speedIndexMs": 3912.102,
+        "transferBytes": 756017
+      },
+      "current": {
+        "lcpMs": 3054.7515,
+        "fcpMs": 2942.652,
+        "ttfbMs": 374,
+        "cls": 0.038053,
+        "tbtMs": 0,
+        "speedIndexMs": 3737.633633,
+        "transferBytes": 684972
+      },
+      "currentLcpRangeMs": [2965.828, 3120.49],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 3,
+      "url": "https://supplychainsai.com/portfolio/",
+      "baseline": {
+        "lcpMs": 3491.924,
+        "fcpMs": 3491.924,
+        "ttfbMs": 381,
+        "cls": 0.015,
+        "tbtMs": 0,
+        "speedIndexMs": 4259.521,
+        "transferBytes": 1083633
+      },
+      "nov19": {
+        "lcpMs": 3396.034,
+        "fcpMs": 3396.034,
+        "ttfbMs": 383,
+        "cls": 0.015,
+        "tbtMs": 0,
+        "speedIndexMs": 4049.084,
+        "transferBytes": 1085419
+      },
+      "current": {
+        "lcpMs": 3369.308,
+        "fcpMs": 3369.308,
+        "ttfbMs": 365,
+        "cls": 0.014741,
+        "tbtMs": 0,
+        "speedIndexMs": 3832.279956,
+        "transferBytes": 1014375
+      },
+      "currentLcpRangeMs": [3358.69, 3379.594],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 4,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "baseline": {
+        "lcpMs": 5192.498,
+        "fcpMs": 3847.51,
+        "ttfbMs": 396,
+        "cls": 0.004,
+        "tbtMs": 4,
+        "speedIndexMs": 6436.391,
+        "transferBytes": 1464620
+      },
+      "nov19": {
+        "lcpMs": 3840.114,
+        "fcpMs": 2852.94,
+        "ttfbMs": 416,
+        "cls": 0.002,
+        "tbtMs": 5.5,
+        "speedIndexMs": 4493.435,
+        "transferBytes": 1463050
+      },
+      "current": {
+        "lcpMs": 3857.2785,
+        "fcpMs": 2714.766,
+        "ttfbMs": 315,
+        "cls": 0.001591,
+        "tbtMs": 4.5,
+        "speedIndexMs": 5049.08955,
+        "transferBytes": 959178
+      },
+      "currentLcpRangeMs": [3810.613, 3924.443],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 5,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "baseline": {
+        "lcpMs": 5973.299,
+        "fcpMs": 3846.936,
+        "ttfbMs": 378,
+        "cls": 0.006,
+        "tbtMs": 3.5,
+        "speedIndexMs": 5054.079,
+        "transferBytes": 3616226
+      },
+      "nov19": {
+        "lcpMs": 3252.902,
+        "fcpMs": 2977.231,
+        "ttfbMs": 393,
+        "cls": 0.006,
+        "tbtMs": 5.5,
+        "speedIndexMs": 4124.88,
+        "transferBytes": 1077189
+      },
+      "current": {
+        "lcpMs": 3248.841,
+        "fcpMs": 2654.376,
+        "ttfbMs": 377,
+        "cls": 0.006346,
+        "tbtMs": 5.5,
+        "speedIndexMs": 4207.288412,
+        "transferBytes": 915285
+      },
+      "currentLcpRangeMs": [3218.382, 3367.0745],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 6,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "baseline": {
+        "lcpMs": 7198.071,
+        "fcpMs": 2878.965,
+        "ttfbMs": 398,
+        "cls": 0.004,
+        "tbtMs": 5,
+        "speedIndexMs": 4683.598,
+        "transferBytes": 5188451
+      },
+      "nov19": {
+        "lcpMs": 3380.573,
+        "fcpMs": 3033.455,
+        "ttfbMs": 384,
+        "cls": 0.002,
+        "tbtMs": 4.5,
+        "speedIndexMs": 4038.341,
+        "transferBytes": 2077870
+      },
+      "current": {
+        "lcpMs": 2942.324,
+        "fcpMs": 2622.186,
+        "ttfbMs": 379,
+        "cls": 0.001591,
+        "tbtMs": 5.5,
+        "speedIndexMs": 3883.647204,
+        "transferBytes": 1154567
+      },
+      "currentLcpRangeMs": [2940.801, 3428.96],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 7,
+      "url": "https://supplychainsai.com/blog/",
+      "baseline": {
+        "lcpMs": 2608.8,
+        "fcpMs": 2608.8,
+        "ttfbMs": 475,
+        "cls": 0.04,
+        "tbtMs": 0,
+        "speedIndexMs": 3171.432,
+        "transferBytes": 198892
+      },
+      "nov19": {
+        "lcpMs": 2672.13,
+        "fcpMs": 2672.13,
+        "ttfbMs": 478,
+        "cls": 0.036,
+        "tbtMs": 0,
+        "speedIndexMs": 3134.301,
+        "transferBytes": 199750
+      },
+      "current": {
+        "lcpMs": 2610.29,
+        "fcpMs": 2608.615,
+        "ttfbMs": 471,
+        "cls": 0.035749,
+        "tbtMs": 0,
+        "speedIndexMs": 3106.229478,
+        "transferBytes": 188825
+      },
+      "currentLcpRangeMs": [2608.615, 2627.634],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "mobile",
+      "index": 8,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "baseline": {
+        "lcpMs": 17306.321,
+        "fcpMs": 2649.089,
+        "ttfbMs": 1032,
+        "cls": 0.032,
+        "tbtMs": 0,
+        "speedIndexMs": 7199.77,
+        "transferBytes": 3127585
+      },
+      "nov19": {
+        "lcpMs": 4332.991,
+        "fcpMs": 2526.891,
+        "ttfbMs": 702,
+        "cls": 0.03,
+        "tbtMs": 0,
+        "speedIndexMs": 4341.144,
+        "transferBytes": 362477
+      },
+      "current": {
+        "lcpMs": 3676.106,
+        "fcpMs": 2644.159,
+        "ttfbMs": 668,
+        "cls": 0.029946,
+        "tbtMs": 0,
+        "speedIndexMs": 4180.473878,
+        "transferBytes": 293517
+      },
+      "currentLcpRangeMs": [3665.866, 3770.164],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "desktop",
+      "index": 0,
+      "url": "https://supplychainsai.com/",
+      "baseline": {
+        "lcpMs": 1433.966,
+        "fcpMs": 1390.126,
+        "ttfbMs": 421,
+        "cls": 0.004,
+        "tbtMs": 0,
+        "speedIndexMs": 1700.598,
+        "transferBytes": 1508775
+      },
+      "nov19": {
+        "lcpMs": 1571.08,
+        "fcpMs": 1513.472,
+        "ttfbMs": 418,
+        "cls": 0.004,
+        "tbtMs": 0,
+        "speedIndexMs": 1975.345,
+        "transferBytes": 1511023
+      },
+      "current": {
+        "lcpMs": 1645.146,
+        "fcpMs": 1645.146,
+        "ttfbMs": 389,
+        "cls": 0.004178,
+        "tbtMs": 0,
+        "speedIndexMs": 1668.163189,
+        "transferBytes": 1435163
+      },
+      "currentLcpRangeMs": [1451.4515, 1653.3875],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 1,
+      "url": "https://supplychainsai.com/headphones/",
+      "baseline": {
+        "lcpMs": 2662.391,
+        "fcpMs": 2056.256,
+        "ttfbMs": 344,
+        "cls": 0.004,
+        "tbtMs": 0,
+        "speedIndexMs": 2056.256,
+        "transferBytes": 2736359
+      },
+      "nov19": {
+        "lcpMs": 3533.323,
+        "fcpMs": 2794.586,
+        "ttfbMs": 439,
+        "cls": 0.002,
+        "tbtMs": 0,
+        "speedIndexMs": 2794.586,
+        "transferBytes": 3579752
+      },
+      "current": {
+        "lcpMs": 3377.0075,
+        "fcpMs": 2053.888,
+        "ttfbMs": 377,
+        "cls": 0.003768,
+        "tbtMs": 0,
+        "speedIndexMs": 2062.007,
+        "transferBytes": 2433330
+      },
+      "currentLcpRangeMs": [2986.147, 3388.457],
+      "currentLcpAbove2500Count": 3
+    },
+    {
+      "device": "desktop",
+      "index": 2,
+      "url": "https://supplychainsai.com/oem/",
+      "baseline": {
+        "lcpMs": 1421.401,
+        "fcpMs": 1338.623,
+        "ttfbMs": 327,
+        "cls": 0.004,
+        "tbtMs": 0,
+        "speedIndexMs": 1659.088,
+        "transferBytes": 753910
+      },
+      "nov19": {
+        "lcpMs": 1570.481,
+        "fcpMs": 1428.346,
+        "ttfbMs": 406,
+        "cls": 0.003,
+        "tbtMs": 0,
+        "speedIndexMs": 1970.593,
+        "transferBytes": 756018
+      },
+      "current": {
+        "lcpMs": 1351.235,
+        "fcpMs": 1321.422,
+        "ttfbMs": 375,
+        "cls": 0.003351,
+        "tbtMs": 0,
+        "speedIndexMs": 1587.627763,
+        "transferBytes": 684972
+      },
+      "currentLcpRangeMs": [1280.435, 1352.4715],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 3,
+      "url": "https://supplychainsai.com/portfolio/",
+      "baseline": {
+        "lcpMs": 2042.493,
+        "fcpMs": 2034.611,
+        "ttfbMs": 337,
+        "cls": 0.002,
+        "tbtMs": 0,
+        "speedIndexMs": 2042.252,
+        "transferBytes": 1211450
+      },
+      "nov19": {
+        "lcpMs": 2559.651,
+        "fcpMs": 2538.815,
+        "ttfbMs": 405,
+        "cls": 0.002,
+        "tbtMs": 0,
+        "speedIndexMs": 2559.651,
+        "transferBytes": 1213417
+      },
+      "current": {
+        "lcpMs": 2282.661,
+        "fcpMs": 2282.661,
+        "ttfbMs": 376,
+        "cls": 0.003696,
+        "tbtMs": 0,
+        "speedIndexMs": 2282.661,
+        "transferBytes": 1142374
+      },
+      "currentLcpRangeMs": [1146.25, 2282.807],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 4,
+      "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+      "baseline": {
+        "lcpMs": 2912.228,
+        "fcpMs": 2238.239,
+        "ttfbMs": 336,
+        "cls": 0.069,
+        "tbtMs": 0,
+        "speedIndexMs": 2565.327,
+        "transferBytes": 6662065
+      },
+      "nov19": {
+        "lcpMs": 1684.242,
+        "fcpMs": 1446.729,
+        "ttfbMs": 419,
+        "cls": 0.069,
+        "tbtMs": 0,
+        "speedIndexMs": 2201.453,
+        "transferBytes": 6661974
+      },
+      "current": {
+        "lcpMs": 1675.323,
+        "fcpMs": 1219.602,
+        "ttfbMs": 378,
+        "cls": 0.069261,
+        "tbtMs": 0,
+        "speedIndexMs": 1720.610636,
+        "transferBytes": 1323056
+      },
+      "currentLcpRangeMs": [1522.925, 1678.649],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 5,
+      "url": "https://supplychainsai.com/products/p-804ee5b9-209c-41b7-ae91-9c854fc8d1b4/",
+      "baseline": {
+        "lcpMs": 3184.608,
+        "fcpMs": 2240.911,
+        "ttfbMs": 356,
+        "cls": 0.003,
+        "tbtMs": 0,
+        "speedIndexMs": 2244.493,
+        "transferBytes": 9608832
+      },
+      "nov19": {
+        "lcpMs": 1593.71,
+        "fcpMs": 1483.319,
+        "ttfbMs": 412,
+        "cls": 0.003,
+        "tbtMs": 0,
+        "speedIndexMs": 2440.005,
+        "transferBytes": 7073216
+      },
+      "current": {
+        "lcpMs": 1367.235,
+        "fcpMs": 1222.125,
+        "ttfbMs": 375,
+        "cls": 0.001251,
+        "tbtMs": 0,
+        "speedIndexMs": 1781.224561,
+        "transferBytes": 6911323
+      },
+      "currentLcpRangeMs": [1267.5735, 1703.2415],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 6,
+      "url": "https://supplychainsai.com/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+      "baseline": {
+        "lcpMs": 3081.461,
+        "fcpMs": 1854.496,
+        "ttfbMs": 341,
+        "cls": 0.002,
+        "tbtMs": 0,
+        "speedIndexMs": 2148.709,
+        "transferBytes": 6416797
+      },
+      "nov19": {
+        "lcpMs": 1337.96,
+        "fcpMs": 1292.094,
+        "ttfbMs": 414,
+        "cls": 0.002,
+        "tbtMs": 0,
+        "speedIndexMs": 2497.093,
+        "transferBytes": 2408832
+      },
+      "current": {
+        "lcpMs": 1221.7345,
+        "fcpMs": 1154.806,
+        "ttfbMs": 378,
+        "cls": 0.000991,
+        "tbtMs": 0,
+        "speedIndexMs": 1662.657132,
+        "transferBytes": 1485345
+      },
+      "currentLcpRangeMs": [1221.5225, 1475.742],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 7,
+      "url": "https://supplychainsai.com/blog/",
+      "baseline": {
+        "lcpMs": 1628.228,
+        "fcpMs": 1628.228,
+        "ttfbMs": 415,
+        "cls": 0.0,
+        "tbtMs": 0,
+        "speedIndexMs": 1628.228,
+        "transferBytes": 198885
+      },
+      "nov19": {
+        "lcpMs": 2000.96,
+        "fcpMs": 2000.96,
+        "ttfbMs": 439,
+        "cls": 0.0,
+        "tbtMs": 0,
+        "speedIndexMs": 2000.96,
+        "transferBytes": 199732
+      },
+      "current": {
+        "lcpMs": 1736.382,
+        "fcpMs": 1736.382,
+        "ttfbMs": 428,
+        "cls": 0.000292,
+        "tbtMs": 0,
+        "speedIndexMs": 1736.382,
+        "transferBytes": 188762
+      },
+      "currentLcpRangeMs": [1729.81, 1750.81],
+      "currentLcpAbove2500Count": 0
+    },
+    {
+      "device": "desktop",
+      "index": 8,
+      "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "baseline": {
+        "lcpMs": 4440.408,
+        "fcpMs": 1577.331,
+        "ttfbMs": 994,
+        "cls": 0.0,
+        "tbtMs": 0,
+        "speedIndexMs": 4112.517,
+        "transferBytes": 3127678
+      },
+      "nov19": {
+        "lcpMs": 2898.312,
+        "fcpMs": 2006.642,
+        "ttfbMs": 671,
+        "cls": 0.0,
+        "tbtMs": 0,
+        "speedIndexMs": 2606.051,
+        "transferBytes": 362552
+      },
+      "current": {
+        "lcpMs": 2211.01325,
+        "fcpMs": 1764.429,
+        "ttfbMs": 590,
+        "cls": 0.000347,
+        "tbtMs": 0,
+        "speedIndexMs": 2166.533698,
+        "transferBytes": 293485
+      },
+      "currentLcpRangeMs": [2143.5395, 2323.023],
+      "currentLcpAbove2500Count": 0
+    }
+  ],
+  "uniqueResourceFailures": [],
+  "watchPage": {
+    "posterHintOnly": {
+      "at": "2026-11-21T23:20:34.799Z",
+      "url": "https://supplychainsai.com/videos/factory-overview/",
+      "version": "157.0.8103.79",
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "bodySha256": "2f88bdacb817fe39d741aadbe9141c9304a851050c404b4f3cd963862fa4698d",
+      "poster": "/media/factory-overview-c215171947e5.webp",
+      "stylesheet": "/_astro/_slug_.C7BMU5Lz.css",
+      "browsers": {
+        "mobile": {
+          "context": {
+            "viewport": {
+              "width": 412,
+              "height": 823
+            },
+            "deviceScaleFactor": 1.75,
+            "isMobile": true,
+            "hasTouch": true
+          },
+          "network": {
+            "offline": false,
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          },
+          "cpu": 4
+        },
+        "desktop": {
+          "context": {
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "network": {
+            "offline": false,
+            "latency": 40,
+            "downloadThroughput": 1250000,
+            "uploadThroughput": 625000,
+            "connectionType": "ethernet"
+          },
+          "cpu": 1
+        }
+      },
+      "method": "Alternating new Chrome contexts. Both test pages deliver the same actual accepted and downloaded production HTML from the test harness. All asset requests use the existing public website. A single poster preload hint is the only DOM difference.",
+      "summary": {
+        "mobile": {
+          "control": {
+            "count": 8,
+            "lcpMs": {
+              "median": 1768.0,
+              "min": 1128,
+              "max": 4276
+            },
+            "fcpMs": {
+              "median": 1496.0,
+              "min": 1000,
+              "max": 4212
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 12.0,
+            "medianPosterWaitForResponseMs": 1166.0
+          },
+          "early": {
+            "count": 8,
+            "lcpMs": {
+              "median": 1162.0,
+              "min": 1128,
+              "max": 2128
+            },
+            "fcpMs": {
+              "median": 1036.0,
+              "min": 988,
+              "max": 1664
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 11.5,
+            "medianPosterWaitForResponseMs": 756.5
+          },
+          "pairDeltaLcpMs": [628, -232, -12, 884, -788, -3120, -892, -3060]
+        },
+        "desktop": {
+          "control": {
+            "count": 3,
+            "lcpMs": {
+              "median": 980,
+              "min": 932,
+              "max": 1704
+            },
+            "fcpMs": {
+              "median": 960,
+              "min": 816,
+              "max": 1052
+            },
+            "cls": {
+              "median": 0,
+              "min": 0,
+              "max": 1.1342592592592592e-5
+            },
+            "medianPosterRequestStartMs": 6,
+            "medianPosterWaitForResponseMs": 717
+          },
+          "early": {
+            "count": 3,
+            "lcpMs": {
+              "median": 1264,
+              "min": 872,
+              "max": 5904
+            },
+            "fcpMs": {
+              "median": 1164,
+              "min": 808,
+              "max": 5888
+            },
+            "cls": {
+              "median": 0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 4,
+            "medianPosterWaitForResponseMs": 1049
+          },
+          "pairDeltaLcpMs": [-108, 4972, -440]
+        }
+      },
+      "samples": [
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 1500,
+          "fcpMs": 1428,
+          "cls": 0,
+          "documentTtfbMs": 6.699999988079071,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 28,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 825,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1267,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 27,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 779,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1364,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 2128,
+          "fcpMs": 1536,
+          "cls": 0,
+          "documentTtfbMs": 4.5999999940395355,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 15,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1870,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2109,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 15,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1367,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1503,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 1128,
+          "fcpMs": 1016,
+          "cls": 0,
+          "documentTtfbMs": 3.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 13,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 754,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1113,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 13,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 732,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 986,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 1360,
+          "fcpMs": 1304,
+          "cls": 0,
+          "documentTtfbMs": 3.699999988079071,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 14,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 922,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1301,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 13,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1003,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1270,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 1140,
+          "fcpMs": 1000,
+          "cls": 0,
+          "documentTtfbMs": 2.300000011920929,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 12,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 700,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1113,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 664,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 971,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 1128,
+          "fcpMs": 988,
+          "cls": 0,
+          "documentTtfbMs": 1.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 716,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1107,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 656,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 956,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "early",
+          "lcpMs": 2012,
+          "fcpMs": 1548,
+          "cls": 0,
+          "documentTtfbMs": 2.699999988079071,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 12,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1436,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1992,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 12,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1339,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1519,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "control",
+          "lcpMs": 1128,
+          "fcpMs": 1004,
+          "cls": 0,
+          "documentTtfbMs": 1.7999999821186066,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 12,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 732,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1113,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 672,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 971,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "control",
+          "lcpMs": 2788,
+          "fcpMs": 2516,
+          "cls": 0,
+          "documentTtfbMs": 3.2999999821186066,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 13,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 2512,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2763,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 13,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 2050,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2484,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "early",
+          "lcpMs": 2000,
+          "fcpMs": 1664,
+          "cls": 0,
+          "documentTtfbMs": 1.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 10,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1414,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1984,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1384,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1632,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "early",
+          "lcpMs": 1156,
+          "fcpMs": 1040,
+          "cls": 0,
+          "documentTtfbMs": 1.199999988079071,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 730,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1136,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 694,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1009,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "control",
+          "lcpMs": 4276,
+          "fcpMs": 4212,
+          "cls": 0,
+          "documentTtfbMs": 1.300000011920929,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 3692,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 4215,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 3638,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 4178,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 7,
+          "arm": "control",
+          "lcpMs": 2036,
+          "fcpMs": 1564,
+          "cls": 0,
+          "documentTtfbMs": 1.300000011920929,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1435,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2013,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 10,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1331,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1532,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 7,
+          "arm": "early",
+          "lcpMs": 1144,
+          "fcpMs": 1016,
+          "cls": 0,
+          "documentTtfbMs": 6.299999982118607,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 15,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 754,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1130,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 16,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 687,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 986,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 8,
+          "arm": "early",
+          "lcpMs": 1168,
+          "fcpMs": 1032,
+          "cls": 0,
+          "documentTtfbMs": 1.2000000178813934,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 10,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 782,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1155,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 669,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 998,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 8,
+          "arm": "control",
+          "lcpMs": 4228,
+          "fcpMs": 4176,
+          "cls": 0,
+          "documentTtfbMs": 1.2000000178813934,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 3701,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 4136,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 11,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 3650,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 4144,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 980,
+          "fcpMs": 960,
+          "cls": 1.1342592592592592e-5,
+          "documentTtfbMs": 1.100000023841858,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 3,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 684,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 879,
+            "transferred": 48438
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 3,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 682,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 926,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 872,
+          "fcpMs": 808,
+          "cls": 0,
+          "documentTtfbMs": 7,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 9,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 673,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 835,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 9,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 678,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 775,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 5904,
+          "fcpMs": 5888,
+          "cls": 0,
+          "documentTtfbMs": 1.699999988079071,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 4,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 5279,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 5621,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 4,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 5280,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 5851,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 932,
+          "fcpMs": 816,
+          "cls": 0,
+          "documentTtfbMs": 6.800000011920929,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 9,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 726,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 918,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 9,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 682,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 782,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 1704,
+          "fcpMs": 1052,
+          "cls": 0,
+          "documentTtfbMs": 3.800000011920929,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 6,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1476,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1679,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 6,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 916,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1013,
+            "transferred": 27581
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 1264,
+          "fcpMs": 1164,
+          "cls": 0,
+          "documentTtfbMs": 1.2000000178813934,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 3,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1052,
+            "reused": true,
+            "protocol": "http/1.1",
+            "end": 1248,
+            "transferred": 48442
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 3,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 711,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1129,
+            "transferred": 27581
+          }
+        }
+      ]
+    },
+    "inlineCssOnly": {
+      "at": "2026-11-21T23:24:21.180Z",
+      "url": "http://127.0.0.1:50610/videos/factory-overview/",
+      "version": "157.0.8103.79",
+      "egress": null,
+      "initDelays": {
+        "document": 700,
+        "style": 700,
+        "poster": 750
+      },
+      "bodySha256": "2f88bdacb817fe39d741aadbe9141c9304a851050c404b4f3cd963862fa4698d",
+      "poster": "/media/factory-overview-c215171947e5.webp",
+      "stylesheet": "/_astro/_slug_.C7BMU5Lz.css",
+      "browsers": {
+        "mobile": {
+          "context": {
+            "viewport": {
+              "width": 412,
+              "height": 823
+            },
+            "deviceScaleFactor": 1.75,
+            "isMobile": true,
+            "hasTouch": true
+          },
+          "network": {
+            "offline": false,
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          },
+          "cpu": 4
+        },
+        "desktop": {
+          "context": {
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "network": {
+            "offline": false,
+            "latency": 40,
+            "downloadThroughput": 1250000,
+            "uploadThroughput": 625000,
+            "connectionType": "ethernet"
+          },
+          "cpu": 1
+        }
+      },
+      "method": "Alternating new Chrome contexts. Actual accepted production HTML and assets served by one local HTTP/1.1 server. Simulated document, stylesheet and poster waits are fixed across the two arms. Only change is delivery of the same CSS inline, at the same position.",
+      "summary": {
+        "mobile": {
+          "control": {
+            "count": 6,
+            "lcpMs": {
+              "median": 1992.0,
+              "min": 1988,
+              "max": 2012
+            },
+            "fcpMs": {
+              "median": 1618.0,
+              "min": 1616,
+              "max": 1632
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 837.0,
+            "medianPosterWaitForResponseMs": 776.0
+          },
+          "early": {
+            "count": 6,
+            "lcpMs": {
+              "median": 2500.0,
+              "min": 2492,
+              "max": 2508
+            },
+            "fcpMs": {
+              "median": 912.0,
+              "min": 912,
+              "max": 920
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 973.0,
+            "medianPosterWaitForResponseMs": 779.5
+          },
+          "pairDeltaLcpMs": [492, 504, 484, 516, 504, 516]
+        },
+        "desktop": {
+          "control": {
+            "count": 4,
+            "lcpMs": {
+              "median": 1548.0,
+              "min": 1540,
+              "max": 1564
+            },
+            "fcpMs": {
+              "median": 1486.0,
+              "min": 1476,
+              "max": 1492
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 725.0,
+            "medianPosterWaitForResponseMs": 758.5
+          },
+          "early": {
+            "count": 4,
+            "lcpMs": {
+              "median": 1580.0,
+              "min": 1572,
+              "max": 1592
+            },
+            "fcpMs": {
+              "median": 762.0,
+              "min": 760,
+              "max": 768
+            },
+            "cls": {
+              "median": 1.1342592592592592e-5,
+              "min": 0,
+              "max": 0.012083865151320303
+            },
+            "medianPosterRequestStartMs": 755.0,
+            "medianPosterWaitForResponseMs": 757.5
+          },
+          "pairDeltaLcpMs": [36, 32, 28, 28]
+        }
+      },
+      "samples": [
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 2012,
+          "fcpMs": 1632,
+          "cls": 0,
+          "documentTtfbMs": 709.9000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 842,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1622,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1988,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 743,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1458,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1593,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 2504,
+          "fcpMs": 920,
+          "cls": 0,
+          "documentTtfbMs": 702.3999999761581,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 973,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1754,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2478,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 2492,
+          "fcpMs": 912,
+          "cls": 0,
+          "documentTtfbMs": 702.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 973,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1761,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2480,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 1988,
+          "fcpMs": 1616,
+          "cls": 0,
+          "documentTtfbMs": 702.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 835,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1612,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1976,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 741,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1453,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1587,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 2008,
+          "fcpMs": 1624,
+          "cls": 0,
+          "documentTtfbMs": 709.0999999940395,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 845,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1618,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1985,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 748,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1458,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1593,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 2492,
+          "fcpMs": 912,
+          "cls": 0,
+          "documentTtfbMs": 703.4000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 973,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1751,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2471,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "early",
+          "lcpMs": 2504,
+          "fcpMs": 920,
+          "cls": 0,
+          "documentTtfbMs": 702.1999999880791,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 973,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1750,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2479,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "control",
+          "lcpMs": 1988,
+          "fcpMs": 1616,
+          "cls": 0,
+          "documentTtfbMs": 705.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 837,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1611,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1977,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 740,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1451,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1585,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "control",
+          "lcpMs": 1992,
+          "fcpMs": 1616,
+          "cls": 0,
+          "documentTtfbMs": 703.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 836,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1611,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1975,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 740,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1451,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1585,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "early",
+          "lcpMs": 2496,
+          "fcpMs": 912,
+          "cls": 0,
+          "documentTtfbMs": 703.2999999821186,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 974,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1750,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2472,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "early",
+          "lcpMs": 2508,
+          "fcpMs": 912,
+          "cls": 0,
+          "documentTtfbMs": 704.4000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 973,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1761,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2478,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "control",
+          "lcpMs": 1992,
+          "fcpMs": 1620,
+          "cls": 0,
+          "documentTtfbMs": 704.2999999821186,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 837,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1614,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1976,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 738,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1451,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1588,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 1540,
+          "fcpMs": 1484,
+          "cls": 0,
+          "documentTtfbMs": 705,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 727,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1488,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1523,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 713,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1431,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1452,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 1576,
+          "fcpMs": 760,
+          "cls": 1.1342592592592592e-5,
+          "documentTtfbMs": 704.1999999880791,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 752,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1509,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1547,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 1572,
+          "fcpMs": 760,
+          "cls": 1.1342592592592592e-5,
+          "documentTtfbMs": 703.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 752,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1508,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1546,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 1540,
+          "fcpMs": 1492,
+          "cls": 0,
+          "documentTtfbMs": 703.7000000178814,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 725,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1480,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1518,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 711,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1430,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1451,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 1564,
+          "fcpMs": 1476,
+          "cls": 0,
+          "documentTtfbMs": 703.8000000119209,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 725,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1481,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1541,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 710,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1426,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1446,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 1592,
+          "fcpMs": 768,
+          "cls": 0,
+          "documentTtfbMs": 705.4000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 761,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1523,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1560,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 4,
+          "arm": "early",
+          "lcpMs": 1584,
+          "fcpMs": 764,
+          "cls": 0.012083865151320303,
+          "documentTtfbMs": 708.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 758,
+            "initiator": "parser",
+            "priority": "Low",
+            "status": 200,
+            "header": 1516,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1554,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 4,
+          "arm": "control",
+          "lcpMs": 1556,
+          "fcpMs": 1488,
+          "cls": 0,
+          "documentTtfbMs": 703.6000000238419,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 725,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1495,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1518,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 710,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1431,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1451,
+            "transferred": 27196
+          }
+        }
+      ]
+    },
+    "inlineCssAndPriorityHint": {
+      "at": "2026-11-21T23:25:09.031Z",
+      "url": "http://127.0.0.1:50822/videos/factory-overview/",
+      "version": "157.0.8103.79",
+      "egress": null,
+      "initDelays": {
+        "document": 700,
+        "style": 700,
+        "poster": 750
+      },
+      "bodySha256": "2f88bdacb817fe39d741aadbe9141c9304a851050c404b4f3cd963862fa4698d",
+      "poster": "/media/factory-overview-c215171947e5.webp",
+      "stylesheet": "/_astro/_slug_.C7BMU5Lz.css",
+      "browsers": {
+        "mobile": {
+          "context": {
+            "viewport": {
+              "width": 412,
+              "height": 823
+            },
+            "deviceScaleFactor": 1.75,
+            "isMobile": true,
+            "hasTouch": true
+          },
+          "network": {
+            "offline": false,
+            "latency": 150,
+            "downloadThroughput": 200000,
+            "uploadThroughput": 93750,
+            "connectionType": "cellular4g"
+          },
+          "cpu": 4
+        },
+        "desktop": {
+          "context": {
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "network": {
+            "offline": false,
+            "latency": 40,
+            "downloadThroughput": 1250000,
+            "uploadThroughput": 625000,
+            "connectionType": "ethernet"
+          },
+          "cpu": 1
+        }
+      },
+      "method": "Alternating new Chrome contexts. Actual accepted production HTML and assets served by one local HTTP/1.1 server. Simulated document, stylesheet and poster waits are fixed across the two arms. Candidate delivers the same CSS inline and starts the current poster before receiving that larger HTML block, with high priority.",
+      "summary": {
+        "mobile": {
+          "control": {
+            "count": 6,
+            "lcpMs": {
+              "median": 2006.0,
+              "min": 1988,
+              "max": 2020
+            },
+            "fcpMs": {
+              "median": 1616.0,
+              "min": 1612,
+              "max": 1628
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 838.0,
+            "medianPosterWaitForResponseMs": 775.0
+          },
+          "early": {
+            "count": 6,
+            "lcpMs": {
+              "median": 2346.0,
+              "min": 2328,
+              "max": 2356
+            },
+            "fcpMs": {
+              "median": 912.0,
+              "min": 908,
+              "max": 924
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 740.0,
+            "medianPosterWaitForResponseMs": 772.0
+          },
+          "pairDeltaLcpMs": [340, 336, 348, 360, 312, 332]
+        },
+        "desktop": {
+          "control": {
+            "count": 4,
+            "lcpMs": {
+              "median": 1566.0,
+              "min": 1556,
+              "max": 1572
+            },
+            "fcpMs": {
+              "median": 1484.0,
+              "min": 1476,
+              "max": 1492
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0
+            },
+            "medianPosterRequestStartMs": 727.0,
+            "medianPosterWaitForResponseMs": 763.0
+          },
+          "early": {
+            "count": 4,
+            "lcpMs": {
+              "median": 1540.0,
+              "min": 1536,
+              "max": 1560
+            },
+            "fcpMs": {
+              "median": 768.0,
+              "min": 756,
+              "max": 768
+            },
+            "cls": {
+              "median": 0.0,
+              "min": 0,
+              "max": 0.012342364527070474
+            },
+            "medianPosterRequestStartMs": 712.0,
+            "medianPosterWaitForResponseMs": 767.0
+          },
+          "pairDeltaLcpMs": [-28, -12, -12, -32]
+        }
+      },
+      "samples": [
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 2004,
+          "fcpMs": 1628,
+          "cls": 0,
+          "documentTtfbMs": 708.2999999821186,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 841,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1618,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1980,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 745,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1455,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1593,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 2344,
+          "fcpMs": 908,
+          "cls": 0,
+          "documentTtfbMs": 702.4000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 740,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1511,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2322,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 2356,
+          "fcpMs": 908,
+          "cls": 0,
+          "documentTtfbMs": 705.6999999880791,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 740,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1512,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2323,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 2020,
+          "fcpMs": 1616,
+          "cls": 0,
+          "documentTtfbMs": 704.9000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 838,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1611,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1991,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 738,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1452,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1585,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 2004,
+          "fcpMs": 1624,
+          "cls": 0,
+          "documentTtfbMs": 703.3000000119209,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 837,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1614,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1977,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 740,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1453,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1587,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 2352,
+          "fcpMs": 908,
+          "cls": 0,
+          "documentTtfbMs": 703.4000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 738,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1510,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2321,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "early",
+          "lcpMs": 2348,
+          "fcpMs": 924,
+          "cls": 0,
+          "documentTtfbMs": 702.1999999880791,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 741,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1519,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2329,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 4,
+          "arm": "control",
+          "lcpMs": 1988,
+          "fcpMs": 1616,
+          "cls": 0,
+          "documentTtfbMs": 703.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 836,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1613,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1975,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 739,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1451,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1588,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "control",
+          "lcpMs": 2016,
+          "fcpMs": 1612,
+          "cls": 0,
+          "documentTtfbMs": 702.5999999940395,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 838,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1604,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1991,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 739,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1443,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1579,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "mobile",
+          "pair": 5,
+          "arm": "early",
+          "lcpMs": 2328,
+          "fcpMs": 916,
+          "cls": 0,
+          "documentTtfbMs": 703.0999999940395,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 741,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1512,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2323,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "early",
+          "lcpMs": 2340,
+          "fcpMs": 924,
+          "cls": 0,
+          "documentTtfbMs": 704.3000000119209,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 739,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1512,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 2322,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "mobile",
+          "pair": 6,
+          "arm": "control",
+          "lcpMs": 2008,
+          "fcpMs": 1612,
+          "cls": 0,
+          "documentTtfbMs": 704.0999999940395,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 839,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1606,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1992,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 741,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1444,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1579,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "control",
+          "lcpMs": 1564,
+          "fcpMs": 1480,
+          "cls": 0,
+          "documentTtfbMs": 705.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 727,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1488,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1540,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 713,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1425,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1445,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 1,
+          "arm": "early",
+          "lcpMs": 1536,
+          "fcpMs": 768,
+          "cls": 0,
+          "documentTtfbMs": 704.9000000059605,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 712,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1478,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1515,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "early",
+          "lcpMs": 1560,
+          "fcpMs": 756,
+          "cls": 0.012342364527070474,
+          "documentTtfbMs": 704.2999999821186,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 711,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1478,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1516,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 2,
+          "arm": "control",
+          "lcpMs": 1572,
+          "fcpMs": 1488,
+          "cls": 0,
+          "documentTtfbMs": 704.5,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 727,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1492,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1527,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 711,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1428,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1449,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "control",
+          "lcpMs": 1556,
+          "fcpMs": 1492,
+          "cls": 0,
+          "documentTtfbMs": 705.8000000119209,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 727,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1495,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1519,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 712,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1431,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1452,
+            "transferred": 27196
+          }
+        },
+        {
+          "device": "desktop",
+          "pair": 3,
+          "arm": "early",
+          "lcpMs": 1544,
+          "fcpMs": 768,
+          "cls": 0,
+          "documentTtfbMs": 708.8000000119209,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 716,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1483,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1520,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 4,
+          "arm": "early",
+          "lcpMs": 1536,
+          "fcpMs": 768,
+          "cls": 0,
+          "documentTtfbMs": 705.0999999940395,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 712,
+            "initiator": "parser",
+            "priority": "High",
+            "status": 200,
+            "header": 1479,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1517,
+            "transferred": 48057
+          },
+          "style": null
+        },
+        {
+          "device": "desktop",
+          "pair": 4,
+          "arm": "control",
+          "lcpMs": 1568,
+          "fcpMs": 1476,
+          "cls": 0,
+          "documentTtfbMs": 703,
+          "poster": {
+            "path": "/media/factory-overview-c215171947e5.webp",
+            "type": "Image",
+            "start": 725,
+            "initiator": "parser",
+            "priority": "Medium",
+            "status": 200,
+            "header": 1485,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1544,
+            "transferred": 48057
+          },
+          "style": {
+            "path": "/_astro/_slug_.C7BMU5Lz.css",
+            "type": "Stylesheet",
+            "start": 710,
+            "initiator": "parser",
+            "priority": "VeryHigh",
+            "status": 200,
+            "header": 1422,
+            "reused": false,
+            "protocol": "http/1.1",
+            "end": 1442,
+            "transferred": 27196
+          }
+        }
+      ]
+    }
+  },
+  "renderedLinks": {
+    "sourcePages": 589,
+    "missingFromStaticManifest": [
+      {
+        "tag": "link",
+        "path": "/404/",
+        "sourcePageCount": 1,
+        "examples": ["/errors/not-found.html"]
+      }
+    ],
+    "blogAndApiPaths": 718
+  },
+  "gatewayFollowup": {
+    "checkedAt": "2026-11-21T23:21:29.219Z",
+    "targetedPaths": [
+      "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "/api/images/4db8df016ac88396000781db489eb227",
+      "/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "/privacy/",
+      "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "/toys/",
+      "/videos/factory-overview/",
+      "/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    ],
+    "windows": [
+      {
+        "period": {
+          "startTime": "2026-11-22 05:44:39",
+          "endTime": "2026-11-22 06:29:38"
+        },
+        "exactRows": 99,
+        "statuses": {
+          "200": 99
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "period": {
+          "startTime": "2026-11-22 06:29:39",
+          "endTime": "2026-11-22 07:14:38"
+        },
+        "exactRows": 24,
+        "statuses": {
+          "200": 24
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "period": {
+          "startTime": "2026-11-22 07:14:39",
+          "endTime": "2026-11-22 07:19:25"
+        },
+        "exactRows": 0,
+        "statuses": {},
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      }
+    ]
+  },
+  "google": {
+    "observedDate": "2026-11-22",
+    "property": "https://supplychainsai.com/",
+    "pageReportThrough": "2026-11-16",
+    "indexed": 529,
+    "excluded": 989,
+    "reasonCount": 8,
+    "oldOther4xxPending": 5,
+    "oldOther4xxFailed": 0,
+    "oldOther4xxValidationSince": "2026-11-16",
+    "videoReportThrough": "2026-11-19",
+    "videoIndexed": 0,
+    "videoExcluded": 2,
+    "watchPageGoogleIndex": "Discovered - currently not indexed",
+    "watchPageLastCrawl": null,
+    "coreWebVitalsThrough": "2026-11-20",
+    "fieldSampleSufficient": {
+      "mobile": false,
+      "desktop": false
+    },
+    "webSearchThrough": "2026-11-19",
+    "webSearchImpressions": 95,
+    "webSearchClicks": 3
+  },
+  "headphoneHeroPreflight": {
+    "source": {
+      "imageId": "0e0afdc26a68209e00523aa031e56460",
+      "sourceDigest": "a7a20ee91c0ae9d9591e6f5b5f9643d69914598ee2c705579b43eb334e7037c8",
+      "sourceSha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+      "sourceBytes": 63062,
+      "defaultSha256": null,
+      "defaultBytes": null,
+      "preparedWidths": [],
+      "refCount": 1,
+      "storageProvider": "cloudbase-storage",
+      "programs": {
+        "admin": "2adb5d7abeada5c4786e6a6447c751d1dcbe7f21",
+        "public-api": "fcc3f9ac4a3c1c4359397f0e5ae184d40f017dc7",
+        "alibaba-catalog-sync": "2adb5d7abeada5c4786e6a6447c751d1dcbe7f21"
+      }
+    },
+    "derivatives": {
+      "originalBytes": 63062,
+      "rows": [
+        {
+          "wanted": 160,
+          "sourceSha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+          "mimeType": "image/webp",
+          "byteSize": 1766,
+          "width": 160,
+          "height": 160,
+          "checksumSha256": "7da2a19ca9ebd045a3a175aeb018506f687f6cba4da0177b501215743ff97d1c"
+        },
+        {
+          "wanted": 640,
+          "sourceSha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+          "mimeType": "image/webp",
+          "byteSize": 11454,
+          "width": 640,
+          "height": 640,
+          "checksumSha256": "55497dbc0920527ca4eb6b7eed6c9eef960cbab38cde1ed3f4e9b46fde19da95"
+        },
+        {
+          "wanted": 1280,
+          "sourceSha256": "c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c",
+          "mimeType": "image/webp",
+          "byteSize": 17912,
+          "width": 800,
+          "height": 800,
+          "checksumSha256": "46b79338f0ef51925fdd5cd172e458c353e601b97d4e1774e363c8cd83694ec3"
+        }
+      ]
+    },
+    "originalPublicUrl": "https://supplychainsai.com/api/images/0e0afdc26a68209e00523aa031e56460",
+    "visualReview": "Original and unchanged-dimension 800x800 WebP independently viewed. Product, connector, contrast and visible edges retained. SSIM 0.997945.",
+    "websiteWrites": 0
+  }
+}

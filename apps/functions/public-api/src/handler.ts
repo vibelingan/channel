@@ -581,7 +581,7 @@ export async function getCatalogImage(
     /^[a-f0-9]{64}$/.test(doc.checksumSha256)
       ? { storageFileId, byteSize: doc.byteSize, checksumSha256: doc.checksumSha256 }
       : undefined;
-  const cacheSource = width === undefined ? originalProof : web;
+  const cacheSource = web ?? originalProof;
   // Reuse bytes after the current publication and file identity checks.
   const cacheKey =
     provider === 'cloudbase-storage' &&

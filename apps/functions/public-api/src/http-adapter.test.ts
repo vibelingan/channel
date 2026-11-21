@@ -1861,7 +1861,8 @@ test('public web image delivery serves exact verified bytes after the existing p
     byteSize: 5_000_000,
     checksumSha256: 'a'.repeat(64),
   });
-  const bytes = Buffer.from('prepared-webp-bytes');
+  // Keep this fixture above the cache limit to exercise storage on every request.
+  const bytes = Buffer.alloc(64 * 1024 + 1, 1);
   const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
   const storagePath = catalogWebImagePath(
     source._id,
@@ -2008,6 +2009,7 @@ test('width requests serve only exact ready sizes and preserve publication gates
     handlePublicApiEvent({ httpMethod: 'GET', path: `/api/images/${source._id}${query}` }, {});
   for (const [query, expected] of [
     ['', original],
+    ['', original],
     ['?w=1280', original],
   ] as const) {
     const response = await request(query);
@@ -2016,19 +2018,19 @@ test('width requests serve only exact ready sizes and preserve publication gates
     assert.equal(response.body, files.get(expected.storageFileId)?.toString('base64'));
     assert.equal(reads.at(-1), expected.storageFileId);
   }
-  assert.equal(reads.length, 2);
+  assert.equal(reads.length, 1, 'Default prepared bytes and their width alias share one read');
   const overlapping = await Promise.all([request('?w=160'), request('?w=640')]);
   assert.match(overlapping[0]?.headers['Server-Timing'] ?? '', /ci-url;dur=2\.0/);
   assert.match(overlapping[1]?.headers['Server-Timing'] ?? '', /ci-url;dur=3\.0/);
   assert.equal(overlapping[0]?.body, files.get(small.storageFileId)?.toString('base64'));
   assert.equal(overlapping[1]?.body, files.get(medium.storageFileId)?.toString('base64'));
-  assert.equal(reads.length, 4, 'Cold requests retain their own measurements and bytes');
+  assert.equal(reads.length, 3, 'Cold requests retain their own measurements and bytes');
 
   const reused = await request('?w=640');
   assert.equal(reused.statusCode, 200);
   assert.equal(reused.body, overlapping[1]?.body);
   assert.equal(reused.headers['Cache-Control'], overlapping[1]?.headers['Cache-Control']);
-  assert.equal(reads.length, 4, 'A repeat of the same verified variant skips object storage');
+  assert.equal(reads.length, 3, 'A repeat of the same verified variant skips object storage');
   assert.match(reused.headers['Server-Timing'] ?? '', /ci-storage;dur=0\.0/);
   assert.doesNotMatch(reused.headers['Server-Timing'] ?? '', /ci-url|ci-download/);
 
@@ -2042,13 +2044,13 @@ test('width requests serve only exact ready sizes and preserve publication gates
     '?w=160.0',
   ])
     assert.equal((await request(query)).statusCode, 400, query);
-  assert.equal(reads.length, 4, 'Invalid sizes do not fetch any image bytes');
+  assert.equal(reads.length, 3, 'Invalid sizes do not fetch any image bytes');
   source.publishedRefCount = 0;
-  for (const query of ['?w=160', '?w=640', '?w=1280'])
+  for (const query of ['', '?w=160', '?w=640', '?w=1280'])
     assert.equal((await request(query)).statusCode, 404);
   assert.equal(
     reads.length,
-    4,
+    3,
     'Prepared or previously cached sizes do not expose a private image',
   );
   source.publishedRefCount = 1;
@@ -2056,13 +2058,23 @@ test('width requests serve only exact ready sizes and preserve publication gates
   const unavailable = await request('?w=640');
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.headers['Retry-After'], '30');
-  assert.equal(reads.length, 4, 'An unprepared size never falls back to a larger body');
+  assert.equal(reads.length, 3, 'An unprepared size never falls back to a larger body');
   const replacement = descriptor(640, '-replaced');
   source.catalogWebVariants = { '160': small, '640': replacement };
   const updated = await request('?w=640');
   assert.equal(updated.statusCode, 200);
   assert.equal(updated.body, files.get(replacement.storageFileId)?.toString('base64'));
-  assert.equal(reads.length, 5, 'A changed source does not reuse prior bytes');
+  assert.equal(reads.length, 4, 'A changed source does not reuse prior bytes');
+  const replacementDefault = descriptor(800, '-replaced-default');
+  source.catalogWebImage = replacementDefault;
+  const updatedDefault = await request();
+  assert.equal(updatedDefault.statusCode, 200);
+  assert.equal(
+    updatedDefault.body,
+    files.get(replacementDefault.storageFileId)?.toString('base64'),
+  );
+  assert.equal(reads.length, 5, 'A replaced default does not reuse the old default bytes');
+  source.catalogWebImage = original;
   source.catalogWebVariants = { '160': small, '640': medium };
   const presentationProduct: CollectionDoc = {
     _id: 'presentation-product',

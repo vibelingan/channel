@@ -412,3 +412,10 @@ Bing 11 月 19 日成功处理两份地图，静态地图 580 个网址、Blog �
 本次沿用 `feat/seo-foundation` 的官网静态交付入口。普通 Deploy Test 会从自己的提交重新构建网页，后续安排常规发布前应把本次已验收源码纳入发布来源，并逐页比较正式包，避免旧源码把新的网页预览覆盖。
 
 另从外部用 GET 和 HEAD 发出 32 个请求，覆盖 4 个域名入口和 4 个页面路径。带 www 的 HTTP/HTTPS 共 16 个请求都一跳 301 到正式 HTTPS，路径参数一致。裸域 HTTP 的三个现有入口仍直接返回 200，缺失页仍 404。HTTPS 正式官网路径与 404 检查均通过。裸域 HTTP 的永久跳转和现网文本压缩仍待隔离子域试验，所需子域证书、DNS 权限及资源点计费用量另行确认。 [完整验收记录](evidence/catalog-social-preview-2026-11-22.json)
+
+
+## 11 月 22 日，官网网络记录与 Google 存档再核对
+
+北京时间 05:44 至 07:19，按五张历史 4xx 图片、12 个 Google 已发现的网址、样品检查文章和工厂观看页这 19 个地址检查腾讯网关。三段共读到 123 次请求，均为 HTTP 200，其中无同时匹配 Google 公布爬虫地址及 Googlebot 标识的记录。另逐份扫描当前正式包的 589 份 HTML。站内静态引用均能在发布包找到，唯一例外是自定义错误页自己声明的 `/404/`，这是错误页入口。Blog 与 API 按各自服务路由识别，没有把这类动态地址算成丢失的静态文件。 [网关与发布包证据](evidence/site-performance-and-watch-2026-11-22.json) · [Google 核验爬虫身份](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
+
+重新在已登录的官网属性读取 Search Console。网页汇总仍截至 11 月 16 日，529 个地址已收录、989 个排除。五张图仍为待查 5、失败 0，表内最后抓取日期为 11 月 3–7 日。视频汇总仍以 11 月 19 日为截止日，收录 0、排除 2。独立工厂观看页已出现在 Google 的发现记录中，Google 显示尚未收录，最后抓取仍为空。真实访客报告截至 11 月 20 日，手机和桌面都缺样本。普通网页搜索截至 11 月 19 日，为 95 次展示、3 次点击。 [Google 复查详情](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [Google 视频收录](https://developers.google.com/search/docs/appearance/video)
