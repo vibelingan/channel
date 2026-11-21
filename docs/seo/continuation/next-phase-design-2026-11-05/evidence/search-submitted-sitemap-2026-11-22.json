@@ -1,0 +1,119 @@
+{
+  "observedAt": "2026-11-21T15:46:06.498114+00:00",
+  "google": {
+    "property": "https://supplychainsai.com/",
+    "reportEffectiveDate": "2026-11-16",
+    "allKnown": {
+      "indexed": 529,
+      "excluded": 989,
+      "historicalOther4xx": 5,
+      "other4xxValidation": "started"
+    },
+    "allSubmitted": {
+      "indexed": 528,
+      "excluded": 13,
+      "reasons": {
+        "discoveredNotIndexed": 12,
+        "noindex": 1,
+        "crawledNotIndexed": 0
+      }
+    }
+  },
+  "bing": {
+    "property": "https://supplychainsai.com/",
+    "sitemapProcessedDate": "2026-11-19",
+    "sitemapDiscovered": 584,
+    "sitemaps": [
+      {
+        "path": "/sitemap-0.xml",
+        "status": "success",
+        "count": 580
+      },
+      {
+        "path": "/blog/sitemap.xml",
+        "status": "success",
+        "count": 4
+      }
+    ],
+    "performance": {
+      "rangePreset": "3 M",
+      "filter": "All",
+      "impressions": 0,
+      "clicks": 0
+    },
+    "inspectedProduct": {
+      "publicKey": "p-01121e8b-9503-4095-a889-0742a14c7f4c",
+      "state": "discoveredNotCrawled",
+      "discoveryDate": "2026-10-27"
+    }
+  },
+  "cloudbaseFollowup": {
+    "targetedPaths": 19,
+    "segments": [
+      {
+        "window": {
+          "startTime": "2026-11-21 22:52:08",
+          "endTime": "2026-11-21 23:04:07"
+        },
+        "exactRows": 0,
+        "statuses": {},
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 23:04:08",
+          "endTime": "2026-11-21 23:16:07"
+        },
+        "exactRows": 1,
+        "statuses": {
+          "200": 1
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 23:16:08",
+          "endTime": "2026-11-21 23:28:07"
+        },
+        "exactRows": 7,
+        "statuses": {
+          "200": 7
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 23:28:08",
+          "endTime": "2026-11-21 23:40:07"
+        },
+        "exactRows": 0,
+        "statuses": {},
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "window": {
+          "startTime": "2026-11-21 23:40:08",
+          "endTime": "2026-11-21 23:46:04"
+        },
+        "exactRows": 0,
+        "statuses": {},
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      }
+    ]
+  },
+  "sourceViews": [
+    "https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F",
+    "https://www.bing.com/webmasters/sitemaps?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F",
+    "https://www.bing.com/webmasters/searchperf?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F"
+  ]
+}
