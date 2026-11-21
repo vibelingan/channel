@@ -94,5 +94,305 @@
     "requests": 13,
     "response200": 13,
     "verifiedGooglebotRequests": 0
+  },
+  "production": {
+    "sourceSha": "49806c965eb1f64bc4f8b6921618c30c74771f9a",
+    "rendererRun": 44954744376,
+    "siteRun": 44954895157,
+    "localFocusedTests": 43,
+    "ciRuns": [44954201672, 44954201670, 44954201661],
+    "websiteAcceptedAtUtc": "2026-11-21T22:23:18.740Z",
+    "githubFinishedAtUtc": "2026-11-21T22:29:17Z",
+    "siteAcceptanceSecondsFromGitHubCreation": 1073,
+    "siteReceipt": {
+      "checkedAt": "2026-11-21T22:29:41.146Z",
+      "leaseState": "idle",
+      "ownerIsThisRun": false,
+      "active": null,
+      "baselineRun": "site-44954895157-1",
+      "dirtyRun": null,
+      "pending": null,
+      "run": {
+        "phase": "SUCCEEDED",
+        "acceptedAt": 1795299798740,
+        "stepCount": 52,
+        "verifiedSteps": 52
+      }
+    },
+    "catalogAutoUpdate": {
+      "readAt": "2026-11-21T22:29:40.759Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "49806c965eb1f64bc4f8b6921618c30c74771f9a",
+        "executorSha": "49806c965eb1f64bc4f8b6921618c30c74771f9a",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44954895157-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "packageFileEntries": {
+      "before": 2180,
+      "after": 2194
+    },
+    "catalogSnapshotByteIdentical": true,
+    "catalogImagePresentationIdentical": true,
+    "publicChecks": [
+      {
+        "url": "https://supplychainsai.com/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "code": 200,
+        "sha256": "e1a48a9e21609234d3f4518d56582a428444bee3bd9b817e1b8d14447f03f5b0",
+        "bytes": 87452,
+        "description": "Factory Wholesale Jerry Scheme Wireless V5.4 EDR Over Ear Headphones, 40mm Driver ANC Headset 4-6H… View product specifications, photos and quotation options."
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+        "code": 200,
+        "sha256": "00b864e9f3360f5c4fb536c6517004ac71c82d4a2d775e841f6d9b924cbe59f6",
+        "bytes": 93409,
+        "description": "Attractive Active Noise Cancellation Headset Wired Gaming Anc Headphones. Drivers Size: 40mm."
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "code": 200,
+        "sha256": "a46e7a694d5ba3460230f8e896b7b142dae84c44880db39238ce45bb7c4ec3bc",
+        "bytes": 96779,
+        "description": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones. Impedance: 32Ω."
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+        "code": 200,
+        "sha256": "78f5739bc9275e4d19314b4eada7e73e919c50400b7e214959103b416be859af",
+        "bytes": 93207,
+        "description": "Computer Microphone Gaming Headphones Wireless TWS Headsets Blue Tooth Earphone Headphone. View product specifications, photos and quotation options."
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+        "code": 200,
+        "sha256": "670c43f7bca12b7cd2706f6f7023e46157f75a3b68ae22cfa5763e13a7bf5cba",
+        "bytes": 106761,
+        "description": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone. Weight: 290(g)."
+      },
+      {
+        "url": "https://supplychainsai.com/blog/",
+        "code": 200,
+        "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123",
+        "bytes": 31961
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "code": 200,
+        "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9",
+        "bytes": 32746
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "code": 200,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+        "bytes": 37628
+      },
+      {
+        "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+        "code": 200,
+        "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1",
+        "bytes": 50451
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "code": 200,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "bytes": 51178
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "code": 200,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "bytes": 65170
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "code": 200,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "bytes": 69280
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "code": 200,
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17",
+        "bytes": 87330
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "code": 200,
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659",
+        "bytes": 135494
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "code": 200,
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876",
+        "bytes": 660144
+      },
+      {
+        "url": "https://supplychainsai.com/headphones/",
+        "code": 200,
+        "sha256": "071660028a02283e6332a145a3ce68b920a3a9a218c16316f52317422620b9fd",
+        "bytes": 150371
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-index.xml",
+        "code": 200,
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68",
+        "bytes": 262
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-0.xml",
+        "code": 200,
+        "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b",
+        "bytes": 55409
+      },
+      {
+        "url": "https://supplychainsai.com/robots.txt",
+        "code": 200,
+        "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090",
+        "bytes": 557
+      }
+    ]
+  },
+  "productPreviewAudit": {
+    "archiveRun": 44950036550,
+    "productPageCount": 528,
+    "previewUrlCounts": {
+      "https://supplychainsai.com/media/social/oem-manufacturing-og.png": 528
+    },
+    "publicGalleryVariantCandidates": 131,
+    "candidatesOnDiscoveredUrls": 2,
+    "liveChecks": [
+      {
+        "path": "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/3fbe8b166ac87fe100399e2350d0ba96",
+        "candidate": "https://supplychainsai.com/api/images/3fbe8b166ac87fe100399e2350d0ba96?w=640",
+        "inReportedDiscoveries": true,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 18906,
+        "sha256": "02ff254d0e8c1a09800a53eb66198a4a2edcdf5b512c70cca19856e529bd151d"
+      },
+      {
+        "path": "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/96d9cd126ac88331006e00e70a70f03c",
+        "candidate": "https://supplychainsai.com/api/images/96d9cd126ac88331006e00e70a70f03c?w=1280",
+        "inReportedDiscoveries": true,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 85496,
+        "sha256": "ab9c0c0ab1c2423c06ec7ae4c46f2088f382cad65bb78fea9273470055593314"
+      },
+      {
+        "path": "/products/p-1c4c1593-1b15-4951-a052-89fb59b066a9/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/077e672b-e2d9-4b09-9218-413f69a066da",
+        "candidate": "https://supplychainsai.com/api/images/077e672b-e2d9-4b09-9218-413f69a066da?w=1280",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 158060,
+        "sha256": "d5852d15544b3a967310c67413878623b2baf5a0805213e2dfc93be8ecf4faba"
+      },
+      {
+        "path": "/products/p-de3ba6f0-1771-49e8-aed9-68c28a0301d8/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/4db8df016ac88170000758a30e1e640f",
+        "candidate": "https://supplychainsai.com/api/images/4db8df016ac88170000758a30e1e640f?w=1280",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 64712,
+        "sha256": "a0456d89d6dbe92527f1eaa05e22d68b3fcae6ce8d3672fefeb14e93b88ebd79"
+      },
+      {
+        "path": "/products/p-d41fd491-c92f-4d7a-a9d9-c9069b996aa7/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/96d9cd126ac8806f006dd2b84304de78",
+        "candidate": "https://supplychainsai.com/api/images/96d9cd126ac8806f006dd2b84304de78?w=640",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 36566,
+        "sha256": "c5cad2aab277e5b8cc283088614c010167f0ade41d64946bac62a4cca7944cea"
+      },
+      {
+        "path": "/products/p-ebd9c3bd-75ef-44cf-a8f0-66370723da99/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/3fbe8b166ac881910039f93f48d196ec",
+        "candidate": "https://supplychainsai.com/api/images/3fbe8b166ac881910039f93f48d196ec?w=1280",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 78902,
+        "sha256": "5f0121f972ab7f4a651f1e2798050f2dba54b4995201b14dbc50f04373e4f125"
+      },
+      {
+        "path": "/products/p-db00a4fa-9efe-4428-a059-ccce3f8008cd/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/66baec6f6ac87e8e00726820459fa5f7",
+        "candidate": "https://supplychainsai.com/api/images/66baec6f6ac87e8e00726820459fa5f7?w=640",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 15182,
+        "sha256": "49c6c412ffe4b393c08013f105ff92377ee44a14003b1217bdb1693436494533"
+      },
+      {
+        "path": "/products/p-973c8584-c9d4-4ff6-a46a-387db3f9087d/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/aa7cf08e-c841-4c04-bcf3-0fb556503e14",
+        "candidate": "https://supplychainsai.com/api/images/aa7cf08e-c841-4c04-bcf3-0fb556503e14?w=1280",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 37238,
+        "sha256": "2e8a2c7c501a8c0bbde9ea04c6dc1a5a01079bfb61cec4e32c000b495bc1fc56"
+      },
+      {
+        "path": "/products/p-bbdc923d-7103-40e2-a8ae-93e10bc27f58/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/66baec6f6ac883980072b43223da12d4",
+        "candidate": "https://supplychainsai.com/api/images/66baec6f6ac883980072b43223da12d4?w=1280",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 70480,
+        "sha256": "2df8f1b5d47047afdba78952424641891bd4170c0552b66c49a1098967a09b8d"
+      },
+      {
+        "path": "/products/p-9079232d-c537-44f3-9a99-0bee45ecad65/",
+        "card": "https://supplychainsai.com/media/social/oem-manufacturing-og.png",
+        "firstImageSameOrigin": true,
+        "firstImagePath": "/api/images/4c2f81c76a87aadd0006499c5a5caa20",
+        "candidate": "https://supplychainsai.com/api/images/4c2f81c76a87aadd0006499c5a5caa20?w=640",
+        "inReportedDiscoveries": false,
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 33924,
+        "sha256": "7188106c313ba42aef49f020bcd57c5b4d523c899c4e74a1fb4a72e21bcb0f55"
+      }
+    ]
   }
 }
