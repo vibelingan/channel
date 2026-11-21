@@ -1,5 +1,6 @@
-import { type ApiResult, ERROR_CODES, type ErrorCode } from '@vibelingan-channel/shared';
+import type { ApiResult } from '@vibelingan-channel/shared/api';
 import { CatalogIssueSchema } from '@vibelingan-channel/shared/catalog-issues';
+import { ERROR_CODES, type ErrorCode } from '@vibelingan-channel/shared/errors';
 import { z } from 'zod';
 const catalogIssues = z.array(CatalogIssueSchema).max(50);
 

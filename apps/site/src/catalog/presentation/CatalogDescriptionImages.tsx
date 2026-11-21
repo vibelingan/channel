@@ -1,5 +1,5 @@
-import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 import type { CatalogImagePresentation } from '@vibelingan-channel/shared/catalog-image-presentation';
+import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared/media';
 import { useEffect, useRef, useState } from 'react';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { responsiveImageAttributes } from './responsive-images.ts';

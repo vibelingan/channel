@@ -1,4 +1,4 @@
-import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
+import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared/media';
 
 export interface CatalogMediaState {
   sources: readonly string[];

@@ -5,6 +5,9 @@
   "type": "module",
   "exports": {
     "./catalog": "./src/catalog/index.ts",
+    "./catalog-product": "./src/catalog-product.ts",
+    "./catalog-taxonomy": "./src/catalog-taxonomy.ts",
+    "./manual-catalog-pricing": "./src/manual-catalog-pricing.ts",
     "./catalog-image-presentation": "./src/catalog/image-presentation.ts",
     "./catalog-pricing": "./src/catalog/offer-pricing.ts",
     "./catalog-detail": "./src/catalog/product-detail.ts",
@@ -17,6 +20,7 @@
     "./countries": "./src/countries.ts",
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
+    "./auth": "./src/auth.ts",
     "./errors": "./src/errors.ts",
     "./env": "./src/env.ts",
     "./collections": "./src/collections.ts",

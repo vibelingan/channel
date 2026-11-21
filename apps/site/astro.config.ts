@@ -1,10 +1,11 @@
 // @ts-check
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
-import { loadEnv } from 'vite';
+import { type Plugin, loadEnv, normalizePath } from 'vite';
 import { parseDocument } from 'yaml';
 import { serverBlogBuild } from '../../scripts/release/public-build-env.mjs';
 import { readBlogBuild } from './src/lib/blog/snapshot.ts';
@@ -16,6 +17,41 @@ import {
   isSitemapPathIncluded as includePath,
 } from './src/lib/seo/route-policy.ts';
 import { withVideoSitemapMetadata } from './src/lib/seo/video-record.ts';
+
+// Keep commonly loaded storefront validation together without hoisting admin
+// collection definitions into the browser chunk.
+const storefrontValidationFiles = new Set(
+  [
+    './src/lib/api-url.ts',
+    '../../packages/shared/src/catalog-product.ts',
+    '../../packages/shared/src/catalog-taxonomy.ts',
+    '../../packages/shared/src/media.ts',
+    '../../packages/shared/src/manual-catalog-pricing.ts',
+    '../../packages/shared/src/catalog/alibaba-pricing-adapter.ts',
+    '../../packages/shared/src/catalog/resolve-pricing.ts',
+  ].map((path) => normalizePath(fileURLToPath(new URL(path, import.meta.url)))),
+);
+const storefrontValidationChunk: Plugin = {
+  name: 'channel-storefront-validation-chunk',
+  apply: 'build',
+  configEnvironment(name) {
+    if (name !== 'client') return;
+    return {
+      build: {
+        rollupOptions: {
+          output: {
+            onlyExplicitManualChunks: true,
+            manualChunks(id) {
+              const file = normalizePath(id);
+              if (storefrontValidationFiles.has(file) || file.includes('/node_modules/zod/v3/'))
+                return 'storefront-validation';
+            },
+          },
+        },
+      },
+    };
+  },
+};
 
 const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 
@@ -87,7 +123,7 @@ export default defineConfig({
     seoGate(site, { blogServer }),
   ],
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), storefrontValidationChunk],
     server: cbProxy
       ? {
           proxy: {

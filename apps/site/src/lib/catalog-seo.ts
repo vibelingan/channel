@@ -1,4 +1,4 @@
-import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
+import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared/catalog-product';
 import { effectiveCatalogPricing, validMinorAmount } from '../islands/shop/catalog-pricing.ts';
 import type { Product } from '../islands/shop/catalog-types.ts';
 

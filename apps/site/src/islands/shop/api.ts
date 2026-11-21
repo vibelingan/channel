@@ -1,9 +1,10 @@
 /** Shared product types + API client for the storefront islands. */
-import { isProductFamily, validateManualCatalogPricing } from '@vibelingan-channel/shared';
 import {
   CatalogImagePresentationSchema,
   imagePresentationMatchesSources,
 } from '@vibelingan-channel/shared/catalog-image-presentation';
+import { isProductFamily } from '@vibelingan-channel/shared/catalog-product';
+import { validateManualCatalogPricing } from '@vibelingan-channel/shared/manual-catalog-pricing';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';

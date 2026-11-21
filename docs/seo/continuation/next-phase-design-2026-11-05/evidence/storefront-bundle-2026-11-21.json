@@ -1,0 +1,538 @@
+{
+  "referenceWebsiteRun": 44855648951,
+  "staticBuildInput": "Previously accepted catalog snapshot and separately recorded responsive image metadata. Public API origin matched the independently recorded release configuration.",
+  "applicationSourceGraph": {
+    "representative": {
+      "index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 15,
+          "scriptBytes": 351597,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 15,
+          "scriptBytes": 313443,
+          "containsAlibabaWorkflow": []
+        }
+      },
+      "products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 22,
+          "scriptBytes": 643482,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 22,
+          "scriptBytes": 606976,
+          "containsAlibabaWorkflow": []
+        }
+      },
+      "products/p-50633c37-434c-4374-a540-f071a00fc799/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 22,
+          "scriptBytes": 643482,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 22,
+          "scriptBytes": 606976,
+          "containsAlibabaWorkflow": []
+        }
+      },
+      "headphones/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 22,
+          "scriptBytes": 407632,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 22,
+          "scriptBytes": 371126,
+          "containsAlibabaWorkflow": []
+        }
+      },
+      "account/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 13,
+          "scriptBytes": 331168,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 13,
+          "scriptBytes": 293071,
+          "containsAlibabaWorkflow": []
+        }
+      },
+      "admin/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 16,
+          "scriptBytes": 775013,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 16,
+          "scriptBytes": 774953,
+          "containsAlibabaWorkflow": ["AdminApp.y6ewG0xM.js"]
+        }
+      },
+      "login/index.html": {
+        "site-payload-44855648951-1": {
+          "requests": 8,
+          "scriptBytes": 315964,
+          "containsAlibabaWorkflow": ["alibaba-sync-workflow.CIKqAOa1.js"]
+        },
+        "storefront-release-candidate-full-input": {
+          "requests": 8,
+          "scriptBytes": 277911,
+          "containsAlibabaWorkflow": []
+        }
+      }
+    },
+    "productCount": 528,
+    "publicHtmlCount": 589,
+    "productDelta": [
+      {
+        "requestDelta": 0,
+        "scriptByteDelta": -36506,
+        "containsAlibabaWorkflow": false,
+        "pages": 528
+      }
+    ]
+  },
+  "productMarkupAndSitemapParity": {
+    "sameSeoMediaAndLinks": 528,
+    "matchingMaps": {
+      "robots.txt": true,
+      "sitemap-index.xml": true,
+      "sitemap-0.xml": true
+    }
+  },
+  "browserTrials": {
+    "grouping": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "samples": [
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 16273,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 72,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 484,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1184,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19072,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 71,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 491,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1180,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 613676
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19067,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 73,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 483,
+          "heroCompleteMs": 1136,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1184,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 613676
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19102,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 79,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 477,
+          "heroCompleteMs": 1130,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1172,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19118,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 71,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 476,
+          "heroCompleteMs": 1129,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1176,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 649995
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 19024,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 73,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105",
+          "heroStartMs": 485,
+          "heroCompleteMs": 1137,
+          "htmlBytes": 78823,
+          "lcp": {
+            "ms": 1180,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 613676
+        }
+      ]
+    },
+    "earlyModulePreload": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "samples": [
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 9034,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 76,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 481,
+          "heroCompleteMs": 920,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1124,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 5745,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 66,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 598,
+          "heroCompleteMs": 1233,
+          "htmlBytes": 81150,
+          "lcp": {
+            "ms": 1684,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 6747,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 73,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 591,
+          "heroCompleteMs": 1226,
+          "htmlBytes": 81150,
+          "lcp": {
+            "ms": 1664,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 9333,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 72,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 492,
+          "heroCompleteMs": 934,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1116,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 10055,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 75,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 485,
+          "heroCompleteMs": 928,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1116,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 6951,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 82,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 589,
+          "heroCompleteMs": 1227,
+          "htmlBytes": 81150,
+          "lcp": {
+            "ms": 1660,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        }
+      ]
+    },
+    "modulePreloadAfterMainImage": {
+      "browser": "157.0.8103.79",
+      "device": {
+        "viewport": {
+          "width": 412,
+          "height": 823
+        },
+        "deviceScaleFactor": 1.75,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "offline": false,
+        "latency": 150,
+        "downloadThroughput": 200000,
+        "uploadThroughput": 93750,
+        "connectionType": "cellular4g"
+      },
+      "cpuRate": 4,
+      "samples": [
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 9778,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 77,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 490,
+          "heroCompleteMs": 929,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1120,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 8334,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 70,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 509,
+          "heroCompleteMs": 942,
+          "htmlBytes": 81897,
+          "lcp": {
+            "ms": 1100,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 9978,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 69,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 509,
+          "heroCompleteMs": 942,
+          "htmlBytes": 81897,
+          "lcp": {
+            "ms": 1104,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 4742,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 74,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 485,
+          "heroCompleteMs": 920,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1108,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "base",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 10017,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 67,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 491,
+          "heroCompleteMs": 934,
+          "htmlBytes": 80975,
+          "lcp": {
+            "ms": 1112,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        },
+        {
+          "version": "candidate",
+          "path": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+          "phase": "cold",
+          "hydrationMs": 8932,
+          "hasAlternatives": true,
+          "openButtonReady": true,
+          "quoteOpenMs": 74,
+          "heroSource": "/api/images/66baec6f6ac77ca10068b51364d57105?w=640",
+          "heroStartMs": 514,
+          "heroCompleteMs": 946,
+          "htmlBytes": 81897,
+          "lcp": {
+            "ms": 1080,
+            "tag": "IMG"
+          },
+          "scriptCount": 22,
+          "scriptTransferBytes": 650082
+        }
+      ]
+    }
+  },
+  "compiledCandidateQuoteRegression": [
+    {
+      "viewport": "mobile",
+      "reviewAndBack": true,
+      "reopenedWithInputKept": true
+    },
+    {
+      "viewport": "desktop",
+      "reviewAndBack": true,
+      "reopenedWithInputKept": true
+    }
+  ],
+  "verification": {
+    "sharedUnitTestsPassed": 365,
+    "siteTypecheckErrors": 0,
+    "seoHtmlCount": 589,
+    "seoPublicCanonicalCount": 580
+  }
+}

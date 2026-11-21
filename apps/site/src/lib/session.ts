@@ -7,14 +7,14 @@
  * in sync. Pure browser module — safe to import from React islands and from
  * Astro `<script>` blocks alike.
  */
-import type { Role, SessionUser } from '@vibelingan-channel/shared';
-import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared';
+import type { Role, SessionUser } from '@vibelingan-channel/shared/auth';
+import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared/auth';
 import { readApiEnvelope } from './api-envelope.ts';
 import { apiUrl } from './api-url.ts';
 import { safeReturnPath } from './safe-return-path.ts';
 
-export type { Role, SessionUser } from '@vibelingan-channel/shared';
-export { canAccessAdmin, canManageUsers, canSeeVipPricing } from '@vibelingan-channel/shared';
+export type { Role, SessionUser } from '@vibelingan-channel/shared/auth';
+export { canAccessAdmin, canManageUsers, canSeeVipPricing } from '@vibelingan-channel/shared/auth';
 
 const TOKEN_KEY = 'channel.token';
 const USER_KEY = 'channel.user';

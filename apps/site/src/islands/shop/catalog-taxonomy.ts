@@ -1,8 +1,8 @@
+import type { ProductFamily } from '@vibelingan-channel/shared/catalog-product';
 import {
   CatalogTaxonomySchema,
   MAX_TAXONOMY_CHILDREN,
-  type ProductFamily,
-} from '@vibelingan-channel/shared';
+} from '@vibelingan-channel/shared/catalog-taxonomy';
 import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
