@@ -173,5 +173,87 @@
       "base": 1441.7,
       "candidate": 1408.5
     }
+  },
+  "separateCountryPickerExperiment": {
+    "decision": "do-not-ship-on-contact-entry",
+    "versionsUsedSameCatalogSnapshot": true,
+    "published": false,
+    "byteCounts": {
+      "sharedDetailChunkBase": 262169,
+      "sharedDetailChunkCandidate": 65603,
+      "deferredCountryPickerChunk": 196787
+    },
+    "timingsMilliseconds": {
+      "base": {
+        "navigationToInquiryEnabled": {
+          "runs": [
+            7131.3,
+            8127.7,
+            9169
+          ],
+          "median": 8127.7
+        },
+        "inquiryEnabledToDialogVisible": {
+          "runs": [
+            211.2,
+            78.1,
+            76.4
+          ],
+          "median": 78.1
+        },
+        "continueToFirstContactField": {
+          "runs": [
+            75,
+            70,
+            58
+          ],
+          "median": 70
+        },
+        "continueToCountryPicker": {
+          "runs": [
+            78.3,
+            73.3,
+            62.3
+          ],
+          "median": 73.3
+        }
+      },
+      "candidate": {
+        "navigationToInquiryEnabled": {
+          "runs": [
+            7339.6,
+            5633,
+            5602.6
+          ],
+          "median": 5633
+        },
+        "inquiryEnabledToDialogVisible": {
+          "runs": [
+            71.7,
+            71.7,
+            79.9
+          ],
+          "median": 71.7
+        },
+        "continueToFirstContactField": {
+          "runs": [
+            57,
+            57.1,
+            53.5
+          ],
+          "median": 57
+        },
+        "continueToCountryPicker": {
+          "runs": [
+            3864.7,
+            4920.1,
+            1847.9
+          ],
+          "median": 3864.7
+        }
+      }
+    },
+    "countrySelectionReviewAndBackSucceeded": 6,
+    "inquiryRequestsSent": 0
   }
 }
