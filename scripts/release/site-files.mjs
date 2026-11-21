@@ -11,6 +11,8 @@ const protectedPath =
   /^(?:_(?!astro\/)|cloud-admin\/|\.cloudbase-backup\/|google[a-z0-9]+\.html$|BingSiteAuth\.xml$)/;
 const staticFile =
   /\.(?:html|xml|txt|json|css|js|mjs|map|webp|png|jpe?g|gif|svg|ico|avif|woff2?|ttf|otf|mp4|pdf)$/i;
+const freshBuildDevelopmentFile =
+  /^(?:examples?|fixtures?|coverage|playwright-report|test-results|storybook-static)\/|(?:^|\/)(?:__tests__|__fixtures__|__mocks__)\/|(?:\.(?:test|spec|stories|fixture)\.(?:[cm]?js|jsx|html|json)|\.map)$/i;
 export function isManagedSiteFile(path) {
   assertHostingPath(path);
   return !protectedPath.test(path) && path !== '404.html' && staticFile.test(path);
@@ -50,6 +52,8 @@ export function filesFromSiteBuild(directory) {
         throw Error('Static build budget exceeded');
       if (path === '404.html' || /^(?:google[a-z0-9]+\.html|BingSiteAuth\.xml)$/.test(path))
         continue;
+      if (freshBuildDevelopmentFile.test(path))
+        throw Error(`Development artifact in static build: ${path}`);
       if (!isManagedSiteFile(path)) throw Error('Unmanaged static build file');
       const bytes = readFileSync(join(directory, path));
       total += bytes.length;

@@ -1,0 +1,158 @@
+{
+  "capturedAt": "2026-11-21T04:03:55.955871+00:00",
+  "publicPages": {
+    "detail": "https://germany.alibaba.com/product-detail/2026-New-MSI-MAG-276QE27-Monitor_1601826392510.html",
+    "list": "https://www.alibaba.com/wholesale/msi-monitors.html"
+  },
+  "headersAndBytes": "Normal GET with public page Referer, read complete body and decoded pixel dimensions with sips.",
+  "images": [
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_80x80.jpg",
+      "role": "detail-gallery-thumbnail",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 6486,
+      "width": 80,
+      "height": 80,
+      "bodySha256": "584a9152dbcc235a2baefe8438396d64627163699f5df1be7d0336c989804bd0",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_720x720q50.jpg",
+      "role": "detail-gallery-placeholder",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 492105,
+      "width": 720,
+      "height": 720,
+      "bodySha256": "b714e0a1ac0dbcec61ae76598b1b3a34fdb1244ae0fb68adab53866f4a0d1ee3",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_960x960q80.jpg",
+      "role": "detail-preload-and-visible-main-image",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 865512,
+      "width": 960,
+      "height": 960,
+      "bodySha256": "bcaf2d95c692a5f2940d67057525097aacffb28402f332cf34ac65aa3bb08b34",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://sc04.alicdn.com/kf/H73011896982d43859fde3b81a78cfbbbV.png",
+      "role": "detail-json-imageUrl.big",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 1389419,
+      "width": 1200,
+      "height": 1200,
+      "bodySha256": "2fe969de2706691603f14d8eede6efbf95b110899a8c228d65e5b51dbf762acc",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H0445945a72f24f129aad130d4c546a26s.jpg_80x80.jpg",
+      "role": "second-photo-thumbnail",
+      "httpStatus": 200,
+      "contentType": "image/jpeg",
+      "bodyBytes": 1435,
+      "width": 80,
+      "height": 69,
+      "bodySha256": "779582c5e7cfa63170b39bcb3fab7dfae7752049ef87e6dcd7873c1a957cb5d7",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H0445945a72f24f129aad130d4c546a26s.jpg_960x960q80.jpg",
+      "role": "second-photo-main-image-variant",
+      "httpStatus": 200,
+      "contentType": "image/jpeg",
+      "bodyBytes": 50972,
+      "width": 873,
+      "height": 751,
+      "bodySha256": "9efb0bf2e77bbe445456b96f3bf39bebf89e4f100fd2f4e796428b03bfb19659",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://sc04.alicdn.com/kf/H0445945a72f24f129aad130d4c546a26s.jpg",
+      "role": "second-photo-json-imageUrl.big",
+      "httpStatus": 200,
+      "contentType": "image/jpeg",
+      "bodyBytes": 94316,
+      "width": 873,
+      "height": 751,
+      "bodySha256": "f4a8f837b8ccfb8cf886e46b7871092f12e34e075e9cb604087185c9aa5f409f",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H1a033c7239494bdfa5c01d6e70e4af25R.png_300x300.jpg",
+      "role": "first-list-card-visible-image",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 69772,
+      "width": 300,
+      "height": 240,
+      "bodySha256": "b47520fa50b8c6457c24a96818a6083fcdec41b39903f3e8c5c59eff8daed041",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H1a033c7239494bdfa5c01d6e70e4af25R.png",
+      "role": "first-list-card-json-bigImage",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 521462,
+      "width": 1024,
+      "height": 819,
+      "bodySha256": "d3deecfa6a03ad971b43c5f39408e536cb619d2221381c237700ab7d0ef063f0",
+      "cacheControl": "max-age=86400000"
+    },
+    {
+      "url": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png?avif=close&webp=close",
+      "role": "detail-enlarged-gallery-after-click",
+      "httpStatus": 200,
+      "contentType": "image/png",
+      "bodyBytes": 1338673,
+      "width": 1200,
+      "height": 1200,
+      "bodySha256": "f4e273d9b68636679695048c23a1344d3aba903b6d4008d04d2a5b5728f94447",
+      "cacheControl": "max-age=86400000"
+    }
+  ],
+  "browser": {
+    "version": "Google Chrome 157.0.8103.79",
+    "viewport": {
+      "width": 1400,
+      "height": 960
+    },
+    "observedInitialGalleryWidthCssPixels": 343,
+    "open": {
+      "main": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_960x960q80.jpg",
+      "thumbnail": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_80x80.jpg",
+      "placeholder": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png_720x720q50.jpg",
+      "largeImageFetched": false
+    },
+    "hover": {
+      "tested": true,
+      "newLargeImageRequest": false
+    },
+    "click": {
+      "target": ".main-image-tc-image-magnifier.current-main-image",
+      "offset": {
+        "x": 50,
+        "y": 60
+      },
+      "largeImageAdded": true,
+      "status": 200,
+      "url": "https://s.alicdn.com/@sc04/kf/H73011896982d43859fde3b81a78cfbbbV.png?avif=close&webp=close",
+      "renderedWidthCssPixels": 800,
+      "naturalWidthPixels": 1200,
+      "matchesUnsuffixedBigBody": false
+    },
+    "limit": "Single desktop locale and gallery image, plus one less precise click that did not establish enlargement. No claims about all Alibaba product templates, server storage, or quality setting based on the URL text."
+  },
+  "googleReferences": {
+    "propertyScope": "https://support.google.com/webmasters/answer/34592",
+    "imageReportingOnHostPage": "https://support.google.com/webmasters/answer/7042828#image-search-result",
+    "imageSeo": "https://developers.google.com/search/docs/appearance/google-images",
+    "imageSitemap": "https://developers.google.com/search/docs/crawling-indexing/sitemaps/image-sitemaps"
+  }
+}

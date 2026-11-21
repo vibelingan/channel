@@ -1,0 +1,526 @@
+{
+  "acceptedArtifact": 14687920936,
+  "acceptedRun": 44855648951,
+  "current": {
+    "tree": "site-payload-44855648951-1",
+    "kind": "verifiedStaticReleasePayload",
+    "manifestEntriesVerified": 2123,
+    "archiveFiles": 2124,
+    "publicFiles": 2120,
+    "publicBytes": 179531775,
+    "archiveOnlyPaths": [
+      "compatibility.json",
+      "payload-manifest.json",
+      "product-snapshot.json",
+      "static-manifest.json"
+    ],
+    "types": {
+      ".css": {
+        "files": 73,
+        "bytes": 5993149
+      },
+      ".html": {
+        "files": 589,
+        "bytes": 53217454
+      },
+      ".ico": {
+        "files": 1,
+        "bytes": 3332
+      },
+      ".jpg": {
+        "files": 42,
+        "bytes": 5100866
+      },
+      ".js": {
+        "files": 1367,
+        "bytes": 64544002
+      },
+      ".json": {
+        "files": 3,
+        "bytes": 452076
+      },
+      ".mp4": {
+        "files": 4,
+        "bytes": 43217378
+      },
+      ".png": {
+        "files": 9,
+        "bytes": 5446621
+      },
+      ".svg": {
+        "files": 3,
+        "bytes": 12025
+      },
+      ".txt": {
+        "files": 1,
+        "bytes": 557
+      },
+      ".webp": {
+        "files": 26,
+        "bytes": 1488644
+      },
+      ".xml": {
+        "files": 2,
+        "bytes": 55671
+      }
+    },
+    "developmentFiles": [],
+    "debugContentMatches": {},
+    "graph": {
+      "allHtmlAndXmlRoots": 591,
+      "portions": {
+        "reachableFromAllHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313042
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 43,
+            "bytes": 1755432
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromBuyerHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313042
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 37,
+            "bytes": 720366
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromNonBuyerOnly": {
+          ".js": {
+            "files": 6,
+            "bytes": 1035066
+          }
+        },
+        "notFoundByLiteralAssetGraph": {
+          ".css": {
+            "files": 68,
+            "bytes": 5680107
+          },
+          ".ico": {
+            "files": 1,
+            "bytes": 3332
+          },
+          ".jpg": {
+            "files": 1,
+            "bytes": 226816
+          },
+          ".js": {
+            "files": 1324,
+            "bytes": 62788570
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 25454187
+          },
+          ".png": {
+            "files": 2,
+            "bytes": 2224627
+          },
+          ".svg": {
+            "files": 1,
+            "bytes": 7094
+          },
+          ".webp": {
+            "files": 2,
+            "bytes": 789394
+          }
+        }
+      },
+      "largestUnlinkedStaticAssets": [
+        [
+          "media/videoanimation.mp4",
+          14930439
+        ],
+        [
+          "media/oem/factory-video.mp4",
+          10523748
+        ],
+        [
+          "media/section-partnership.png",
+          2218445
+        ],
+        [
+          "media/videoanimation.webp",
+          742966
+        ],
+        [
+          "media/oem/team/team.jpg",
+          226816
+        ],
+        [
+          "media/team-diversity.webp",
+          46428
+        ],
+        [
+          "media/logo-diversity.svg",
+          7094
+        ],
+        [
+          "media/oem/logo.png",
+          6182
+        ],
+        [
+          "favicon.ico",
+          3332
+        ]
+      ],
+      "limits": "All current HTML and XML and matching literal references in extracted JS/CSS. Browser-computed references and independently linked assets may not appear. No deletion recommendation."
+    }
+  },
+  "candidate": {
+    "tree": "storefront-release-candidate-full-input",
+    "kind": "localProductionBuild",
+    "manifestEntriesVerified": null,
+    "archiveFiles": 731,
+    "publicFiles": 731,
+    "publicBytes": 111089343,
+    "archiveOnlyPaths": [],
+    "types": {
+      ".css": {
+        "files": 5,
+        "bytes": 313042
+      },
+      ".html": {
+        "files": 591,
+        "bytes": 53243724
+      },
+      ".ico": {
+        "files": 1,
+        "bytes": 3332
+      },
+      ".jpg": {
+        "files": 42,
+        "bytes": 5100866
+      },
+      ".js": {
+        "files": 43,
+        "bytes": 1755322
+      },
+      ".json": {
+        "files": 3,
+        "bytes": 452076
+      },
+      ".mp4": {
+        "files": 4,
+        "bytes": 43217378
+      },
+      ".png": {
+        "files": 9,
+        "bytes": 5446621
+      },
+      ".svg": {
+        "files": 3,
+        "bytes": 12025
+      },
+      ".txt": {
+        "files": 1,
+        "bytes": 557
+      },
+      ".webp": {
+        "files": 26,
+        "bytes": 1488644
+      },
+      ".xml": {
+        "files": 3,
+        "bytes": 55756
+      }
+    },
+    "developmentFiles": [],
+    "debugContentMatches": {},
+    "graph": {
+      "allHtmlAndXmlRoots": 594,
+      "portions": {
+        "reachableFromAllHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313042
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 43,
+            "bytes": 1755322
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromBuyerHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313042
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 37,
+            "bytes": 683860
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromNonBuyerOnly": {
+          ".js": {
+            "files": 6,
+            "bytes": 1071462
+          }
+        },
+        "notFoundByLiteralAssetGraph": {
+          ".ico": {
+            "files": 1,
+            "bytes": 3332
+          },
+          ".jpg": {
+            "files": 1,
+            "bytes": 226816
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 25454187
+          },
+          ".png": {
+            "files": 2,
+            "bytes": 2224627
+          },
+          ".svg": {
+            "files": 1,
+            "bytes": 7094
+          },
+          ".webp": {
+            "files": 2,
+            "bytes": 789394
+          }
+        }
+      },
+      "largestUnlinkedStaticAssets": [
+        [
+          "media/videoanimation.mp4",
+          14930439
+        ],
+        [
+          "media/oem/factory-video.mp4",
+          10523748
+        ],
+        [
+          "media/section-partnership.png",
+          2218445
+        ],
+        [
+          "media/videoanimation.webp",
+          742966
+        ],
+        [
+          "media/oem/team/team.jpg",
+          226816
+        ],
+        [
+          "media/team-diversity.webp",
+          46428
+        ],
+        [
+          "media/logo-diversity.svg",
+          7094
+        ],
+        [
+          "media/oem/logo.png",
+          6182
+        ],
+        [
+          "favicon.ico",
+          3332
+        ]
+      ],
+      "limits": "All current HTML and XML and matching literal references in extracted JS/CSS. Browser-computed references and independently linked assets may not appear. No deletion recommendation."
+    }
+  },
+  "delta": {
+    "liveOnlyFiles": {
+      ".js": 1360,
+      ".css": 68
+    },
+    "candidateOnlyFiles": {
+      ".js": 36,
+      ".html": 2,
+      ".xml": 1
+    },
+    "changedSharedNames": {
+      ".html": 588
+    },
+    "unchangedSharedNames": {
+      ".jpg": 42,
+      ".js": 7,
+      ".json": 3,
+      ".svg": 3,
+      ".png": 9,
+      ".css": 5,
+      ".html": 1,
+      ".webp": 26,
+      ".xml": 2,
+      ".ico": 1,
+      ".mp4": 4,
+      ".txt": 1
+    },
+    "liveOnlyCodePreviouslyReachable": 36,
+    "liveOnlyCodeOutsideCurrentGraph": 1392
+  },
+  "liveChromeSamples": [
+    {
+      "page": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+      "sample": 1,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+      "sample": 2,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1",
+      "sample": 3,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799",
+      "sample": 1,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799",
+      "sample": 2,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    },
+    {
+      "page": "https://supplychainsai.com/products/p-50633c37-434c-4374-a540-f071a00fc799",
+      "sample": 3,
+      "rows": 22,
+      "bodyBytes": 643482,
+      "transferBytes": 650082,
+      "matchingFileAndLength": 22,
+      "notInCurrentAssetGraph": []
+    }
+  ],
+  "candidateLocalChromeSamples": [
+    {
+      "page": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+      "comparand": "existing local Chrome trial, not official static payload",
+      "phase": "cold",
+      "scriptRequests": 22,
+      "bodyBytes": 607076,
+      "transferBytes": 613676,
+      "matchesExactCandidateNameAndLength": 7
+    },
+    {
+      "page": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+      "comparand": "existing local Chrome trial, not official static payload",
+      "phase": "cold",
+      "scriptRequests": 22,
+      "bodyBytes": 607076,
+      "transferBytes": 613676,
+      "matchesExactCandidateNameAndLength": 7
+    },
+    {
+      "page": "/products/p-14185dbc-c03c-4f7a-ae46-0707766059b1/",
+      "comparand": "existing local Chrome trial, not official static payload",
+      "phase": "cold",
+      "scriptRequests": 22,
+      "bodyBytes": 607076,
+      "transferBytes": 613676,
+      "matchesExactCandidateNameAndLength": 7
+    }
+  ]
+}

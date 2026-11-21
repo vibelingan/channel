@@ -82,6 +82,38 @@ test('build input refuses links and unrecognized members before archive or cloud
   symlinkSync('/etc/passwd', join(f.directory, 'linked.txt'));
   assert.throws(() => filesFromSiteBuild(f.directory), /Link/);
 });
+test('fresh static output rejects packaged development files and keeps public pages and assets', (t) => {
+  const pageAndAssets = {
+    'index.html': 'home',
+    'errors/not-found.html': '404',
+    'blog/examples/index.html': 'a public article',
+    '_astro/site.js': 'export const site = true;',
+    '_astro/site.css': 'body { color: black; }',
+    'sitemap-index.xml': '<sitemapindex/>',
+    'media/demo.webp': 'public image',
+  };
+  const clean = source(t, pageAndAssets);
+  assert.deepEqual(
+    [...filesFromSiteBuild(clean.directory).keys()].sort(),
+    Object.keys(pageAndAssets).sort(),
+  );
+
+  for (const path of [
+    '_astro/site.js.map',
+    'fixtures/lab.js',
+    'examples/story.html',
+    '_astro/calc.test.js',
+    'playwright-report/index.html',
+  ]) {
+    const build = source(t, { ...pageAndAssets, [path]: 'development output' });
+    assert.throws(
+      () => filesFromSiteBuild(build.directory),
+      /Development artifact in static build/,
+      path,
+    );
+  }
+});
+
 test('static recovery cannot silently roll back accepted Blog content while keeping newer database state', (t) => {
   const manifest = (revision) =>
     JSON.stringify({ entries: [{ path: '/blog/one/', kind: 'article', content: { revision } }] });

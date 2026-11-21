@@ -1,0 +1,27 @@
+{
+  "observedOn": "2026-11-21",
+  "property": "https://supplychainsai.com/",
+  "pageIndexing": {
+    "filter": "All known pages",
+    "through": "2026-11-16",
+    "indexed": 529,
+    "notIndexed": 989,
+    "crawledNotIndexedExportDistinctPaths": 960,
+    "crawledNotIndexedImagePaths": 960,
+    "other4xxImagePaths": 5,
+    "historical404ImagePaths": 1,
+    "discoveredPagePaths": 12,
+    "confirmedIndexedAmongDiscoveredExamples": 2,
+    "other4xxValidation": "Started"
+  },
+  "performance": {
+    "from": "2026-10-14",
+    "through": "2026-11-18",
+    "web": { "impressions": 93, "clicks": 3 },
+    "image": {
+      "impressions": 1,
+      "clicks": 0,
+      "soleCanonicalLandingPage": "https://supplychainsai.com/"
+    }
+  }
+}
