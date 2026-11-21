@@ -2,11 +2,7 @@
   "release": {
     "runId": 44888847921,
     "source": "fcc3f9ac4a3c1c4359397f0e5ae184d40f017dc7",
-    "checks": [
-      44888377041,
-      44888377019,
-      44888376994
-    ]
+    "checks": [44888377041, 44888377019, 44888376994]
   },
   "previousPackage": "5eb21da4ed34f6cd93ac4d6ffc1c109cb81d0817be56259364b44155fce51353",
   "acceptedPackage": "ec42dff31f50da380ac461e77b0d997a4b6ba6bbbdbbe1ef968421100b12a65d",
