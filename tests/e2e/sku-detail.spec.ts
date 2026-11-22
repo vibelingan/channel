@@ -17,6 +17,60 @@ async function focusCountry(country: Locator) {
   );
 }
 
+test(
+  'buyers can review an inquiry if the country search script fails to load',
+  {
+    tag: '@mobile-regression',
+  },
+  async ({ page }) => {
+    let countryScriptRequests = 0;
+    let failCountryScript = () => {};
+    const pendingCountryScript = new Promise<void>((resolve) => {
+      failCountryScript = resolve;
+    });
+    await page.route(/\/CountryPicker\.[\w-]+\.js(?:\?|$)/, async (route) => {
+      countryScriptRequests++;
+      await pendingCountryScript;
+      await route.abort('failed');
+    });
+    await page.route('**/api/products/canonical-product/detail*', (route) =>
+      route.fulfill({ contentType: 'application/json', body: envelope(detailFixture()) }),
+    );
+    await page.route('**/api/images/**', (route) =>
+      route.fulfill({ contentType: 'image/png', body: imageBytes }),
+    );
+    await page.goto('/products/item/?id=canonical-product');
+    const opener = page.getByRole('button', { name: 'Request a quote', exact: true });
+    await expect(opener).toBeVisible();
+    expect(countryScriptRequests).toBe(0);
+
+    try {
+      await opener.click();
+      const quote = page.getByRole('dialog');
+      await quote.getByLabel('Requested quantity', { exact: true }).fill('20');
+      await quote.getByRole('button', { name: 'Continue to contact' }).click();
+      await quote.getByLabel('Contact name').fill('Test Buyer');
+      await quote.getByLabel('Email').fill('buyer@example.test');
+      await quote.getByLabel('Company', { exact: true }).fill('Local Test Co');
+      const country = quote.getByLabel('Company country / region').and(quote.locator('select'));
+      await expect(country).toHaveAccessibleName('Company country / region');
+      await expect.poll(() => countryScriptRequests).toBe(1);
+      await quote.getByRole('button', { name: 'Review request' }).click();
+      await expect(country).toBeFocused();
+      failCountryScript();
+      await country.selectOption('BR');
+      await quote.getByRole('button', { name: 'Review request' }).click();
+      await expect(quote.locator('[data-rfq-review]')).toContainText('Brazil');
+      await quote.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(opener).toBeFocused();
+      await opener.click();
+      await expect(quote.getByLabel('Requested quantity', { exact: true })).toHaveValue('20');
+    } finally {
+      failCountryScript();
+    }
+  },
+);
+
 async function expectContainedQuote(dialog: Locator) {
   const measured = await dialog.evaluate((element) => {
     const bounds = element.getBoundingClientRect();

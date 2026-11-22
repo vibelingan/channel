@@ -10,10 +10,9 @@ import {
   quoteFieldsForDate,
   validateQuoteTarget,
 } from '@vibelingan-channel/shared/catalog-quote';
-import { countryName } from '@vibelingan-channel/shared/countries';
-import { useContext, useEffect, useId, useRef, useState } from 'react';
+import { countryName, countryOptions } from '@vibelingan-channel/shared/countries';
+import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { CountryPicker } from '../../components/form/CountryPicker.tsx';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   type QuoteDraftState,
@@ -25,6 +24,8 @@ import {
   CatalogQuoteTransportContext,
 } from '../application/catalog-quote-transport.ts';
 import { localDay, useLocalDay } from './use-local-day.ts';
+
+type CountrySearch = typeof import('../../components/form/CountryPicker.tsx').CountryPicker;
 
 const requirements: (keyof CatalogQuoteFields)[] = [
   'intent',
@@ -75,8 +76,16 @@ export function CatalogQuoteSheet({
     key: quoteContextKey(target),
   });
   const [contextError, setContextError] = useState(false);
+  const [CountryPicker, setCountryPicker] = useState<CountrySearch>();
+  const [keepNativeCountry, setKeepNativeCountry] = useState(false);
   const stepState = currentQuoteDraft(state, target);
   const step = stepState.step;
+  const useNativeCountry = !CountryPicker || keepNativeCountry;
+  const needsNativeOptions = useNativeCountry && step === 'contact';
+  const nativeOptions = useMemo(
+    () => (needsNativeOptions ? countryOptions() : []),
+    [needsNativeOptions],
+  );
   const {
     register,
     control,
@@ -106,6 +115,20 @@ export function CatalogQuoteSheet({
   // localStorage, URL/contact serialization, transport, or synthetic receipt.
   const wasOpen = useRef(false);
   useEffect(() => {
+    if (!open || CountryPicker) return;
+    let active = true;
+    // The native select is already usable if this download is slow or fails.
+    void import('../../components/form/CountryPicker.tsx').then(
+      (module) => {
+        if (active) setCountryPicker(() => module.CountryPicker);
+      },
+      () => {},
+    );
+    return () => {
+      active = false;
+    };
+  }, [open, CountryPicker]);
+  useEffect(() => {
     if (!open) return;
     const root = document.documentElement;
     const previousAnchor = root.style.overflowAnchor;
@@ -118,6 +141,7 @@ export function CatalogQuoteSheet({
     const element = dialog.current;
     if (!element) return;
     if (open && !wasOpen.current) {
+      setKeepNativeCountry(false);
       setState({ step: 'requirements', key: quoteContextKey(target) });
       setValue('intent', target.intent);
       setValue('quantity', quantity);
@@ -420,24 +444,52 @@ export function CatalogQuoteSheet({
             <Controller
               name="country"
               control={control}
-              render={({ field: country }) => (
-                <CountryPicker
-                  name={country.name}
-                  value={country.value}
-                  onChange={country.onChange}
-                  onBlur={country.onBlur}
-                  inputRef={country.ref}
-                  label={text.country}
-                  required
-                  placeholder={text.countryPlaceholder}
-                  emptyLabel={text.countryEmpty}
-                  clearLabel={text.countryClear}
-                  description={text.countryHelp}
-                  {...(errors.country
-                    ? { error: text.errors.country ?? text.errors.required }
-                    : {})}
-                />
-              )}
+              render={({ field: country }) =>
+                CountryPicker && !useNativeCountry ? (
+                  <CountryPicker
+                    name={country.name}
+                    value={country.value}
+                    onChange={country.onChange}
+                    onBlur={country.onBlur}
+                    inputRef={country.ref}
+                    label={text.country}
+                    required
+                    placeholder={text.countryPlaceholder}
+                    emptyLabel={text.countryEmpty}
+                    clearLabel={text.countryClear}
+                    description={text.countryHelp}
+                    {...(errors.country
+                      ? { error: text.errors.country ?? text.errors.required }
+                      : {})}
+                  />
+                ) : (
+                  <div className="min-w-0">
+                    <label htmlFor={`${id}-country`} className="mb-2 block text-sm font-medium">
+                      {text.country}
+                    </label>
+                    <select
+                      id={`${id}-country`}
+                      {...country}
+                      onFocus={() => setKeepNativeCountry(true)}
+                      required
+                      aria-invalid={!!errors.country}
+                      aria-describedby={`${id}-country-help${errors.country ? ` ${id}-country-error` : ''}`}
+                      className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-base"
+                    >
+                      <option value="">{text.countryPlaceholder}</option>
+                      {nativeOptions.map(({ value, label }) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <p id={`${id}-country-help`} className="mt-2 text-xs text-ink-muted">
+                      {text.countryHelp}
+                    </p>
+                    {error('country')}
+                  </div>
+                )
+              }
             />
           </fieldset>
           {review && (
