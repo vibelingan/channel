@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 22 日，官网临时样式缓存试验已结束。Chrome 再次加载同一份样式时，原地址仍传约 56 KB，试验地址传输 0 字节。临时规则也给 404 加了缓存头，全站启用前须解决错误响应的缓存，并纳入发布和恢复检查。临时文件及规则均已删除，官网版本及验收地址已复核，维护锁已释放。 [现场试验、数据及正式启用条件](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md#11-月-22-日公网试验验证浏览器能复用样式)
+
 11 月 22 日，核对了 Google 复查和 Bing 新一次地图处理。原网址的五张历史 4xx 图片均完整返回 200，Google 仍待复查。Bing 于 11 月 20 日再次识别 584 个网址。另核实商品样式的 `no-cache` 来自官网网关，同版本条件请求仍传整份文件。再缩小样式只让两个受控样本组的中位数各早 28 毫秒，正式配置没有变更。 [搜索验收](../seo/continuation/next-phase-design-2026-11-05/08-search-and-outcomes.zh-CN.md) · [样式和报表证据](../seo/continuation/next-phase-design-2026-11-05/evidence/search-and-stylesheet-followup-2026-11-22.json)
 
 11 月 22 日，正式网站已支持同一任务准备既有图片并更新官网 HTML。首轮验收三张商品首图，手机九次都直接选 640 像素图。三张图按完整文件比对从 534,181 降到 56,766 字节，两版发布包的 528 件商品公开业务资料一致，官网的 Blog 和六张历史故障图也已逐一读回，临时发布函数已清理。Search Console 的五张历史图仍等待 Google 复查。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44973470198) · [前后数据与验收](../seo/continuation/next-phase-design-2026-11-05/evidence/catalog-combined-image-html-2026-11-22.json)
