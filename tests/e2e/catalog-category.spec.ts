@@ -277,8 +277,7 @@ test('late taxonomy shows all categories during and after the initial unfiltered
     list.resolve();
     await expectPage(page, 'headphones', 1);
     await expect(checked).toHaveCount(3);
-    expect(requests).toHaveLength(1);
-    expect(requests[0].searchParams.has('subcategoryIds')).toBe(false);
+    expect(requests.map((request) => request.searchParams.has('subcategoryIds'))).toEqual([false]);
   } finally {
     taxonomy.resolve();
     list.resolve();
