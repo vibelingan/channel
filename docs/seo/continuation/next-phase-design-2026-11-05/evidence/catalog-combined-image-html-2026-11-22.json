@@ -1,0 +1,1514 @@
+{
+  "release": {
+    "source": "49ac7d1d6471319b358dda7bc6b814e7202b6216",
+    "renderer": "7d05197728bbf6378f27392735195da2e0e5ddea",
+    "previous": "44970804116",
+    "checks": [44972987475, 44972987444, 44972987513],
+    "negative": 44973070277,
+    "run": 44973470198
+  },
+  "negativeCheck": {
+    "run": 44973070277,
+    "cloudWriteStep": "skipped",
+    "site": "skipped"
+  },
+  "timingOfRelease": {
+    "conclusion": "success",
+    "startedAt": "2026-11-22T01:52:31Z",
+    "status": "completed",
+    "updatedAt": "2026-11-22T02:12:52Z"
+  },
+  "cloudState": {
+    "checkedAt": "2026-11-22T02:12:41.053Z",
+    "leaseState": "idle",
+    "ownerIsThisRun": false,
+    "active": null,
+    "baselineRun": "site-44973470198-1",
+    "dirtyRun": null,
+    "pending": null,
+    "run": {
+      "phase": "SUCCEEDED",
+      "acceptedAt": 1795313226813,
+      "stepCount": 7,
+      "verifiedSteps": 7
+    }
+  },
+  "catalogClock": {
+    "readAt": "2026-11-22T02:13:23.262Z",
+    "pending": false,
+    "enabled": true,
+    "functionActive": true,
+    "cadence": "{\"cron\":\"0 * * * * * *\"}",
+    "triggerEnabled": null,
+    "active": {
+      "codeSha": "7d05197728bbf6378f27392735195da2e0e5ddea",
+      "executorSha": "49ac7d1d6471319b358dda7bc6b814e7202b6216",
+      "executorRef": "feat/seo-foundation",
+      "catalogTracked": true,
+      "acceptedRunId": "site-44973470198-1"
+    },
+    "checkedFunctions": 9,
+    "leftoverFunctions": 0
+  },
+  "catalogAndPublicReadbacks": {
+    "filesBefore": 2194,
+    "filesAfter": 2194,
+    "productsBefore": 528,
+    "productsAfter": 528,
+    "differences": {
+      "added": [],
+      "removed": [],
+      "publicVersionChanged": [],
+      "revisionChanged": [],
+      "payloadEntriesWithAnyChanges": [
+        "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+        "284ba8b5-67a9-4f50-aba9-2bfcb076d138",
+        "a627c46b-65f1-42c8-a75c-2893d62e877a",
+        "aef4f32e-4dd9-45d2-aa54-9265a8dc78fc"
+      ]
+    },
+    "onlineControl": {
+      "unknownPageStatus": 404,
+      "apiProgram": "6c958866c6db47cb657d72a59303b86dfbb3e927"
+    },
+    "seoFilesUnchanged": {
+      "robots.txt": true,
+      "sitemap-index.xml": true,
+      "sitemap-0.xml": true,
+      "portfolio/index.html": true,
+      "headphones/index.html": false
+    },
+    "changedRuntimePaths": [],
+    "changedHtml": [
+      "headphones/index.html",
+      "headphones/page/10/index.html",
+      "headphones/page/11/index.html",
+      "headphones/page/12/index.html",
+      "headphones/page/13/index.html",
+      "headphones/page/14/index.html",
+      "headphones/page/15/index.html",
+      "headphones/page/16/index.html",
+      "headphones/page/17/index.html",
+      "headphones/page/18/index.html",
+      "headphones/page/19/index.html",
+      "headphones/page/2/index.html",
+      "headphones/page/20/index.html",
+      "headphones/page/21/index.html",
+      "headphones/page/22/index.html",
+      "headphones/page/23/index.html",
+      "headphones/page/24/index.html",
+      "headphones/page/25/index.html",
+      "headphones/page/26/index.html",
+      "headphones/page/27/index.html",
+      "headphones/page/28/index.html",
+      "headphones/page/29/index.html",
+      "headphones/page/3/index.html",
+      "headphones/page/30/index.html",
+      "headphones/page/31/index.html",
+      "headphones/page/32/index.html",
+      "headphones/page/33/index.html",
+      "headphones/page/34/index.html",
+      "headphones/page/35/index.html",
+      "headphones/page/36/index.html",
+      "headphones/page/37/index.html",
+      "headphones/page/38/index.html",
+      "headphones/page/39/index.html",
+      "headphones/page/4/index.html",
+      "headphones/page/5/index.html",
+      "headphones/page/6/index.html",
+      "headphones/page/7/index.html",
+      "headphones/page/8/index.html",
+      "headphones/page/9/index.html",
+      "misc/index.html",
+      "misc/page/2/index.html",
+      "misc/page/3/index.html",
+      "products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/index.html",
+      "products/p-284ba8b5-67a9-4f50-aba9-2bfcb076d138/index.html",
+      "products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/index.html",
+      "products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/index.html"
+    ],
+    "catalogPagesWithUpdatedImageRevision": [
+      "/headphones/",
+      "/headphones/page/2/",
+      "/headphones/page/3/",
+      "/headphones/page/4/",
+      "/headphones/page/5/",
+      "/headphones/page/6/",
+      "/headphones/page/7/",
+      "/headphones/page/8/",
+      "/headphones/page/9/",
+      "/headphones/page/10/",
+      "/headphones/page/11/",
+      "/headphones/page/12/",
+      "/headphones/page/13/",
+      "/headphones/page/14/",
+      "/headphones/page/15/",
+      "/headphones/page/16/",
+      "/headphones/page/17/",
+      "/headphones/page/18/",
+      "/headphones/page/19/",
+      "/headphones/page/20/",
+      "/headphones/page/21/",
+      "/headphones/page/22/",
+      "/headphones/page/23/",
+      "/headphones/page/24/",
+      "/headphones/page/25/",
+      "/headphones/page/26/",
+      "/headphones/page/27/",
+      "/headphones/page/28/",
+      "/headphones/page/29/",
+      "/headphones/page/30/",
+      "/headphones/page/31/",
+      "/headphones/page/32/",
+      "/headphones/page/33/",
+      "/headphones/page/34/",
+      "/headphones/page/35/",
+      "/headphones/page/36/",
+      "/headphones/page/37/",
+      "/headphones/page/38/",
+      "/headphones/page/39/",
+      "/misc/",
+      "/misc/page/2/",
+      "/misc/page/3/"
+    ],
+    "renderedTargetPhoto": {
+      "products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/index.html": {
+        "before": [
+          {
+            "tag": "img",
+            "src": "/api/images/66baec6f6ac8817700728fc7054cbdba",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones - Pink (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/66baec6f6ac8817700728fc7054cbdba",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ],
+        "after": [
+          {
+            "tag": "img",
+            "src": "/api/images/66baec6f6ac8817700728fc7054cbdba",
+            "srcset": "/api/images/66baec6f6ac8817700728fc7054cbdba?w=160 160w, /api/images/66baec6f6ac8817700728fc7054cbdba?w=640 640w, /api/images/66baec6f6ac8817700728fc7054cbdba?w=1280 800w",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones - Pink (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/66baec6f6ac8817700728fc7054cbdba",
+            "srcset": "/api/images/66baec6f6ac8817700728fc7054cbdba?w=160 160w, /api/images/66baec6f6ac8817700728fc7054cbdba?w=640 640w, /api/images/66baec6f6ac8817700728fc7054cbdba?w=1280 800w",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ]
+      },
+      "products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/index.html": {
+        "before": [
+          {
+            "tag": "img",
+            "src": "/api/images/3fbe8b166ac881030039e68b0ebb365a",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones - Configuration 1 (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/3fbe8b166ac881030039e68b0ebb365a",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ],
+        "after": [
+          {
+            "tag": "img",
+            "src": "/api/images/3fbe8b166ac881030039e68b0ebb365a",
+            "srcset": "/api/images/3fbe8b166ac881030039e68b0ebb365a?w=160 160w, /api/images/3fbe8b166ac881030039e68b0ebb365a?w=640 640w, /api/images/3fbe8b166ac881030039e68b0ebb365a?w=1280 1000w",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones - Configuration 1 (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/3fbe8b166ac881030039e68b0ebb365a",
+            "srcset": "/api/images/3fbe8b166ac881030039e68b0ebb365a?w=160 160w, /api/images/3fbe8b166ac881030039e68b0ebb365a?w=640 640w, /api/images/3fbe8b166ac881030039e68b0ebb365a?w=1280 1000w",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ]
+      },
+      "products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/index.html": {
+        "before": [
+          {
+            "tag": "img",
+            "src": "/api/images/4db8df016ac88268000767651b009477",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Creative World Map Home Wall Watch Nordic Light Luxury Wall Clock Modern Minimalist Clock Wall Clock Living Room - SKU#001 (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/4db8df016ac88268000767651b009477",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ],
+        "after": [
+          {
+            "tag": "img",
+            "src": "/api/images/4db8df016ac88268000767651b009477",
+            "srcset": "/api/images/4db8df016ac88268000767651b009477?w=160 160w, /api/images/4db8df016ac88268000767651b009477?w=640 640w, /api/images/4db8df016ac88268000767651b009477?w=1280 800w",
+            "width": "800",
+            "height": "800",
+            "loading": "eager",
+            "alt": "Creative World Map Home Wall Watch Nordic Light Luxury Wall Clock Modern Minimalist Clock Wall Clock Living Room - SKU#001 (selected configuration)"
+          },
+          {
+            "tag": "img",
+            "src": "/api/images/4db8df016ac88268000767651b009477",
+            "srcset": "/api/images/4db8df016ac88268000767651b009477?w=160 160w, /api/images/4db8df016ac88268000767651b009477?w=640 640w, /api/images/4db8df016ac88268000767651b009477?w=1280 800w",
+            "width": "80",
+            "height": "80",
+            "loading": "lazy",
+            "alt": ""
+          }
+        ]
+      }
+    },
+    "comparedUrls": 18,
+    "readbacks": [
+      {
+        "url": "https://supplychainsai.com/headphones/",
+        "status": 200,
+        "bytes": 151606,
+        "sha256": "a30b9607daab5138f1d4da51f5fe8e9628acfef05b55ba23bb12b6989c5a71db"
+      },
+      {
+        "url": "https://supplychainsai.com/robots.txt",
+        "status": 200,
+        "bytes": 557,
+        "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "status": 200,
+        "bytes": 79217,
+        "sha256": "10db7355730f3a63322d0d20b3181e1edf73aa43a7b5fe4eaa86598dec86425e"
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "status": 200,
+        "bytes": 98537,
+        "sha256": "45c695ee794b1e4c664f3ab6c21cc0a4bccf27c108fcd3fb0e17cb8ff6fcf9fb"
+      },
+      {
+        "url": "https://supplychainsai.com/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "status": 200,
+        "bytes": 98008,
+        "sha256": "db37470196906720f2c39e85f149b0de9537f9f146284f3de07241e17faebdc1"
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-0.xml",
+        "status": 200,
+        "bytes": 55409,
+        "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+      },
+      {
+        "url": "https://supplychainsai.com/portfolio/",
+        "status": 200,
+        "bytes": 78817,
+        "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129"
+      },
+      {
+        "url": "https://supplychainsai.com/sitemap-index.xml",
+        "status": 200,
+        "bytes": 262,
+        "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/",
+        "status": 200,
+        "bytes": 31961,
+        "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+        "status": 200,
+        "bytes": 32746,
+        "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+        "status": 200,
+        "bytes": 37628,
+        "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934"
+      },
+      {
+        "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+        "status": 200,
+        "bytes": 50451,
+        "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "status": 200,
+        "bytes": 87330,
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "status": 200,
+        "bytes": 135494,
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "status": 200,
+        "bytes": 660144,
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+      }
+    ]
+  },
+  "imageLive": {
+    "release": {
+      "source": "49ac7d1d6471319b358dda7bc6b814e7202b6216",
+      "renderer": "7d05197728bbf6378f27392735195da2e0e5ddea",
+      "previous": "44970804116",
+      "checks": [44972987475, 44972987444, 44972987513],
+      "negative": 44973070277,
+      "run": 44973470198
+    },
+    "declaredProtectedWrites": {
+      "originalWrites": 0,
+      "productWrites": 0,
+      "publicationWrites": 0,
+      "deletes": 0
+    },
+    "photos": [
+      {
+        "id": "66baec6f6ac8817700728fc7054cbdba",
+        "routes": ["/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/"],
+        "originalBytes": 198210,
+        "originalSha256": "6080716af68a3189b5eca2ad5c960d65c0127ccf5bfd786b5c5988d34e9169bd",
+        "preservedPublicRefs": 2,
+        "published": [
+          {
+            "url": "https://supplychainsai.com/api/images/66baec6f6ac8817700728fc7054cbdba",
+            "status": 200,
+            "bytes": 14374,
+            "sha256": "fd4c61f154799658eb6b8f442660d25d76b6867290cb3ad8b2774dd53504b37a",
+            "width": 800,
+            "height": 768
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/66baec6f6ac8817700728fc7054cbdba?w=160",
+            "status": 200,
+            "bytes": 1572,
+            "sha256": "7abf7ec8d0e4017338142f03be8eb37d9f65d28e9a8082ce24e68102353516d2",
+            "width": 160,
+            "height": 154
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/66baec6f6ac8817700728fc7054cbdba?w=640",
+            "status": 200,
+            "bytes": 10132,
+            "sha256": "772fe722d9fa368488a8af4a7e8cb90ebbb4f7f67a8477b783873301ea2ad287",
+            "width": 640,
+            "height": 614
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/66baec6f6ac8817700728fc7054cbdba?w=1280",
+            "status": 200,
+            "bytes": 14374,
+            "sha256": "fd4c61f154799658eb6b8f442660d25d76b6867290cb3ad8b2774dd53504b37a",
+            "width": 800,
+            "height": 768
+          }
+        ]
+      },
+      {
+        "id": "3fbe8b166ac881030039e68b0ebb365a",
+        "routes": ["/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/"],
+        "originalBytes": 193804,
+        "originalSha256": "42c6fc0dfd76d4a5c9c1905e841418075ee28bddaae7627306a714d641d41c79",
+        "preservedPublicRefs": 1,
+        "published": [
+          {
+            "url": "https://supplychainsai.com/api/images/3fbe8b166ac881030039e68b0ebb365a",
+            "status": 200,
+            "bytes": 23582,
+            "sha256": "3a146fa9b42e2c63605d00462e9f80326ddf76e25854c051ccbdb3a0f96e870f",
+            "width": 1000,
+            "height": 1000
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/3fbe8b166ac881030039e68b0ebb365a?w=160",
+            "status": 200,
+            "bytes": 2080,
+            "sha256": "bd26a7305c5f17377d6030d2030623544ff84d4604c21d59aeb15c3f58a6bd50",
+            "width": 160,
+            "height": 160
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/3fbe8b166ac881030039e68b0ebb365a?w=640",
+            "status": 200,
+            "bytes": 12946,
+            "sha256": "483be577b4ce655a0724eddfe04dc5b8b4b2c3100372038b6245e25fac911af7",
+            "width": 640,
+            "height": 640
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/3fbe8b166ac881030039e68b0ebb365a?w=1280",
+            "status": 200,
+            "bytes": 23582,
+            "sha256": "3a146fa9b42e2c63605d00462e9f80326ddf76e25854c051ccbdb3a0f96e870f",
+            "width": 1000,
+            "height": 1000
+          }
+        ]
+      },
+      {
+        "id": "4db8df016ac88268000767651b009477",
+        "routes": ["/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/"],
+        "originalBytes": 142167,
+        "originalSha256": "eba59f8b4508384d9dbe76612e5d44c02efb468982c745c244d334363eb0fe17",
+        "preservedPublicRefs": 1,
+        "published": [
+          {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac88268000767651b009477",
+            "status": 200,
+            "bytes": 48128,
+            "sha256": "21e0df8aca5c5d2579b0916a023a88c4200dabbc6cd57a16eeeaf7e79156aef7",
+            "width": 800,
+            "height": 800
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac88268000767651b009477?w=160",
+            "status": 200,
+            "bytes": 3682,
+            "sha256": "81b8fe82c231886282998d6e6c0bb6749720fa168a1c7c3aada888dc98a49b22",
+            "width": 160,
+            "height": 160
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac88268000767651b009477?w=640",
+            "status": 200,
+            "bytes": 33688,
+            "sha256": "2fac3c2792ff9debaa51b36d8508bcbfa5014cc434304f3a5d7af44da6421135",
+            "width": 640,
+            "height": 640
+          },
+          {
+            "url": "https://supplychainsai.com/api/images/4db8df016ac88268000767651b009477?w=1280",
+            "status": 200,
+            "bytes": 48128,
+            "sha256": "21e0df8aca5c5d2579b0916a023a88c4200dabbc6cd57a16eeeaf7e79156aef7",
+            "width": 800,
+            "height": 800
+          }
+        ]
+      }
+    ]
+  },
+  "imageBytes": {
+    "original": 534181,
+    "width640": 56766
+  },
+  "browser": {
+    "conditions": {
+      "chrome": "157.0.8103.79",
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "mobile": {
+        "view": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "isMobile": true,
+          "hasTouch": true
+        },
+        "cpu": 4,
+        "network": {
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "runsPerPageAndPhase": 3,
+      "cache": "disabled"
+    },
+    "beforeRelease": "site-44970804116-1",
+    "afterRelease": "site-44973470198-1",
+    "startedAt": ["2026-11-22T01:45:15.104Z", "2026-11-22T02:09:50.819Z"],
+    "photos": [
+      {
+        "id": "66baec6f6ac8817700728fc7054cbdba",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "before": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 198210,
+                "requestStartMs": 1384,
+                "beforeFirstByteMs": 1053,
+                "bodyMs": 2304,
+                "finishedMs": 4741
+              },
+              "round": 1,
+              "lcpMs": 4756,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2444,
+              "cls": 0.006881367997470511,
+              "documentFirstByteMs": 997,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 198210,
+                  "requestStartMs": 1384,
+                  "beforeFirstByteMs": 1053,
+                  "bodyMs": 2304,
+                  "finishedMs": 4741
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 198210,
+                "requestStartMs": 1751,
+                "beforeFirstByteMs": 916,
+                "bodyMs": 3261,
+                "finishedMs": 5928
+              },
+              "round": 2,
+              "lcpMs": 5940,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2284,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 1409,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 198210,
+                  "requestStartMs": 1751,
+                  "beforeFirstByteMs": 916,
+                  "bodyMs": 3261,
+                  "finishedMs": 5928
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 198210,
+                "requestStartMs": 1805,
+                "beforeFirstByteMs": 1344,
+                "bodyMs": 3125,
+                "finishedMs": 6274
+              },
+              "round": 3,
+              "lcpMs": 6288,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2856,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 1480,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 198210,
+                  "requestStartMs": 1805,
+                  "beforeFirstByteMs": 1344,
+                  "bodyMs": 3125,
+                  "finishedMs": 6274
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 5940,
+          "fcpMsMedian": 2444,
+          "documentFirstByteMsMedian": 1409,
+          "clsMedian": 0.006884872177865934,
+          "imageReceiverWaitMedianMs": 1053,
+          "imageBodyMedianMs": 3125,
+          "imageBytes": [198210]
+        },
+        "after": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 10132,
+                "requestStartMs": 1301,
+                "beforeFirstByteMs": 830,
+                "bodyMs": 108,
+                "finishedMs": 2239
+              },
+              "round": 1,
+              "lcpMs": 2288,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 1888,
+              "cls": 0.006937434883797274,
+              "documentFirstByteMs": 966,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 10132,
+                  "requestStartMs": 1301,
+                  "beforeFirstByteMs": 830,
+                  "bodyMs": 108,
+                  "finishedMs": 2239
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 1572,
+                  "requestStartMs": 1920,
+                  "beforeFirstByteMs": 2361,
+                  "bodyMs": 101,
+                  "finishedMs": 4383
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 10132,
+                "requestStartMs": 1481,
+                "beforeFirstByteMs": 645,
+                "bodyMs": 59,
+                "finishedMs": 2186
+              },
+              "round": 2,
+              "lcpMs": 2200,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2060,
+              "cls": 0.006881367997470511,
+              "documentFirstByteMs": 966,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 10132,
+                  "requestStartMs": 1481,
+                  "beforeFirstByteMs": 645,
+                  "bodyMs": 59,
+                  "finishedMs": 2186
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 1572,
+                  "requestStartMs": 2114,
+                  "beforeFirstByteMs": 608,
+                  "bodyMs": 26,
+                  "finishedMs": 2748
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 10132,
+                "requestStartMs": 1167,
+                "beforeFirstByteMs": 645,
+                "bodyMs": 119,
+                "finishedMs": 1931
+              },
+              "round": 3,
+              "lcpMs": 2100,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2040,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 760,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 10132,
+                  "requestStartMs": 1167,
+                  "beforeFirstByteMs": 645,
+                  "bodyMs": 119,
+                  "finishedMs": 1931
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 2200,
+          "fcpMsMedian": 2040,
+          "documentFirstByteMsMedian": 966,
+          "clsMedian": 0.006884872177865934,
+          "imageReceiverWaitMedianMs": 645,
+          "imageBodyMedianMs": 108,
+          "imageBytes": [10132]
+        }
+      },
+      {
+        "id": "3fbe8b166ac881030039e68b0ebb365a",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "before": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 193804,
+                "requestStartMs": 1219,
+                "beforeFirstByteMs": 1274,
+                "bodyMs": 3258,
+                "finishedMs": 5751
+              },
+              "round": 1,
+              "lcpMs": 5768,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2232,
+              "cls": 0.0005431749580578223,
+              "documentFirstByteMs": 974,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 193804,
+                  "requestStartMs": 1219,
+                  "beforeFirstByteMs": 1274,
+                  "bodyMs": 3258,
+                  "finishedMs": 5751
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 193804,
+                "requestStartMs": 1167,
+                "beforeFirstByteMs": 1420,
+                "bodyMs": 3221,
+                "finishedMs": 5808
+              },
+              "round": 2,
+              "lcpMs": 5824,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2160,
+              "cls": 0,
+              "documentFirstByteMs": 889,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 193804,
+                  "requestStartMs": 1167,
+                  "beforeFirstByteMs": 1420,
+                  "bodyMs": 3221,
+                  "finishedMs": 5808
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 193804,
+                "requestStartMs": 1121,
+                "beforeFirstByteMs": 1012,
+                "bodyMs": 1246,
+                "finishedMs": 3378
+              },
+              "round": 3,
+              "lcpMs": 3396,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2828,
+              "cls": 0.0005431749580578223,
+              "documentFirstByteMs": 879,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 193804,
+                  "requestStartMs": 1121,
+                  "beforeFirstByteMs": 1012,
+                  "bodyMs": 1246,
+                  "finishedMs": 3378
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 5768,
+          "fcpMsMedian": 2232,
+          "documentFirstByteMsMedian": 889,
+          "clsMedian": 0.0005431749580578223,
+          "imageReceiverWaitMedianMs": 1274,
+          "imageBodyMedianMs": 3221,
+          "imageBytes": [193804]
+        },
+        "after": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 12946,
+                "requestStartMs": 1925,
+                "beforeFirstByteMs": 1502,
+                "bodyMs": 357,
+                "finishedMs": 3784
+              },
+              "round": 1,
+              "lcpMs": 3792,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 3056,
+              "cls": 0.0005431749580578223,
+              "documentFirstByteMs": 1623,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 12946,
+                  "requestStartMs": 1925,
+                  "beforeFirstByteMs": 1502,
+                  "bodyMs": 357,
+                  "finishedMs": 3784
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 2080,
+                  "requestStartMs": 3114,
+                  "beforeFirstByteMs": 1656,
+                  "bodyMs": 63,
+                  "finishedMs": 4833
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 12946,
+                "requestStartMs": 1171,
+                "beforeFirstByteMs": 1218,
+                "bodyMs": 80,
+                "finishedMs": 2468
+              },
+              "round": 2,
+              "lcpMs": 2804,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2744,
+              "cls": 0.0005431749580578223,
+              "documentFirstByteMs": 879,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 12946,
+                  "requestStartMs": 1171,
+                  "beforeFirstByteMs": 1218,
+                  "bodyMs": 80,
+                  "finishedMs": 2468
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 12946,
+                "requestStartMs": 1110,
+                "beforeFirstByteMs": 779,
+                "bodyMs": 75,
+                "finishedMs": 1964
+              },
+              "round": 3,
+              "lcpMs": 1980,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 1896,
+              "cls": 0.0005431749580578223,
+              "documentFirstByteMs": 702,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 12946,
+                  "requestStartMs": 1110,
+                  "beforeFirstByteMs": 779,
+                  "bodyMs": 75,
+                  "finishedMs": 1964
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 2080,
+                  "requestStartMs": 1941,
+                  "beforeFirstByteMs": 704,
+                  "bodyMs": 61,
+                  "finishedMs": 2706
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 2804,
+          "fcpMsMedian": 2744,
+          "documentFirstByteMsMedian": 879,
+          "clsMedian": 0.0005431749580578223,
+          "imageReceiverWaitMedianMs": 1218,
+          "imageBodyMedianMs": 80,
+          "imageBytes": [12946]
+        }
+      },
+      {
+        "id": "4db8df016ac88268000767651b009477",
+        "path": "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+        "before": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 142167,
+                "requestStartMs": 1476,
+                "beforeFirstByteMs": 871,
+                "bodyMs": 1970,
+                "finishedMs": 4316
+              },
+              "round": 1,
+              "lcpMs": 4332,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2136,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 760,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 142167,
+                  "requestStartMs": 1476,
+                  "beforeFirstByteMs": 871,
+                  "bodyMs": 1970,
+                  "finishedMs": 4316
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 142167,
+                "requestStartMs": 1220,
+                "beforeFirstByteMs": 1488,
+                "bodyMs": 2982,
+                "finishedMs": 5690
+              },
+              "round": 2,
+              "lcpMs": 5696,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2240,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 684,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 142167,
+                  "requestStartMs": 1220,
+                  "beforeFirstByteMs": 1488,
+                  "bodyMs": 2982,
+                  "finishedMs": 5690
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "",
+                "bytes": 142167,
+                "requestStartMs": 1115,
+                "beforeFirstByteMs": 1114,
+                "bodyMs": 2404,
+                "finishedMs": 4633
+              },
+              "round": 3,
+              "lcpMs": 4640,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 1836,
+              "cls": 0.006937434883797274,
+              "documentFirstByteMs": 664,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "",
+                  "bytes": 142167,
+                  "requestStartMs": 1115,
+                  "beforeFirstByteMs": 1114,
+                  "bodyMs": 2404,
+                  "finishedMs": 4633
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 4640,
+          "fcpMsMedian": 2136,
+          "documentFirstByteMsMedian": 684,
+          "clsMedian": 0.006884872177865934,
+          "imageReceiverWaitMedianMs": 1114,
+          "imageBodyMedianMs": 2404,
+          "imageBytes": [142167]
+        },
+        "after": {
+          "samples": [
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 33688,
+                "requestStartMs": 1683,
+                "beforeFirstByteMs": 868,
+                "bodyMs": 617,
+                "finishedMs": 3168
+              },
+              "round": 1,
+              "lcpMs": 3184,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 1924,
+              "cls": 0.006937434883797274,
+              "documentFirstByteMs": 980,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 33688,
+                  "requestStartMs": 1683,
+                  "beforeFirstByteMs": 868,
+                  "bodyMs": 617,
+                  "finishedMs": 3168
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 3682,
+                  "requestStartMs": 1962,
+                  "beforeFirstByteMs": 580,
+                  "bodyMs": 79,
+                  "finishedMs": 2621
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 33688,
+                "requestStartMs": 1218,
+                "beforeFirstByteMs": 830,
+                "bodyMs": 198,
+                "finishedMs": 2246
+              },
+              "round": 2,
+              "lcpMs": 2252,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 1880,
+              "cls": 0.006884872177865934,
+              "documentFirstByteMs": 726,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 33688,
+                  "requestStartMs": 1218,
+                  "beforeFirstByteMs": 830,
+                  "bodyMs": 198,
+                  "finishedMs": 2246
+                },
+                {
+                  "size": "?w=160",
+                  "bytes": 3682,
+                  "requestStartMs": 1931,
+                  "beforeFirstByteMs": 825,
+                  "bodyMs": 113,
+                  "finishedMs": 2869
+                }
+              ]
+            },
+            {
+              "heroDownload": {
+                "size": "?w=640",
+                "bytes": 33688,
+                "requestStartMs": 1196,
+                "beforeFirstByteMs": 832,
+                "bodyMs": 316,
+                "finishedMs": 2344
+              },
+              "round": 3,
+              "lcpMs": 2568,
+              "lcpElement": "IMG",
+              "lcpWasSelectedImage": true,
+              "fcpMs": 2508,
+              "cls": 0.006937434883797274,
+              "documentFirstByteMs": 656,
+              "sameSiteFailures": [],
+              "pageErrors": [],
+              "imageDownloads": [
+                {
+                  "size": "?w=640",
+                  "bytes": 33688,
+                  "requestStartMs": 1196,
+                  "beforeFirstByteMs": 832,
+                  "bodyMs": 316,
+                  "finishedMs": 2344
+                }
+              ]
+            }
+          ],
+          "lcpMedianMs": 2568,
+          "fcpMsMedian": 1924,
+          "documentFirstByteMsMedian": 726,
+          "clsMedian": 0.006937434883797274,
+          "imageReceiverWaitMedianMs": 832,
+          "imageBodyMedianMs": 316,
+          "imageBytes": [33688]
+        }
+      }
+    ],
+    "foldableHeadsetFirstPaint": {
+      "samples": {
+        "before": [
+          {
+            "round": 1,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 2194.9,
+            "fcpMs": 2232,
+            "paintAfterSheetMs": 37.1,
+            "pageFirstByteMs": 974.2
+          },
+          {
+            "round": 2,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 2125.7,
+            "fcpMs": 2160,
+            "paintAfterSheetMs": 34.3,
+            "pageFirstByteMs": 888.8
+          },
+          {
+            "round": 3,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 2794.5,
+            "fcpMs": 2828,
+            "paintAfterSheetMs": 33.5,
+            "pageFirstByteMs": 879.3
+          }
+        ],
+        "after": [
+          {
+            "round": 1,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 3026.3,
+            "fcpMs": 3056,
+            "paintAfterSheetMs": 29.7,
+            "pageFirstByteMs": 1622.6
+          },
+          {
+            "round": 2,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 2715.4,
+            "fcpMs": 2744,
+            "paintAfterSheetMs": 28.6,
+            "pageFirstByteMs": 878.8
+          },
+          {
+            "round": 3,
+            "sheet": "https://supplychainsai.com/_astro/_publicKey_.crkQf_Zw.css",
+            "bytes": 55677,
+            "sheetReceivedMs": 1859,
+            "fcpMs": 1896,
+            "paintAfterSheetMs": 37,
+            "pageFirstByteMs": 701.8
+          }
+        ]
+      }
+    }
+  },
+  "packageAudit": {
+    "tree": "site-payload-44973470198-1",
+    "kind": "verifiedStaticReleasePayload",
+    "manifestEntriesVerified": 2194,
+    "archiveFiles": 2195,
+    "publicFiles": 2191,
+    "publicBytes": 184527607,
+    "archiveOnlyPaths": [
+      "compatibility.json",
+      "payload-manifest.json",
+      "product-snapshot.json",
+      "static-manifest.json"
+    ],
+    "types": {
+      ".css": {
+        "files": 74,
+        "bytes": 6053427
+      },
+      ".html": {
+        "files": 589,
+        "bytes": 53802899
+      },
+      ".ico": {
+        "files": 1,
+        "bytes": 3332
+      },
+      ".jpg": {
+        "files": 42,
+        "bytes": 5100866
+      },
+      ".js": {
+        "files": 1437,
+        "bytes": 68903161
+      },
+      ".json": {
+        "files": 3,
+        "bytes": 443026
+      },
+      ".mp4": {
+        "files": 4,
+        "bytes": 43217378
+      },
+      ".png": {
+        "files": 9,
+        "bytes": 5446621
+      },
+      ".svg": {
+        "files": 3,
+        "bytes": 12025
+      },
+      ".txt": {
+        "files": 1,
+        "bytes": 557
+      },
+      ".webp": {
+        "files": 26,
+        "bytes": 1488644
+      },
+      ".xml": {
+        "files": 2,
+        "bytes": 55671
+      }
+    },
+    "developmentFiles": [],
+    "debugContentMatches": {},
+    "graph": {
+      "allHtmlAndXmlRoots": 591,
+      "portions": {
+        "reachableFromAllHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313276
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 43,
+            "bytes": 1755872
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromBuyerHtmlAndXml": {
+          ".css": {
+            "files": 5,
+            "bytes": 313276
+          },
+          ".jpg": {
+            "files": 41,
+            "bytes": 4874050
+          },
+          ".js": {
+            "files": 37,
+            "bytes": 684473
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 17763191
+          },
+          ".png": {
+            "files": 7,
+            "bytes": 3221994
+          },
+          ".svg": {
+            "files": 2,
+            "bytes": 4931
+          },
+          ".webp": {
+            "files": 24,
+            "bytes": 699250
+          }
+        },
+        "reachableFromNonBuyerOnly": {
+          ".js": {
+            "files": 6,
+            "bytes": 1071399
+          }
+        },
+        "notFoundByLiteralAssetGraph": {
+          ".css": {
+            "files": 69,
+            "bytes": 5740151
+          },
+          ".ico": {
+            "files": 1,
+            "bytes": 3332
+          },
+          ".jpg": {
+            "files": 1,
+            "bytes": 226816
+          },
+          ".js": {
+            "files": 1394,
+            "bytes": 67147289
+          },
+          ".mp4": {
+            "files": 2,
+            "bytes": 25454187
+          },
+          ".png": {
+            "files": 2,
+            "bytes": 2224627
+          },
+          ".svg": {
+            "files": 1,
+            "bytes": 7094
+          },
+          ".webp": {
+            "files": 2,
+            "bytes": 789394
+          }
+        }
+      },
+      "largestUnlinkedStaticAssets": [
+        ["media/videoanimation.mp4", 14930439],
+        ["media/oem/factory-video.mp4", 10523748],
+        ["media/section-partnership.png", 2218445],
+        ["media/videoanimation.webp", 742966],
+        ["media/oem/team/team.jpg", 226816],
+        ["media/team-diversity.webp", 46428],
+        ["media/logo-diversity.svg", 7094],
+        ["media/oem/logo.png", 6182],
+        ["favicon.ico", 3332]
+      ],
+      "limits": "All current HTML and XML and matching literal references in extracted JS/CSS. Browser-computed references and independently linked assets may not appear. No deletion recommendation."
+    }
+  },
+  "catalogSignals": {
+    "comparedHtml": 571,
+    "publicProducts": 528,
+    "productPresentationOnly": [
+      "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+      "284ba8b5-67a9-4f50-aba9-2bfcb076d138",
+      "a627c46b-65f1-42c8-a75c-2893d62e877a",
+      "aef4f32e-4dd9-45d2-aa54-9265a8dc78fc"
+    ],
+    "detailHintEntriesChanged": [
+      "23ea50be-9983-4ddb-af4c-a93958a69c6f",
+      "284ba8b5-67a9-4f50-aba9-2bfcb076d138",
+      "a627c46b-65f1-42c8-a75c-2893d62e877a",
+      "aef4f32e-4dd9-45d2-aa54-9265a8dc78fc"
+    ],
+    "changedProductListing": [],
+    "reorderedProductListing": [],
+    "changedDescriptions": []
+  },
+  "verifiedCrawler": {
+    "startLocal": "2026-11-22 09:17:10",
+    "endLocal": "2026-11-22 09:56:38",
+    "queries": 1,
+    "segments": [
+      {
+        "startTime": "2026-11-22 09:17:10",
+        "endTime": "2026-11-22 09:56:38",
+        "candidates": 0,
+        "verified": 0
+      }
+    ],
+    "statusCounts": {},
+    "entries": []
+  }
+}

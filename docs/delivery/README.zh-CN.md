@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 22 日，正式网站已支持同一任务准备既有图片并更新官网 HTML。首轮验收三张商品首图，手机九次都直接选 640 像素图。三张图按完整文件比对从 534,181 降到 56,766 字节，两版发布包的 528 件商品公开业务资料一致，官网的 Blog 和六张历史故障图也已逐一读回，临时发布函数已清理。Search Console 的五张历史图仍等待 Google 复查。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44973470198) · [前后数据与验收](../seo/continuation/next-phase-design-2026-11-05/evidence/catalog-combined-image-html-2026-11-22.json)
+
 11 月 22 日，官网案例页已停止在首访提前读取八张证书放大图，这部分请求减少约 422 KB。手机官网样本首屏中位数为 2.59→2.34 秒。真实浏览、放大与关闭以及历史故障图、Blog、地图均验收。Google CSV 的 960 个「已抓取但未收录」地址全部是商品图片，五张历史 4xx 仍待 Google 复查。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44966587650) · [实际验证](../seo/continuation/next-phase-design-2026-11-05/evidence/portfolio-dialog-images-2026-11-22.json)
 
 11 月 22 日，官网已单独更新小号商品 WebP 的读取方式，并为耳机分类首图准备同尺寸网页版本。两张实测小图的服务器处理时间约从 257 和 230 毫秒降为 43 毫秒；首图传输少约 72%，桌面整页首屏时间约为 2.39→2.42 秒。历史故障图、Blog、地图和三份关联网页完整读回一致。Google 仍待复查五张历史故障图，手机和桌面真实访客性能仍缺样本。 [API 发布](https://github.com/vibelingan/channel/actions/runs/44963085688) · [图片发布](https://github.com/vibelingan/channel/actions/runs/44964188625) · [实际测速](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md)
