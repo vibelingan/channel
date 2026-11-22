@@ -1,0 +1,243 @@
+{
+  "checkedAtUtc": "2026-11-22T16:16:36+00:00",
+  "property": "https://supplychainsai.com/",
+  "crawlStats": {
+    "through": "2026-11-20",
+    "totalRequestsAsDisplayed": "3.36K",
+    "totalDownloadBytesAsDisplayed": "560M",
+    "averageResponseMsAsDisplayed": "1.4K",
+    "hostProblemsLast90DaysAsDisplayed": false,
+    "responsePercentAsDisplayed": {
+      "http200": "100%",
+      "other4xx": "<1%",
+      "http404": "<1%"
+    },
+    "requestFileTypePercent": {
+      "image": 41,
+      "javascript": 31,
+      "html": 26,
+      "css": 2
+    },
+    "requestPurposePercent": {
+      "discovery": 51,
+      "refresh": 49
+    },
+    "other4xxTotalRequests": 10,
+    "other4xxExamples": [
+      {
+        "reportedTimeAsDisplayed": "11/9/26, 10:38 AM",
+        "url": "https://supplychainsai.com/favicon.ico"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/9/26, 10:38 AM",
+        "url": "https://supplychainsai.com/favicon.svg"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/8/26, 9:47 AM",
+        "url": "https://supplychainsai.com/headphones/"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/8/26, 7:17 AM",
+        "url": "https://supplychainsai.com/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/8/26, 6:02 AM",
+        "url": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/7/26, 2:39 PM",
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/6/26, 6:58 PM",
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/3/26, 6:14 PM",
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/3/26, 5:48 PM",
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973"
+      },
+      {
+        "reportedTimeAsDisplayed": "11/3/26, 5:22 PM",
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad"
+      }
+    ],
+    "http404TotalRequests": 5,
+    "http404Examples": [
+      {
+        "reportedTimeAsDisplayed": "11/8/26, 8:32 AM",
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9"
+      },
+      {
+        "reportedTimeAsDisplayed": "10/27/26, 10:00 PM",
+        "url": "https://supplychainsai.com/favicon.ico"
+      },
+      {
+        "reportedTimeAsDisplayed": "10/16/26, 5:37 PM",
+        "url": "https://supplychainsai.com/favicon.ico"
+      }
+    ],
+    "exampleTimeZoneNotConfirmed": true
+  },
+  "indexReport": {
+    "through": "2026-11-16",
+    "indexed": 529,
+    "excluded": 989,
+    "other4xx": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0
+    }
+  },
+  "webSearch": {
+    "through": "2026-11-20",
+    "impressions": 98,
+    "clicks": 3,
+    "averagePosition": 27.1
+  },
+  "additional4xxReadback": [
+    {
+      "path": "/favicon.ico",
+      "status": 200,
+      "type": "image/vnd.microsoft.icon",
+      "bytes": 3332,
+      "sha256": "1ab3fdd21a673954bd8353b1e170e14b88a9dc1850eb5686e3e8c7038833d8e4",
+      "ttfbSeconds": 3.631435,
+      "totalSeconds": 3.63195
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "type": "image/svg+xml",
+      "bytes": 466,
+      "sha256": "e263ccf7b16ca05dc8cb36d3184539c5aa01917de282ca85147abfdadb478b36",
+      "ttfbSeconds": 3.631191,
+      "totalSeconds": 3.631958
+    },
+    {
+      "path": "/headphones/",
+      "status": 200,
+      "type": "text/html",
+      "bytes": 151964,
+      "sha256": "e80dc85583024ee9fdc6259a98fc70387e605a82dd93e2f405a223fa6ad84851",
+      "ttfbSeconds": 2.066581,
+      "totalSeconds": 4.172056,
+      "canonical": "https://supplychainsai.com/headphones/"
+    },
+    {
+      "path": "/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/",
+      "status": 200,
+      "type": "text/html",
+      "bytes": 89021,
+      "sha256": "a4f22c2ef15adca987b8340da99d05ec580a546b171a397df58fa790739b1ec9",
+      "ttfbSeconds": 2.032483,
+      "totalSeconds": 3.331776,
+      "canonical": "https://supplychainsai.com/products/p-6af27f9c-42b0-46dd-a60d-047e5f10d2cc/"
+    },
+    {
+      "path": "/headphones/?category=headphones-wired&page=1",
+      "status": 200,
+      "type": "text/html",
+      "bytes": 151964,
+      "sha256": "e80dc85583024ee9fdc6259a98fc70387e605a82dd93e2f405a223fa6ad84851",
+      "ttfbSeconds": 2.911945,
+      "totalSeconds": 5.829412,
+      "canonical": "https://supplychainsai.com/headphones/"
+    }
+  ],
+  "earlierImageReadbackEvidence": "googlebot-and-detail-request-timing-2026-11-22.json",
+  "historicAccessLog": [
+    {
+      "scope": "other responses labeled Googlebot",
+      "segments": [
+        {
+          "startTime": "2026-11-08 00:00:00",
+          "endTime": "2026-11-08 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        },
+        {
+          "startTime": "2026-11-09 00:00:00",
+          "endTime": "2026-11-09 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        },
+        {
+          "startTime": "2026-11-10 00:00:00",
+          "endTime": "2026-11-10 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        }
+      ]
+    },
+    {
+      "scope": "any response for the website host",
+      "segments": [
+        {
+          "startTime": "2026-11-08 00:00:00",
+          "endTime": "2026-11-08 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        },
+        {
+          "startTime": "2026-11-09 00:00:00",
+          "endTime": "2026-11-09 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        },
+        {
+          "startTime": "2026-11-10 00:00:00",
+          "endTime": "2026-11-10 23:59:59",
+          "candidates": 0,
+          "verified": 0
+        }
+      ]
+    }
+  ],
+  "latestVerifiedGooglebotLogRead": {
+    "startLocal": "2026-11-22 23:23:27",
+    "endLocal": "2026-11-23 00:08:39",
+    "timeZone": "UTC+08:00",
+    "creationTime": "2026-11-20T15:45:50.000000",
+    "queries": 1,
+    "segments": [
+      {
+        "startTime": "2026-11-22 23:23:27",
+        "endTime": "2026-11-23 00:08:39",
+        "candidates": 0,
+        "verified": 0
+      }
+    ],
+    "statusCounts": {},
+    "entries": []
+  },
+  "logsAfterFirstPass": {
+    "startLocal": "2026-11-23 00:08:40",
+    "endLocal": "2026-11-23 00:47:48",
+    "timeZone": "UTC+08:00",
+    "creationTime": "2026-11-20T15:45:50.000000",
+    "queries": 1,
+    "segments": [
+      {
+        "startTime": "2026-11-23 00:08:40",
+        "endTime": "2026-11-23 00:47:48",
+        "candidates": 0,
+        "verified": 0
+      }
+    ],
+    "statusCounts": {},
+    "entries": []
+  },
+  "subsequentPublicSiteAcceptance": {
+    "run": 45041335960,
+    "source": "136f115b219ae5ea12f55e6577906f45fd28ee36",
+    "verifiedDirectories": 46,
+    "officialReads": 22,
+    "publicProducts": 528,
+    "metaPages": 589,
+    "unknownStatus": 404
+  }
+}

@@ -6,6 +6,14 @@ Search Console 的网页索引报表仍截至 11 月 16 日，529 个已收录�
 
 网页搜索数据更新到 11 月 20 日，累计 98 次展示、3 次点击，平均位置 27.1。11 月 19 日为 95 次展示、3 次点击，平均位置 26.8。新报表多 3 次展示，点击数持平。实际访客速度报告更新到 11 月 21 日，手机和桌面都缺少足够样本。 [本轮读数和官网验收](evidence/googlebot-and-detail-request-timing-2026-11-22.json)
 
+### Google 的抓取统计还记着哪些错误
+
+抓取统计截至 11 月 20 日，约 3,360 次请求，平均响应约 1.4 秒。图片占 41%，脚本占 31%，网页正文占 26%，样式占 2%。Google 的主机报告显示近 90 天无主机故障。同一份报告仍记着 10 次其他 4xx 和 5 次 404，两类均少于 1%。报告里的 200 占比作了取整。 [Google 抓取统计口径](https://support.google.com/webmasters/answer/9679690)
+
+逐项打开「其他 4xx」的样本。除了索引报告里的五张图，还有 11 月 8–9 日记录的两份站点图标、耳机目录、有线耳机筛选网址和一件商品。11 月 23 日从官网把这五份响应完整下载，全部返回 200。有线耳机筛选网址与耳机目录返回同一份 HTML，页面把耳机目录声明为正式网址。商品页保留自己的正式网址。抓取统计的 404 样本中，旧图标地址与旧图片地址也已取回完整文件。程序历史能确认 `.ico` 文件是在 11 月 19 日补回的。查腾讯网关 11 月 8–10 日的历史记录时，官网域名未返回可用于比对的记录，因此另外五次旧 4xx 当时怎样触发仍无法确认。 [逐地址响应和报告日期](evidence/google-crawl-status-2026-11-23.json) · [补回图标的提交](https://github.com/vibelingan/channel/commit/8ca8b0e4)
+
+北京时间 11 月 22 日 23:23 到 23 日 00:47 的追加日志查询没有发现匹配 Google 官方地址范围的 Googlebot 请求。新版本上线后，再从公网打开这十个曾报 4xx 的地址及旧 404 图片，逐一核对响应内容，全部返回 200。Google 是否验证修复，以 11 月 16 日开启的复查任务为准。 [官网发布验收](https://github.com/vibelingan/channel/actions/runs/45041335960/artifacts/14763332786) · [原复查任务](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC)
+
 ## 11 月 22 日，核对商品更新时间怎样进入网站地图
 
 官网的静态地图有 580 个页面地址，其中 528 个是商品，当前都没有 `lastmod`。这个字段告诉搜索引擎该页面的内容上一次何时真正改变。官网已验收的快照包含 528 件商品的公开版本，但没有可信的历史变更日期。现有程序会在收到可信日期时写入商品 HTML 和地图，所以留空符合这批数据的实际情况。Google 还没有抓取的商品不能归因于这一点。 [正式网页归档](https://github.com/vibelingan/channel/actions/runs/44985497074) · [Google 对地图日期的要求](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
