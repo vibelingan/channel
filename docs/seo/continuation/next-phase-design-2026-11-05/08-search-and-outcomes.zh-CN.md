@@ -2,6 +2,8 @@
 
 ## 11 月 22 日接着核对实际请求
 
+在同一 Search Console 属性重新导出完整 CSV。「已抓取但未收录」的 960 条全部是商品图片，与 11 月 20 日的 960 条相同。与更早的 959 条对照，多出的地址也返回 200 和 80,590 字节的完整 WebP。网页版汇总仍为 529 已收录、989 未收录，另有 12 个「已发现但未收录」地址。五张历史 4xx 仍为待 5、失败 0。网页搜索截至 11 月 19 日累计 95 次展示、3 次点击。 [实际网络和验证记录](evidence/portfolio-dialog-images-2026-11-22.json)
+
 北京时间 07:19:26–08:09:50，限定五张历史故障图、12 个待收录地址、视频观看页和一篇文章，三个时间段读取到 68 条请求。全部为 HTTP 200，没有命中查询上限。请求来源和标识交叉检查后，这批记录里没有核实到普通 Google 爬虫。本次云网关观察只说明所读请求的响应。Google 的复查和索引结果仍以 Search Console 自己的日期为准。 [本轮日志汇总](evidence/portfolio-dialog-images-2026-11-22.json) · [Google 爬虫来源核对](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
 
 ## 11 月 22 日，读回历史 4xx 与工厂观看页

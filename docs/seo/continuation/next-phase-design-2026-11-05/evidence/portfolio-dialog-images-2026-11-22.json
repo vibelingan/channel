@@ -1453,5 +1453,1900 @@
   "focusedPortfolioTests": {
     "failedBeforeOnDialogLoadingContract": true,
     "passedAfter": 10
+  },
+  "searchConsole": {
+    "observedAt": "2026-11-22T00:23:57.879440+00:00",
+    "property": "https://supplychainsai.com/",
+    "indexingReport": {
+      "lastUpdate": "2026-11-16",
+      "indexed": 529,
+      "notIndexed": 989,
+      "categories": {
+        "pageWithRedirect": 4,
+        "blockedByRobots": 1,
+        "crawledCurrentlyNotIndexed": 960,
+        "discoveredCurrentlyNotIndexed": 12,
+        "blockedByOther4xx": 5,
+        "alternateProperCanonical": 5,
+        "excludedByNoindex": 1,
+        "notFound404": 1
+      }
+    },
+    "other4xxValidation": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0,
+      "exampleLastCrawled": ["2026-11-07", "2026-11-06", "2026-11-03", "2026-11-03", "2026-11-03"]
+    },
+    "threeMonthsWebSearch": {
+      "observedLastDate": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3,
+      "ctrPercent": 3.2
+    },
+    "crawledCsv": {
+      "rows": 960,
+      "productImageUrls": 960,
+      "nonImageUrls": 0,
+      "formerSampleRows": 959,
+      "identicalNov20Export": true,
+      "addedFrom959Export": {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+        "lastCrawledInExport": "2026-11-17",
+        "status": 200,
+        "contentType": "image/webp",
+        "bytes": 80590,
+        "sha256": "e818d3e39008dad0ee0eccaafcf0ed940751e60525d16c0251cb29cad5182d60"
+      },
+      "zipSha256": "3477051ee7b12375eac5097acee88b331e3f28677b0a44e525b0ad0de7d99a3f"
+    }
+  },
+  "formalAcceptance": {
+    "release": {
+      "source": "7d05197728bbf6378f27392735195da2e0e5ddea",
+      "renderer": 44966412916,
+      "site": 44966587650,
+      "checks": {
+        "Blog server HTTP acceptance": 44965911359,
+        "SEO Blog isolated dummy": 44965911317,
+        "SEO release modules (offline)": 44965911422
+      },
+      "siteAttempt": 1,
+      "status": "accepted"
+    },
+    "site": {
+      "checkedAt": "2026-11-22T00:38:48.572Z",
+      "leaseState": "idle",
+      "ownerIsThisRun": false,
+      "active": null,
+      "baselineRun": "site-44966587650-1",
+      "dirtyRun": null,
+      "pending": null,
+      "run": {
+        "phase": "SUCCEEDED",
+        "acceptedAt": 1795307544805,
+        "stepCount": 2,
+        "verifiedSteps": 2
+      }
+    },
+    "catalogClock": {
+      "readAt": "2026-11-22T00:38:47.109Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "7d05197728bbf6378f27392735195da2e0e5ddea",
+        "executorSha": "7d05197728bbf6378f27392735195da2e0e5ddea",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44966587650-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "formalPayloadComparison": {
+      "html": 589,
+      "changedHtmlBeforeIgnoringGeneratedIslandIds": 1,
+      "changedContentHtml": ["portfolio/index.html"],
+      "unchangedJsAndCss": 1511,
+      "existingImageAndDiscoveryFiles": {
+        "robots.txt": {
+          "bytes": 557,
+          "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+        },
+        "sitemap-index.xml": {
+          "bytes": 262,
+          "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+        },
+        "sitemap-0.xml": {
+          "bytes": 55409,
+          "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+        },
+        "products/manifest.json": {
+          "bytes": 58697,
+          "sha256": "73938488f2f51f9c2cd256e0e972490e7620bf3fbab65c467704fba1459ea62c"
+        },
+        "media/portfolio/certs/as1.webp": {
+          "bytes": 60618,
+          "sha256": "2fd73a93f6d98b00689ab881cfdcf9af1a66b2692a39f41dcf2180715a61fa3c"
+        },
+        "media/portfolio/certs/ce-certification.webp": {
+          "bytes": 77752,
+          "sha256": "2759756e4275076f94c267da2c160650d18e39cc501d4fa77248707abb2f5711"
+        },
+        "media/portfolio/certs/cs1-001.webp": {
+          "bytes": 63134,
+          "sha256": "fbd6b116c4d29f0049624f9ecb60e829d3ab0dce383989f151fb2699b61aeaa0"
+        },
+        "media/portfolio/certs/emc-certification.webp": {
+          "bytes": 57270,
+          "sha256": "5d249af7744aceda760991ccf7ab239a282256f1134be234cc4cfe55fb0730f5"
+        },
+        "media/portfolio/certs/fcc-certification.webp": {
+          "bytes": 26942,
+          "sha256": "444421a987248ddb9c645ca90abf716d86b74cac920facb93a84a911bb92b8c3"
+        },
+        "media/portfolio/certs/jd-certification.webp": {
+          "bytes": 37612,
+          "sha256": "e9910dd4ec27b628c46b5e5ea2b357c12afb47524fa5bfc52ca4843079ddd112"
+        },
+        "media/portfolio/certs/op1.webp": {
+          "bytes": 32530,
+          "sha256": "02dbf41379daa27e5095f74e73be2540dbbdfe249902296ee441b0ffe4938b33"
+        },
+        "media/portfolio/certs/sc3-001.webp": {
+          "bytes": 65648,
+          "sha256": "456e10630365ffd58380e06b950b0e03dd5b869a43a54fc058def71d0f4588c3"
+        }
+      },
+      "newPortfolioHash": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "previousPortfolioHash": "18967641b716bb31a0145fcd6127bdc5d6f4255378266d0fab03d73102c9ad49"
+    },
+    "publicReads": {
+      "publicChecks": 23,
+      "publicApi": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+      "publicationSnapshotUnchanged": true,
+      "filesValidated": 2194,
+      "fileDigestDiffCount": 3,
+      "changedFileNames": ["portfolio/index.html", "static-manifest.json", "compatibility.json"],
+      "readbacks": [
+        {
+          "url": "https://supplychainsai.com/blog/",
+          "status": 200,
+          "bytes": 31961,
+          "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+          "status": 200,
+          "bytes": 32746,
+          "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "status": 200,
+          "bytes": 37628,
+          "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+          "status": 200,
+          "bytes": 50451,
+          "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+          "status": 200,
+          "bytes": 51178,
+          "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+          "status": 200,
+          "bytes": 65170,
+          "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+          "status": 200,
+          "bytes": 69280,
+          "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+          "status": 200,
+          "bytes": 87330,
+          "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+          "status": 200,
+          "bytes": 135494,
+          "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+          "status": 200,
+          "bytes": 660144,
+          "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+        },
+        {
+          "url": "https://supplychainsai.com/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129"
+        },
+        {
+          "url": "https://supplychainsai.com/sitemap-0.xml",
+          "status": 200,
+          "bytes": 55409,
+          "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+        },
+        {
+          "url": "https://supplychainsai.com/sitemap-index.xml",
+          "status": 200,
+          "bytes": 262,
+          "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+        },
+        {
+          "url": "https://supplychainsai.com/robots.txt",
+          "status": 200,
+          "bytes": 557,
+          "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/",
+          "status": 200,
+          "bytes": 150371,
+          "sha256": "071660028a02283e6332a145a3ce68b920a3a9a218c16316f52317422620b9fd"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/as1.webp",
+          "status": 200,
+          "bytes": 60618,
+          "sha256": "2fd73a93f6d98b00689ab881cfdcf9af1a66b2692a39f41dcf2180715a61fa3c"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/ce-certification.webp",
+          "status": 200,
+          "bytes": 77752,
+          "sha256": "2759756e4275076f94c267da2c160650d18e39cc501d4fa77248707abb2f5711"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/cs1-001.webp",
+          "status": 200,
+          "bytes": 63134,
+          "sha256": "fbd6b116c4d29f0049624f9ecb60e829d3ab0dce383989f151fb2699b61aeaa0"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/emc-certification.webp",
+          "status": 200,
+          "bytes": 57270,
+          "sha256": "5d249af7744aceda760991ccf7ab239a282256f1134be234cc4cfe55fb0730f5"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/fcc-certification.webp",
+          "status": 200,
+          "bytes": 26942,
+          "sha256": "444421a987248ddb9c645ca90abf716d86b74cac920facb93a84a911bb92b8c3"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/jd-certification.webp",
+          "status": 200,
+          "bytes": 37612,
+          "sha256": "e9910dd4ec27b628c46b5e5ea2b357c12afb47524fa5bfc52ca4843079ddd112"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/op1.webp",
+          "status": 200,
+          "bytes": 32530,
+          "sha256": "02dbf41379daa27e5095f74e73be2540dbbdfe249902296ee441b0ffe4938b33"
+        },
+        {
+          "url": "https://supplychainsai.com/media/portfolio/certs/sc3-001.webp",
+          "status": 200,
+          "bytes": 65648,
+          "sha256": "456e10630365ffd58380e06b950b0e03dd5b869a43a54fc058def71d0f4588c3"
+        }
+      ]
+    },
+    "chrome": {
+      "before": {
+        "mode": "live-before",
+        "at": "2026-11-22T00:17:02.679Z",
+        "website": "https://supplychainsai.com/portfolio/",
+        "files": [
+          "/media/portfolio/certs/ce-certification.webp",
+          "/media/portfolio/certs/emc-certification.webp",
+          "/media/portfolio/certs/fcc-certification.webp",
+          "/media/portfolio/certs/jd-certification.webp",
+          "/media/portfolio/certs/as1.webp",
+          "/media/portfolio/certs/cs1-001.webp",
+          "/media/portfolio/certs/sc3-001.webp",
+          "/media/portfolio/certs/op1.webp"
+        ],
+        "fixed": null,
+        "waitAfterDomMs": 3500,
+        "profiles": {
+          "mobile": {
+            "settings": {
+              "viewport": {
+                "width": 412,
+                "height": 823
+              },
+              "deviceScaleFactor": 2,
+              "isMobile": true,
+              "hasTouch": true
+            },
+            "net": {
+              "offline": false,
+              "latency": 150,
+              "downloadThroughput": 200000,
+              "uploadThroughput": 93750,
+              "connectionType": "cellular4g"
+            },
+            "cpu": 4
+          },
+          "desktop": {
+            "settings": {
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              }
+            },
+            "net": {
+              "offline": false,
+              "latency": 40,
+              "downloadThroughput": 1250000,
+              "uploadThroughput": 625000,
+              "connectionType": "ethernet"
+            },
+            "cpu": 1
+          }
+        },
+        "chrome": "157.0.8103.79",
+        "armHashes": {},
+        "measurements": [
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 1,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2048,
+            "lcp": {
+              "ms": 2112,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1192,
+                "total": 3464.199999988079,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1208.199999988079,
+                "total": 2825.5,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1214.5999999940395,
+                "total": 2639.399999976158,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1224,
+                "total": 2900.899999976158,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1250.7999999821186,
+                "total": 5331.5,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1261.5,
+                "total": 5685,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1266.7999999821186,
+                "total": 5985.0999999940395,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1290.5,
+                "total": 5308.899999976158,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 725.8999999761581
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 2,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2848,
+            "lcp": {
+              "ms": 2908,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 979.8000000119209,
+                "total": 2890.5,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 988.5,
+                "total": 3235.9000000059605,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1002.5,
+                "total": 2608.0999999940395,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1010.5,
+                "total": 3148.199999988079,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1031.9000000059605,
+                "total": 3522.5999999940395,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1048.5,
+                "total": 4129.5999999940395,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1055.5999999940395,
+                "total": 4505.699999988079,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1077.699999988079,
+                "total": 5613.4000000059605,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 686.6999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 3,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1772,
+            "lcp": {
+              "ms": 1840,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1057.0999999940395,
+                "total": 3192.5999999940395,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1071.3999999761581,
+                "total": 2961.399999976158,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1078,
+                "total": 2613.5999999940395,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1091.3999999761581,
+                "total": 5114,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1116.699999988079,
+                "total": 5329.0999999940395,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1124.199999988079,
+                "total": 5585.699999988079,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1131.2999999821186,
+                "total": 5624.5999999940395,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1159.5,
+                "total": 5231.799999982119,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 620.6999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 4,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2652,
+            "lcp": {
+              "ms": 2720,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1430.0999999940395,
+                "total": 3155.800000011921,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1439.800000011921,
+                "total": 3410.800000011921,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1453.300000011921,
+                "total": 2928.9000000059605,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1459.7000000178814,
+                "total": 3529.2000000178814,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1481.9000000059605,
+                "total": 4167.200000017881,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1488.800000011921,
+                "total": 4947.4000000059605,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1505.7000000178814,
+                "total": 5997.800000011921,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1528.7000000178814,
+                "total": 5872.300000011921,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 968.5
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 5,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2404,
+            "lcp": {
+              "ms": 2464,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1060,
+                "total": 2446.199999988079,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1067.5999999940395,
+                "total": 3106.4000000059605,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1081.199999988079,
+                "total": 3046.9000000059605,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1092,
+                "total": 3325.199999988079,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1113,
+                "total": 3746,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1119.5,
+                "total": 3983.5999999940395,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1135.0999999940395,
+                "total": 5656.799999982119,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1157.199999988079,
+                "total": 5588.4000000059605,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 662.1999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "control",
+            "round": 6,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2696,
+            "lcp": {
+              "ms": 2756,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1137.300000011921,
+                "total": 2871.0999999940395,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1151.800000011921,
+                "total": 2758.5999999940395,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1151.800000011921,
+                "total": 3230.699999988079,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1191.199999988079,
+                "total": 3057.699999988079,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1211.800000011921,
+                "total": 3575,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1220.5,
+                "total": 4084.4000000059605,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1226.800000011921,
+                "total": 5615.5,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1257.300000011921,
+                "total": 5471.5,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 601.6999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "control",
+            "round": 1,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1424,
+            "lcp": {
+              "ms": 1452,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 906.5,
+                "total": 1842.0999999940395,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 908.8000000119209,
+                "total": 2266.800000011921,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 909.5,
+                "total": 2391.800000011921,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 912.3000000119209,
+                "total": 2949.5999999940395,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 916,
+                "total": 3922.5999999940395,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 918,
+                "total": 3858.0999999940395,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 924.1999999880791,
+                "total": 3984,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 927.9000000059605,
+                "total": 3924.4000000059605,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 702.0999999940395
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "control",
+            "round": 2,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1572,
+            "lcp": {
+              "ms": 1596,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 1059.199999988079,
+                "total": 1986.5,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 1067.199999988079,
+                "total": 2091.9000000059605,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 1068.7999999821186,
+                "total": 3209.4000000059605,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 1071.199999988079,
+                "total": 3066.5999999940395,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 1074.5999999940395,
+                "total": 3710.9000000059605,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 1075.5,
+                "total": 3744.5999999940395,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 1078.199999988079,
+                "total": 3737.0999999940395,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 1085.5999999940395,
+                "total": 3670.199999988079,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 677.0999999940395
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "control",
+            "round": 3,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1444,
+            "lcp": {
+              "ms": 1472,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 936.2999999821186,
+                "total": 1653,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 939.0999999940395,
+                "total": 2078.9000000059605,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 941.0999999940395,
+                "total": 2964.699999988079,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 942.6999999880791,
+                "total": 2888.7999999821186,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 947.4000000059605,
+                "total": 3018.5999999940395,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 948.6999999880791,
+                "total": 3674.9000000059605,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 951.0999999940395,
+                "total": 3499.7999999821186,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 958.1999999880791,
+                "total": 3245.2999999821186,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 757.2999999821186
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "control",
+            "round": 4,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1320,
+            "lcp": {
+              "ms": 1344,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 421506,
+            "transfers": [
+              {
+                "path": "/media/portfolio/certs/ce-certification.webp",
+                "start": 818.8000000119209,
+                "total": 1941.6000000238419,
+                "bytes": 77752
+              },
+              {
+                "path": "/media/portfolio/certs/emc-certification.webp",
+                "start": 820.1000000238419,
+                "total": 1690.1000000238419,
+                "bytes": 57270
+              },
+              {
+                "path": "/media/portfolio/certs/fcc-certification.webp",
+                "start": 823.6000000238419,
+                "total": 1734.2000000178814,
+                "bytes": 26942
+              },
+              {
+                "path": "/media/portfolio/certs/jd-certification.webp",
+                "start": 829.4000000059605,
+                "total": 2717.100000023842,
+                "bytes": 37612
+              },
+              {
+                "path": "/media/portfolio/certs/as1.webp",
+                "start": 833.3000000119209,
+                "total": 3347.9000000059605,
+                "bytes": 60618
+              },
+              {
+                "path": "/media/portfolio/certs/cs1-001.webp",
+                "start": 834,
+                "total": 3611.100000023842,
+                "bytes": 63134
+              },
+              {
+                "path": "/media/portfolio/certs/sc3-001.webp",
+                "start": 839.4000000059605,
+                "total": 3338.600000023842,
+                "bytes": 65648
+              },
+              {
+                "path": "/media/portfolio/certs/op1.webp",
+                "start": 842.9000000059605,
+                "total": 3381.9000000059605,
+                "bytes": 32530
+              }
+            ],
+            "htmlFirstByte": 649
+          }
+        ],
+        "journeys": []
+      },
+      "after": {
+        "mode": "live-after",
+        "at": "2026-11-22T00:36:18.082Z",
+        "website": "https://supplychainsai.com/portfolio/",
+        "files": [
+          "/media/portfolio/certs/ce-certification.webp",
+          "/media/portfolio/certs/emc-certification.webp",
+          "/media/portfolio/certs/fcc-certification.webp",
+          "/media/portfolio/certs/jd-certification.webp",
+          "/media/portfolio/certs/as1.webp",
+          "/media/portfolio/certs/cs1-001.webp",
+          "/media/portfolio/certs/sc3-001.webp",
+          "/media/portfolio/certs/op1.webp"
+        ],
+        "fixed": null,
+        "waitAfterDomMs": 3500,
+        "profiles": {
+          "mobile": {
+            "settings": {
+              "viewport": {
+                "width": 412,
+                "height": 823
+              },
+              "deviceScaleFactor": 2,
+              "isMobile": true,
+              "hasTouch": true
+            },
+            "net": {
+              "offline": false,
+              "latency": 150,
+              "downloadThroughput": 200000,
+              "uploadThroughput": 93750,
+              "connectionType": "cellular4g"
+            },
+            "cpu": 4
+          },
+          "desktop": {
+            "settings": {
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              }
+            },
+            "net": {
+              "offline": false,
+              "latency": 40,
+              "downloadThroughput": 1250000,
+              "uploadThroughput": 625000,
+              "connectionType": "ethernet"
+            },
+            "cpu": 1
+          }
+        },
+        "chrome": "157.0.8103.79",
+        "armHashes": {},
+        "measurements": [
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 3176,
+            "lcp": {
+              "ms": 3264,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 1746.4000000059605
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 2,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1756,
+            "lcp": {
+              "ms": 1832,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 619.5999999940395
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 3,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2136,
+            "lcp": {
+              "ms": 2204,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 932.3000000119209
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 4,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2408,
+            "lcp": {
+              "ms": 2480,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 1176.5
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 5,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2504,
+            "lcp": {
+              "ms": 2576,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 947
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 6,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1956,
+            "lcp": {
+              "ms": 2044,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 730.6999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2548,
+            "lcp": {
+              "ms": 2576,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 1885.800000011921
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "candidate",
+            "round": 2,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1544,
+            "lcp": {
+              "ms": 1568,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 657.3999999761581
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "candidate",
+            "round": 3,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1488,
+            "lcp": {
+              "ms": 1512,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 685.6999999880791
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "candidate",
+            "round": 4,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 4684,
+            "lcp": {
+              "ms": 4700,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 4122.200000017881
+          }
+        ],
+        "journeys": [],
+        "failedMeasurements": [
+          {
+            "device": "mobile",
+            "round": 6,
+            "stage": "DOMContentLoaded",
+            "timeoutMs": 30000,
+            "cause": "First measurement ended before DOMContentLoaded. The original instrument did not save outstanding requests."
+          }
+        ]
+      },
+      "summaries": {
+        "mobile": {
+          "before": {
+            "lcpMs": {
+              "median": 2592.0,
+              "range": [1840, 2908],
+              "samples": [2112, 2908, 1840, 2720, 2464, 2756]
+            },
+            "firstContentMs": {
+              "median": 2528.0,
+              "range": [1772, 2848],
+              "samples": [2048, 2848, 1772, 2652, 2404, 2696]
+            },
+            "firstByteMs": {
+              "median": 674.45,
+              "range": [601.7, 968.5],
+              "samples": [725.9, 686.7, 620.7, 968.5, 662.2, 601.7]
+            },
+            "firstByteToLcpMs": {
+              "median": 1776.65,
+              "range": [1219.3, 2221.3],
+              "samples": [1386.1, 2221.3, 1219.3, 1751.5, 1801.8, 2154.3]
+            }
+          },
+          "after": {
+            "lcpMs": {
+              "median": 2342.0,
+              "range": [1832, 3264],
+              "samples": [3264, 1832, 2204, 2480, 2576, 2044]
+            },
+            "firstContentMs": {
+              "median": 2272.0,
+              "range": [1756, 3176],
+              "samples": [3176, 1756, 2136, 2408, 2504, 1956]
+            },
+            "firstByteMs": {
+              "median": 939.65,
+              "range": [619.6, 1746.4],
+              "samples": [1746.4, 619.6, 932.3, 1176.5, 947, 730.7]
+            },
+            "firstByteToLcpMs": {
+              "median": 1308.4,
+              "range": [1212.4, 1629],
+              "samples": [1517.6, 1212.4, 1271.7, 1303.5, 1629, 1313.3]
+            }
+          }
+        },
+        "desktop": {
+          "before": {
+            "lcpMs": {
+              "median": 1462.0,
+              "range": [1344, 1596],
+              "samples": [1452, 1596, 1472, 1344]
+            },
+            "firstContentMs": {
+              "median": 1434.0,
+              "range": [1320, 1572],
+              "samples": [1424, 1572, 1444, 1320]
+            },
+            "firstByteMs": {
+              "median": 689.6,
+              "range": [649, 757.3],
+              "samples": [702.1, 677.1, 757.3, 649]
+            },
+            "firstByteToLcpMs": {
+              "median": 732.3,
+              "range": [695, 918.9],
+              "samples": [749.9, 918.9, 714.7, 695]
+            }
+          },
+          "after": {
+            "lcpMs": {
+              "median": 2072.0,
+              "range": [1512, 4700],
+              "samples": [2576, 1568, 1512, 4700]
+            },
+            "firstContentMs": {
+              "median": 2046.0,
+              "range": [1488, 4684],
+              "samples": [2548, 1544, 1488, 4684]
+            },
+            "firstByteMs": {
+              "median": 1285.75,
+              "range": [657.4, 4122.2],
+              "samples": [1885.8, 657.4, 685.7, 4122.2]
+            },
+            "firstByteToLcpMs": {
+              "median": 758.25,
+              "range": [577.8, 910.6],
+              "samples": [690.2, 910.6, 826.3, 577.8]
+            }
+          }
+        }
+      },
+      "egressObservedBefore": "colo=NRT loc=JP",
+      "egressObservedAfter": "colo=NRT loc=JP",
+      "dialogChecksWithPublishedHTML": {
+        "mode": "live",
+        "at": "2026-11-22T00:40:13.981Z",
+        "website": "https://supplychainsai.com/portfolio/",
+        "files": [
+          "/media/portfolio/certs/ce-certification.webp",
+          "/media/portfolio/certs/emc-certification.webp",
+          "/media/portfolio/certs/fcc-certification.webp",
+          "/media/portfolio/certs/jd-certification.webp",
+          "/media/portfolio/certs/as1.webp",
+          "/media/portfolio/certs/cs1-001.webp",
+          "/media/portfolio/certs/sc3-001.webp",
+          "/media/portfolio/certs/op1.webp"
+        ],
+        "fixed": null,
+        "waitAfterDomMs": 3500,
+        "profiles": {
+          "mobile": {
+            "settings": {
+              "viewport": {
+                "width": 412,
+                "height": 823
+              },
+              "deviceScaleFactor": 2,
+              "isMobile": true,
+              "hasTouch": true
+            },
+            "net": {
+              "offline": false,
+              "latency": 150,
+              "downloadThroughput": 200000,
+              "uploadThroughput": 93750,
+              "connectionType": "cellular4g"
+            },
+            "cpu": 4
+          },
+          "desktop": {
+            "settings": {
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              }
+            },
+            "net": {
+              "offline": false,
+              "latency": 40,
+              "downloadThroughput": 1250000,
+              "uploadThroughput": 625000,
+              "connectionType": "ethernet"
+            },
+            "cpu": 1
+          }
+        },
+        "chrome": "157.0.8103.79",
+        "armHashes": {},
+        "measurements": [],
+        "journeys": [
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 2144,
+            "lcp": {
+              "ms": 2208,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.75,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 685.4000000059605,
+            "checked": [
+              {
+                "source": "/media/portfolio/certs/ce-certification.webp",
+                "display": {
+                  "width": 614,
+                  "height": 869,
+                  "alt": "CE Certificate of Compliance — AS1 Bluetooth Speaker"
+                },
+                "openDecodeCloseMs": 53,
+                "closed": true
+              },
+              {
+                "source": "/media/portfolio/certs/op1.webp",
+                "display": {
+                  "width": 700,
+                  "height": 990,
+                  "alt": "A701 Gaming Headset — Patent Record"
+                },
+                "openDecodeCloseMs": 138,
+                "closed": true
+              }
+            ],
+            "errors": [],
+            "resourceFailures": []
+          },
+          {
+            "engine": "chrome",
+            "device": "desktop",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "desktop",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1996,
+            "lcp": {
+              "ms": 2024,
+              "tag": "H1"
+            },
+            "scroll": 0,
+            "viewport": 900,
+            "certificateTop": 4063,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 1241.800000011921,
+            "checked": [
+              {
+                "source": "/media/portfolio/certs/ce-certification.webp",
+                "display": {
+                  "width": 614,
+                  "height": 869,
+                  "alt": "CE Certificate of Compliance — AS1 Bluetooth Speaker"
+                },
+                "openDecodeCloseMs": 19,
+                "closed": true
+              },
+              {
+                "source": "/media/portfolio/certs/op1.webp",
+                "display": {
+                  "width": 700,
+                  "height": 990,
+                  "alt": "A701 Gaming Headset — Patent Record"
+                },
+                "openDecodeCloseMs": 116,
+                "closed": true
+              }
+            ],
+            "errors": [],
+            "resourceFailures": []
+          },
+          {
+            "engine": "webkit",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "mobile",
+            "js": true,
+            "certStartsBeforeScroll": [],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": 1703,
+            "lcp": {
+              "ms": 1791,
+              "tag": "P"
+            },
+            "scroll": 0,
+            "viewport": 823,
+            "certificateTop": 4638.453125,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 768,
+            "checked": [
+              {
+                "source": "/media/portfolio/certs/ce-certification.webp",
+                "display": {
+                  "width": 614,
+                  "height": 869,
+                  "alt": "CE Certificate of Compliance — AS1 Bluetooth Speaker"
+                },
+                "openDecodeCloseMs": 47,
+                "closed": true
+              },
+              {
+                "source": "/media/portfolio/certs/op1.webp",
+                "display": {
+                  "width": 700,
+                  "height": 990,
+                  "alt": "A701 Gaming Headset — Patent Record"
+                },
+                "openDecodeCloseMs": 77,
+                "closed": true
+              }
+            ],
+            "errors": [],
+            "resourceFailures": []
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "arm": "candidate",
+            "round": 1,
+            "profile": "mobile",
+            "js": false,
+            "certStartsBeforeScroll": [
+              "/media/portfolio/certs/ce-certification.webp",
+              "/media/portfolio/certs/emc-certification.webp",
+              "/media/portfolio/certs/fcc-certification.webp",
+              "/media/portfolio/certs/jd-certification.webp",
+              "/media/portfolio/certs/as1.webp",
+              "/media/portfolio/certs/cs1-001.webp",
+              "/media/portfolio/certs/sc3-001.webp",
+              "/media/portfolio/certs/op1.webp"
+            ],
+            "title": "Success Stories — Diversity Innovations Limited",
+            "canonical": "https://supplychainsai.com/portfolio/",
+            "fcp": null,
+            "lcp": null,
+            "scroll": 0,
+            "viewport": 1664,
+            "certificateTop": 7495.625,
+            "certificateBytes": 0,
+            "transfers": [],
+            "htmlFirstByte": 881.5999999940395,
+            "checked": [
+              {
+                "source": "/media/portfolio/certs/ce-certification.webp",
+                "noJsDecoded": true
+              },
+              {
+                "source": "/media/portfolio/certs/op1.webp",
+                "noJsDecoded": true
+              }
+            ],
+            "errors": [],
+            "resourceFailures": []
+          }
+        ],
+        "failedMeasurements": [],
+        "failedJourneys": [
+          {
+            "engine": "webkit",
+            "device": "mobile",
+            "step": "thumbnail decode immediately after scrolling",
+            "error": "EncodingError: Aborted by source change"
+          },
+          {
+            "engine": "chrome",
+            "device": "mobile",
+            "js": false,
+            "step": "waitForFunction thumbnail check",
+            "error": "Timeout after 15000 ms"
+          }
+        ]
+      },
+      "directConnectionControl": [
+        {
+          "round": 1,
+          "order": 1,
+          "path": "/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+          "reused": false,
+          "initialConnectionMs": 314.7917920141481,
+          "requestToHeadMs": 584.9966249952558,
+          "serverTiming": null
+        },
+        {
+          "round": 1,
+          "order": 2,
+          "path": "/oem/",
+          "status": 200,
+          "bytes": 119004,
+          "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+          "reused": true,
+          "initialConnectionMs": null,
+          "requestToHeadMs": 388.744083000347,
+          "serverTiming": null
+        },
+        {
+          "round": 2,
+          "order": 1,
+          "path": "/oem/",
+          "status": 200,
+          "bytes": 119004,
+          "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+          "reused": false,
+          "initialConnectionMs": 315.88224999723025,
+          "requestToHeadMs": 438.1619170017075,
+          "serverTiming": null
+        },
+        {
+          "round": 2,
+          "order": 2,
+          "path": "/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+          "reused": true,
+          "initialConnectionMs": null,
+          "requestToHeadMs": 356.27208297955804,
+          "serverTiming": null
+        },
+        {
+          "round": 3,
+          "order": 1,
+          "path": "/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+          "reused": false,
+          "initialConnectionMs": 318.3255000039935,
+          "requestToHeadMs": 334.48083300027065,
+          "serverTiming": null
+        },
+        {
+          "round": 3,
+          "order": 2,
+          "path": "/oem/",
+          "status": 200,
+          "bytes": 119004,
+          "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+          "reused": true,
+          "initialConnectionMs": null,
+          "requestToHeadMs": 352.83820901531726,
+          "serverTiming": null
+        },
+        {
+          "round": 4,
+          "order": 1,
+          "path": "/oem/",
+          "status": 200,
+          "bytes": 119004,
+          "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+          "reused": false,
+          "initialConnectionMs": 315.7724170014262,
+          "requestToHeadMs": 491.105624998454,
+          "serverTiming": null
+        },
+        {
+          "round": 4,
+          "order": 2,
+          "path": "/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+          "reused": true,
+          "initialConnectionMs": null,
+          "requestToHeadMs": 362.2845410136506,
+          "serverTiming": null
+        }
+      ]
+    }
   }
 }
