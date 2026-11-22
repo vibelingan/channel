@@ -4,7 +4,11 @@
 
 用已验收的 589 份 HTML 逐个查找 Google 清单中的图片编号。960 个编号全部仍出现在实际图片标签里。250 个保留了 Google CSV 中的官网地址，另外 710 个在当前网页中通过腾讯云服务域名引用。部分同时给浏览器提供不同宽度。取其中 11 张，通过各自官网地址和腾讯云地址完整下载，22 个请求均返回 200，同一张图在两个地址的摘要逐一相同。
 
-Google 支持用其他域名提供图片。这次对照说明了同一张图为什么会出现在以前的官网网址清单里，也为后续核对重复地址提供了实际样本。网站的商品索引和 Google 图片搜索分别按各自的报表检查。 [逐项计数及双域名实测](evidence/google-media-aliases-and-latency-2026-11-22.json) · [Google 图片搜索要求](https://developers.google.com/search/docs/appearance/google-images)
+Google 支持用其他域名提供图片。同一张图可以有原地址、腾讯云服务域名和不同尺寸。现有样本说明两个域名都能正常交付图片，迁移图片域名本身没有依据能改善商品页收录。商品网页是否入索引，与图片是否出现在 Google 图片搜索，分别看各自的结果。 [逐项计数及双域名实测](evidence/google-media-aliases-and-latency-2026-11-22.json) · [Google 图片搜索要求](https://developers.google.com/search/docs/appearance/google-images)
+
+这份 989 条的报表里，960 条是已抓取、尚未收入网页索引的图片。其余 29 条包括 12 个已发现的网页、5 个历史 4xx 地址、1 个历史 404 地址、4 个跳转入口、5 个指向正式网址的重复版本、1 个按规则限制抓取的入口及 1 个曾有禁止收录信号的地址。优先复查 12 个待查网址中应当收录的网页、历史故障地址和已开放的 Blog；有意跳转和重复网址继续指向正式版本。
+
+北京时间 08:09:51–08:47:38，腾讯网关对其中 19 个在跟踪的准确地址记录了 15 次请求，全部返回 200，未核实到 Googlebot 的来源。这个时段仍没有新的 Google 复查回执。 [本轮网关记录](evidence/google-media-aliases-and-latency-2026-11-22.json) · [Google 的网页索引报告说明](https://support.google.com/webmasters/answer/7440203)
 
 ## 11 月 22 日接着核对实际请求
 
