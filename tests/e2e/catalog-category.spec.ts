@@ -252,6 +252,39 @@ for (const family of families) {
   });
 }
 
+test('late taxonomy shows all categories during and after the initial unfiltered request', async ({
+  page,
+}) => {
+  const taxonomy = deferred();
+  const listStarted = deferred();
+  const list = deferred();
+  await page.route('**/api/catalog-taxonomy?family=headphones', async (route) => {
+    await taxonomy.promise;
+    await route.fallback();
+  });
+  const requests = await mockCatalog(page, 'headphones', async () => {
+    listStarted.resolve();
+    await list.promise;
+    return false;
+  });
+
+  try {
+    await page.goto('/headphones/');
+    await listStarted.promise;
+    taxonomy.resolve();
+    const checked = page.getByRole('checkbox', { checked: true });
+    await expect(checked).toHaveCount(3);
+    list.resolve();
+    await expectPage(page, 'headphones', 1);
+    await expect(checked).toHaveCount(3);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].searchParams.has('subcategoryIds')).toBe(false);
+  } finally {
+    taxonomy.resolve();
+    list.resolve();
+  }
+});
+
 test('Headphones category and search reset page one; no selected categories stays empty across reload', async ({
   page,
 }) => {

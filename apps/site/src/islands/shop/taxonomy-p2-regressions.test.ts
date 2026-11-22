@@ -81,7 +81,7 @@ function filterHarness(
   if (options.invalid) stateRef.current = { ...stateRef.current, error: 'Invalid selection' };
   const invalidSelectionRef = { current: options.invalid ?? false };
   const requests: NumberedCatalogQuery[] = [];
-  let selected: string[] = [];
+  let selected: NumberedCatalogQuery['categories'] = null;
   let search = '';
   const location = new URL('https://catalog.example/headphones/?subcategoryIds=retired&page=8');
   const historyWrites: string[] = [];
@@ -93,7 +93,7 @@ function filterHarness(
   const names = [
     'handleFilters',
     'writeCatalogHistory',
-    ...(options.includeClear ? ['handleClearFilters'] : []),
+    ...(options.includeClear ? ['restoreInputs', 'handleClearFilters'] : []),
   ];
   const handlers = bindHandlers<{
     handleFilters: (search: string, categories: string[], categoriesChanged?: boolean) => void;
@@ -103,11 +103,12 @@ function filterHarness(
     stateRef,
     invalidSelectionRef,
     detailIsOpen: () => false,
+    useCallback: (callback: () => void) => callback,
     window: { location, history },
     setSearchInput: (next: string) => {
       search = next;
     },
-    setSelectedCategories: (next: string[]) => {
+    setCategorySelection: (next: NumberedCatalogQuery['categories']) => {
       selected = next;
     },
     catalogQueryEquals,
@@ -129,6 +130,7 @@ function filterHarness(
 test('reselecting all categories restores the unfiltered query, including orphan products', () => {
   const harness = filterHarness({ requested: { page: 3, search: '', categories: ['alpha'] } });
   harness.handleFilters('  speaker  ', ['beta', 'alpha', 'alpha'], true);
+  assert.equal(harness.inputs().selected, null);
   assert.deepEqual(harness.requests, [{ page: 1, search: 'speaker', categories: null }]);
 });
 
@@ -136,6 +138,7 @@ test('explicit empty selection remains empty even with zero registered categorie
   for (const keys of [['alpha', 'beta'], []]) {
     const harness = filterHarness({ keys });
     harness.handleFilters('', [], true);
+    assert.deepEqual(harness.inputs().selected, []);
     assert.deepEqual(harness.requests, [{ page: 1, search: '', categories: [] }]);
   }
 });
@@ -168,7 +171,7 @@ test('clear filters recovers an invalid URL with no active checkboxes', () => {
   harness.handleClearFilters();
   assert.equal(harness.invalidSelectionRef.current, false);
   assert.deepEqual(harness.requests, [{ page: 1, search: '', categories: null }]);
-  assert.deepEqual(harness.inputs(), { selected: [], search: '' });
+  assert.deepEqual(harness.inputs(), { selected: null, search: '' });
   assert.deepEqual(harness.historyWrites, ['/headphones/']);
 });
 
@@ -184,7 +187,7 @@ test('automatic invalid URL reads abort pending products without requesting an u
     const invalidSelectionRef = { current: false };
     const abortRef = { current: new AbortController() };
     let requests = 0;
-    let selected: string[] = ['retired'];
+    let selected: NumberedCatalogQuery['categories'] = ['retired'];
     const { readLocation } = bindHandlers<{ readLocation: () => void }>(
       new URL('./CatalogFamilyPage.tsx', import.meta.url),
       ['readLocation'],
@@ -205,7 +208,7 @@ test('automatic invalid URL reads abort pending products without requesting an u
         commit: (next: NumberedCatalogState) => {
           stateRef.current = next;
         },
-        setSelectedCategories: (next: string[]) => {
+        setCategorySelection: (next: NumberedCatalogQuery['categories']) => {
           selected = next;
         },
         navigate: () => {

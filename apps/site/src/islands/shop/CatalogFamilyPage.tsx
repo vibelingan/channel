@@ -256,7 +256,10 @@ function CatalogFamilyController({
 }) {
   const categoryKeys = family.categories.map((category) => category.key);
   const deliveredPageCount = catalogDeliveredPageCount(bootstrap);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(categoryKeys);
+  // Keep the unfiltered selection independent of when the category registry arrives.
+  const [categorySelection, setCategorySelection] =
+    useState<NumberedCatalogQuery['categories']>(null);
+  const selectedCategories = categorySelection ?? categoryKeys;
   const [searchInput, setSearchInput] = useState('');
   const [state, setState] = useState<NumberedCatalogState>(() =>
     initialNumberedCatalogState(bootstrap),
@@ -280,17 +283,10 @@ function CatalogFamilyController({
     setState(next);
   }, []);
 
-  const restoreInputs = useCallback(
-    (query: NumberedCatalogQuery) => {
-      setSearchInput(query.search);
-      setSelectedCategories(
-        query.categories === null
-          ? family.categories.map((category) => category.key)
-          : [...query.categories],
-      );
-    },
-    [family.categories],
-  );
+  const restoreInputs = useCallback((query: NumberedCatalogQuery) => {
+    setSearchInput(query.search);
+    setCategorySelection(query.categories);
+  }, []);
 
   const navigate = useCallback(
     async (
@@ -430,7 +426,7 @@ function CatalogFamilyController({
               ? error.message
               : content.list.errorLabel,
         });
-        setSelectedCategories([]);
+        setCategorySelection([]);
         return;
       }
       if (!hasFilters && !detailIsOpen()) {
@@ -552,11 +548,14 @@ function CatalogFamilyController({
     void navigate({ ...current.committed, page }, 'push', true);
   };
 
-  const handleFilters = (search: string, categories: string[], categoriesChanged = false) => {
+  const handleFilters = (
+    search: string,
+    categories: readonly string[],
+    categoriesChanged = false,
+  ) => {
     if (detailIsOpen() || (invalidSelectionRef.current && !categoriesChanged)) return;
     if (categories.some((category) => !categoryKeys.includes(category))) return;
     setSearchInput(search);
-    setSelectedCategories(categories);
     const current = stateRef.current;
     const query: NumberedCatalogQuery = {
       page: 1,
@@ -567,6 +566,7 @@ function CatalogFamilyController({
           : catalogQueryWithFilters(current.requested, search, categories, categoryKeys).categories
         : current.requested.categories,
     };
+    if (categoriesChanged) setCategorySelection(query.categories);
     if (invalidSelectionRef.current)
       writeCatalogHistory(query, 'replace', pageMetadata, deliveredPageCount);
     invalidSelectionRef.current = false;
@@ -577,8 +577,7 @@ function CatalogFamilyController({
   const handleClearFilters = () => {
     if (detailIsOpen()) return;
     const query: NumberedCatalogQuery = { page: 1, search: '', categories: null };
-    setSearchInput('');
-    setSelectedCategories(categoryKeys);
+    restoreInputs(query);
     writeCatalogHistory(query, 'replace', pageMetadata, deliveredPageCount);
     invalidSelectionRef.current = false;
     void navigate(query, 'push');
