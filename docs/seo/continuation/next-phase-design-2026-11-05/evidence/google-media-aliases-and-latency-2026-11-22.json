@@ -1,0 +1,1250 @@
+{
+  "baselineSite": "site-44966587650-1",
+  "googleImageReferences": {
+    "htmlPages": 589,
+    "products": 528,
+    "exportedImageUrls": 960,
+    "classifications": {
+      "actualImageMarkup": 960
+    },
+    "originalExactInMarkup": 250,
+    "imageMarkupUsesCurrentSizedUrl": 101,
+    "classificationsByCurrentImageUrl": {
+      "otherHostOnly": 710,
+      "includesExactGoogleAddress": 250
+    },
+    "urlSummaryExamples": {
+      "otherHostOnly": [
+        {
+          "url": "https://supplychainsai.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=1280",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=160",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=640"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/96d9cd126ac8814c006de0ca496196e6",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac8814c006de0ca496196e6"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/d99dc9256aba13db0135354b21f60bff",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aba13db0135354b21f60bff"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/d99dc9256aab8554002b248030ad01a6",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab8554002b248030ad01a6"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/d99dc9256aab661b002815c75e552426",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab661b002815c75e552426"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/d99dc9256aaa66c10017431d15b9093b",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aaa66c10017431d15b9093b"
+          ]
+        }
+      ],
+      "includesExactGoogleAddress": [
+        {
+          "url": "https://supplychainsai.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+            "https://supplychainsai.com/api/images/ea7765a56aab85f40079c9cf5b8a2943"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=1280",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=160",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=640",
+            "https://supplychainsai.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/96d9cd126ac880fd006ddc193ed49f66",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac880fd006ddc193ed49f66",
+            "https://supplychainsai.com/api/images/96d9cd126ac880fd006ddc193ed49f66"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/96d9cd126ac87f63006dc3d865e1cd68",
+          "aliases": [
+            "https://supplychainsai.com/api/images/96d9cd126ac87f63006dc3d865e1cd68",
+            "https://supplychainsai.com/api/images/96d9cd126ac87f63006dc3d865e1cd68?w=1280",
+            "https://supplychainsai.com/api/images/96d9cd126ac87f63006dc3d865e1cd68?w=160",
+            "https://supplychainsai.com/api/images/96d9cd126ac87f63006dc3d865e1cd68?w=640"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=1280",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=160",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=640",
+            "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+            "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=1280",
+            "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=160",
+            "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=640"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae",
+          "aliases": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae",
+            "https://supplychainsai.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae"
+          ]
+        }
+      ]
+    },
+    "examples": {
+      "actualImageMarkup": [
+        {
+          "url": "https://supplychainsai.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+          "lastCrawled": "2026-11-17",
+          "pages": ["/products/p-f5e72d34-1c75-40a5-a7a0-4208e7c6477a/"],
+          "currentUrls": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=1280",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=160",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=640"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/96d9cd126ac8814c006de0ca496196e6",
+          "lastCrawled": "2026-11-16",
+          "pages": [
+            "/products/p-a13ff2dd-d78e-4155-ac75-2ce4eb3e4798/",
+            "/products/p-bf098d32-9b3b-4a6a-ac27-1892ad6fd177/"
+          ],
+          "currentUrls": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac8814c006de0ca496196e6"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+          "lastCrawled": "2026-11-07",
+          "pages": [
+            "/headphones/page/33/",
+            "/products/p-012500bc-034a-4b30-a53c-96d5f9cccaf3/",
+            "/products/p-d68a313b-9bc8-4302-aed0-75c1fe1166f0/"
+          ],
+          "currentUrls": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+            "https://supplychainsai.com/api/images/ea7765a56aab85f40079c9cf5b8a2943"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+          "lastCrawled": "2026-11-07",
+          "pages": ["/headphones/page/19/", "/products/p-7be5e4a7-588c-472b-af12-fa27259a963d/"],
+          "currentUrls": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=1280",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=160",
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=640"
+          ]
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/d99dc9256aba13db0135354b21f60bff",
+          "lastCrawled": "2026-11-07",
+          "pages": ["/products/p-12b26b7b-4a24-4912-a423-87967718286b/"],
+          "currentUrls": [
+            "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aba13db0135354b21f60bff"
+          ]
+        }
+      ]
+    }
+  },
+  "liveImageAliasChecks": [
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+        "status": 200,
+        "headersMs": 1304.1,
+        "bytes": 80590,
+        "mimeType": "image/webp",
+        "sha256": "e818d3e39008dad0ee0eccaafcf0ed940751e60525d16c0251cb29cad5182d60"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+        "status": 200,
+        "headersMs": 1515.8,
+        "bytes": 80590,
+        "mimeType": "image/webp",
+        "sha256": "e818d3e39008dad0ee0eccaafcf0ed940751e60525d16c0251cb29cad5182d60"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=1280",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=160",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3fbe8b166ac88391003ae71a181926a6?w=640"
+      ]
+    },
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/96d9cd126ac8814c006de0ca496196e6",
+        "status": 200,
+        "headersMs": 1733.2,
+        "bytes": 625417,
+        "mimeType": "image/jpeg",
+        "sha256": "680ac1b0e6adbe16cf9eb6217ec237b2a66a9ea47e03db8267509264b188186b"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac8814c006de0ca496196e6",
+        "status": 200,
+        "headersMs": 2812.7,
+        "bytes": 625417,
+        "mimeType": "image/jpeg",
+        "sha256": "680ac1b0e6adbe16cf9eb6217ec237b2a66a9ea47e03db8267509264b188186b"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac8814c006de0ca496196e6"
+      ]
+    },
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/d99dc9256aba13db0135354b21f60bff",
+        "status": 200,
+        "headersMs": 1287.6,
+        "bytes": 27100,
+        "mimeType": "image/jpeg",
+        "sha256": "d576f07b8155b79ac166645ace4dc3d51a41fd892c91c89df61044c0b263a018"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aba13db0135354b21f60bff",
+        "status": 200,
+        "headersMs": 1487.1,
+        "bytes": 27100,
+        "mimeType": "image/jpeg",
+        "sha256": "d576f07b8155b79ac166645ace4dc3d51a41fd892c91c89df61044c0b263a018"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aba13db0135354b21f60bff"
+      ]
+    },
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/d99dc9256aab8554002b248030ad01a6",
+        "status": 200,
+        "headersMs": 2353.1,
+        "bytes": 151200,
+        "mimeType": "image/jpeg",
+        "sha256": "aa065f8c86f410bca1da8986a76aee43b5baef93211970b7f216c17c09b2b8ee"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab8554002b248030ad01a6",
+        "status": 200,
+        "headersMs": 1459.8,
+        "bytes": 151200,
+        "mimeType": "image/jpeg",
+        "sha256": "aa065f8c86f410bca1da8986a76aee43b5baef93211970b7f216c17c09b2b8ee"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab8554002b248030ad01a6"
+      ]
+    },
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/d99dc9256aab661b002815c75e552426",
+        "status": 200,
+        "headersMs": 2327.9,
+        "bytes": 23503,
+        "mimeType": "image/jpeg",
+        "sha256": "bda1d098188579e5b1f4688f2e7ff199f4d9805eaccdb4d9282704c46d13e120"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab661b002815c75e552426",
+        "status": 200,
+        "headersMs": 1655.6,
+        "bytes": 23503,
+        "mimeType": "image/jpeg",
+        "sha256": "bda1d098188579e5b1f4688f2e7ff199f4d9805eaccdb4d9282704c46d13e120"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aab661b002815c75e552426"
+      ]
+    },
+    {
+      "group": "otherHostOnly",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/d99dc9256aaa66c10017431d15b9093b",
+        "status": 200,
+        "headersMs": 2946.8,
+        "bytes": 190293,
+        "mimeType": "image/jpeg",
+        "sha256": "b7874e495ec7349dbd7376f687772ed504c194bfeb1e4e9d3d51e6acbd46cfcd"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aaa66c10017431d15b9093b",
+        "status": 200,
+        "headersMs": 1543.4,
+        "bytes": 190293,
+        "mimeType": "image/jpeg",
+        "sha256": "b7874e495ec7349dbd7376f687772ed504c194bfeb1e4e9d3d51e6acbd46cfcd"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/d99dc9256aaa66c10017431d15b9093b"
+      ]
+    },
+    {
+      "group": "includesExactGoogleAddress",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+        "status": 200,
+        "headersMs": 1336.7,
+        "bytes": 164417,
+        "mimeType": "image/jpeg",
+        "sha256": "c63d7cc9b802c8c18c106c62ac6f4d33c4e5ed46fca03394ee7203849e01128f"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aab85f40079c9cf5b8a2943",
+        "status": 200,
+        "headersMs": 2098.8,
+        "bytes": 164417,
+        "mimeType": "image/jpeg",
+        "sha256": "c63d7cc9b802c8c18c106c62ac6f4d33c4e5ed46fca03394ee7203849e01128f"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aab85f40079c9cf5b8a2943"
+      ]
+    },
+    {
+      "group": "includesExactGoogleAddress",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+        "status": 200,
+        "headersMs": 1218.3,
+        "bytes": 38186,
+        "mimeType": "image/webp",
+        "sha256": "8c31bfbdbca46091e5f8f1e2f612d2d87688860f89493698f7556bb0f05dbf94"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+        "status": 200,
+        "headersMs": 2613.1,
+        "bytes": 38186,
+        "mimeType": "image/webp",
+        "sha256": "8c31bfbdbca46091e5f8f1e2f612d2d87688860f89493698f7556bb0f05dbf94"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=1280",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=160",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/deb4e547-a294-4d77-8910-368d99cf1c6b?w=640"
+      ]
+    },
+    {
+      "group": "includesExactGoogleAddress",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/96d9cd126ac880fd006ddc193ed49f66",
+        "status": 200,
+        "headersMs": 1172.5,
+        "bytes": 33649,
+        "mimeType": "image/jpeg",
+        "sha256": "ba902bc49ea732f8770630cc5c1fde090a4867dd0d856e0a2a33df0c35f65a4d"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac880fd006ddc193ed49f66",
+        "status": 200,
+        "headersMs": 2591.9,
+        "bytes": 33649,
+        "mimeType": "image/jpeg",
+        "sha256": "ba902bc49ea732f8770630cc5c1fde090a4867dd0d856e0a2a33df0c35f65a4d"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/96d9cd126ac880fd006ddc193ed49f66"
+      ]
+    },
+    {
+      "group": "includesExactGoogleAddress",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+        "status": 200,
+        "headersMs": 2038.4,
+        "bytes": 73708,
+        "mimeType": "image/webp",
+        "sha256": "6f52e8c8bdc176a20c49e1a4720a5473aec7ff794672a863e4135201f3972f88"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+        "status": 200,
+        "headersMs": 2091.5,
+        "bytes": 73708,
+        "mimeType": "image/webp",
+        "sha256": "6f52e8c8bdc176a20c49e1a4720a5473aec7ff794672a863e4135201f3972f88"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=1280",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=160",
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/66baec6f6ac87f63007272a63bb14d45?w=640"
+      ]
+    },
+    {
+      "group": "includesExactGoogleAddress",
+      "sameBytes": true,
+      "original": {
+        "url": "https://supplychainsai.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae",
+        "status": 200,
+        "headersMs": 2326.5,
+        "bytes": 34300,
+        "mimeType": "image/jpeg",
+        "sha256": "26a793f76283d6c4963c2d33c5902f22025dcf31182b562f119722aa59751377"
+      },
+      "direct": {
+        "url": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae",
+        "status": 200,
+        "headersMs": 1623.7,
+        "bytes": 34300,
+        "mimeType": "image/jpeg",
+        "sha256": "26a793f76283d6c4963c2d33c5902f22025dcf31182b562f119722aa59751377"
+      },
+      "currentMarkup": [
+        "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/3d00e15d6aab661a0018b16c3edbe0ae"
+      ]
+    }
+  ],
+  "httpSamplesWithMatchedGatewayLogs": [
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 1,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 2.2,
+      "tcpReadyMs": 1061.5,
+      "tlsReadyMs": 1282.3,
+      "readyToSendMs": 1282.4,
+      "firstByteMs": 1775.5,
+      "completeMs": 2000.2,
+      "afterSendMs": 493.1,
+      "upstreamMs": 205,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 279
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 1,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 350.6,
+      "completeMs": 491.3,
+      "afterSendMs": 350.5,
+      "upstreamMs": 206,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 220
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 1,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.4,
+      "tcpReadyMs": 62.7,
+      "tlsReadyMs": 286.4,
+      "readyToSendMs": 286.5,
+      "firstByteMs": 864.5,
+      "completeMs": 1068.0,
+      "afterSendMs": 578.0,
+      "upstreamMs": 232,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 253
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 1,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 325.6,
+      "completeMs": 421.4,
+      "afterSendMs": 325.5,
+      "upstreamMs": 181,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 200
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 1,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.5,
+      "tcpReadyMs": 61.9,
+      "tlsReadyMs": 316.3,
+      "readyToSendMs": 316.3,
+      "firstByteMs": 1045.2,
+      "completeMs": 1137.9,
+      "afterSendMs": 728.9,
+      "upstreamMs": 559,
+      "appTiming": "article-read;dur=420.6, blog-handler;dur=425.1",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 634
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 1,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 605.2,
+      "completeMs": 906.1,
+      "afterSendMs": 605.1,
+      "upstreamMs": 444,
+      "appTiming": "article-read;dur=311.0, blog-handler;dur=316.1",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 507
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 1,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.7,
+      "tcpReadyMs": 63.6,
+      "tlsReadyMs": 317.8,
+      "readyToSendMs": 317.8,
+      "firstByteMs": 1077.3,
+      "completeMs": 1753.5,
+      "afterSendMs": 759.5,
+      "upstreamMs": 589,
+      "appTiming": "ci-record;dur=38.9, ci-storage;dur=252.8, ci-total;dur=291.8",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 593
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 1,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 707.0,
+      "completeMs": 914.1,
+      "afterSendMs": 706.9,
+      "upstreamMs": 504,
+      "appTiming": "ci-record;dur=30.4, ci-storage;dur=185.0, ci-total;dur=215.5",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 514
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 2,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.0,
+      "tcpReadyMs": 61.3,
+      "tlsReadyMs": 282.4,
+      "readyToSendMs": 282.5,
+      "firstByteMs": 625.9,
+      "completeMs": 1087.7,
+      "afterSendMs": 343.4,
+      "upstreamMs": 198,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 219
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 2,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 338.9,
+      "completeMs": 500.1,
+      "afterSendMs": 338.8,
+      "upstreamMs": 196,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 265
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 2,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.6,
+      "tcpReadyMs": 62.2,
+      "tlsReadyMs": 288.5,
+      "readyToSendMs": 288.6,
+      "firstByteMs": 968.4,
+      "completeMs": 1046.6,
+      "afterSendMs": 679.8,
+      "upstreamMs": 534,
+      "appTiming": "article-read;dur=402.8, blog-handler;dur=407.5",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 598
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 2,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 2434.0,
+      "completeMs": 2494.9,
+      "afterSendMs": 2433.9,
+      "upstreamMs": 2282,
+      "appTiming": "article-read;dur=2151.7, blog-handler;dur=2156.2",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 2351
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 2,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.6,
+      "tcpReadyMs": 62.5,
+      "tlsReadyMs": 524.9,
+      "readyToSendMs": 524.9,
+      "firstByteMs": 1210.9,
+      "completeMs": 2243.1,
+      "afterSendMs": 686.0,
+      "upstreamMs": 487,
+      "appTiming": "ci-record;dur=37.9, ci-storage;dur=150.6, ci-total;dur=188.6",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 488
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 2,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 771.1,
+      "completeMs": 822.8,
+      "afterSendMs": 771.0,
+      "upstreamMs": 474,
+      "appTiming": "ci-record;dur=41.0, ci-storage;dur=128.2, ci-total;dur=169.4",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 475
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 2,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.7,
+      "tcpReadyMs": 63.9,
+      "tlsReadyMs": 784.8,
+      "readyToSendMs": 784.8,
+      "firstByteMs": 1156.8,
+      "completeMs": 1798.2,
+      "afterSendMs": 372.0,
+      "upstreamMs": 214,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 226
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 2,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 353.5,
+      "completeMs": 546.7,
+      "afterSendMs": 353.4,
+      "upstreamMs": 189,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 208
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 3,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.4,
+      "tcpReadyMs": 145.5,
+      "tlsReadyMs": 397.2,
+      "readyToSendMs": 397.3,
+      "firstByteMs": 989.2,
+      "completeMs": 1395.0,
+      "afterSendMs": 591.9,
+      "upstreamMs": 436,
+      "appTiming": "article-read;dur=305.1, blog-handler;dur=309.2",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 498
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 3,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 859.5,
+      "completeMs": 923.3,
+      "afterSendMs": 859.4,
+      "upstreamMs": 555,
+      "appTiming": "article-read;dur=435.0, blog-handler;dur=440.2",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 611
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 3,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.8,
+      "tcpReadyMs": 62.1,
+      "tlsReadyMs": 287.1,
+      "readyToSendMs": 287.2,
+      "firstByteMs": 1007.5,
+      "completeMs": 1184.9,
+      "afterSendMs": 720.3,
+      "upstreamMs": 473,
+      "appTiming": "ci-record;dur=33.1, ci-storage;dur=130.1, ci-total;dur=163.3",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 482
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 3,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 627.1,
+      "completeMs": 968.6,
+      "afterSendMs": 627.0,
+      "upstreamMs": 475,
+      "appTiming": "ci-record;dur=35.6, ci-storage;dur=148.9, ci-total;dur=184.6",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 477
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 3,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.7,
+      "tcpReadyMs": 62.4,
+      "tlsReadyMs": 322.4,
+      "readyToSendMs": 322.4,
+      "firstByteMs": 663.8,
+      "completeMs": 1087.0,
+      "afterSendMs": 341.4,
+      "upstreamMs": 179,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 194
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 3,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 291.0,
+      "completeMs": 405.3,
+      "afterSendMs": 290.9,
+      "upstreamMs": 129,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 141
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 3,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 2.9,
+      "tcpReadyMs": 62.1,
+      "tlsReadyMs": 511.0,
+      "readyToSendMs": 511.1,
+      "firstByteMs": 1086.4,
+      "completeMs": 2805.7,
+      "afterSendMs": 575.3,
+      "upstreamMs": 178,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 194
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 3,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 353.5,
+      "completeMs": 1114.2,
+      "afterSendMs": 353.4,
+      "upstreamMs": 209,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 227
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 4,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.4,
+      "tcpReadyMs": 125.0,
+      "tlsReadyMs": 346.5,
+      "readyToSendMs": 346.5,
+      "firstByteMs": 970.7,
+      "completeMs": 1555.3,
+      "afterSendMs": 624.2,
+      "upstreamMs": 462,
+      "appTiming": "ci-record;dur=43.7, ci-storage;dur=126.9, ci-total;dur=170.7",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 471
+    },
+    {
+      "target": "photo",
+      "path": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+      "round": 4,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 695.8,
+      "completeMs": 866.9,
+      "afterSendMs": 695.7,
+      "upstreamMs": 463,
+      "appTiming": "ci-record;dur=43.8, ci-storage;dur=138.2, ci-total;dur=182.1",
+      "encoding": null,
+      "bytes": 70186,
+      "sha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "gatewayMs": 464
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 4,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.2,
+      "tcpReadyMs": 63.1,
+      "tlsReadyMs": 283.0,
+      "readyToSendMs": 283.0,
+      "firstByteMs": 608.9,
+      "completeMs": 1683.5,
+      "afterSendMs": 325.9,
+      "upstreamMs": 185,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 197
+    },
+    {
+      "target": "case",
+      "path": "/portfolio/",
+      "round": 4,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 334.9,
+      "completeMs": 567.4,
+      "afterSendMs": 334.8,
+      "upstreamMs": 179,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 78817,
+      "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129",
+      "gatewayMs": 203
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 4,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.2,
+      "tcpReadyMs": 121.6,
+      "tlsReadyMs": 342.8,
+      "readyToSendMs": 342.8,
+      "firstByteMs": 654.9,
+      "completeMs": 902.5,
+      "afterSendMs": 312.1,
+      "upstreamMs": 168,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 188
+    },
+    {
+      "target": "oem",
+      "path": "/oem/",
+      "round": 4,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 332.0,
+      "completeMs": 431.1,
+      "afterSendMs": 331.9,
+      "upstreamMs": 192,
+      "appTiming": "",
+      "encoding": null,
+      "bytes": 119004,
+      "sha256": "c4875511d473aadd0c3bf6986ce81933707695a09b0f7c8c45c53635dea7b74e",
+      "gatewayMs": 211
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 4,
+      "order": 1,
+      "http": "1.1",
+      "connections": 1,
+      "status": 200,
+      "dnsMs": 3.1,
+      "tcpReadyMs": 61.3,
+      "tlsReadyMs": 518.6,
+      "readyToSendMs": 518.7,
+      "firstByteMs": 1088.4,
+      "completeMs": 1162.3,
+      "afterSendMs": 569.7,
+      "upstreamMs": 425,
+      "appTiming": "article-read;dur=285.6, blog-handler;dur=289.4",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 490
+    },
+    {
+      "target": "blog",
+      "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+      "round": 4,
+      "order": 2,
+      "http": "1.1",
+      "connections": 0,
+      "status": 200,
+      "dnsMs": 0.0,
+      "tcpReadyMs": 0.0,
+      "tlsReadyMs": 0.0,
+      "readyToSendMs": 0.1,
+      "firstByteMs": 562.9,
+      "completeMs": 877.2,
+      "afterSendMs": 562.8,
+      "upstreamMs": 409,
+      "appTiming": "article-read;dur=267.2, blog-handler;dur=271.6",
+      "encoding": "gzip",
+      "bytes": 37628,
+      "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934",
+      "gatewayMs": 485
+    }
+  ],
+  "httpMediansMs": {
+    "case": {
+      "newConnection": {
+        "firstByteMs": 910,
+        "readyToSendMs": 554,
+        "upstreamMs": 195,
+        "gatewayMs": 212
+      },
+      "connectionReused": {
+        "firstByteMs": 343,
+        "readyToSendMs": 0,
+        "upstreamMs": 184,
+        "gatewayMs": 206
+      }
+    },
+    "oem": {
+      "newConnection": {
+        "firstByteMs": 760,
+        "readyToSendMs": 315,
+        "upstreamMs": 188,
+        "gatewayMs": 206
+      },
+      "connectionReused": {
+        "firstByteMs": 335,
+        "readyToSendMs": 0,
+        "upstreamMs": 194,
+        "gatewayMs": 219
+      }
+    },
+    "blog": {
+      "newConnection": {
+        "firstByteMs": 1017,
+        "readyToSendMs": 357,
+        "upstreamMs": 485,
+        "gatewayMs": 548
+      },
+      "connectionReused": {
+        "firstByteMs": 732,
+        "readyToSendMs": 0,
+        "upstreamMs": 500,
+        "gatewayMs": 559
+      }
+    },
+    "photo": {
+      "newConnection": {
+        "firstByteMs": 1042,
+        "readyToSendMs": 332,
+        "upstreamMs": 480,
+        "gatewayMs": 485
+      },
+      "connectionReused": {
+        "firstByteMs": 701,
+        "readyToSendMs": 0,
+        "upstreamMs": 474,
+        "gatewayMs": 476
+      }
+    }
+  },
+  "photoSourceBefore": {
+    "imageId": "ea7765a56aaa4e050023e9c5601592ef",
+    "sourceDigest": "e0e09ac534cf73c1dba2f7651c25f88d997eed42a33e5bdb6f3b93bf97ce07e0",
+    "sourceSha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+    "sourceBytes": 70186,
+    "defaultSha256": null,
+    "defaultBytes": null,
+    "preparedWidths": [],
+    "refCount": 5,
+    "storageProvider": "cloudbase-storage",
+    "programs": {
+      "admin": "2adb5d7abeada5c4786e6a6447c751d1dcbe7f21",
+      "public-api": "6c958866c6db47cb657d72a59303b86dfbb3e927",
+      "alibaba-catalog-sync": "2adb5d7abeada5c4786e6a6447c751d1dcbe7f21"
+    }
+  },
+  "approvedWebpVersions": {
+    "originalBytes": 70186,
+    "rows": [
+      {
+        "wanted": 160,
+        "sourceSha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+        "mimeType": "image/webp",
+        "byteSize": 1398,
+        "width": 160,
+        "height": 160,
+        "checksumSha256": "de8a7bbaa56e30a849034abe2779534a18782539e85552d7f5e335f7fce2e108"
+      },
+      {
+        "wanted": 640,
+        "sourceSha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+        "mimeType": "image/webp",
+        "byteSize": 11414,
+        "width": 640,
+        "height": 640,
+        "checksumSha256": "43b74afc11a63b5331477757b9be2b63ca5bd8394d9d85e76734003000b91650"
+      },
+      {
+        "wanted": 1280,
+        "sourceSha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+        "mimeType": "image/webp",
+        "byteSize": 17088,
+        "width": 800,
+        "height": 800,
+        "checksumSha256": "8e119c5ca83b911d521130aeb7ac9b1dfde73d2a8fbfd38772e64bba7e0e9795"
+      }
+    ]
+  },
+  "sameSizeWebpSsim": 0.992273
+}
