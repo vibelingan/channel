@@ -253,7 +253,7 @@ for (const family of families) {
   });
 }
 
-test('opening a product reads its first detail page while the renderer is downloading', async ({
+test('opening a product reads its first detail page while detail-only scripts are downloading', async ({
   page,
 }) => {
   const renderer = deferred();
@@ -261,11 +261,16 @@ test('opening a product reads its first detail page while the renderer is downlo
   let rendererRequests = 0;
   let detailRequests = 0;
   await mockCatalog(page, 'headphones');
-  await page.route(/\/CatalogDetailController\.[\w-]+\.js(?:\?|$)/, async (route) => {
-    rendererRequests++;
-    await renderer.promise;
-    await route.continue();
-  });
+  await page.route(
+    /\/(?:CatalogDetailController|catalog-detail-api)\.[\w-]+\.js(?:\?|$)/,
+    async (route) => {
+      if (new URL(route.request().url()).pathname.includes('/CatalogDetailController.')) {
+        rendererRequests++;
+      }
+      await renderer.promise;
+      await route.continue();
+    },
+  );
   await page.route('**/api/products/headphones-1/detail?*', async (route) => {
     detailRequests++;
     if (detailRequests === 1) {

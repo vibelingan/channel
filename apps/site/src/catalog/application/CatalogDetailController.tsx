@@ -2,9 +2,10 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   type DetailPage,
-  type DetailPageResult,
+  decodeCatalogDetailPage,
   fetchCatalogDetailPage,
 } from '../infrastructure/catalog-detail-api.ts';
+import type { DetailPageRead } from '../infrastructure/catalog-detail-request.ts';
 import { CatalogDetail } from '../presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../presentation/CatalogVariantGallery.tsx';
 import {
@@ -34,7 +35,7 @@ export function CatalogDetailController({
   onVariantChange?: (id?: string) => void;
   legacyFallback?: ReactNode;
   bootstrap?: DetailPage;
-  initialRead?: Promise<DetailPageResult>;
+  initialRead?: Promise<DetailPageRead>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const focusedProduct = useRef<string | undefined>(undefined);
@@ -52,15 +53,16 @@ export function CatalogDetailController({
     return next;
   }, []);
   const perform = useCallback(
-    async (initial: ProductDetailState, earlyRead?: Promise<DetailPageResult>) => {
+    async (initial: ProductDetailState, earlyRead?: Promise<DetailPageRead>) => {
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
       let pending = initial;
       let firstRead = earlyRead;
       while ((pending.status === 'loading' || pending.status === 'ready') && pending.request) {
-        const result = await (firstRead ??
-          fetchCatalogDetailPage(pending.request, { signal: controller.signal }));
+        const result = firstRead
+          ? await decodeCatalogDetailPage(await firstRead)
+          : await fetchCatalogDetailPage(pending.request, { signal: controller.signal });
         firstRead = undefined;
         if (controller.signal.aborted) return;
         const next = apply({

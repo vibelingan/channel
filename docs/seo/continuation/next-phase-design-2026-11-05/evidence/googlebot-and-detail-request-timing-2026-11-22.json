@@ -89,10 +89,7 @@
     "wwwRedirectPreservesQuery": true,
     "testSubdomain": "seo-https-check.supplychainsai.com",
     "googleAndCloudflareStatus": "NXDOMAIN",
-    "currentCertificateNames": [
-      "supplychainsai.com",
-      "www.supplychainsai.com"
-    ],
+    "currentCertificateNames": ["supplychainsai.com", "www.supplychainsai.com"],
     "apexHtmlUncompressedBytes": 121000,
     "detailScriptUncompressedBytes": 66349
   },
@@ -370,21 +367,13 @@
         "examples": {
           "other pages": {
             "path": "ai-gadgets/index.html",
-            "before": [
-              "/_astro/CatalogFamilyPage.CF6vylrA.js"
-            ],
-            "after": [
-              "/_astro/CatalogFamilyPage.CmeUyiOY.js"
-            ]
+            "before": ["/_astro/CatalogFamilyPage.CF6vylrA.js"],
+            "after": ["/_astro/CatalogFamilyPage.CmeUyiOY.js"]
           },
           "product details": {
             "path": "products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/index.html",
-            "before": [
-              "/_astro/ProductLanding.BWJBHqwz.js"
-            ],
-            "after": [
-              "/_astro/ProductLanding.CbXukCYz.js"
-            ]
+            "before": ["/_astro/ProductLanding.BWJBHqwz.js"],
+            "after": ["/_astro/ProductLanding.CbXukCYz.js"]
           }
         }
       }
@@ -748,13 +737,7 @@
         "started": "2026-11-16",
         "pending": 5,
         "failed": 0,
-        "lastCrawls": [
-          "2026-11-07",
-          "2026-11-06",
-          "2026-11-03",
-          "2026-11-03",
-          "2026-11-03"
-        ]
+        "lastCrawls": ["2026-11-07", "2026-11-06", "2026-11-03", "2026-11-03", "2026-11-03"]
       },
       "webPerformance": {
         "from": "2026-10-14",
@@ -1073,10 +1056,165 @@
           }
         ],
         "earlierStartupTimeoutMs": 30000,
-        "earlierUnansweredRequestPaths": [
-          "/_astro/CatalogFamilyPage.CmeUyiOY.js"
-        ]
+        "earlierUnansweredRequestPaths": ["/_astro/CatalogFamilyPage.CmeUyiOY.js"]
       }
+    }
+  },
+  "requestInCatalog": {
+    "environment": "Local production builds from approved snapshot. Same mock public responses, no production writes. Browser cache disabled. Network adds 150 ms and applies 200,000 bytes per second. CPU 4x slower. The detail response adds 600 ms in every sample.",
+    "browser": "157.0.8103.79",
+    "profile": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "isMobile": true,
+      "hasTouch": true,
+      "reducedMotion": "reduce"
+    },
+    "samples": [
+      {
+        "side": "before",
+        "repeat": 1,
+        "stallMs": 0,
+        "listReadyMs": 4048,
+        "requestStartedMs": 242,
+        "titleVisibleMs": 1313,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "after",
+        "repeat": 1,
+        "stallMs": 0,
+        "listReadyMs": 4058,
+        "requestStartedMs": 3,
+        "titleVisibleMs": 800,
+        "requests": 1,
+        "delayed": 0
+      },
+      {
+        "side": "after",
+        "repeat": 2,
+        "stallMs": 0,
+        "listReadyMs": 4057,
+        "requestStartedMs": 4,
+        "titleVisibleMs": 801,
+        "requests": 1,
+        "delayed": 0
+      },
+      {
+        "side": "before",
+        "repeat": 2,
+        "stallMs": 0,
+        "listReadyMs": 4016,
+        "requestStartedMs": 238,
+        "titleVisibleMs": 1303,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "before",
+        "repeat": 3,
+        "stallMs": 0,
+        "listReadyMs": 4024,
+        "requestStartedMs": 238,
+        "titleVisibleMs": 1305,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "after",
+        "repeat": 3,
+        "stallMs": 0,
+        "listReadyMs": 4070,
+        "requestStartedMs": 4,
+        "titleVisibleMs": 802,
+        "requests": 1,
+        "delayed": 0
+      },
+      {
+        "side": "before",
+        "repeat": 1,
+        "stallMs": 4000,
+        "listReadyMs": 3962,
+        "requestStartedMs": 4191,
+        "titleVisibleMs": 4832,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "after",
+        "repeat": 1,
+        "stallMs": 4000,
+        "listReadyMs": 4080,
+        "requestStartedMs": 4,
+        "titleVisibleMs": 800,
+        "requests": 1,
+        "delayed": 0
+      },
+      {
+        "side": "after",
+        "repeat": 2,
+        "stallMs": 4000,
+        "listReadyMs": 4067,
+        "requestStartedMs": 3,
+        "titleVisibleMs": 800,
+        "requests": 1,
+        "delayed": 0
+      },
+      {
+        "side": "before",
+        "repeat": 2,
+        "stallMs": 4000,
+        "listReadyMs": 4022,
+        "requestStartedMs": 4193,
+        "titleVisibleMs": 4833,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "before",
+        "repeat": 3,
+        "stallMs": 4000,
+        "listReadyMs": 3982,
+        "requestStartedMs": 4194,
+        "titleVisibleMs": 4832,
+        "requests": 1,
+        "delayed": 1
+      },
+      {
+        "side": "after",
+        "repeat": 3,
+        "stallMs": 4000,
+        "listReadyMs": 4067,
+        "requestStartedMs": 4,
+        "titleVisibleMs": 801,
+        "requests": 1,
+        "delayed": 0
+      }
+    ],
+    "catalogEntry": {
+      "before": {
+        "count": 15,
+        "bytes": 159137
+      },
+      "after": {
+        "count": 15,
+        "bytes": 161355
+      }
+    },
+    "htmlProof": {
+      "matchingHtmlImagesAndLinks": 589,
+      "seoPages": 589,
+      "products": 528,
+      "exactMapAndSeoFiles": [
+        "robots.txt",
+        "sitemap-0.xml",
+        "sitemap-index.xml",
+        "seo-manifest.json",
+        "products/manifest.json"
+      ]
     }
   }
 }

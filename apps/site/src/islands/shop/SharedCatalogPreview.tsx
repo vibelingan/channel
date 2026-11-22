@@ -14,7 +14,10 @@ import {
 } from '../../catalog/application/catalog-quote-transport.ts';
 import { submitLocalQuote } from '../../catalog/application/local-quote-transport.ts';
 import { submitPublicQuote } from '../../catalog/application/public-quote-transport.ts';
-import type { DetailPageResult } from '../../catalog/infrastructure/catalog-detail-api.ts';
+import {
+  type DetailPageRead,
+  fetchCatalogDetailResponse,
+} from '../../catalog/infrastructure/catalog-detail-request.ts';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   sharedDetailSearch as previewDetailSearch,
@@ -88,7 +91,7 @@ export default function SharedCatalogPreview({
   const earlyDetail = useRef<{
     productId: string;
     abort: AbortController;
-    result: Promise<DetailPageResult>;
+    result: Promise<DetailPageRead>;
   }>(undefined);
   const cancelEarlyDetail = useCallback(() => {
     earlyDetail.current?.abort.abort();
@@ -180,15 +183,11 @@ export default function SharedCatalogPreview({
       cancelEarlyDetail();
       const abort = new AbortController();
       // Begin the same anonymous detail read as the controller without waiting for its UI.
-      const result = import('../../catalog/infrastructure/catalog-detail-api.ts')
-        .then(({ fetchCatalogDetailPage }) =>
-          fetchCatalogDetailPage({ productId }, { signal: abort.signal }),
-        )
-        .catch(
-          (): DetailPageResult => ({
-            status: abort.signal.aborted ? 'cancelled' : 'network-error',
-          }),
-        );
+      const result = fetchCatalogDetailResponse({ productId }, { signal: abort.signal }).catch(
+        (): DetailPageRead => ({
+          status: abort.signal.aborted ? 'cancelled' : 'network-error',
+        }),
+      );
       earlyDetail.current = { productId, abort, result };
       setSearch(next);
     },
