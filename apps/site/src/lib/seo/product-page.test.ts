@@ -417,6 +417,38 @@ test('a repeated supplier introduction yields to a visible product specification
   );
 });
 
+test('shared supplier copy or an empty description yields to an approved product specification', () => {
+  const entry = metadataEntry('clock', 'World Map Wall Clock');
+  const detail = {
+    ...detailFixture(),
+    _id: entry.product._id,
+    name: entry.product.name,
+    revision: entry.revision,
+    facts: [{ name: 'material', value: 'Resin' }],
+  };
+
+  for (const descriptionText of [
+    'Research & DevelopmentOne-Stop OEM solution makes your idea to product trouble-free.',
+    '',
+  ]) {
+    assert.equal(
+      metadata({ ...entry, detail: { ...detail, descriptionText } }).description,
+      'World Map Wall Clock. material: Resin.',
+    );
+  }
+
+  assert.equal(
+    metadata({
+      ...entry,
+      detail: {
+        ...detail,
+        descriptionText: 'Research & development inspired this clock for map readers.',
+      },
+    }).description,
+    'World Map Wall Clock. Research & development inspired this clock for map readers.',
+  );
+});
+
 test('identical names retain each complete UUID within the title budget', () => {
   const entries = [
     metadataEntry('01121e8b-9503-4095-a889-0742a14c7f4c', 'Wireless headphones for everyday use'),

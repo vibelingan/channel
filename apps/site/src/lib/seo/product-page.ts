@@ -9,8 +9,10 @@ import { publicProductRichResult } from './public-offer.ts';
 const TITLE_BUDGET = 65;
 const DESCRIPTION_BUDGET = 160;
 const DEFAULT_DESCRIPTION = 'View product specifications, photos and quotation options.';
-const supplierIntroduction =
-  /^Experienced Headphones Manufacturer\s+Channel Technology Ltd is engaged in the research\b/i;
+const supplierIntroductions = [
+  /^Experienced Headphones Manufacturer\s+Channel Technology Ltd is engaged in the research\b/i,
+  /^Research\s*&\s*Development\s*One[- ]Stop OEM solution\b/i,
+];
 
 export function productBreadcrumbs(product: Product) {
   const family = product.productFamily;
@@ -35,20 +37,22 @@ function bodySummary(entry: ProductSnapshotEntry): string {
 
 function productDescription(entry: ProductSnapshotEntry, name: string, identity: string) {
   const summary = bodySummary(entry).replace(/\s+/g, ' ').trim();
-  if (!supplierIntroduction.test(summary))
+  const supplierCopy = supplierIntroductions.some((pattern) => pattern.test(summary));
+  const detail = entry.detail;
+  const content = detail && 'content' in detail ? detail.content : undefined;
+  const fact =
+    detail && (!summary || supplierCopy)
+      ? catalogContentView(detail.facts, content)
+          .highlights.map(({ name, value }) => `${name.trim().replace(/:+$/, '')}: ${value.trim()}`)
+          .find((text) => Array.from(text).length <= 60)
+      : undefined;
+  if (!supplierCopy && !fact)
     return fitIdentity(
       `${name.trim()}. ${summary || DEFAULT_DESCRIPTION}`,
       identity,
       DESCRIPTION_BUDGET,
     );
 
-  const detail = entry.detail;
-  const content = detail && 'content' in detail ? detail.content : undefined;
-  const fact =
-    detail &&
-    catalogContentView(detail.facts, content)
-      .highlights.map(({ name, value }) => `${name.trim().replace(/:+$/, '')}: ${value.trim()}`)
-      .find((text) => Array.from(text).length <= 60);
   const description = fact ? `${fact.replace(/\.$/, '')}.` : DEFAULT_DESCRIPTION;
   const available = DESCRIPTION_BUDGET - Array.from(description + identity).length - 2;
   if (available < 2)

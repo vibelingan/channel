@@ -6,6 +6,14 @@
 
 > 2026-11-12历史设计记录：普通页面收录与带价格的商品搜索展示分别验收；后续OFFER-1交付与OFFER-2待办按上方更新区分。
 
+## 11 月 22 日，商品搜索简介改用实际规格
+
+重新从官网完整读取 Google 的 12 个待收录地址，以及四件有公开价格标记的商品。16 个网址均返回 200，声明各自的正式网址，在静态地图中且允许抓取。四件商品的价格标记仍为已验收的美元 3.00、49.10、134.00、52.00，按 `UnitPriceSpecification` 读取。五张历史故障图均返回完整 WebP，图地址允许抓取，响应里没有禁止收录头。Search Console 的 Google 索引记录里，玩具目录仍是已发现、未给出抓取日期。同一网址的实时检查可以读取页面、允许收录，并识别一条有效面包屑。 [Google 收录报告](https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F) · [Google 商品摘要规则](https://developers.google.com/search/docs/appearance/structured-data/product-snippet)
+
+从 528 件已发布商品的同一快照查到 32 件把相同的供应商宣传开头带入搜索简介，另有 4 件没有商品说明。其中 24 件有一条可直接采用的公开规格。现在生成网页时，只有识别到这段确切的宣传开头或缺少商品说明，才从页面现有的规格摘要取材。无可靠规格的宣传段落换成简短通用说明。空说明且无可靠规格时沿用原结果。标签冲突的值不会被选中。不调整商品标题、正文、价格和真实发布时间。
+
+本地用已验收的商品快照和图库尺寸记录构建，589 个页面、580 个可收录地址全部通过检查。逐份对照只有 34 个商品的简介字段变化，34 份商品正文和交互数据一致，原四份网站发现文件和分类清单逐字节相同。世界地图挂钟原简介截进了供应商研发宣传，候选保留原商品名，并写入页面现有规格 `material: Resin`。39 项相关检查及测试类型检查通过。以上为本地候选结果，正式发布和 Google 后续抓取需各自确认。
+
 ## 11 月 21 日核对商品标题和公开规格
 
 对照已验收的官网发布包和 Search Console 的逐网址记录。528 个商品都在静态网站地图里。检查了发布包中的 589 份 HTML，每件商品都能从一个分类页的普通链接点进去。八个仍未进入索引的抽查商品也有同样的入口。包里没有指向旧商品入口的链接。商品详情之间没有互相推荐，适合在确有采购关系时补充内链。仅凭同属耳机分类，不能向买家推荐用途和规格不符的商品。 [正式发布包](https://github.com/vibelingan/channel/actions/runs/44900074902) · [链接和逐网址记录](evidence/product-discovery-and-copy-2026-11-21.json) · [Google 电商导航指南](https://developers.google.com/search/docs/specialty/ecommerce/help-google-understand-your-ecommerce-site-structure)
