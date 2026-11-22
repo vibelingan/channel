@@ -1,0 +1,255 @@
+{
+  "recordedAt": "2026-11-22T14:28:07+09:00",
+  "site": {
+    "acceptedActivation": "site-44985497074-1",
+    "source": "2397c8b9046f05c4a7eb32996531d3bbc368142c"
+  },
+  "googleSearchConsole": {
+    "property": "https://supplychainsai.com/",
+    "indexReport": {
+      "through": "2026-11-16",
+      "indexed": 529,
+      "excluded": 989,
+      "exclusions": {
+        "redirect": 4,
+        "robots": 1,
+        "crawledNotIndexed": 960,
+        "discoveredNotIndexed": 12,
+        "other4xx": 5,
+        "alternateWithCanonical": 5,
+        "noindex": 1,
+        "notFound": 1
+      }
+    },
+    "other4xxValidation": {
+      "started": "2026-11-16",
+      "pending": 5,
+      "failed": 0
+    },
+    "urlInspection": {
+      "primary": {
+        "url": "https://supplychainsai.com/headphones/",
+        "pageIsIndexed": true
+      },
+      "filtered": {
+        "url": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1",
+        "pageIsIndexed": true,
+        "lastGooglebotSmartphoneCrawlDate": "2026-11-13",
+        "declaredCanonical": "https://supplychainsai.com/headphones/",
+        "selectedCanonical": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1",
+        "sitemapDetected": false
+      }
+    },
+    "webPerformanceByPage": {
+      "from": "2026-10-14",
+      "through": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3,
+      "pages": [
+        {
+          "url": "https://supplychainsai.com/",
+          "impressions": 19,
+          "clicks": 1
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-483207676a6829f2008b7cba2ca33a11/",
+          "impressions": 11,
+          "clicks": 1
+        },
+        {
+          "url": "https://supplychainsai.com/blog/",
+          "impressions": 4,
+          "clicks": 1
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/",
+          "impressions": 17,
+          "clicks": 0
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1",
+          "impressions": 4,
+          "clicks": 0
+        }
+      ]
+    }
+  },
+  "siteReadback": {
+    "pages": {
+      "/headphones/": {
+        "status": 200,
+        "url": "https://supplychainsai.com/headphones/",
+        "bytes": 151964,
+        "sha256": "c5f36fd2fb7ebbff80eeb4e85acb7217ae48fccf7f521eabb0851f22b7e95b8b",
+        "type": "text/html",
+        "robotsHeader": null,
+        "canonical": [
+          "https://supplychainsai.com/headphones/"
+        ],
+        "robots": [],
+        "productLinks": 12,
+        "hasPage2": true
+      },
+      "/headphones/?category=headphones-wired&page=1": {
+        "status": 200,
+        "url": "https://supplychainsai.com/headphones/?category=headphones-wired&page=1",
+        "bytes": 151964,
+        "sha256": "c5f36fd2fb7ebbff80eeb4e85acb7217ae48fccf7f521eabb0851f22b7e95b8b",
+        "type": "text/html",
+        "robotsHeader": null,
+        "canonical": [
+          "https://supplychainsai.com/headphones/"
+        ],
+        "robots": [],
+        "productLinks": 12,
+        "hasPage2": true
+      },
+      "/headphones/page/2/": {
+        "status": 200,
+        "url": "https://supplychainsai.com/headphones/page/2/",
+        "bytes": 121000,
+        "sha256": "e4f73fb2e97b7360a6650d1df7307730c1452dec1e9d2868faba97f7ea27fe61",
+        "type": "text/html",
+        "robotsHeader": null,
+        "canonical": [
+          "https://supplychainsai.com/headphones/page/2/"
+        ],
+        "robots": [],
+        "productLinks": 12,
+        "hasPage2": false
+      }
+    },
+    "siteMapLinks": 584,
+    "sitemap": {
+      "primary": true,
+      "selectedAlias": false,
+      "page2": true
+    },
+    "scan": {
+      "staticHtml": 589,
+      "aliasLinks": [],
+      "filterLinkSamples": [],
+      "distinctHeadphoneFilterLinks": 0
+    },
+    "old4xx": [
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "type": "image/webp",
+        "robotsHeader": null,
+        "id": "3fbe8b166ac87f63003984d22ff5a5d7",
+        "matchesPreviousAcceptedBytes": true
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "type": "image/webp",
+        "robotsHeader": null,
+        "id": "66baec6f6ac882aa00729f35667d3ea5",
+        "matchesPreviousAcceptedBytes": true
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "type": "image/webp",
+        "robotsHeader": null,
+        "id": "4db8df016ac88396000781db489eb227",
+        "matchesPreviousAcceptedBytes": true
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "bytes": 87330,
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17",
+        "type": "image/webp",
+        "robotsHeader": null,
+        "id": "ea7765a56ab1dbea01d9b6924386c973",
+        "matchesPreviousAcceptedBytes": true
+      },
+      {
+        "status": 200,
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "bytes": 135494,
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659",
+        "type": "image/webp",
+        "robotsHeader": null,
+        "id": "31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "matchesPreviousAcceptedBytes": true
+      }
+    ]
+  },
+  "mobileChromeReadback": {
+    "viewportWidth": 390,
+    "automationAllowedMethods": [
+      "GET",
+      "HEAD"
+    ],
+    "pages": [
+      {
+        "inputPath": "/headphones/",
+        "http": 200,
+        "path": "/headphones/",
+        "canonical": [
+          "https://supplychainsai.com/headphones/"
+        ],
+        "robots": [],
+        "selected": [],
+        "result": "1–12 of 460 products",
+        "wiredFilterLinks": [
+          "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
+        ],
+        "requests": [],
+        "errors": [],
+        "visibleProductCount": 12
+      },
+      {
+        "inputPath": "/headphones/?category=headphones-wired&page=1",
+        "http": 200,
+        "path": "/headphones/?page=1&category=headphones-wired",
+        "canonical": [
+          "https://supplychainsai.com/headphones/"
+        ],
+        "robots": [],
+        "selected": [
+          "Wired Headphones"
+        ],
+        "result": "1–12 of 109 products",
+        "wiredFilterLinks": [
+          "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
+        ],
+        "requests": [
+          {
+            "query": "?media=responsive-v1&subcategoryIds=headphones-wired&productFamily=headphones&page=1&pageSize=12",
+            "status": 200
+          }
+        ],
+        "errors": [],
+        "visibleProductCount": 12
+      },
+      {
+        "inputPath": "/headphones/page/2/",
+        "http": 200,
+        "path": "/headphones/page/2/",
+        "canonical": [
+          "https://supplychainsai.com/headphones/page/2/"
+        ],
+        "robots": [],
+        "selected": [],
+        "result": "13–24 of 460 products",
+        "wiredFilterLinks": [
+          "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
+        ],
+        "requests": [],
+        "errors": [],
+        "visibleProductCount": 12
+      }
+    ],
+    "firstTwelveProductsSharedByPrimaryAndFilter": 1
+  }
+}

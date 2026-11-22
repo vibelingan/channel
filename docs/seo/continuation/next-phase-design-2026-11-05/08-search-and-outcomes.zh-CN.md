@@ -1,5 +1,13 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 22 日，逐页核对有线耳机筛选地址和真实点击
+
+Google 同时收录了耳机主目录和菜单里的「有线耳机」筛选网址。后者最后一次由手机爬虫抓取是 11 月 13 日。Google 显示网站指定耳机主目录为首选地址，但 Google 给筛选页保留了自己的索引。它在 10 月 14 日至 11 月 19 日获得 4 次展示、0 次点击。八类排除汇总仍停在 11 月 16 日，529 个已收录、989 个排除。 [筛选地址检查](https://search.google.com/search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=kH02F8OspaH9ka-Ml5irpg) · [耳机主目录检查](https://search.google.com/search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=XZzvx2JSADt5ny5W6pzT8g)
+
+同一期间全站 95 次展示、3 次点击。首页 19 次展示、一次点击；一件商品 11 次展示、一次点击；Blog 列表 4 次展示、一次点击。Search Console 的点击是搜索结果里的点击，当前记录未与转化或询盘关联。最近七天的对比仍见下方。 [按网页的搜索表现](https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&breakdown=page) · [逐页证据](evidence/earphone-filter-index-2026-11-22.json)
+
+本次再次从外网完整读取五张历史 4xx 图片，全部返回 200，字节与此前已验收版本一致。Google 复查仍是待检查五张、失败零张。网站修复已经读回，Google 对这五个网址的复查结果仍待更新。 [原复查任务](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [图片响应与筛选核对](evidence/earphone-filter-index-2026-11-22.json) · [分类网址处理](03-discovery-and-urls.zh-CN.md#11-月-22-日核对-google-单独收录的有线耳机筛选地址)
+
 ## 11 月 22 日，确认五张图的复查状态和 Bing 更新
 
 重新打开同一个官网属性。Google 仍用 11 月 16 日的页面索引报表，529 条已收录、989 条排除。五张历史 4xx 图片是 5 条待处理、0 条失败，Google 列出的最后抓取仍为 11 月 3–7 日。官网重读六张历史故障图，包括这五张和另一张旧 404 图，均为 200，完整摘要与验收版本一致。腾讯网关在北京时间 09:56:39–10:17:55 的新增查询窗口里，没有匹配到通过官方地址范围校验的 Googlebot。这个窗口只作为近期观察。 [平台与网站证据](evidence/search-and-stylesheet-followup-2026-11-22.json)
