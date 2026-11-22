@@ -2673,5 +2673,838 @@
         "potentiallyTruncated": false
       }
     ]
+  },
+  "formalPhotoHtmlRefresh": {
+    "release": {
+      "source": "0f929c1b0dab2acbeb98b6a0dc4c548ed2aad4ea",
+      "renderer": "7d05197728bbf6378f27392735195da2e0e5ddea",
+      "baseline": "site-44966587650-1",
+      "run": 44970804116,
+      "checks": [44970330842, 44970330807, 44970330785]
+    },
+    "cloud": {
+      "checkedAt": "2026-11-22T01:36:16.833Z",
+      "leaseState": "idle",
+      "ownerIsThisRun": false,
+      "active": null,
+      "baselineRun": "site-44970804116-1",
+      "dirtyRun": null,
+      "pending": null,
+      "run": {
+        "phase": "SUCCEEDED",
+        "acceptedAt": 1795311009674,
+        "stepCount": 7,
+        "verifiedSteps": 7
+      }
+    },
+    "catalogClock": {
+      "readAt": "2026-11-22T01:36:15.077Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "7d05197728bbf6378f27392735195da2e0e5ddea",
+        "executorSha": "0f929c1b0dab2acbeb98b6a0dc4c548ed2aad4ea",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44970804116-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "catalogAndHtmlSemantics": {
+      "comparedHtml": 568,
+      "publicProducts": 528,
+      "productPresentationOnly": [
+        "003a6310-5244-4766-adfa-eb1002ad0fb4",
+        "0e0afdc26a6820b900523bfb27a9a5cd",
+        "415ca769-b2ec-47d4-a2e2-164784070f2b",
+        "657cac86-cef0-447d-a72e-d96ba2b6e9c0",
+        "c19db540-647e-4129-a9bf-f4c457152a00"
+      ],
+      "detailHintEntriesChanged": [
+        "003a6310-5244-4766-adfa-eb1002ad0fb4",
+        "0e0afdc26a6820b900523bfb27a9a5cd",
+        "3e247f95-c4a0-4b25-a520-3efbeb3967d1",
+        "415ca769-b2ec-47d4-a2e2-164784070f2b",
+        "657cac86-cef0-447d-a72e-d96ba2b6e9c0",
+        "c19db540-647e-4129-a9bf-f4c457152a00"
+      ],
+      "changedProductListing": [],
+      "reorderedProductListing": [],
+      "changedDescriptions": []
+    },
+    "archiveAndReadback": {
+      "filesBefore": 2194,
+      "filesAfter": 2194,
+      "productsBefore": 528,
+      "productsAfter": 528,
+      "differences": {
+        "added": [],
+        "removed": [],
+        "publicVersionChanged": [],
+        "revisionChanged": [],
+        "payloadEntriesWithAnyChanges": [
+          "003a6310-5244-4766-adfa-eb1002ad0fb4",
+          "0e0afdc26a6820b900523bfb27a9a5cd",
+          "415ca769-b2ec-47d4-a2e2-164784070f2b",
+          "657cac86-cef0-447d-a72e-d96ba2b6e9c0",
+          "c19db540-647e-4129-a9bf-f4c457152a00"
+        ]
+      },
+      "onlineControl": {
+        "unknownPageStatus": 404,
+        "apiProgram": "6c958866c6db47cb657d72a59303b86dfbb3e927"
+      },
+      "seoFilesUnchanged": {
+        "robots.txt": true,
+        "sitemap-index.xml": true,
+        "sitemap-0.xml": true,
+        "portfolio/index.html": true,
+        "headphones/index.html": false
+      },
+      "changedRuntimePaths": [],
+      "renderedTargetPhoto": {
+        "headphones/index.html": {
+          "before": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "800",
+              "height": "800",
+              "loading": "lazy",
+              "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone"
+            }
+          ],
+          "after": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "800",
+              "height": "800",
+              "loading": "lazy",
+              "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone"
+            }
+          ]
+        },
+        "products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/index.html": {
+          "before": [
+            {
+              "tag": "img",
+              "src": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "800",
+              "height": "800",
+              "loading": "eager",
+              "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone - General product photo"
+            },
+            {
+              "tag": "img",
+              "src": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ],
+          "after": [
+            {
+              "tag": "img",
+              "src": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, /api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, /api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "800",
+              "height": "800",
+              "loading": "eager",
+              "alt": "Hot Selling BT Headset High Bass Stereo Music OEM Wireless Headphones with iPhone - General product photo"
+            },
+            {
+              "tag": "img",
+              "src": "/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, /api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, /api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ]
+        },
+        "products/p-415ca769-b2ec-47d4-a2e2-164784070f2b/index.html": {
+          "before": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ],
+          "after": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ]
+        },
+        "products/p-657cac86-cef0-447d-a72e-d96ba2b6e9c0/index.html": {
+          "before": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ],
+          "after": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ]
+        },
+        "products/p-c19db540-647e-4129-a9bf-f4c457152a00/index.html": {
+          "before": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ],
+          "after": [
+            {
+              "tag": "img",
+              "src": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef",
+              "srcset": "https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=160 160w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=640 640w, https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/ea7765a56aaa4e050023e9c5601592ef?w=1280 800w",
+              "width": "80",
+              "height": "80",
+              "loading": "lazy",
+              "alt": ""
+            }
+          ]
+        }
+      },
+      "comparedUrls": 19,
+      "readbacks": [
+        {
+          "url": "https://supplychainsai.com/sitemap-0.xml",
+          "status": 200,
+          "bytes": 55409,
+          "sha256": "f00a107ccb370db359cf12e027f1c484666935a6d2c4aa71fe7ba71a9505251b"
+        },
+        {
+          "url": "https://supplychainsai.com/portfolio/",
+          "status": 200,
+          "bytes": 78817,
+          "sha256": "16b6e374dd982315eb64bc86a1a61efe89a283d6b76cb938a2a0c01dafe6a129"
+        },
+        {
+          "url": "https://supplychainsai.com/sitemap-index.xml",
+          "status": 200,
+          "bytes": 262,
+          "sha256": "c674f4737519029d3c741487f597e6521b92eceda3aab19cccaae8d5914b3c68"
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-657cac86-cef0-447d-a72e-d96ba2b6e9c0/",
+          "status": 200,
+          "bytes": 103368,
+          "sha256": "7374e5d90dfae87698f1c64d92785b1291d3ea99e0320994c743ec69e0eef610"
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "status": 200,
+          "bytes": 108481,
+          "sha256": "a57ca7105936a10a7e91f7e58d98bd00b5ab178c50136b4324a286c226b13acc"
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-415ca769-b2ec-47d4-a2e2-164784070f2b/",
+          "status": 200,
+          "bytes": 106049,
+          "sha256": "7a899f6f148bc3ebeb210c4382924d20f288a0d48ea5f30659605b37fffa7158"
+        },
+        {
+          "url": "https://supplychainsai.com/products/p-c19db540-647e-4129-a9bf-f4c457152a00/",
+          "status": 200,
+          "bytes": 105549,
+          "sha256": "65d02682cd076068c73623fb08a380aeff81f7d8b02e21b13b9e47405abaa8b6"
+        },
+        {
+          "url": "https://supplychainsai.com/robots.txt",
+          "status": 200,
+          "bytes": 557,
+          "sha256": "7ae74a03f85be580692855e26e72c1c1abd1f50eabeb31d38492da5206e85090"
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/",
+          "status": 200,
+          "bytes": 151605,
+          "sha256": "30f0d38a461a5971460e9efd880c33b0f6e8d2620a3129541143cbd7b7d594f3"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/",
+          "status": 200,
+          "bytes": 31961,
+          "sha256": "7476e2e6843f1af3ef47e39744eeda0b4bb7d21a36a169dc990e325254c89123"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-project-brief-acceptance-40249243887/",
+          "status": 200,
+          "bytes": 32746,
+          "sha256": "b4963174011a9141063de8d47333e4280531bc17a591d25732c6e3055df275c9"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "status": 200,
+          "bytes": 37628,
+          "sha256": "1f359f32640c659928bce6a144fcb587dd6aad8e82af3dae07e6000ccdf9b934"
+        },
+        {
+          "url": "https://supplychainsai.com/blog/prototype-to-mass-production-oem-odm/",
+          "status": 200,
+          "bytes": 50451,
+          "sha256": "4e09a373699edf02e0799edc27f7d809f1dde2af0b4ee260cebc97d4fc2bb1f1"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+          "status": 200,
+          "bytes": 51178,
+          "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+          "status": 200,
+          "bytes": 65170,
+          "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+          "status": 200,
+          "bytes": 69280,
+          "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+          "status": 200,
+          "bytes": 87330,
+          "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+          "status": 200,
+          "bytes": 135494,
+          "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659"
+        },
+        {
+          "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+          "status": 200,
+          "bytes": 660144,
+          "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876"
+        }
+      ]
+    },
+    "browser": {
+      "egress": {
+        "colo": "NRT",
+        "loc": "JP"
+      },
+      "chrome": "157.0.8103.79",
+      "profile": {
+        "view": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "isMobile": true,
+          "hasTouch": true
+        },
+        "cpu": 4,
+        "network": {
+          "latency": 150,
+          "downloadThroughput": 200000,
+          "uploadThroughput": 93750,
+          "connectionType": "cellular4g"
+        }
+      },
+      "beforeHtmlRefresh": {
+        "rows": [
+          {
+            "round": 1,
+            "lcpMs": 2356,
+            "fcpMs": 2036,
+            "cls": 0.006986493409333193,
+            "pageFirstByteMs": 809.6999999880791,
+            "imageBodyMs": 112.3,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1388.9000000059605,
+                "firstByte": 2229.0999999940395,
+                "lastByte": 2341.4000000059605,
+                "encoded": 17088
+              },
+              {
+                "query": "?w=640",
+                "start": 7615.9000000059605,
+                "firstByte": 8192.800000011921,
+                "lastByte": 8259.300000011921,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 7616.199999988079,
+                "firstByte": 8140.9000000059605,
+                "lastByte": 8155.5,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 2,
+            "lcpMs": 2292,
+            "fcpMs": 1900,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 714.1999999880791,
+            "imageBodyMs": 354.4,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1120.699999988079,
+                "firstByte": 1929.9000000059605,
+                "lastByte": 2284.300000011921,
+                "encoded": 17088
+              }
+            ],
+            "galleryCheck": false,
+            "failure": "The expression evaluated to a falsy value:\n\n  assert(row.heroLoaded&&row.canonical===origin+path)\n"
+          },
+          {
+            "round": 3,
+            "lcpMs": 4196,
+            "fcpMs": 2288,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 887.7999999821186,
+            "imageBodyMs": 375.5,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1247.4000000059605,
+                "firstByte": 3810.7999999821186,
+                "lastByte": 4186.299999982119,
+                "encoded": 17088
+              },
+              {
+                "query": "?w=160",
+                "start": 8311.90000000596,
+                "firstByte": 8726.699999988079,
+                "lastByte": 8739.09999999404,
+                "encoded": 1398
+              },
+              {
+                "query": "?w=640",
+                "start": 8311.90000000596,
+                "firstByte": 8795.199999988079,
+                "lastByte": 8857.699999988079,
+                "encoded": 11414
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 4,
+            "lcpMs": 2152,
+            "fcpMs": 1948,
+            "cls": 0,
+            "pageFirstByteMs": 896.4000000059605,
+            "imageBodyMs": 110.4,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1257.4000000059605,
+                "firstByte": 2033.0999999940395,
+                "lastByte": 2143.5,
+                "encoded": 17088
+              },
+              {
+                "query": "?w=640",
+                "start": 7583.0999999940395,
+                "firstByte": 8531.299999982119,
+                "lastByte": 8599.699999988079,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 7583.9000000059605,
+                "firstByte": 8034.5,
+                "lastByte": 8045.699999988079,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 5,
+            "lcpMs": 2076,
+            "fcpMs": 1740,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 655.5999999940395,
+            "imageBodyMs": 103.1,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1182.800000011921,
+                "firstByte": 1964.300000011921,
+                "lastByte": 2067.4000000059605,
+                "encoded": 17088
+              },
+              {
+                "query": "?w=160",
+                "start": 7959.5,
+                "firstByte": 8457.90000000596,
+                "lastByte": 8471.800000011921,
+                "encoded": 1398
+              },
+              {
+                "query": "?w=640",
+                "start": 7959.5,
+                "firstByte": 8525.90000000596,
+                "lastByte": 8591.40000000596,
+                "encoded": 11414
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 6,
+            "lcpMs": 2616,
+            "fcpMs": 2188,
+            "cls": 0.006986493409333193,
+            "pageFirstByteMs": 1047.5999999940395,
+            "imageBodyMs": 93.6,
+            "photoTransfers": [
+              {
+                "query": "",
+                "start": 1699.5,
+                "firstByte": 2504.4000000059605,
+                "lastByte": 2598,
+                "encoded": 17088
+              },
+              {
+                "query": "?w=640",
+                "start": 7736.9000000059605,
+                "firstByte": 8338.40000000596,
+                "lastByte": 8402.200000017881,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 7737,
+                "firstByte": 8159.5999999940395,
+                "lastByte": 8172.300000011921,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          }
+        ],
+        "median": {
+          "lcpMs": 2324.0,
+          "fcpMs": 1992.0,
+          "cls": 0.006937434883797274,
+          "pageFirstByteMs": 848.7499999850988,
+          "imageBodyMs": 111.35,
+          "imagePayloadBytes": 29900.0,
+          "basicUrlTransfers": 6
+        }
+      },
+      "afterHtmlRefresh": {
+        "rows": [
+          {
+            "round": 1,
+            "lcpMs": 2152,
+            "fcpMs": 1908,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 754,
+            "imageBodyMs": 68.4,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1203.0999999940395,
+                "firstByte": 2069.4000000059605,
+                "lastByte": 2137.800000011921,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 1982.300000011921,
+                "firstByte": 2963.2000000178814,
+                "lastByte": 3006.5,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 2,
+            "lcpMs": 2336,
+            "fcpMs": 1944,
+            "cls": 0.006986493409333193,
+            "pageFirstByteMs": 910,
+            "imageBodyMs": 88.1,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1280.0999999940395,
+                "firstByte": 2241.9000000059605,
+                "lastByte": 2330,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 2009.199999988079,
+                "firstByte": 2865.0999999940395,
+                "lastByte": 2906.5999999940395,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 3,
+            "lcpMs": 1940,
+            "fcpMs": 1800,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 820,
+            "imageBodyMs": 76.1,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1191.0999999940395,
+                "firstByte": 1856.199999988079,
+                "lastByte": 1932.2999999821186,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 1847.5999999940395,
+                "firstByte": 2694.7999999821186,
+                "lastByte": 2748.7999999821186,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 4,
+            "lcpMs": 2452,
+            "fcpMs": 2336,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 1402.7999999821186,
+            "imageBodyMs": 78.3,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1773.3999999761581,
+                "firstByte": 2368.2999999821186,
+                "lastByte": 2446.5999999940395,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 2390.5999999940395,
+                "firstByte": 3149.0999999940395,
+                "lastByte": 3203.0999999940395,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 5,
+            "lcpMs": 2612,
+            "fcpMs": 2316,
+            "cls": 0.006881367997470511,
+            "pageFirstByteMs": 935.3000000119209,
+            "imageBodyMs": 62.5,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1362.6000000238419,
+                "firstByte": 2528.2000000178814,
+                "lastByte": 2590.7000000178814,
+                "encoded": 11414
+              },
+              {
+                "query": "?w=160",
+                "start": 2374,
+                "firstByte": 3152,
+                "lastByte": 3208.2000000178814,
+                "encoded": 1398
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          },
+          {
+            "round": 6,
+            "lcpMs": 2916,
+            "fcpMs": 2848,
+            "cls": 0.006937434883797274,
+            "pageFirstByteMs": 720.5,
+            "imageBodyMs": 96.6,
+            "photoTransfers": [
+              {
+                "query": "?w=640",
+                "start": 1285.3999999761581,
+                "firstByte": 2240.699999988079,
+                "lastByte": 2337.2999999821186,
+                "encoded": 11414
+              }
+            ],
+            "galleryCheck": true,
+            "failure": null
+          }
+        ],
+        "median": {
+          "lcpMs": 2394.0,
+          "fcpMs": 2130.0,
+          "cls": 0.006937434883797274,
+          "pageFirstByteMs": 865.0,
+          "imageBodyMs": 77.19999999999999,
+          "imagePayloadBytes": 12812.0,
+          "basicUrlTransfers": 0
+        }
+      }
+    },
+    "googleConsole": {
+      "indexDataDate": "2026-11-16",
+      "indexed": 529,
+      "excluded": 989,
+      "reasonGroups": 8,
+      "revalidationStarted": "2026-11-16",
+      "pendingOther4xx": 5,
+      "failedOther4xx": 0,
+      "lastCrawledDates": ["2026-11-07", "2026-11-06", "2026-11-03", "2026-11-03", "2026-11-03"],
+      "recentSearchThrough": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3,
+      "sitemapLastRead": "2026-11-19",
+      "sitemapStatus": "Success",
+      "staticSitemapPages": 580,
+      "indexSitemapPages": 584,
+      "discoveredVideos": 1
+    },
+    "verifiedCrawler": {
+      "startLocal": "2026-11-22 02:24:56",
+      "endLocal": "2026-11-22 09:17:09",
+      "segments": [
+        {
+          "startTime": "2026-11-22 02:24:56",
+          "endTime": "2026-11-22 08:24:55",
+          "candidates": 57,
+          "verified": 57
+        },
+        {
+          "startTime": "2026-11-22 08:24:56",
+          "endTime": "2026-11-22 09:17:09",
+          "candidates": 2,
+          "verified": 2
+        }
+      ],
+      "statusCounts": {
+        "200": 59
+      },
+      "group": {
+        "category": 4,
+        "appAssets": 51,
+        "robots": 3,
+        "other": 1
+      },
+      "categoryRequests": [
+        {
+          "path": "/headphones/page/24/",
+          "method": "GET",
+          "status": 200,
+          "utc": "2026-11-21T18:50:23.588Z",
+          "historicalImage": false,
+          "imageBot": false
+        },
+        {
+          "path": "/headphones/page/6/",
+          "method": "GET",
+          "status": 200,
+          "utc": "2026-11-21T19:27:54.414Z",
+          "historicalImage": false,
+          "imageBot": false
+        },
+        {
+          "path": "/headphones/",
+          "method": "GET",
+          "status": 200,
+          "utc": "2026-11-21T23:48:56.791Z",
+          "historicalImage": false,
+          "imageBot": false
+        },
+        {
+          "path": "/electronics-toys/",
+          "method": "GET",
+          "status": 200,
+          "utc": "2026-11-22T01:03:56.945Z",
+          "historicalImage": false,
+          "imageBot": false
+        }
+      ]
+    },
+    "apexHead": {
+      "checkedAt": "2026-11-22T01:23:03.450972+00:00",
+      "observed": [
+        {
+          "url": "http://supplychainsai.com/headphones/?page=2",
+          "status": 200,
+          "location": null
+        },
+        {
+          "url": "http://www.supplychainsai.com/headphones/?page=2",
+          "status": 301,
+          "location": "https://supplychainsai.com/headphones/?page=2"
+        },
+        {
+          "url": "https://supplychainsai.com/headphones/?page=2",
+          "status": 200,
+          "location": null
+        },
+        {
+          "url": "https://www.supplychainsai.com/headphones/?page=2",
+          "status": 301,
+          "location": "https://supplychainsai.com/headphones/?page=2"
+        }
+      ]
+    }
   }
 }
