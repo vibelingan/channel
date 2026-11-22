@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import { catalogCardImageSizes } from '../../catalog/presentation/responsive-images.ts';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
 import { isPlainProductClick, productBrowserPath } from '../../lib/seo/product-identity.ts';
@@ -26,6 +27,7 @@ interface Props {
 }
 
 const SKELETON_KEYS = ['family-1', 'family-2', 'family-3', 'family-4'] as const;
+const subscribeToHydration = () => () => undefined;
 
 export function hasUsableCatalogSlug(product: Product): product is Product & { slug: string } {
   return Boolean(product.slug?.trim());
@@ -129,14 +131,25 @@ export function CatalogFamilyGrid({
   cardImageApiOrigin,
 }: Props) {
   const { list } = content;
+  // The prerendered inputs have no handlers until React attaches. Early edits
+  // would change the browser field without running a search or filter.
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
+  const filtersReady = hydrated && !filtersDisabled;
   // Public products without a legacy slug still have a stable product-ID link.
   const products = state.products;
   const loadingInitial = state.committed === null && (state.pending || state.error === null);
   const page = state.committed?.page ?? 1;
   const start = products.length ? (page - 1) * CATALOG_PAGE_SIZE + 1 : 0;
   const progress = `${start}\u2013${start ? start + products.length - 1 : 0} of ${state.total ?? 0} ${list.resultsLabel}`;
-  const announcement =
-    loadingInitial || state.pending ? list.loadingLabel : (state.error ?? progress);
+  const announcement = filtersReady
+    ? loadingInitial || state.pending
+      ? list.loadingLabel
+      : (state.error ?? progress)
+    : list.preparingSearchLabel;
 
   const toggleCategory = (category: string) => {
     onCategoriesChange(
@@ -164,7 +177,7 @@ export function CatalogFamilyGrid({
                 >
                   <input
                     type="checkbox"
-                    disabled={filtersDisabled}
+                    disabled={!filtersReady}
                     checked={selectedCategories.includes(category.key)}
                     onChange={() => toggleCategory(category.key)}
                     className="h-4 w-4 accent-brand-600"
@@ -179,12 +192,13 @@ export function CatalogFamilyGrid({
           <span className="text-sm font-semibold text-ink">{list.searchPlaceholder}</span>
           <input
             type="search"
-            disabled={filtersDisabled}
+            disabled={!filtersReady}
             value={searchInput}
             onChange={(event) => onSearchInputChange(event.currentTarget.value)}
-            placeholder={list.searchPlaceholder}
+            placeholder={filtersReady ? list.searchPlaceholder : list.preparingSearchLabel}
             className="mt-2 block min-h-11 w-full border border-slate-300 bg-white px-3 text-sm text-ink outline-none focus:border-brand-500 sm:w-72"
           />
+          <noscript>{list.searchRequiresJavaScriptLabel}</noscript>
         </label>
       </div>
 

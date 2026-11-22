@@ -149,6 +149,8 @@ test('server rendering never presents legacy checkboxes before the public regist
       allLabel: 'All',
       resultsLabel: 'products',
       searchPlaceholder: 'Search',
+      preparingSearchLabel: 'Preparing search and filters…',
+      searchRequiresJavaScriptLabel: 'Turn on JavaScript to search and filter.',
       loadingLabel: 'Loading',
       errorLabel: 'Load failed',
       retryLabel: 'Retry',

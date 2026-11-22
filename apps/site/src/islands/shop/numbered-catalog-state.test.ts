@@ -62,6 +62,8 @@ const content: CatalogContent = {
     filterLabel: 'Categories',
     allLabel: 'All products',
     searchPlaceholder: 'Search products',
+    preparingSearchLabel: 'Preparing search and filters…',
+    searchRequiresJavaScriptLabel: 'Turn on JavaScript to search and filter.',
     loadingLabel: 'Loading products',
     errorLabel: 'Load failed',
     retryLabel: 'Try Again',

@@ -62,6 +62,8 @@ const content = {
   list: {
     filterLabel: 'Categories',
     searchPlaceholder: 'Search products',
+    preparingSearchLabel: 'Preparing search and filters…',
+    searchRequiresJavaScriptLabel: 'Turn on JavaScript to search and filter.',
     loadingLabel: 'Loading products',
     errorLabel: 'Load failed',
     retryLabel: 'Try Again',
@@ -96,6 +98,14 @@ const renderGrid = (
       onPageChange: () => undefined,
     }),
   );
+
+test('the first numbered catalog HTML keeps filters unavailable until handlers can run', () => {
+  const html = renderGrid(readyState());
+  assert.match(html, /<input (?=[^>]*type="search")(?=[^>]*disabled="")/);
+  assert.match(html, /<input (?=[^>]*type="checkbox")(?=[^>]*disabled="")/);
+  assert.match(html, /placeholder="Preparing search and filters…"/);
+  assert.match(html, /<noscript>Turn on JavaScript to search and filter\.<\/noscript>/);
+});
 
 test('a numbered catalog can use the public website image route for known product pictures', () => {
   const storageApi = 'https://catalog-images.example.com';

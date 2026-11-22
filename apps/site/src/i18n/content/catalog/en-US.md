@@ -22,6 +22,8 @@ list:
   allLabel: All products
   resultsLabel: products
   searchPlaceholder: Search products
+  preparingSearchLabel: Preparing search and filters…
+  searchRequiresJavaScriptLabel: Turn on JavaScript to search and filter. You can still browse the products below.
   loadingLabel: Loading products…
   errorLabel: We could not load this product family.
   retryLabel: Try Again

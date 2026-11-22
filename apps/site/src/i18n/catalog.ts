@@ -41,6 +41,8 @@ export interface CatalogContent {
     allLabel: string;
     resultsLabel: string;
     searchPlaceholder: string;
+    preparingSearchLabel: string;
+    searchRequiresJavaScriptLabel: string;
     loadingLabel: string;
     errorLabel: string;
     retryLabel: string;
