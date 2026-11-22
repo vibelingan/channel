@@ -83,9 +83,7 @@
         "sha256": "c5f36fd2fb7ebbff80eeb4e85acb7217ae48fccf7f521eabb0851f22b7e95b8b",
         "type": "text/html",
         "robotsHeader": null,
-        "canonical": [
-          "https://supplychainsai.com/headphones/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/"],
         "robots": [],
         "productLinks": 12,
         "hasPage2": true
@@ -97,9 +95,7 @@
         "sha256": "c5f36fd2fb7ebbff80eeb4e85acb7217ae48fccf7f521eabb0851f22b7e95b8b",
         "type": "text/html",
         "robotsHeader": null,
-        "canonical": [
-          "https://supplychainsai.com/headphones/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/"],
         "robots": [],
         "productLinks": 12,
         "hasPage2": true
@@ -111,9 +107,7 @@
         "sha256": "e4f73fb2e97b7360a6650d1df7307730c1452dec1e9d2868faba97f7ea27fe61",
         "type": "text/html",
         "robotsHeader": null,
-        "canonical": [
-          "https://supplychainsai.com/headphones/page/2/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/page/2/"],
         "robots": [],
         "productLinks": 12,
         "hasPage2": false
@@ -186,18 +180,13 @@
   },
   "mobileChromeReadback": {
     "viewportWidth": 390,
-    "automationAllowedMethods": [
-      "GET",
-      "HEAD"
-    ],
+    "automationAllowedMethods": ["GET", "HEAD"],
     "pages": [
       {
         "inputPath": "/headphones/",
         "http": 200,
         "path": "/headphones/",
-        "canonical": [
-          "https://supplychainsai.com/headphones/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/"],
         "robots": [],
         "selected": [],
         "result": "1–12 of 460 products",
@@ -212,13 +201,9 @@
         "inputPath": "/headphones/?category=headphones-wired&page=1",
         "http": 200,
         "path": "/headphones/?page=1&category=headphones-wired",
-        "canonical": [
-          "https://supplychainsai.com/headphones/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/"],
         "robots": [],
-        "selected": [
-          "Wired Headphones"
-        ],
+        "selected": ["Wired Headphones"],
         "result": "1–12 of 109 products",
         "wiredFilterLinks": [
           "https://supplychainsai.com/headphones/?category=headphones-wired&page=1"
@@ -236,9 +221,7 @@
         "inputPath": "/headphones/page/2/",
         "http": 200,
         "path": "/headphones/page/2/",
-        "canonical": [
-          "https://supplychainsai.com/headphones/page/2/"
-        ],
+        "canonical": ["https://supplychainsai.com/headphones/page/2/"],
         "robots": [],
         "selected": [],
         "result": "13–24 of 460 products",
