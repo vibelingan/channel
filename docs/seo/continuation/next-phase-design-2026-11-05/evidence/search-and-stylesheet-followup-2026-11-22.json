@@ -1,0 +1,721 @@
+{
+  "searchPlatformReadouts": {
+    "observedDate": "2026-11-22",
+    "google": {
+      "property": "https://supplychainsai.com/",
+      "pageIndex": {
+        "through": "2026-11-16",
+        "indexed": 529,
+        "excluded": 989,
+        "reasons": 8
+      },
+      "other4xx": {
+        "validationStarted": "2026-11-16",
+        "pending": 5,
+        "failed": 0,
+        "lastCrawled": ["2026-11-07", "2026-11-06", "2026-11-03", "2026-11-03", "2026-11-03"]
+      },
+      "https": {
+        "through": "2026-11-21",
+        "https": 9,
+        "nonHttps": 0
+      },
+      "videoIndex": {
+        "through": "2026-11-19",
+        "indexed": 0,
+        "excluded": 2,
+        "reason": "Video is not on a watch page",
+        "examples": [
+          {
+            "page": "https://supplychainsai.com/",
+            "media": "https://supplychainsai.com/media/oem/factory-video-display-015f0629.mp4",
+            "crawled": "2026-11-16"
+          },
+          {
+            "page": "https://supplychainsai.com/oem/",
+            "media": "https://supplychainsai.com/media/oem-factory.mp4",
+            "crawled": "2026-11-07"
+          }
+        ]
+      },
+      "performance": {
+        "from": "2026-10-14",
+        "through": "2026-11-19",
+        "clicks": 3,
+        "impressions": 95,
+        "averagePosition": 26.8
+      }
+    },
+    "bing": {
+      "mapLastRead": "2026-11-20",
+      "mapUrls": 584,
+      "staticSitemapUrls": 580,
+      "mapStatus": "Success",
+      "from": "2026-08-22",
+      "through": "2026-11-21",
+      "impressions": 0,
+      "clicks": 0
+    }
+  },
+  "publicReadback": {
+    "checkedAt": "2026-11-22T02:24:10.966103+00:00",
+    "historicalImages": [
+      {
+        "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+        "status": 200,
+        "bytes": 51178,
+        "sha256": "8e5b2780aaeb7d0fa3101bd275079c10297ca20d60291f9d44879452aff5c794",
+        "type": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+        "status": 200,
+        "bytes": 65170,
+        "sha256": "d7e2104d7a66d6eefb2837508b8a3cbb154bf0f630f7dc9dfddc9f3034162274",
+        "type": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+        "status": 200,
+        "bytes": 69280,
+        "sha256": "f6cc44a7a680112be106c29d2d06cf4d25921111aa8507d181a02bb1a6ebc224",
+        "type": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+        "status": 200,
+        "bytes": 87330,
+        "sha256": "6c23c1329696912f874054590ab706d7483012d0f59837c56a927db126ed8b17",
+        "type": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+        "status": 200,
+        "bytes": 135494,
+        "sha256": "010efb28f96de9004c718e79cec1bd5138f1f0bb45f89713c6b784ac3281a659",
+        "type": "image/webp"
+      },
+      {
+        "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+        "status": 200,
+        "bytes": 660144,
+        "sha256": "90ab9a23e2bcdbb9bf2037e7a3a95498f83ac3d1e9f491224b370710ac8f2876",
+        "type": "image/jpeg"
+      }
+    ],
+    "watchPage": {
+      "url": "https://supplychainsai.com/videos/factory-overview/",
+      "status": 200,
+      "canonical": "https://supplychainsai.com/videos/factory-overview/",
+      "videoSourceInHtml": true,
+      "videoMapAndPlayerAgree": true,
+      "videoObjectPresent": false,
+      "poster": {
+        "url": "https://supplychainsai.com/media/factory-overview-c215171947e5.webp",
+        "status": 200,
+        "mime": "image/webp",
+        "bytes": 47880
+      },
+      "mp4": {
+        "url": "https://supplychainsai.com/blog/media/factory/oem-factory.3cd89b386c1d.mp4",
+        "status": 206,
+        "mime": "video/mp4",
+        "range": "bytes 0-1023/7201197",
+        "bytes": 1024
+      }
+    },
+    "sitemapUrls": 580
+  },
+  "gatewayLogDelta": {
+    "startLocal": "2026-11-22 09:56:39",
+    "endLocal": "2026-11-22 10:17:55",
+    "timeZone": "UTC+08:00",
+    "creationTime": "2026-11-20T15:45:50.000000",
+    "queries": 1,
+    "segments": [
+      {
+        "startTime": "2026-11-22 09:56:39",
+        "endTime": "2026-11-22 10:17:55",
+        "candidates": 0,
+        "verified": 0
+      }
+    ],
+    "statusCounts": {},
+    "entries": []
+  },
+  "stylesheetDelivery": {
+    "observedAt": "2026-11-22T02:24:12.990Z",
+    "checkedDomain": "supplychainsai.com",
+    "storageDomainType": "",
+    "oldCdnApi": {
+      "domains": 0,
+      "error": "ResourceNotFound.CdnHostNotExists"
+    },
+    "activeDomain": {
+      "accessType": "DIRECT",
+      "protocol": "HTTP_AND_HTTPS",
+      "responseHeaders": [
+        {
+          "Key": "Cache-Control",
+          "Value": "no-cache",
+          "Action": "OVERWRITE_IF_EXISTS_OR_ADD"
+        }
+      ],
+      "cacheRules": 0
+    },
+    "publicCss": {
+      "status": 200,
+      "bytes": 55677,
+      "sha256": "1e9e797c939043228073a30d513ec0d0ac15abf9304d483aa51915d93d72064d",
+      "cacheControl": "no-cache",
+      "encoding": null,
+      "contentType": "text/css",
+      "etag": "\"047bdc4cc2b0186a2644952ee7cfaac2\""
+    },
+    "originCss": {
+      "status": 200,
+      "bytes": 55677,
+      "sha256": "1e9e797c939043228073a30d513ec0d0ac15abf9304d483aa51915d93d72064d",
+      "cacheControl": null,
+      "encoding": null,
+      "contentType": "text/css",
+      "etag": "\"047bdc4cc2b0186a2644952ee7cfaac2\""
+    },
+    "conditionalPublic": {
+      "status": 200,
+      "bytes": 55677,
+      "sha256": "1e9e797c939043228073a30d513ec0d0ac15abf9304d483aa51915d93d72064d",
+      "cacheControl": "no-cache",
+      "encoding": null,
+      "contentType": "text/css",
+      "etag": "\"047bdc4cc2b0186a2644952ee7cfaac2\""
+    },
+    "conditionalOrigin": {
+      "checkedAt": "2026-11-22T02:27:53.501Z",
+      "status": 304,
+      "bytes": 0,
+      "etag": "\"047bdc4cc2b0186a2644952ee7cfaac2\"",
+      "cacheControl": null
+    }
+  },
+  "routePreflight": {
+    "checkedAt": "2026-11-22T02:25:37.161Z",
+    "domain": "supplychainsai.com",
+    "activeStaticRoutes": ["/", "/*"],
+    "operation": "VerifyHTTPServiceRoute",
+    "summaries": [
+      {
+        "path": "/*",
+        "scope": "existing static route control",
+        "error": "InvalidParameter"
+      },
+      {
+        "path": "/_astro/_publicKey_.crkQf_Zw.css",
+        "scope": "only the existing versioned stylesheet",
+        "passed": true,
+        "checks": {
+          "Ownership": {
+            "status": "PASS"
+          },
+          "Cert": {
+            "status": "PASS"
+          },
+          "Quota": {
+            "status": "PASS"
+          },
+          "RouteConflict": {
+            "status": "PASS"
+          },
+          "DomainConflict": {
+            "status": "PASS"
+          },
+          "InternalAccount": {
+            "status": "SKIPPED"
+          },
+          "Blacklist": {
+            "status": "PASS"
+          },
+          "CDNResource": {
+            "status": "SKIPPED"
+          },
+          "EO": {
+            "status": "SKIPPED"
+          }
+        }
+      }
+    ]
+  },
+  "localReplay": {
+    "setup": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "deviceScaleFactor": 2,
+      "isMobile": true,
+      "hasTouch": true,
+      "serviceWorkers": "block"
+    },
+    "network": {
+      "offline": false,
+      "latency": 150,
+      "downloadThroughput": 200000,
+      "uploadThroughput": 93750,
+      "connectionType": "cellular4g"
+    },
+    "cpu": 4,
+    "chrome": "157.0.8103.79",
+    "publishedRelease": "site-44973470198-1",
+    "cssBytes": {
+      "current": 55677,
+      "smaller": 50133
+    },
+    "simulatedWaitMs": {
+      "html": 300,
+      "css": 750,
+      "image": 550
+    },
+    "samples": [
+      {
+        "round": 1,
+        "arm": "current",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1544,
+        "lcp": 1544,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1097.699999988079,
+          "end": 1434.5
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 1,
+        "arm": "current",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1536,
+        "lcp": 1536,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1096.2000000178814,
+          "end": 1443.5
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 1,
+        "arm": "smaller",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1496,
+        "lcp": 1496,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1093.1000000238419,
+          "end": 1399.2000000178814
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 1,
+        "arm": "smaller",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1500,
+        "lcp": 1500,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1093.0999999940395,
+          "end": 1412.800000011921
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 2,
+        "arm": "smaller",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1496,
+        "lcp": 1496,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1100.1000000238419,
+          "end": 1405
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 2,
+        "arm": "smaller",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1508,
+        "lcp": 1508,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1099.9000000059605,
+          "end": 1420.4000000059605
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 2,
+        "arm": "current",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1524,
+        "lcp": 1524,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1095.3999999761581,
+          "end": 1429.3999999761581
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 2,
+        "arm": "current",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1536,
+        "lcp": 1536,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1095.4000000059605,
+          "end": 1443.300000011921
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 3,
+        "arm": "current",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1524,
+        "lcp": 1524,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1101.4000000059605,
+          "end": 1436
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 3,
+        "arm": "current",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1548,
+        "lcp": 1548,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1094.199999988079,
+          "end": 1444.699999988079
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 3,
+        "arm": "smaller",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1492,
+        "lcp": 1492,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1094.300000011921,
+          "end": 1399.5999999940395
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 3,
+        "arm": "smaller",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1504,
+        "lcp": 1504,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1095.199999988079,
+          "end": 1414.699999988079
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 4,
+        "arm": "smaller",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1496,
+        "lcp": 1496,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1095.699999988079,
+          "end": 1399.699999988079
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 4,
+        "arm": "smaller",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1508,
+        "lcp": 1508,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1098.9000000059605,
+          "end": 1417.5999999940395
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 4,
+        "arm": "current",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1524,
+        "lcp": 1524,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1093.1000000238419,
+          "end": 1429.2000000178814
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 4,
+        "arm": "current",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1536,
+        "lcp": 1536,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1093.7999999821186,
+          "end": 1444
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 5,
+        "arm": "current",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1520,
+        "lcp": 1520,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1094.5999999940395,
+          "end": 1427.9000000059605
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 5,
+        "arm": "current",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1536,
+        "lcp": 1536,
+        "style": {
+          "bytes": 55677,
+          "firstByte": 1093.6000000238419,
+          "end": 1444.300000011921
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 5,
+        "arm": "smaller",
+        "path": "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+        "fcp": 1488,
+        "lcp": 1488,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1094.9000000059605,
+          "end": 1398.9000000059605
+        },
+        "image": {
+          "bytes": 10132,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Children's Wired Headphones Noise Canceling Earbuds Gaming Headset Music Stereo HiFi Earphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      },
+      {
+        "round": 5,
+        "arm": "smaller",
+        "path": "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+        "fcp": 1520,
+        "lcp": 1520,
+        "style": {
+          "bytes": 50133,
+          "firstByte": 1093.7000000178814,
+          "end": 1413.1000000238419
+        },
+        "image": {
+          "bytes": 12946,
+          "transfers": 1
+        },
+        "layout": {
+          "title": "Collapsible Active Noise Cancelling Headset Bluetooth Wired High Battery Life Anc Headphones",
+          "h1": [16, 667.5, 358, 120],
+          "photo": [37, 193, 316, 289.5],
+          "text": ["24px", "600", "rgb(11, 16, 48)"]
+        }
+      }
+    ]
+  }
+}
