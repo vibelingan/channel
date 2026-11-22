@@ -2198,5 +2198,480 @@
         ]
       }
     }
+  },
+  "articleTransportFollowup": {
+    "sameArticle": true,
+    "local": {
+      "observedFrom": "2026-11-22T01:05:47.766829+00:00",
+      "rows": [
+        {
+          "round": 1,
+          "site": "html",
+          "order": 1,
+          "status": 200,
+          "newConnections": 1,
+          "connectionMs": 398.4,
+          "firstByteMs": 1214.8,
+          "completeMs": 1272.3,
+          "upstreamMs": 549,
+          "serverTiming": "article-read;dur=416.9, blog-handler;dur=421.3",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 620
+        },
+        {
+          "round": 1,
+          "site": "data",
+          "order": 2,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 586.0,
+          "completeMs": 586.5,
+          "upstreamMs": 429,
+          "serverTiming": "ar-url;dur=45.5, ar-publication;dur=42.5, ar-pub-read;dur=35.6, ar-pub-check;dur=6.9, ar-web-media;dur=66.4, ar-total;dur=244.6",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 432
+        },
+        {
+          "round": 1,
+          "site": "html",
+          "order": 3,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 1593.7,
+          "completeMs": 1655.5,
+          "upstreamMs": 350,
+          "serverTiming": "article-read;dur=280.3, blog-handler;dur=284.2",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 412
+        },
+        {
+          "round": 1,
+          "site": "data",
+          "order": 4,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 5058.3,
+          "completeMs": 5059.1,
+          "upstreamMs": 336,
+          "serverTiming": "ar-url;dur=37.6, ar-publication;dur=42.5, ar-pub-read;dur=36.8, ar-pub-check;dur=5.7, ar-web-media;dur=38.6, ar-total;dur=186.3",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 337
+        },
+        {
+          "round": 2,
+          "site": "data",
+          "order": 1,
+          "status": 200,
+          "newConnections": 1,
+          "connectionMs": 290.6,
+          "firstByteMs": 944.1,
+          "completeMs": 944.8,
+          "upstreamMs": 402,
+          "serverTiming": "ar-url;dur=42.2, ar-publication;dur=46.8, ar-pub-read;dur=37.0, ar-pub-check;dur=9.7, ar-web-media;dur=51.5, ar-total;dur=226.9",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 411
+        },
+        {
+          "round": 2,
+          "site": "html",
+          "order": 2,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 567.4,
+          "completeMs": 643.3,
+          "upstreamMs": 417,
+          "serverTiming": "article-read;dur=286.5, blog-handler;dur=290.7",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 481
+        },
+        {
+          "round": 2,
+          "site": "data",
+          "order": 3,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 568.1,
+          "completeMs": 568.7,
+          "upstreamMs": 412,
+          "serverTiming": "ar-url;dur=40.1, ar-publication;dur=43.5, ar-pub-read;dur=38.9, ar-pub-check;dur=4.6, ar-web-media;dur=37.1, ar-total;dur=200.6",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 413
+        },
+        {
+          "round": 2,
+          "site": "html",
+          "order": 4,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 594.1,
+          "completeMs": 672.8,
+          "upstreamMs": 453,
+          "serverTiming": "article-read;dur=328.1, blog-handler;dur=331.7",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 511
+        },
+        {
+          "round": 3,
+          "site": "html",
+          "order": 1,
+          "status": 200,
+          "newConnections": 1,
+          "connectionMs": 1288.9,
+          "firstByteMs": 2815.7,
+          "completeMs": 2891.4,
+          "upstreamMs": 1373,
+          "serverTiming": "article-read;dur=1247.4, blog-handler;dur=1252.6",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 1441
+        },
+        {
+          "round": 3,
+          "site": "data",
+          "order": 2,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 5495.3,
+          "completeMs": 5495.8,
+          "upstreamMs": 790,
+          "serverTiming": "ar-url;dur=34.9, ar-publication;dur=53.5, ar-pub-read;dur=47.0, ar-pub-check;dur=6.5, ar-web-media;dur=60.0, ar-total;dur=240.4",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 793
+        },
+        {
+          "round": 3,
+          "site": "html",
+          "order": 3,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 568.4,
+          "completeMs": 886.4,
+          "upstreamMs": 429,
+          "serverTiming": "article-read;dur=302.5, blog-handler;dur=308.6",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 487
+        },
+        {
+          "round": 3,
+          "site": "data",
+          "order": 4,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 521.2,
+          "completeMs": 521.9,
+          "upstreamMs": 368,
+          "serverTiming": "ar-url;dur=47.6, ar-publication;dur=44.6, ar-pub-read;dur=39.5, ar-pub-check;dur=5.1, ar-web-media;dur=37.5, ar-total;dur=194.3",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 369
+        },
+        {
+          "round": 4,
+          "site": "data",
+          "order": 1,
+          "status": 200,
+          "newConnections": 1,
+          "connectionMs": 315.4,
+          "firstByteMs": 1059.3,
+          "completeMs": 1060.7,
+          "upstreamMs": 579,
+          "serverTiming": "ar-url;dur=37.8, ar-publication;dur=208.7, ar-pub-read;dur=104.4, ar-pub-check;dur=104.4, ar-web-media;dur=88.3, ar-total;dur=417.8",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 581
+        },
+        {
+          "round": 4,
+          "site": "html",
+          "order": 2,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 10138.3,
+          "completeMs": 10609.6,
+          "upstreamMs": 401,
+          "serverTiming": "article-read;dur=258.7, blog-handler;dur=262.8",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 479
+        },
+        {
+          "round": 4,
+          "site": "data",
+          "order": 3,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 545.3,
+          "completeMs": 546.1,
+          "upstreamMs": 373,
+          "serverTiming": "ar-url;dur=47.0, ar-publication;dur=56.3, ar-pub-read;dur=38.9, ar-pub-check;dur=17.5, ar-web-media;dur=45.7, ar-total;dur=225.2",
+          "presentation": null,
+          "bytes": 10180,
+          "candidateGatewayMsByTimeAndOrder": 374
+        },
+        {
+          "round": 4,
+          "site": "html",
+          "order": 4,
+          "status": 200,
+          "newConnections": 0,
+          "connectionMs": 0.1,
+          "firstByteMs": 2892.3,
+          "completeMs": 2952.4,
+          "upstreamMs": 557,
+          "serverTiming": "article-read;dur=429.4, blog-handler;dur=433.8",
+          "presentation": "render-web-v2",
+          "bytes": 37628,
+          "candidateGatewayMsByTimeAndOrder": 628
+        }
+      ]
+    },
+    "localGatewayMatchMethod": "16 records aligned by timestamp window, client, public path and request order; no request id captured",
+    "us": {
+      "run": 44969997751,
+      "egress": "US",
+      "colo": "LAX",
+      "requestIdMatches": 18,
+      "samples": [
+        {
+          "path": "/",
+          "firstByteMs": 1277.5,
+          "connectionReadyMs": 801.21,
+          "gatewayMs": 355,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 167725
+        },
+        {
+          "path": "/",
+          "firstByteMs": 392.72,
+          "connectionReadyMs": 0.06,
+          "gatewayMs": 271,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 167725
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 891.44,
+          "connectionReadyMs": 456.38,
+          "gatewayMs": 263,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 97832
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 391.09,
+          "connectionReadyMs": 0.05,
+          "gatewayMs": 218,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 97832
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 1020.84,
+          "connectionReadyMs": 372.41,
+          "gatewayMs": 528,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 37628
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 642.02,
+          "connectionReadyMs": 0.06,
+          "gatewayMs": 518,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 37628
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 1113.79,
+          "connectionReadyMs": 491.95,
+          "gatewayMs": 499,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 37628
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 585.89,
+          "connectionReadyMs": 0.07,
+          "gatewayMs": 456,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 37628
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 836.17,
+          "connectionReadyMs": 457.46,
+          "gatewayMs": 211,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 97832
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 374.2,
+          "connectionReadyMs": 0.06,
+          "gatewayMs": 204,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 97832
+        },
+        {
+          "path": "/",
+          "firstByteMs": 949.96,
+          "connectionReadyMs": 547.96,
+          "gatewayMs": 284,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 167725
+        },
+        {
+          "path": "/",
+          "firstByteMs": 395.96,
+          "connectionReadyMs": 0.05,
+          "gatewayMs": 275,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 167725
+        },
+        {
+          "path": "/",
+          "firstByteMs": 741.72,
+          "connectionReadyMs": 371.78,
+          "gatewayMs": 251,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 167725
+        },
+        {
+          "path": "/",
+          "firstByteMs": 362.09,
+          "connectionReadyMs": 0.05,
+          "gatewayMs": 236,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 167725
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 929.73,
+          "connectionReadyMs": 536.85,
+          "gatewayMs": 220,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 97832
+        },
+        {
+          "path": "/products/p-ffc81bae-b098-4d3d-a7e5-ed539db80a1e/",
+          "firstByteMs": 373.08,
+          "connectionReadyMs": 0.06,
+          "gatewayMs": 201,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 97832
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 1016.28,
+          "connectionReadyMs": 367.76,
+          "gatewayMs": 529,
+          "status": 200,
+          "newConnections": 1,
+          "bytes": 37628
+        },
+        {
+          "path": "/blog/oem-headphone-sample-inspection-wecom-20261027/",
+          "firstByteMs": 623.38,
+          "connectionReadyMs": 0.05,
+          "gatewayMs": 501,
+          "status": 200,
+          "newConnections": 0,
+          "bytes": 37628
+        }
+      ],
+      "articleMedianFirstByteMs": {
+        "newConnection": 1020.84,
+        "reusedConnection": 623.38
+      }
+    }
+  },
+  "googleTargetedAfterArticleFollowup": {
+    "checkedAt": "2026-11-22T01:11:41.403Z",
+    "targetedPaths": [
+      "/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "/api/images/4db8df016ac88396000781db489eb227",
+      "/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "/privacy/",
+      "/products/p-08d3b605-2dbb-4a70-a439-4805aa4741d0/",
+      "/products/p-182b050e-303a-417b-a430-ae7688822e54/",
+      "/products/p-187fb9ae-4a73-4c60-af66-649b293fb725/",
+      "/products/p-23760629-f3b7-4b69-a8ba-975f89efe175/",
+      "/products/p-23ea50be-9983-4ddb-af4c-a93958a69c6f/",
+      "/products/p-a627c46b-65f1-42c8-a75c-2893d62e877a/",
+      "/products/p-a7f1b2dd-3d68-46f5-a566-ae7add1c80f5/",
+      "/products/p-aef4f32e-4dd9-45d2-aa54-9265a8dc78fc/",
+      "/products/p-b8677602-2935-417d-a8fa-64fb377b9835/",
+      "/products/p-d66d70c4-661a-4cb8-a6aa-cfa398f949f2/",
+      "/toys/",
+      "/videos/factory-overview/",
+      "/blog/oem-headphone-sample-inspection-wecom-20261027/"
+    ],
+    "windows": [
+      {
+        "period": {
+          "startTime": "2026-11-22 08:47:39",
+          "endTime": "2026-11-22 09:07:38"
+        },
+        "exactRows": 14,
+        "statuses": {
+          "200": 14
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      },
+      {
+        "period": {
+          "startTime": "2026-11-22 09:07:39",
+          "endTime": "2026-11-22 09:09:37"
+        },
+        "exactRows": 6,
+        "statuses": {
+          "200": 6
+        },
+        "verifiedGoogleRequests": [],
+        "unexpected": [],
+        "potentiallyTruncated": false
+      }
+    ]
   }
 }
