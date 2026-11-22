@@ -1695,6 +1695,99 @@
             }
           ]
         }
+      },
+      "publicDetailApiNetworkProbe": {
+        "startedUtc": "2026-11-22T16:52:35+00:00",
+        "finishedUtc": "2026-11-22T16:52:45+00:00",
+        "productResponseIdenticalAcrossSamples": true,
+        "matchedIndependentlyByPublicGatewayRequestId": 6,
+        "timingBoundary": "New and reused HTTPS connection pairs to the same browser-observed public detail endpoint. Timings have different start and end boundaries. These cURL calls were not the six Chrome page operations.",
+        "samples": [
+          {
+            "pair": 1,
+            "connection": "new",
+            "newConnections": 1,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 425.465,
+            "tcpReadyMs": 1038.109,
+            "tlsReadyMs": 2431.598,
+            "clientFirstByteMs": 3356.657,
+            "clientTotalMs": 3357.146,
+            "cloudBaseGatewayLogMs": 280,
+            "cloudBaseUpstreamHeaderMs": 264
+          },
+          {
+            "pair": 1,
+            "connection": "reused",
+            "newConnections": 0,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 0.023,
+            "tcpReadyMs": 0.0,
+            "tlsReadyMs": 0.0,
+            "clientFirstByteMs": 867.089,
+            "clientTotalMs": 867.459,
+            "cloudBaseGatewayLogMs": 256,
+            "cloudBaseUpstreamHeaderMs": 244
+          },
+          {
+            "pair": 2,
+            "connection": "new",
+            "newConnections": 1,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 2.503,
+            "tcpReadyMs": 393.409,
+            "tlsReadyMs": 947.99,
+            "clientFirstByteMs": 1760.821,
+            "clientTotalMs": 1761.571,
+            "cloudBaseGatewayLogMs": 255,
+            "cloudBaseUpstreamHeaderMs": 242
+          },
+          {
+            "pair": 2,
+            "connection": "reused",
+            "newConnections": 0,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 0.067,
+            "tcpReadyMs": 0.0,
+            "tlsReadyMs": 0.0,
+            "clientFirstByteMs": 1038.41,
+            "clientTotalMs": 1039.05,
+            "cloudBaseGatewayLogMs": 237,
+            "cloudBaseUpstreamHeaderMs": 236
+          },
+          {
+            "pair": 3,
+            "connection": "new",
+            "newConnections": 1,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 3.142,
+            "tcpReadyMs": 413.614,
+            "tlsReadyMs": 1138.801,
+            "clientFirstByteMs": 2014.851,
+            "clientTotalMs": 2015.287,
+            "cloudBaseGatewayLogMs": 309,
+            "cloudBaseUpstreamHeaderMs": 284
+          },
+          {
+            "pair": 3,
+            "connection": "reused",
+            "newConnections": 0,
+            "status": 200,
+            "responseBodyBytes": 7668,
+            "dnsMs": 0.021,
+            "tcpReadyMs": 0.0,
+            "tlsReadyMs": 0.0,
+            "clientFirstByteMs": 1222.671,
+            "clientTotalMs": 1223.275,
+            "cloudBaseGatewayLogMs": 228,
+            "cloudBaseUpstreamHeaderMs": 217
+          }
+        ]
       }
     }
   }
