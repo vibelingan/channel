@@ -2,9 +2,21 @@
   "publicApiProgramSha": "6c958866c6db47cb657d72a59303b86dfbb3e927",
   "images": [
     {
-      "imageId": "ea7765a56aaa4e050023e9c5601592ef",
-      "sourceDigest": "e0e09ac534cf73c1dba2f7651c25f88d997eed42a33e5bdb6f3b93bf97ce07e0",
-      "sourceSha256": "4593d5a040a731e77f3cd4222c27b9abaae95e304e99a906d398e5438829a8af",
+      "imageId": "66baec6f6ac8817700728fc7054cbdba",
+      "sourceDigest": "0e710fdbeb9364932eb86e79a97c4ba1fafb8906a75e3a840c464319a8fed728",
+      "sourceSha256": "6080716af68a3189b5eca2ad5c960d65c0127ccf5bfd786b5c5988d34e9169bd",
+      "defaultSha256": null
+    },
+    {
+      "imageId": "3fbe8b166ac881030039e68b0ebb365a",
+      "sourceDigest": "0e33c51bc06e1a51ee9bbc14699707f2ece214054a69dc5dc1e263d2c3bd2772",
+      "sourceSha256": "42c6fc0dfd76d4a5c9c1905e841418075ee28bddaae7627306a714d641d41c79",
+      "defaultSha256": null
+    },
+    {
+      "imageId": "4db8df016ac88268000767651b009477",
+      "sourceDigest": "549cd879f117435a6c5ce89aa75ba16083e6fb9ff83e8fa192d5e0544f8ae3dc",
+      "sourceSha256": "eba59f8b4508384d9dbe76612e5d44c02efb468982c745c244d334363eb0fe17",
       "defaultSha256": null
     }
   ]

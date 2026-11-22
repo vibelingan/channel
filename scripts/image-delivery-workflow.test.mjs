@@ -74,6 +74,61 @@ test('selected-size preparation shares the deploy queue and cannot run from anot
     ),
   );
 });
+test('the explicit publish action ships fresh HTML after image preparation succeeds', () => {
+  const caller = parse(readFileSync('.github/workflows/seo-static-canary.yml', 'utf8'));
+  const image = caller.jobs.image_sizes_prepare;
+  const site = caller.jobs.image_sizes_publish;
+  assert.ok(site, 'The published sizes need a website delivery job');
+  assert.equal(site.needs, 'image_sizes_prepare');
+  const branch = 'refs/heads/feat/seo-foundation';
+  const active = (job, ref, mode, action, result) =>
+    Function(
+      'github',
+      'inputs',
+      'needs',
+      `return ${job.if.slice(3, -2)}`,
+    )({ ref }, { mode, action }, { image_sizes_prepare: { result } });
+  assert.equal(active(image, branch, 'image-sizes-prepare', 'publish'), true);
+  assert.equal(active(site, branch, 'image-sizes-prepare', 'publish', 'success'), true);
+  for (const [ref, mode, action, result] of [
+    ['refs/heads/main', 'image-sizes-prepare', 'publish', 'success'],
+    [branch, 'image-delivery-prepare', 'publish', 'success'],
+    [branch, 'image-sizes-prepare', 'initialize', 'success'],
+    [branch, 'image-sizes-prepare', 'publish', 'failure'],
+    [branch, 'image-sizes-prepare', 'publish', 'cancelled'],
+    [branch, 'image-sizes-prepare', 'publish', 'skipped'],
+  ]) {
+    assert.equal(active(site, ref, mode, action, result), false);
+  }
+  assert.equal(site.uses, './.github/workflows/seo-site-delivery.yml');
+  assert.deepEqual(site.with, {
+    action: 'publish',
+    product_source: 'fresh',
+    renderer_sha: '${{ inputs.renderer_sha }}',
+  });
+  assert.equal(image.with.publish_responsive_html, "${{ inputs.action == 'publish' }}");
+  assert.equal(image.with.responsive_renderer_sha, '${{ inputs.renderer_sha }}');
+});
+
+test('combined image publication requires an exact renderer before writing any sizes', () => {
+  const workflow = parse(readFileSync('.github/workflows/seo-image-delivery.yml', 'utf8'));
+  const steps = workflow.jobs.responsive.steps;
+  const gate = steps.find(
+    (step) => step.name === 'Require a pinned renderer for website publication',
+  );
+  assert.ok(gate, 'Combined publication needs a renderer input gate');
+  assert.ok(steps.indexOf(gate) < steps.findIndex((step) => step.env?.TENCENTCLOUD_SECRETKEY));
+  assert.equal(gate.if, '${{ inputs.publish_responsive_html }}');
+  for (const sha of ['', 'main', 'a'.repeat(39), 'a'.repeat(40)]) {
+    const result = spawnSync('bash', ['-ec', gate.run], {
+      env: { PATH: process.env.PATH, APPROVED_RENDERER_SHA: sha },
+      timeout: 5000,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, sha.length === 40 ? 0 : 1, result.stderr);
+  }
+});
+
 test('the API-only entry requires the original branch, exact function and explicit action', () => {
   const caller = parse(readFileSync('.github/workflows/seo-static-canary.yml', 'utf8'));
   const job = caller.jobs.image_api_update;

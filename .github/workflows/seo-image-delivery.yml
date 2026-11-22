@@ -11,6 +11,12 @@ on:
       responsive_batch:
         type: string
         default: ''
+      publish_responsive_html:
+        type: boolean
+        default: false
+      responsive_renderer_sha:
+        type: string
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -27,6 +33,15 @@ jobs:
       TCB_ENV_ID: diversity-123-d9grnqfux221323bb
       CLOUDBASE_REGION: ap-shanghai
     steps:
+      - name: Require a pinned renderer for website publication
+        if: ${{ inputs.publish_responsive_html }}
+        env:
+          APPROVED_RENDERER_SHA: ${{ inputs.responsive_renderer_sha }}
+        run: |
+          if [[ ! "$APPROVED_RENDERER_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "Image publication requires the full SHA of an approved website renderer." >&2
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with: {ref: '${{ github.sha }}', persist-credentials: false}
       - uses: pnpm/action-setup@v4

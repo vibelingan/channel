@@ -43,7 +43,7 @@ on:
         default: none
         required: false
       action:
-        description: Initialize only a proven unused prefix; restore only an explicitly accepted run
+        description: Choose the action documented for this mode. For image sizes, publish prepares files and updates HTML.
         type: choice
         options: [initialize, publish, restore]
         required: true
@@ -621,13 +621,27 @@ jobs:
     secrets: inherit
 
   image_sizes_prepare:
-    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-sizes-prepare' && inputs.action == 'initialize' }}
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-sizes-prepare' && (inputs.action == 'initialize' || inputs.action == 'publish') }}
     uses: ./.github/workflows/seo-image-delivery.yml
     with:
       operation: responsive
       expected_package: ${{ inputs.plan_token }}
       responsive_batch: ${{ inputs.image_batch }}
+      publish_responsive_html: ${{ inputs.action == 'publish' }}
+      responsive_renderer_sha: ${{ inputs.renderer_sha }}
     secrets: inherit
+
+  image_sizes_publish:
+    needs: image_sizes_prepare
+    if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-sizes-prepare' && inputs.action == 'publish' && needs.image_sizes_prepare.result == 'success' }}
+    uses: ./.github/workflows/seo-site-delivery.yml
+    with:
+      action: publish
+      product_source: fresh
+      renderer_sha: ${{ inputs.renderer_sha }}
+    secrets:
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
 
   image_api_update:
     if: ${{ github.ref == 'refs/heads/feat/seo-foundation' && inputs.mode == 'image-api-update' && inputs.action == 'initialize' && inputs.variant == 'public-api' }}
