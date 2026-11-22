@@ -204,6 +204,11 @@ test('portfolio galleries use an accessible small-screen carousel and desktop gr
   assert.ok(!logoWallSource.includes('logo.anonymized ?'));
   assert.ok(logoWallSource.includes('src={logo.src}'));
   assert.ok(certificateGallerySource.includes('dialog.showModal()'));
+  assert.match(
+    certificateGallerySource,
+    /<dialog\b[^>]*>[\s\S]*?<img\b[^>]*\bloading="lazy"/,
+    'closed certificate dialogs must not start reading their images on the first visit',
+  );
   assert.ok(certificateGallerySource.includes('if (event.target === dialog) dialog.close()'));
 
   for (const contract of [

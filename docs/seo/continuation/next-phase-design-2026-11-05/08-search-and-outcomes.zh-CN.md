@@ -1,5 +1,9 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 22 日接着核对实际请求
+
+北京时间 07:19:26–08:09:50，限定五张历史故障图、12 个待收录地址、视频观看页和一篇文章，三个时间段读取到 68 条请求。全部为 HTTP 200，没有命中查询上限。请求来源和标识交叉检查后，这批记录里没有核实到普通 Google 爬虫。本次云网关观察只说明所读请求的响应。Google 的复查和索引结果仍以 Search Console 自己的日期为准。 [本轮日志汇总](evidence/portfolio-dialog-images-2026-11-22.json) · [Google 爬虫来源核对](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
+
 ## 11 月 22 日，读回历史 4xx 与工厂观看页
 
 同一 Search Console 属性的网页索引报表仍截至 11 月 16 日，显示 529 个已收录、989 个排除、八种原因。五张历史 4xx 图片的确认任务始于 11 月 16 日，当前待检查五张、失败零张，最后抓取仍在 11 月 3–7 日。官网再完整读取五张图和另一张旧 404 图，全部返回 200，字节与前次修复后一致。腾讯网关限定 19 个关注地址读取三段日志，取得 123 条匹配请求，均返回 200。这 123 条里没有核实到普通 Google 爬虫访问。第一段接近查询返回上限，本次结论只覆盖实际读到的记录。 [Google 原确认任务](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [按网址及时间的证据](evidence/site-performance-and-watch-2026-11-22.json)
