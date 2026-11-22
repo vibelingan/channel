@@ -360,6 +360,7 @@ export async function inspectSitemap(xml: string, originInput: string) {
   const rows = elements(root, kind === 'index' ? 'sitemap' : 'url');
   requireValue(kind !== 'index' || rows.length > 0, 'empty sitemap index');
   requireValue(rows.length <= 50000, 'sitemap exceeds the URL limit');
+  const lastModified = new Map<string, string>();
   const urls = rows.map((row) => {
     const loc = elements(row, 'loc');
     requireValue(loc.length === 1, 'sitemap entry needs one location');
@@ -374,11 +375,17 @@ export async function inspectSitemap(xml: string, originInput: string) {
         url.href === canonicalUrl(url.pathname, origin),
       'sitemap contains a foreign or noncanonical URL',
     );
+    const dates = elements(row, 'lastmod');
+    requireValue(
+      dates.length <= 1 && dates.every((date) => row.children.includes(date)),
+      `invalid sitemap lastmod: ${url.href}`,
+    );
+    if (dates[0]) lastModified.set(url.href, decode(textContent(dates[0])).trim());
     return url.href;
   });
   requireValue(new Set(urls).size === urls.length, 'duplicate sitemap URL');
   requireValue(elements(root, 'loc').length === urls.length, 'unexpected sitemap locations');
-  return { kind, urls };
+  return { kind, urls, lastModified };
 }
 
 async function files(root: string): Promise<string[]> {
@@ -442,13 +449,16 @@ export async function validateSiteOutput(
   }
   requireValue(entries.length > 0, 'no HTML pages were inspected');
   const sitemapUrls: string[] = [];
+  const lastModified = new Map<string, string>();
   const sitemapFiles = outputFiles.filter((file) =>
     /^sitemap-\d+\.xml$/.test(relative(directory, file)),
   );
   requireValue(sitemapFiles.length > 0, 'missing sitemap output');
   for (const file of sitemapFiles) {
-    const { ast } = await parse(await readFile(file, 'utf8'));
-    sitemapUrls.push(...elements(ast, 'loc').map((node) => decode(textContent(node)).trim()));
+    const sitemap = await inspectSitemap(await readFile(file, 'utf8'), origin);
+    requireValue(sitemap.kind === 'urls', 'static sitemap fragment must contain page URLs');
+    sitemapUrls.push(...sitemap.urls);
+    for (const [url, date] of sitemap.lastModified) lastModified.set(url, date);
   }
   const { ast: index } = await parse(await readFile(join(directory, 'sitemap-index.xml'), 'utf8'));
   const indexUrls = elements(index, 'loc').map((node) => decode(textContent(node)).trim());
@@ -459,6 +469,13 @@ export async function validateSiteOutput(
     options.blogServer,
   );
   validateManifest(entries, sitemapUrls);
+  for (const entry of entries) {
+    if (entry.kind !== 'product' || entry.robots !== 'index,follow') continue;
+    requireValue(
+      lastModified.get(entry.canonicalUrl) === entry.content.updatedAt,
+      `${entry.path}: sitemap lastmod disagrees with the public content date`,
+    );
+  }
   await writeFile(
     join(directory, 'seo-manifest.json'),
     `${JSON.stringify({ schemaVersion: 1, siteOrigin: origin, entries }, null, 2)}\n`,

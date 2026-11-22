@@ -77,6 +77,7 @@ test('sitemap inspection preserves canonical URL identity and rejects ambiguous 
   assert.deepEqual(await inspectSitemap(xml(`${origin}/`), origin), {
     kind: 'urls',
     urls: [`${origin}/`],
+    lastModified: new Map(),
   });
   for (const value of [
     'https://other.test/',

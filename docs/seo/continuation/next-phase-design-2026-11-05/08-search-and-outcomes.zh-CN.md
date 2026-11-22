@@ -1,5 +1,11 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 22 日，核对商品更新时间怎样进入网站地图
+
+官网的静态地图有 580 个页面地址，其中 528 个是商品，当前都没有 `lastmod`。这个字段告诉搜索引擎该页面的内容上一次何时真正改变。官网已验收的快照包含 528 件商品的公开版本，但没有可信的历史变更日期。现有程序会在收到可信日期时写入商品 HTML 和地图，所以留空符合这批数据的实际情况。Google 还没有抓取的商品不能归因于这一点。 [正式网页归档](https://github.com/vibelingan/channel/actions/runs/44985497074) · [Google 对地图日期的要求](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
+
+发布前原先只核对商品网址是否出现在地图。现在用已经渲染的商品页核对同一个网址在地图里的更新时间。日期缺失、对不上，或给日期未知的商品填入新日期，构建都会失败。检查在构建机执行，全程复用已经生成的文件，访客打开网页不会增加请求。使用两件仅供本机测试的商品实际构建两次，一件带有明确变更时间，两次均只有该网址写入同一时间。用官网完整快照构建，589 份 HTML 及地图均通过，静态地图与当前正式版逐字节相同。未为测试修改公开商品。
+
 ## 11 月 22 日，逐页核对有线耳机筛选地址和真实点击
 
 Google 同时收录了耳机主目录和菜单里的「有线耳机」筛选网址。后者最后一次由手机爬虫抓取是 11 月 13 日。Google 显示网站指定耳机主目录为首选地址，但 Google 给筛选页保留了自己的索引。它在 10 月 14 日至 11 月 19 日获得 4 次展示、0 次点击。八类排除汇总仍停在 11 月 16 日，529 个已收录、989 个排除。 [筛选地址检查](https://search.google.com/search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=kH02F8OspaH9ka-Ml5irpg) · [耳机主目录检查](https://search.google.com/search-console/inspect?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&id=XZzvx2JSADt5ny5W6pzT8g)

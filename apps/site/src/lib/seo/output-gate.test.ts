@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { inspectPage, validateManifest, validateSitemapIndex } from './output-gate.ts';
+import {
+  inspectPage,
+  validateManifest,
+  validateSiteOutput,
+  validateSitemapIndex,
+} from './output-gate.ts';
 import { createPageDescriptor, serializePageDescriptor } from './page.ts';
 
 const origin = 'https://example.test';
@@ -8,13 +16,18 @@ function fixture(
   path = '/example/',
   kind: 'marketing' | 'product' | 'article' = 'marketing',
   productSchema?: Record<string, unknown> | null,
+  updatedAt?: string,
 ) {
   const page = createPageDescriptor({
     path,
     kind,
     title: `Title ${path}`,
     description: `Description ${path}`,
-    content: { source: kind === 'marketing' ? 'site-content' : `public-${kind}`, revision: '1' },
+    content: {
+      source: kind === 'marketing' ? 'site-content' : `public-${kind}`,
+      revision: '1',
+      updatedAt,
+    },
   });
   const url = `${origin}${path}`;
   const product =
@@ -213,4 +226,39 @@ test('server Blog adds exactly its own dynamic sitemap without loosening static 
   assert.throws(() =>
     validateSitemapIndex([staticMap, staticMap, dynamicMap], ['sitemap-0.xml'], origin, true),
   );
+});
+
+test('published product sitemap dates match the rendered content version', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'channel-seo-sitemap-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const updated = '/products/p-updated/';
+  const undated = '/products/p-undated/';
+  const changedAt = '2026-11-21T12:03:04.231Z';
+  const writeMap = (first = '', second = '') =>
+    writeFile(
+      join(directory, 'sitemap-0.xml'),
+      `<urlset><url><loc>${origin}${updated}</loc>${first}</url><url><loc>${origin}${undated}</loc>${second}</url></urlset>`,
+    );
+  for (const file of ['googlefc43809ad650355b.html', 'BingSiteAuth.xml']) {
+    await copyFile(new URL(`../../../public/${file}`, import.meta.url), join(directory, file));
+  }
+  await writeFile(
+    join(directory, 'sitemap-index.xml'),
+    `<sitemapindex><sitemap><loc>${origin}/sitemap-0.xml</loc></sitemap></sitemapindex>`,
+  );
+  for (const [path, date] of [[updated, changedAt], [undated]] as const) {
+    const pageDirectory = join(directory, path.slice(1));
+    await mkdir(pageDirectory, { recursive: true });
+    await writeFile(join(pageDirectory, 'index.html'), fixture(path, 'product', null, date));
+  }
+  const exactDate = `<lastmod>${changedAt}</lastmod>`;
+  await writeMap(exactDate);
+  assert.equal((await validateSiteOutput(directory, origin)).length, 2);
+
+  await writeMap();
+  await assert.rejects(validateSiteOutput(directory, origin), /p-updated.*lastmod/);
+  await writeMap('<lastmod>2026-11-20T12:03:04.231Z</lastmod>');
+  await assert.rejects(validateSiteOutput(directory, origin), /p-updated.*lastmod/);
+  await writeMap(exactDate, exactDate);
+  await assert.rejects(validateSiteOutput(directory, origin), /p-undated.*lastmod/);
 });
