@@ -1,6 +1,10 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
-import { type DetailPage, fetchCatalogDetailPage } from '../infrastructure/catalog-detail-api.ts';
+import {
+  type DetailPage,
+  type DetailPageResult,
+  fetchCatalogDetailPage,
+} from '../infrastructure/catalog-detail-api.ts';
 import { CatalogDetail } from '../presentation/CatalogDetail.tsx';
 import { CatalogVariantGallery } from '../presentation/CatalogVariantGallery.tsx';
 import {
@@ -20,6 +24,7 @@ export function CatalogDetailController({
   onVariantChange,
   legacyFallback,
   bootstrap,
+  initialRead,
 }: {
   productId: string;
   requestedId?: string;
@@ -29,6 +34,7 @@ export function CatalogDetailController({
   onVariantChange?: (id?: string) => void;
   legacyFallback?: ReactNode;
   bootstrap?: DetailPage;
+  initialRead?: Promise<DetailPageResult>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const focusedProduct = useRef<string | undefined>(undefined);
@@ -46,13 +52,16 @@ export function CatalogDetailController({
     return next;
   }, []);
   const perform = useCallback(
-    async (initial: ProductDetailState) => {
+    async (initial: ProductDetailState, earlyRead?: Promise<DetailPageResult>) => {
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
       let pending = initial;
+      let firstRead = earlyRead;
       while ((pending.status === 'loading' || pending.status === 'ready') && pending.request) {
-        const result = await fetchCatalogDetailPage(pending.request, { signal: controller.signal });
+        const result = await (firstRead ??
+          fetchCatalogDetailPage(pending.request, { signal: controller.signal }));
+        firstRead = undefined;
         if (controller.signal.aborted) return;
         const next = apply({
           type: 'result',
@@ -83,11 +92,12 @@ export function CatalogDetailController({
               requestedId: requested.current,
             },
       ),
+      retry === 0 && !bootstrap ? initialRead : undefined,
     );
     return () => {
       abort.current?.abort();
     };
-  }, [productId, retry, apply, perform, bootstrap]);
+  }, [productId, retry, apply, perform, bootstrap, initialRead]);
   useEffect(() => {
     // URL selection is interaction state, not a new product/revision fetch.
     // Browser Back/Forward also uses this path, including an invalid deep link.

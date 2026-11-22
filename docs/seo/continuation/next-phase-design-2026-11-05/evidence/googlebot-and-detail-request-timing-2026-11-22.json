@@ -1,0 +1,324 @@
+{
+  "websiteBaselineRun": 44995991396,
+  "searchConsole": {
+    "site": "https://supplychainsai.com/",
+    "indexReportThrough": "2026-11-16",
+    "indexed": 529,
+    "excluded": 989,
+    "other4xx": {
+      "pending": 5,
+      "failed": 0
+    },
+    "webPerformance": {
+      "through": "2026-11-19",
+      "impressions": 95,
+      "clicks": 3
+    }
+  },
+  "cloudBaseCrawlerLog": {
+    "startLocal": "2026-11-22 07:19:00",
+    "endLocal": "2026-11-22 15:51:31",
+    "timeZone": "UTC+08:00",
+    "creationTime": "2026-11-20T15:45:50.000000",
+    "queries": 2,
+    "segments": [
+      {
+        "startTime": "2026-11-22 07:19:00",
+        "endTime": "2026-11-22 13:18:59",
+        "candidates": 35,
+        "verified": 29
+      },
+      {
+        "startTime": "2026-11-22 13:19:00",
+        "endTime": "2026-11-22 15:51:31",
+        "candidates": 0,
+        "verified": 0
+      }
+    ],
+    "statusCounts": {
+      "200": 29
+    }
+  },
+  "verifiedCrawlerRequests": 29,
+  "distinctCrawlerPaths": 25,
+  "googlebotHistoricalImages": 0,
+  "historicalImageReadback": [
+    {
+      "url": "https://supplychainsai.com/api/images/3fbe8b166ac87f63003984d22ff5a5d7",
+      "status": 200,
+      "bytes": 51178,
+      "same": true
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/66baec6f6ac882aa00729f35667d3ea5",
+      "status": 200,
+      "bytes": 65170,
+      "same": true
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/4db8df016ac88396000781db489eb227",
+      "status": 200,
+      "bytes": 69280,
+      "same": true
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/ea7765a56ab1dbea01d9b6924386c973",
+      "status": 200,
+      "bytes": 87330,
+      "same": true
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/31051309-b170-4ef2-a7f7-86c645fd3fad",
+      "status": 200,
+      "bytes": 135494,
+      "same": true
+    },
+    {
+      "url": "https://supplychainsai.com/api/images/01f3430d6aaa0aaf0006470c395a33a9",
+      "status": 200,
+      "bytes": 660144,
+      "same": true
+    }
+  ],
+  "redirectAndCompression": {
+    "checkedPath": "/headphones/page/2/?seo_probe=1",
+    "apexHttpStatus": 200,
+    "apexHttpsStatus": 200,
+    "wwwHttpStatus": 301,
+    "wwwHttpsStatus": 301,
+    "wwwRedirectPreservesQuery": true,
+    "testSubdomain": "seo-https-check.supplychainsai.com",
+    "googleAndCloudflareStatus": "NXDOMAIN",
+    "currentCertificateNames": ["supplychainsai.com", "www.supplychainsai.com"],
+    "apexHtmlUncompressedBytes": 121000,
+    "detailScriptUncompressedBytes": 66349
+  },
+  "mobileComparison": {
+    "basis": "Fresh Chrome contexts, cache disabled, 390×844 viewport, CPU 4× slowdown, 150 ms latency, 200,000 bytes/s down. Alternate order per pair, same cached public API response on the local read-only proxy. A single product and one mobile profile.",
+    "page": "/headphones/page/2/",
+    "prototype": {
+      "pairs": [
+        {
+          "serial": {
+            "titleMs": 1330,
+            "detailStartMs": 602,
+            "detailFinishMs": 828,
+            "rendererChunkFinishMs": 594
+          },
+          "parallel": {
+            "titleMs": 2839,
+            "detailStartMs": 19,
+            "detailFinishMs": 960,
+            "rendererChunkFinishMs": 2452
+          }
+        },
+        {
+          "serial": {
+            "titleMs": 2340,
+            "detailStartMs": 1906,
+            "detailFinishMs": 2276,
+            "rendererChunkFinishMs": 1894
+          },
+          "parallel": {
+            "titleMs": 1833,
+            "detailStartMs": 18,
+            "detailFinishMs": 626,
+            "rendererChunkFinishMs": 1638
+          }
+        },
+        {
+          "serial": {
+            "titleMs": 2846,
+            "detailStartMs": 2408,
+            "detailFinishMs": 2783,
+            "rendererChunkFinishMs": 2400
+          },
+          "parallel": {
+            "titleMs": 2353,
+            "detailStartMs": 18,
+            "detailFinishMs": 916,
+            "rendererChunkFinishMs": 2200
+          }
+        },
+        {
+          "serial": {
+            "titleMs": 2338,
+            "detailStartMs": 1564,
+            "detailFinishMs": 1939,
+            "rendererChunkFinishMs": 1556
+          },
+          "parallel": {
+            "titleMs": 1838,
+            "detailStartMs": 19,
+            "detailFinishMs": 635,
+            "rendererChunkFinishMs": 1647
+          }
+        },
+        {
+          "serial": {
+            "titleMs": 2336,
+            "detailStartMs": 1610,
+            "detailFinishMs": 1985,
+            "rendererChunkFinishMs": 1602
+          },
+          "parallel": {
+            "titleMs": 1845,
+            "detailStartMs": 28,
+            "detailFinishMs": 618,
+            "rendererChunkFinishMs": 1600
+          }
+        },
+        {
+          "serial": {
+            "titleMs": 2336,
+            "detailStartMs": 1825,
+            "detailFinishMs": 2198,
+            "rendererChunkFinishMs": 1816
+          },
+          "parallel": {
+            "titleMs": 1830,
+            "detailStartMs": 17,
+            "detailFinishMs": 639,
+            "rendererChunkFinishMs": 1650
+          }
+        }
+      ],
+      "improvedPairs": 5,
+      "median": {
+        "serial": {
+          "titleMs": 2337.0,
+          "detailStartMs": 1717.5,
+          "detailFinishMs": 2091.5,
+          "rendererChunkFinishMs": 1709.0
+        },
+        "parallel": {
+          "titleMs": 1841.5,
+          "detailStartMs": 18.5,
+          "detailFinishMs": 637.0,
+          "rendererChunkFinishMs": 1648.5
+        }
+      }
+    },
+    "candidate": {
+      "pairs": [
+        {
+          "base": {
+            "titleMs": 2391,
+            "detailStartMs": 1692,
+            "detailFinishMs": 2064,
+            "rendererChunkFinishMs": 1682
+          },
+          "candidate": {
+            "titleMs": 1395,
+            "detailStartMs": 341,
+            "detailFinishMs": 788,
+            "rendererChunkFinishMs": 1245
+          }
+        },
+        {
+          "base": {
+            "titleMs": 2340,
+            "detailStartMs": 1565,
+            "detailFinishMs": 1938,
+            "rendererChunkFinishMs": 1557
+          },
+          "candidate": {
+            "titleMs": 1335,
+            "detailStartMs": 253,
+            "detailFinishMs": 603,
+            "rendererChunkFinishMs": 926
+          }
+        },
+        {
+          "base": {
+            "titleMs": 3341,
+            "detailStartMs": 2497,
+            "detailFinishMs": 2871,
+            "rendererChunkFinishMs": 2489
+          },
+          "candidate": {
+            "titleMs": 1340,
+            "detailStartMs": 264,
+            "detailFinishMs": 637,
+            "rendererChunkFinishMs": 1178
+          }
+        },
+        {
+          "base": {
+            "titleMs": 2335,
+            "detailStartMs": 1582,
+            "detailFinishMs": 1958,
+            "rendererChunkFinishMs": 1574
+          },
+          "candidate": {
+            "titleMs": 2369,
+            "detailStartMs": 337,
+            "detailFinishMs": 987,
+            "rendererChunkFinishMs": 2127
+          }
+        },
+        {
+          "base": {
+            "titleMs": 3345,
+            "detailStartMs": 2506,
+            "detailFinishMs": 2880,
+            "rendererChunkFinishMs": 2498
+          },
+          "candidate": {
+            "titleMs": 870,
+            "detailStartMs": 290,
+            "detailFinishMs": 587,
+            "rendererChunkFinishMs": 798
+          }
+        },
+        {
+          "base": {
+            "titleMs": 2341,
+            "detailStartMs": 1588,
+            "detailFinishMs": 2007,
+            "rendererChunkFinishMs": 1579
+          },
+          "candidate": {
+            "titleMs": 1833,
+            "detailStartMs": 261,
+            "detailFinishMs": 746,
+            "rendererChunkFinishMs": 1430
+          }
+        }
+      ],
+      "improvedPairs": 5,
+      "median": {
+        "base": {
+          "titleMs": 2366.0,
+          "detailStartMs": 1640.0,
+          "detailFinishMs": 2035.5,
+          "rendererChunkFinishMs": 1630.5
+        },
+        "candidate": {
+          "titleMs": 1367.5,
+          "detailStartMs": 277.0,
+          "detailFinishMs": 691.5,
+          "rendererChunkFinishMs": 1211.5
+        }
+      }
+    },
+    "apiModuleBytes": 3140,
+    "initialListNavigationChunkBytes": {
+      "base": 5527,
+      "candidate": 6128
+    },
+    "sourceHtml": {
+      "matchingHtmlImagesAndLinks": 591,
+      "seoPages": 589,
+      "products": 528,
+      "exactMapAndSeoFiles": [
+        "robots.txt",
+        "sitemap-0.xml",
+        "sitemap-index.xml",
+        "seo-manifest.json",
+        "products/manifest.json"
+      ]
+    },
+    "redGreen": "With the detail renderer JS held, the old build made zero detail GETs. The candidate starts one GET, handles injected 503 after the renderer arrives, sends one fresh GET on Reload details and aborts the next pending read on Back."
+  }
+}

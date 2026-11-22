@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
+import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
 import type {
   CatalogPage,
   Product,
@@ -251,6 +252,63 @@ for (const family of families) {
     expect(requests).toHaveLength(count);
   });
 }
+
+test('opening a product reads its first detail page while the renderer is downloading', async ({
+  page,
+}) => {
+  const renderer = deferred();
+  const reopenedResponse = deferred();
+  let rendererRequests = 0;
+  let detailRequests = 0;
+  await mockCatalog(page, 'headphones');
+  await page.route(/\/CatalogDetailController\.[\w-]+\.js(?:\?|$)/, async (route) => {
+    rendererRequests++;
+    await renderer.promise;
+    await route.continue();
+  });
+  await page.route('**/api/products/headphones-1/detail?*', async (route) => {
+    detailRequests++;
+    if (detailRequests === 1) {
+      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+      return;
+    }
+    if (detailRequests === 3) await reopenedResponse.promise;
+    const detail = { ...detailFixture(1), _id: 'headphones-1', images: [] };
+    await route.fulfill({ json: { ok: true, data: detail } });
+  });
+
+  try {
+    await page.goto('/headphones/?search=Catalog');
+    await expectPage(page, 'headphones', 1);
+    expect(detailRequests).toBe(0);
+    const card = page.locator('[data-product-card="headphones-1"]');
+    await card.click();
+    const detailPanel = page.locator('[data-shared-detail-navigation]');
+    await expect(detailPanel).toBeVisible();
+    await expect.poll(() => rendererRequests).toBe(1);
+    await expect.poll(() => detailRequests).toBe(1);
+    renderer.resolve();
+    await detailPanel.getByRole('button', { name: 'Reload details', exact: true }).click();
+    await expect(detailPanel.getByRole('heading', { name: 'Headset', exact: true })).toBeVisible();
+    expect(detailRequests).toBe(2);
+    await detailPanel.getByRole('button', { name: 'Back to catalog', exact: true }).click();
+    await expect(card).toBeFocused();
+
+    await card.click();
+    await expect.poll(() => detailRequests).toBe(3);
+    const aborted = page.waitForEvent('requestfailed', (request) =>
+      new URL(request.url()).pathname.endsWith('/headphones-1/detail'),
+    );
+    await detailPanel.getByRole('button', { name: 'Back to catalog', exact: true }).click();
+    await aborted;
+    reopenedResponse.resolve();
+    await expect(card).toBeFocused();
+    await expect(detailPanel).toHaveCount(0);
+  } finally {
+    renderer.resolve();
+    reopenedResponse.resolve();
+  }
+});
 
 test('late taxonomy shows all categories during and after the initial unfiltered request', async ({
   page,

@@ -14,6 +14,7 @@ import {
 } from '../../catalog/application/catalog-quote-transport.ts';
 import { submitLocalQuote } from '../../catalog/application/local-quote-transport.ts';
 import { submitPublicQuote } from '../../catalog/application/public-quote-transport.ts';
+import type { DetailPageResult } from '../../catalog/infrastructure/catalog-detail-api.ts';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   sharedDetailSearch as previewDetailSearch,
@@ -84,8 +85,18 @@ export default function SharedCatalogPreview({
   >(undefined);
   const frame = useRef<number | undefined>(undefined);
   const restorePending = useRef(false);
+  const earlyDetail = useRef<{
+    productId: string;
+    abort: AbortController;
+    result: Promise<DetailPageResult>;
+  }>(undefined);
+  const cancelEarlyDetail = useCallback(() => {
+    earlyDetail.current?.abort.abort();
+    earlyDetail.current = undefined;
+  }, []);
   useEffect(() => {
     const read = (event?: PopStateEvent) => {
+      if (event) cancelEarlyDetail();
       // Initial hydration is not Back navigation. Restoring here used to yank
       // the visitor past the hero while the first catalog request was loading.
       restorePending.current =
@@ -101,9 +112,10 @@ export default function SharedCatalogPreview({
     return () => {
       window.removeEventListener('popstate', read);
       window.history.scrollRestoration = previous;
+      cancelEarlyDetail();
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
-  }, [sharedListTarget]);
+  }, [cancelEarlyDetail, sharedListTarget]);
 
   useEffect(() => {
     if (
@@ -165,11 +177,25 @@ export default function SharedCatalogPreview({
         '',
         `${window.location.pathname}${next}`,
       );
+      cancelEarlyDetail();
+      const abort = new AbortController();
+      // Begin the same anonymous detail read as the controller without waiting for its UI.
+      const result = import('../../catalog/infrastructure/catalog-detail-api.ts')
+        .then(({ fetchCatalogDetailPage }) =>
+          fetchCatalogDetailPage({ productId }, { signal: abort.signal }),
+        )
+        .catch(
+          (): DetailPageResult => ({
+            status: abort.signal.aborted ? 'cancelled' : 'network-error',
+          }),
+        );
+      earlyDetail.current = { productId, abort, result };
       setSearch(next);
     },
-    [sharedDetailSearch],
+    [cancelEarlyDetail, sharedDetailSearch],
   );
   const back = () => {
+    cancelEarlyDetail();
     if (
       returnPoint.current &&
       window.history.state?.channelSharedNavigation === returnPoint.current.token
@@ -230,6 +256,11 @@ export default function SharedCatalogPreview({
                     key={JSON.stringify([target.productId, target.requestedId])}
                     productId={target.productId}
                     requestedId={target.requestedId}
+                    initialRead={
+                      earlyDetail.current?.productId === target.productId
+                        ? earlyDetail.current.result
+                        : undefined
+                    }
                     copy={copy}
                     legacyFallback={
                       localPreview ? undefined : renderLegacyDetail?.(target.productId)
