@@ -455,3 +455,9 @@ Bing 11 月 19 日成功处理两份地图，静态地图 580 个网址、Blog �
 北京时间 05:44 至 07:19，按五张历史 4xx 图片、12 个 Google 已发现的网址、样品检查文章和工厂观看页这 19 个地址检查腾讯网关。三段共读到 123 次请求，均为 HTTP 200，其中无同时匹配 Google 公布爬虫地址及 Googlebot 标识的记录。另逐份扫描当前正式包的 589 份 HTML。站内静态引用均能在发布包找到，唯一例外是自定义错误页自己声明的 `/404/`，这是错误页入口。Blog 与 API 按各自服务路由识别，没有把这类动态地址算成丢失的静态文件。 [网关与发布包证据](evidence/site-performance-and-watch-2026-11-22.json) · [Google 核验爬虫身份](https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests)
 
 重新在已登录的官网属性读取 Search Console。网页汇总仍截至 11 月 16 日，529 个地址已收录、989 个排除。五张图仍为待查 5、失败 0，表内最后抓取日期为 11 月 3–7 日。视频汇总仍以 11 月 19 日为截止日，收录 0、排除 2。独立工厂观看页已出现在 Google 的发现记录中，Google 显示尚未收录，最后抓取仍为空。真实访客报告截至 11 月 20 日，手机和桌面都缺样本。普通网页搜索截至 11 月 19 日，为 95 次展示、3 次点击。 [Google 复查详情](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [Google 视频收录](https://developers.google.com/search/docs/appearance/video)
+
+## 11 月 22 日，复查玩具目录与官网图片
+
+在官网 Search Console 属性里分别打开玩具目录的索引记录和实时检查。索引记录显示 Google 已发现 `/toys/`，没有抓取日期。11 月 22 日的实时试验可以读取它、允许收录，并识别一项有效的面包屑导航。Google 已接收过对此网址的索引申请。保留这条申请，等索引记录更新后再判断。列表里的商品应以各自的逐网址结果判断。当前网站的 12 个已发现清单样本均完整返回 200、有本页的正式地址、允许抓取、出现在地图。十件商品每件都可从至少一个分类页面进入。 [玩具目录](https://supplychainsai.com/toys/) · [Google 网址检查说明](https://support.google.com/webmasters/answer/9012289)
+
+网页索引汇总仍截至 11 月 16 日，529 个已收录、989 个排除。已逐条确认至少 966 个排除地址是图片，其中 960 个是已抓取但未收录的图片，另有五张旧 400 图和一张旧 404 图。五张旧故障图本轮完整下载均返回 200、格式为 WebP，抓取规则与响应都允许 Google 读取。Google 的正式复查仍为待处理 5、失败 0。普通网页搜索截至 11 月 19 日共有 95 次展示和 3 次点击。对照前一日增加 2 次展示，现有量太小，尚不能判断流量提升是否稳定。 [逐类归因和图片域名取舍](RELEASE-PACKAGE-SEARCH-2026-11-20.zh-CN.md#3-google-的-988-个未收录是什么) · [商品简介上线与完整照片读回](04-product-results.zh-CN.md#11-月-22-日商品搜索简介改用实际规格)
