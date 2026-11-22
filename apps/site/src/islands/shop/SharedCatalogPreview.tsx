@@ -1,5 +1,13 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CatalogDetailController } from '../../catalog/application/CatalogDetailController.tsx';
+import {
+  type ReactNode,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   CatalogLocalPreviewContext,
   CatalogQuoteTransportContext,
@@ -13,6 +21,21 @@ import {
   sharedListTarget as previewListTarget,
   sharedVariantSearch as previewVariantSearch,
 } from './shared-detail-navigation.ts';
+
+function CatalogDetailUnavailable({ copy }: { copy: SharedDetailContent }) {
+  return <p role="alert">{copy.errorLabel}</p>;
+}
+
+// The list needs navigation, not the detail renderer or its configuration code.
+const CatalogDetailController = lazy(async () => {
+  try {
+    const detail = await import('../../catalog/application/CatalogDetailController.tsx');
+    return { default: detail.CatalogDetailController };
+  } catch {
+    // Keep the Back action and the mounted catalog usable if a chunk fails to load.
+    return { default: CatalogDetailUnavailable };
+  }
+});
 
 /** Ordinary and local-preview navigation. The existing list owns filters and loaded pages.
  * Keep it mounted (but hidden) while detail is open; never cache product data in history/storage.
@@ -200,16 +223,22 @@ export default function SharedCatalogPreview({
               <CatalogQuoteTransportContext.Provider
                 value={localPreview ? submitLocalQuote : submitPublicQuote}
               >
-                <CatalogDetailController
-                  key={JSON.stringify([target.productId, target.requestedId])}
-                  productId={target.productId}
-                  requestedId={target.requestedId}
-                  copy={copy}
-                  legacyFallback={localPreview ? undefined : renderLegacyDetail?.(target.productId)}
-                  backNavigation={null}
-                  focusOnOpen
-                  onVariantChange={variantChanged}
-                />
+                <Suspense
+                  fallback={<output className="block p-12 text-center">{copy.loadingLabel}</output>}
+                >
+                  <CatalogDetailController
+                    key={JSON.stringify([target.productId, target.requestedId])}
+                    productId={target.productId}
+                    requestedId={target.requestedId}
+                    copy={copy}
+                    legacyFallback={
+                      localPreview ? undefined : renderLegacyDetail?.(target.productId)
+                    }
+                    backNavigation={null}
+                    focusOnOpen
+                    onVariantChange={variantChanged}
+                  />
+                </Suspense>
               </CatalogQuoteTransportContext.Provider>
             </CatalogLocalPreviewContext.Provider>
           )}
