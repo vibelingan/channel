@@ -1,5 +1,11 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 23 日复查 Google 与正式官网
+
+Search Console 的网页索引报表仍截至 11 月 16 日，529 个已收录、989 个排除。八类数量未变。五张历史 400 图片的复查仍是待处理 5、失败 0，Google 显示的最后抓取日期仍在 11 月 3–7 日。官网发布后完整读回五张旧 400 图和一张旧 404 图，均为 HTTP 200，与验收时的文件摘要相同。北京时间 11 月 22 日 16:29 至 23:23 的两段腾讯网关查询没有返回符合已知 Googlebot 条件的请求。Google 的复查仍以后台结论为准。 [Google 复查详情](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC)
+
+网页搜索数据更新到 11 月 20 日，累计 98 次展示、3 次点击，平均位置 27.1。11 月 19 日为 95 次展示、3 次点击，平均位置 26.8。新报表多 3 次展示，点击数持平。实际访客速度报告更新到 11 月 21 日，手机和桌面都缺少足够样本。 [本轮读数和官网验收](evidence/googlebot-and-detail-request-timing-2026-11-22.json)
+
 ## 11 月 22 日，核对商品更新时间怎样进入网站地图
 
 官网的静态地图有 580 个页面地址，其中 528 个是商品，当前都没有 `lastmod`。这个字段告诉搜索引擎该页面的内容上一次何时真正改变。官网已验收的快照包含 528 件商品的公开版本，但没有可信的历史变更日期。现有程序会在收到可信日期时写入商品 HTML 和地图，所以留空符合这批数据的实际情况。Google 还没有抓取的商品不能归因于这一点。 [正式网页归档](https://github.com/vibelingan/channel/actions/runs/44985497074) · [Google 对地图日期的要求](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)

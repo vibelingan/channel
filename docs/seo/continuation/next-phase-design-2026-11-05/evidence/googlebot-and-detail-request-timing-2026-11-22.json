@@ -89,7 +89,10 @@
     "wwwRedirectPreservesQuery": true,
     "testSubdomain": "seo-https-check.supplychainsai.com",
     "googleAndCloudflareStatus": "NXDOMAIN",
-    "currentCertificateNames": ["supplychainsai.com", "www.supplychainsai.com"],
+    "currentCertificateNames": [
+      "supplychainsai.com",
+      "www.supplychainsai.com"
+    ],
     "apexHtmlUncompressedBytes": 121000,
     "detailScriptUncompressedBytes": 66349
   },
@@ -320,5 +323,760 @@
       ]
     },
     "redGreen": "With the detail renderer JS held, the old build made zero detail GETs. The candidate starts one GET, handles injected 503 after the renderer arrives, sends one fresh GET on Reload details and aborts the next pending read on Back."
+  },
+  "archiveAndDirectLanding": {
+    "artifact": {
+      "id": 14746113108,
+      "previousRun": 44995991396,
+      "codeSha": "cc42776be85b0547bce1a8f03bae7059c67f50b2",
+      "archivedFiles": 2253,
+      "publicFiles": 2249,
+      "publicExtensions": {
+        ".css": 74,
+        ".html": 589,
+        ".ico": 1,
+        ".jpg": 42,
+        ".js": 1495,
+        ".json": 3,
+        ".mp4": 4,
+        ".png": 9,
+        ".svg": 3,
+        ".txt": 1,
+        ".webp": 26,
+        ".xml": 2
+      },
+      "archiveOnlyManifests": [
+        "compatibility.json",
+        "payload-manifest.json",
+        "product-snapshot.json",
+        "static-manifest.json"
+      ],
+      "findings": [],
+      "difference": {
+        "added": {
+          "js": 8
+        },
+        "removed": {},
+        "changed": {
+          "html": 46,
+          "product html": 529
+        },
+        "newBytes": 52685303,
+        "htmlClassification": {
+          "other pages - just script filenames": 47,
+          "product details - just script filenames": 528
+        },
+        "changedOther": [],
+        "examples": {
+          "other pages": {
+            "path": "ai-gadgets/index.html",
+            "before": [
+              "/_astro/CatalogFamilyPage.CF6vylrA.js"
+            ],
+            "after": [
+              "/_astro/CatalogFamilyPage.CmeUyiOY.js"
+            ]
+          },
+          "product details": {
+            "path": "products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/index.html",
+            "before": [
+              "/_astro/ProductLanding.BWJBHqwz.js"
+            ],
+            "after": [
+              "/_astro/ProductLanding.CbXukCYz.js"
+            ]
+          }
+        }
+      }
+    },
+    "directLanding": {
+      "chrome": "157.0.8103.79",
+      "profiles": {
+        "mobile": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "isMobile": true,
+          "hasTouch": true,
+          "cpu": 4,
+          "latency": 150,
+          "rate": 200000
+        },
+        "desktop": {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "isMobile": false,
+          "hasTouch": false,
+          "cpu": 1,
+          "latency": 40,
+          "rate": 1250000
+        }
+      },
+      "source": "Exact previous and candidate GitHub files served locally; photographic image still read from production",
+      "normal": [
+        {
+          "variant": "before",
+          "profile": "mobile",
+          "repeat": 1,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 4497,
+          "fcpMs": 1068,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 55,
+          "galleryVisibleMs": 1112,
+          "galleryImageFetchMs": 1063,
+          "quantityVisibleMs": 61,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "mobile",
+          "repeat": 1,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 4228,
+          "fcpMs": 1068,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 28,
+          "galleryVisibleMs": 717,
+          "galleryImageFetchMs": 678,
+          "quantityVisibleMs": 48,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "mobile",
+          "repeat": 2,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 3824,
+          "fcpMs": 1076,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 27,
+          "galleryVisibleMs": 848,
+          "galleryImageFetchMs": 819,
+          "quantityVisibleMs": 46,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "before",
+          "profile": "mobile",
+          "repeat": 2,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 4280,
+          "fcpMs": 1076,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 25,
+          "galleryVisibleMs": 1281,
+          "galleryImageFetchMs": 1254,
+          "quantityVisibleMs": 45,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "before",
+          "profile": "mobile",
+          "repeat": 3,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 3771,
+          "fcpMs": 1072,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 27,
+          "galleryVisibleMs": 1034,
+          "galleryImageFetchMs": 1003,
+          "quantityVisibleMs": 47,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "mobile",
+          "repeat": 3,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 3819,
+          "fcpMs": 1076,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 23,
+          "galleryVisibleMs": 1646,
+          "galleryImageFetchMs": 1615,
+          "quantityVisibleMs": 49,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "desktop",
+          "repeat": 1,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 746,
+          "fcpMs": 228,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 7,
+          "galleryVisibleMs": 1299,
+          "galleryImageFetchMs": 1278,
+          "quantityVisibleMs": 26,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "before",
+          "profile": "desktop",
+          "repeat": 1,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 747,
+          "fcpMs": 228,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 6,
+          "galleryVisibleMs": 1280,
+          "galleryImageFetchMs": 1267,
+          "quantityVisibleMs": 25,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "before",
+          "profile": "desktop",
+          "repeat": 2,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 754,
+          "fcpMs": 220,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 5,
+          "galleryVisibleMs": 1350,
+          "galleryImageFetchMs": 1329,
+          "quantityVisibleMs": 24,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "desktop",
+          "repeat": 2,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 741,
+          "fcpMs": 220,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 7,
+          "galleryVisibleMs": 2368,
+          "galleryImageFetchMs": 2361,
+          "quantityVisibleMs": 24,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "after",
+          "profile": "desktop",
+          "repeat": 3,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 743,
+          "fcpMs": 228,
+          "productStartupJsBytes": 412447,
+          "galleryClickMs": 5,
+          "galleryVisibleMs": 2036,
+          "galleryImageFetchMs": 2017,
+          "quantityVisibleMs": 47,
+          "blockedWrites": 0
+        },
+        {
+          "variant": "before",
+          "profile": "desktop",
+          "repeat": 3,
+          "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+          "readyMs": 748,
+          "fcpMs": 224,
+          "productStartupJsBytes": 412091,
+          "galleryClickMs": 5,
+          "galleryVisibleMs": 1601,
+          "galleryImageFetchMs": 1587,
+          "quantityVisibleMs": 16,
+          "blockedWrites": 0
+        }
+      ],
+      "fixedImage": {
+        "source": "Pin only the same gallery image responses from production to both test variants",
+        "rows": [
+          {
+            "variant": "after",
+            "profile": "desktop",
+            "repeat": 1,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 739,
+            "fcpMs": 216,
+            "productStartupJsBytes": 412447,
+            "galleryClickMs": 5,
+            "galleryVisibleMs": 50,
+            "galleryImageFetchMs": 2,
+            "quantityVisibleMs": 12,
+            "blockedWrites": 0
+          },
+          {
+            "variant": "before",
+            "profile": "desktop",
+            "repeat": 1,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 736,
+            "fcpMs": 216,
+            "productStartupJsBytes": 412091,
+            "galleryClickMs": 6,
+            "galleryVisibleMs": 48,
+            "galleryImageFetchMs": 2,
+            "quantityVisibleMs": 17,
+            "blockedWrites": 0
+          },
+          {
+            "variant": "before",
+            "profile": "desktop",
+            "repeat": 2,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 749,
+            "fcpMs": 220,
+            "productStartupJsBytes": 412091,
+            "galleryClickMs": 5,
+            "galleryVisibleMs": 48,
+            "galleryImageFetchMs": 1,
+            "quantityVisibleMs": 12,
+            "blockedWrites": 0
+          },
+          {
+            "variant": "after",
+            "profile": "desktop",
+            "repeat": 2,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 742,
+            "fcpMs": 224,
+            "productStartupJsBytes": 412447,
+            "galleryClickMs": 6,
+            "galleryVisibleMs": 49,
+            "galleryImageFetchMs": 2,
+            "quantityVisibleMs": 13,
+            "blockedWrites": 0
+          },
+          {
+            "variant": "after",
+            "profile": "desktop",
+            "repeat": 3,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 744,
+            "fcpMs": 224,
+            "productStartupJsBytes": 412447,
+            "galleryClickMs": 5,
+            "galleryVisibleMs": 49,
+            "galleryImageFetchMs": 1,
+            "quantityVisibleMs": 13,
+            "blockedWrites": 0
+          },
+          {
+            "variant": "before",
+            "profile": "desktop",
+            "repeat": 3,
+            "path": "/products/p-003a6310-5244-4766-adfa-eb1002ad0fb4/",
+            "readyMs": 744,
+            "fcpMs": 224,
+            "productStartupJsBytes": 412091,
+            "galleryClickMs": 6,
+            "galleryVisibleMs": 48,
+            "galleryImageFetchMs": 2,
+            "quantityVisibleMs": 17,
+            "blockedWrites": 0
+          }
+        ]
+      }
+    }
+  },
+  "productionFollowup": {
+    "delivery": {
+      "workflowRun": 45002566008,
+      "archiveRun": 45002067080,
+      "source": "cc42776be85b0547bce1a8f03bae7059c67f50b2",
+      "sourceRef": "feat/seo-foundation",
+      "githubRunSeconds": 2585,
+      "websiteAcceptedSeconds": 2201,
+      "publicAcceptance": {
+        "run": 45002566008,
+        "source": "cc42776be85b0547bce1a8f03bae7059c67f50b2",
+        "verifiedDirectories": 46,
+        "officialReads": 17,
+        "publicProducts": 528,
+        "metaPages": 589,
+        "unknownStatus": 404
+      },
+      "ledger": {
+        "checkedAt": "2026-11-22T15:23:17.567Z",
+        "leaseState": "idle",
+        "baselineRun": "site-45002566008-1",
+        "dirtyRun": null,
+        "run": {
+          "phase": "SUCCEEDED",
+          "acceptedAt": 1795337997541,
+          "stepCount": 50,
+          "verifiedSteps": 50
+        }
+      },
+      "catalogClock": {
+        "readAt": "2026-11-22T15:22:08.011Z",
+        "pending": false,
+        "enabled": true,
+        "functionActive": true,
+        "cadence": "{\"cron\":\"0 * * * * * *\"}",
+        "triggerEnabled": null,
+        "active": {
+          "codeSha": "cc42776be85b0547bce1a8f03bae7059c67f50b2",
+          "executorSha": "cc42776be85b0547bce1a8f03bae7059c67f50b2",
+          "executorRef": "feat/seo-foundation",
+          "catalogTracked": true,
+          "acceptedRunId": "site-45002566008-1"
+        },
+        "checkedFunctions": 9,
+        "leftoverFunctions": 0
+      }
+    },
+    "searchConsole": {
+      "observedDateLocal": "2026-11-23",
+      "observerTimeZone": "Asia/Tokyo",
+      "property": "https://supplychainsai.com/",
+      "pages": {
+        "through": "2026-11-16",
+        "indexed": 529,
+        "excluded": 989,
+        "reasons": {
+          "redirect": 4,
+          "robots": 1,
+          "crawledNotIndexed": 960,
+          "discoveredNotIndexed": 12,
+          "other4xx": 5,
+          "alternateCanonical": 5,
+          "noindex": 1,
+          "notFound": 1
+        }
+      },
+      "other4xx": {
+        "state": "started",
+        "started": "2026-11-16",
+        "pending": 5,
+        "failed": 0,
+        "lastCrawls": [
+          "2026-11-07",
+          "2026-11-06",
+          "2026-11-03",
+          "2026-11-03",
+          "2026-11-03"
+        ]
+      },
+      "webPerformance": {
+        "from": "2026-10-14",
+        "through": "2026-11-20",
+        "impressions": 98,
+        "clicks": 3,
+        "averagePosition": 27.1
+      },
+      "coreWebVitals": {
+        "through": "2026-11-21",
+        "mobile": "insufficient-usage-data",
+        "desktop": "insufficient-usage-data"
+      }
+    },
+    "crawlerLog": {
+      "startLocal": "2026-11-22 16:29:13",
+      "endLocal": "2026-11-22 23:23:25",
+      "timeZone": "UTC+08:00",
+      "queries": 2,
+      "segments": [
+        {
+          "startTime": "2026-11-22 16:29:13",
+          "endTime": "2026-11-22 22:29:12",
+          "candidates": 0,
+          "verified": 0
+        },
+        {
+          "startTime": "2026-11-22 22:29:13",
+          "endTime": "2026-11-22 23:23:25",
+          "candidates": 0,
+          "verified": 0
+        }
+      ],
+      "statusCounts": {}
+    },
+    "catalogPerformance": {
+      "chrome": "157.0.8103.79",
+      "profiles": {
+        "mobile": {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "isMobile": true,
+          "hasTouch": true,
+          "cpu": 4,
+          "latency": 150,
+          "rate": 200000
+        },
+        "desktop": {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "isMobile": false,
+          "hasTouch": false,
+          "cpu": 1,
+          "latency": 40,
+          "rate": 1250000
+        }
+      },
+      "path": "/headphones/page/2/",
+      "oldProductionSamples": [
+        {
+          "profile": "mobile",
+          "repeat": 1,
+          "filterMs": 2603,
+          "opened": true,
+          "titleVisibleMs": 3347,
+          "detailStartMs": 1810,
+          "detailDurationMs": 1446,
+          "rendererDurationMs": 1770,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 59,
+          "contactVisibleMs": 85,
+          "businessWrites": 0
+        },
+        {
+          "profile": "mobile",
+          "repeat": 2,
+          "filterMs": 2070,
+          "opened": true,
+          "titleVisibleMs": 3353,
+          "detailStartMs": 1950,
+          "detailDurationMs": 1232,
+          "rendererDurationMs": 1916,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 50,
+          "contactVisibleMs": 54,
+          "businessWrites": 0
+        },
+        {
+          "profile": "mobile",
+          "repeat": 3,
+          "filterMs": 2441,
+          "opened": true,
+          "titleVisibleMs": 3848,
+          "detailStartMs": 2313,
+          "detailDurationMs": 1441,
+          "rendererDurationMs": 2278,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 52,
+          "contactVisibleMs": 57,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 1,
+          "filterMs": 1507,
+          "opened": true,
+          "titleVisibleMs": 2814,
+          "detailStartMs": 766,
+          "detailDurationMs": 1571,
+          "rendererDurationMs": 746,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 26,
+          "contactVisibleMs": 11,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 2,
+          "filterMs": 1946,
+          "opened": true,
+          "titleVisibleMs": 2810,
+          "detailStartMs": 860,
+          "detailDurationMs": 1892,
+          "rendererDurationMs": 855,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 10,
+          "contactVisibleMs": 12,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 3,
+          "filterMs": 1643,
+          "opened": true,
+          "titleVisibleMs": 2331,
+          "detailStartMs": 1100,
+          "detailDurationMs": 1202,
+          "rendererDurationMs": 1091,
+          "requestsOverlap": false,
+          "quantityVisibleMs": 11,
+          "contactVisibleMs": 11,
+          "businessWrites": 0
+        }
+      ],
+      "newProductionSamples": [
+        {
+          "profile": "mobile",
+          "repeat": 1,
+          "filterMs": 5031,
+          "opened": true,
+          "titleVisibleMs": 5852,
+          "detailStartMs": 1200,
+          "detailDurationMs": 4317,
+          "rendererDurationMs": 3593,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 56,
+          "contactVisibleMs": 67,
+          "businessWrites": 0
+        },
+        {
+          "profile": "mobile",
+          "repeat": 2,
+          "filterMs": 4302,
+          "opened": true,
+          "titleVisibleMs": 6344,
+          "detailStartMs": 2217,
+          "detailDurationMs": 3672,
+          "rendererDurationMs": 4559,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 45,
+          "contactVisibleMs": 61,
+          "businessWrites": 0
+        },
+        {
+          "profile": "mobile",
+          "repeat": 3,
+          "filterMs": 6748,
+          "opened": true,
+          "titleVisibleMs": 6387,
+          "detailStartMs": 2529,
+          "detailDurationMs": 3617,
+          "rendererDurationMs": 6166,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 56,
+          "contactVisibleMs": 88,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 1,
+          "filterMs": 3241,
+          "opened": true,
+          "titleVisibleMs": 4303,
+          "detailStartMs": 1646,
+          "detailDurationMs": 2621,
+          "rendererDurationMs": 3177,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 9,
+          "contactVisibleMs": 10,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 2,
+          "filterMs": 3980,
+          "opened": true,
+          "titleVisibleMs": 3806,
+          "detailStartMs": 1453,
+          "detailDurationMs": 2084,
+          "rendererDurationMs": 3324,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 18,
+          "contactVisibleMs": 14,
+          "businessWrites": 0
+        },
+        {
+          "profile": "desktop",
+          "repeat": 3,
+          "filterMs": 17043,
+          "opened": false,
+          "detailVisibleDeadlineMs": 30000,
+          "detailResponseObserved": false
+        }
+      ],
+      "targetedDesktopRetest": {
+        "journey": {
+          "profile": "desktop",
+          "repeat": 1,
+          "filterMs": 2506,
+          "opened": true,
+          "titleVisibleMs": 20489,
+          "detailStartMs": 15050,
+          "detailDurationMs": 4973,
+          "rendererDurationMs": 18202,
+          "requestsOverlap": true,
+          "quantityVisibleMs": 37,
+          "contactVisibleMs": 22,
+          "businessWrites": 0
+        },
+        "network": [
+          {
+            "path": "/headphones/page/2/",
+            "host": "supplychainsai.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 6365,
+            "totalMs": 10388,
+            "reason": null
+          },
+          {
+            "path": "/_astro/CatalogFamilyPage.CmeUyiOY.js",
+            "host": "supplychainsai.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 1962,
+            "totalMs": 1961,
+            "reason": null
+          },
+          {
+            "path": "/api/products",
+            "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+            "status": null,
+            "protocol": null,
+            "firstHeadersMs": null,
+            "totalMs": null,
+            "reason": "net::ERR_ABORTED"
+          },
+          {
+            "path": "/api/products",
+            "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 1366,
+            "totalMs": 2465,
+            "reason": null
+          },
+          {
+            "path": "/_astro/catalog-detail-api.xlZXY--C.js",
+            "host": "supplychainsai.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 15047,
+            "totalMs": 15047,
+            "reason": null
+          },
+          {
+            "path": "/_astro/CatalogDetailController.9bZLMeKZ.js",
+            "host": "supplychainsai.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 17125,
+            "totalMs": 17125,
+            "reason": null
+          },
+          {
+            "path": "/_astro/catalog-variant-state.wn81oln7.js",
+            "host": "supplychainsai.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 18203,
+            "totalMs": 18202,
+            "reason": null
+          },
+          {
+            "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+            "host": "diversity-123-d9grnqfux221323bb.service.tcloudbase.com",
+            "status": 200,
+            "protocol": "http/1.1",
+            "firstHeadersMs": 4893,
+            "totalMs": 4973,
+            "reason": null
+          }
+        ],
+        "earlierStartupTimeoutMs": 30000,
+        "earlierUnansweredRequestPaths": [
+          "/_astro/CatalogFamilyPage.CmeUyiOY.js"
+        ]
+      }
+    }
   }
 }
