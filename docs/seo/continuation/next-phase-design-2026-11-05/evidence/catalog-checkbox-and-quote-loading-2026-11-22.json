@@ -969,5 +969,682 @@
         }
       }
     }
+  },
+  "officialInquiryPerformance": {
+    "basis": "Fresh Chrome contexts on the public website, with the same browser, viewport, CPU and simulated network settings as the local inquiry comparison. Three observations per version and device. Public network conditions can vary. These are interaction readiness measurements, not field LCP or INP.",
+    "ci": 44995159744,
+    "rendererArchive": 44995637180,
+    "githubElapsedSeconds": 2607,
+    "artifactAndOfficialSite": {
+      "run": 44995991396,
+      "source": "e8cf1b9c8f51acd037367aa94e6c4e61248858a8",
+      "verifiedDirectories": 46,
+      "officialReads": 17,
+      "publicProducts": 528,
+      "metaPages": 589,
+      "unknownStatus": 404
+    },
+    "cloud": {
+      "checkedAt": "2026-11-22T07:43:00.382Z",
+      "leaseState": "idle",
+      "ownerIsThisRun": false,
+      "active": null,
+      "baselineRun": "site-44995991396-1",
+      "dirtyRun": null,
+      "pending": null,
+      "run": {
+        "phase": "SUCCEEDED",
+        "acceptedAt": 1795332849422,
+        "stepCount": 53,
+        "verifiedSteps": 53
+      }
+    },
+    "automaticCatalogUpdates": {
+      "readAt": "2026-11-22T07:43:07.620Z",
+      "pending": false,
+      "enabled": true,
+      "functionActive": true,
+      "cadence": "{\"cron\":\"0 * * * * * *\"}",
+      "triggerEnabled": null,
+      "active": {
+        "codeSha": "e8cf1b9c8f51acd037367aa94e6c4e61248858a8",
+        "executorSha": "e8cf1b9c8f51acd037367aa94e6c4e61248858a8",
+        "executorRef": "feat/seo-foundation",
+        "catalogTracked": true,
+        "acceptedRunId": "site-44995991396-1"
+      },
+      "checkedFunctions": 9,
+      "leftoverFunctions": 0
+    },
+    "staticHostingInventory": {
+      "files": 2241,
+      "classes": {
+        ".css": 74,
+        ".html": 589,
+        ".ico": 1,
+        ".jpg": 42,
+        ".js": 1487,
+        ".json": 3,
+        ".mp4": 4,
+        ".png": 9,
+        ".svg": 3,
+        ".txt": 1,
+        ".webp": 26,
+        ".xml": 2
+      },
+      "findings": []
+    },
+    "staticChanges": {
+      "added": {
+        ".js": 30
+      },
+      "removed": {},
+      "updated": {
+        ".html": 588
+      }
+    },
+    "htmlClasses": {
+      "onlyJavascriptFingerprints": 60,
+      "productPagesWithInquiryMarkup": 528,
+      "byteEqual": 1,
+      "remaining": []
+    },
+    "journeys": {
+      "before": [
+        {
+          "device": "mobile",
+          "repeat": 1,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 36,
+              "verifiedOutcomeMs": 2719
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 43,
+              "verifiedOutcomeMs": 7374
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 60,
+              "verifiedOutcomeMs": 62
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 49,
+              "verifiedOutcomeMs": 53
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 44,
+              "verifiedOutcomeMs": 45
+            }
+          ]
+        },
+        {
+          "device": "mobile",
+          "repeat": 2,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 32,
+              "verifiedOutcomeMs": 1709
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 34,
+              "verifiedOutcomeMs": 6911
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 58,
+              "verifiedOutcomeMs": 62
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 50,
+              "verifiedOutcomeMs": 55
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 43,
+              "verifiedOutcomeMs": 43
+            }
+          ]
+        },
+        {
+          "device": "mobile",
+          "repeat": 3,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 32,
+              "verifiedOutcomeMs": 1945
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 41,
+              "verifiedOutcomeMs": 5857
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 58,
+              "verifiedOutcomeMs": 61
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 49,
+              "verifiedOutcomeMs": 52
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 46,
+              "verifiedOutcomeMs": 47
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 1,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 5,
+              "verifiedOutcomeMs": 1346
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 11,
+              "verifiedOutcomeMs": 3319
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 24,
+              "verifiedOutcomeMs": 26
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 27,
+              "verifiedOutcomeMs": 27
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 2,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 7,
+              "verifiedOutcomeMs": 2741
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 8,
+              "verifiedOutcomeMs": 3312
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 8,
+              "verifiedOutcomeMs": 9
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 27,
+              "verifiedOutcomeMs": 27
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 3,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": false,
+              "status": 200
+            },
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": [],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 7,
+              "verifiedOutcomeMs": 1892
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 8,
+              "verifiedOutcomeMs": 2811
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 8,
+              "verifiedOutcomeMs": 9
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 28,
+              "verifiedOutcomeMs": 29
+            }
+          ]
+        }
+      ],
+      "after": [
+        {
+          "device": "mobile",
+          "repeat": 1,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 58,
+              "verifiedOutcomeMs": 2603
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 49,
+              "verifiedOutcomeMs": 3347
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 55,
+              "verifiedOutcomeMs": 59
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 81,
+              "verifiedOutcomeMs": 85
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 62,
+              "verifiedOutcomeMs": 63
+            }
+          ]
+        },
+        {
+          "device": "mobile",
+          "repeat": 2,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 25,
+              "verifiedOutcomeMs": 2070
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 42,
+              "verifiedOutcomeMs": 3353
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 48,
+              "verifiedOutcomeMs": 50
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 50,
+              "verifiedOutcomeMs": 54
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 52,
+              "verifiedOutcomeMs": 52
+            }
+          ]
+        },
+        {
+          "device": "mobile",
+          "repeat": 3,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 36,
+              "verifiedOutcomeMs": 2441
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 42,
+              "verifiedOutcomeMs": 3848
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 49,
+              "verifiedOutcomeMs": 52
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 53,
+              "verifiedOutcomeMs": 57
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 53,
+              "verifiedOutcomeMs": 53
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 1,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 6,
+              "verifiedOutcomeMs": 1507
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 12,
+              "verifiedOutcomeMs": 2814
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 23,
+              "verifiedOutcomeMs": 26
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 9,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 25,
+              "verifiedOutcomeMs": 25
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 2,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 6,
+              "verifiedOutcomeMs": 1946
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 12,
+              "verifiedOutcomeMs": 2810
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 9,
+              "verifiedOutcomeMs": 10
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 12
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 27,
+              "verifiedOutcomeMs": 27
+            }
+          ]
+        },
+        {
+          "device": "desktop",
+          "repeat": 3,
+          "path": "/headphones/page/2/",
+          "reads": [
+            {
+              "path": "/api/products",
+              "filter": true,
+              "status": 200
+            },
+            {
+              "path": "/api/products/003a6310-5244-4766-adfa-eb1002ad0fb4/detail",
+              "filter": false,
+              "status": 200
+            }
+          ],
+          "countrySearchScripts": ["/_astro/CountryPicker.D4Ex84ZG.js"],
+          "blockedWrites": 0,
+          "steps": [
+            {
+              "action": "uncheck-wired-filter",
+              "firstVisibleMs": 5,
+              "verifiedOutcomeMs": 1643
+            },
+            {
+              "action": "open-catalog-product",
+              "firstVisibleMs": 17,
+              "verifiedOutcomeMs": 2331
+            },
+            {
+              "action": "open-inquiry",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "open-inquiry-contact",
+              "firstVisibleMs": 10,
+              "verifiedOutcomeMs": 11
+            },
+            {
+              "action": "reopen-inquiry",
+              "firstVisibleMs": 28,
+              "verifiedOutcomeMs": 29
+            }
+          ]
+        }
+      ]
+    },
+    "medianOutcomeMs": {
+      "before": {
+        "mobile": {
+          "uncheck-wired-filter": 1945,
+          "open-catalog-product": 6911,
+          "open-inquiry": 62,
+          "open-inquiry-contact": 53,
+          "reopen-inquiry": 45
+        },
+        "desktop": {
+          "uncheck-wired-filter": 1892,
+          "open-catalog-product": 3312,
+          "open-inquiry": 11,
+          "open-inquiry-contact": 9,
+          "reopen-inquiry": 27
+        }
+      },
+      "after": {
+        "mobile": {
+          "uncheck-wired-filter": 2441,
+          "open-catalog-product": 3353,
+          "open-inquiry": 52,
+          "open-inquiry-contact": 57,
+          "reopen-inquiry": 53
+        },
+        "desktop": {
+          "uncheck-wired-filter": 1643,
+          "open-catalog-product": 2810,
+          "open-inquiry": 11,
+          "open-inquiry-contact": 11,
+          "reopen-inquiry": 27
+        }
+      }
+    }
   }
 }
