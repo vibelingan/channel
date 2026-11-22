@@ -1,5 +1,11 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 22 日，读回历史 4xx 与工厂观看页
+
+同一 Search Console 属性的网页索引报表仍截至 11 月 16 日，显示 529 个已收录、989 个排除、八种原因。五张历史 4xx 图片的确认任务始于 11 月 16 日，当前待检查五张、失败零张，最后抓取仍在 11 月 3–7 日。官网再完整读取五张图和另一张旧 404 图，全部返回 200，字节与前次修复后一致。腾讯网关限定 19 个关注地址读取三段日志，取得 123 条匹配请求，均返回 200。这 123 条里没有核实到普通 Google 爬虫访问。第一段接近查询返回上限，本次结论只覆盖实际读到的记录。 [Google 原确认任务](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC) · [按网址及时间的证据](evidence/site-performance-and-watch-2026-11-22.json)
+
+视频报告截至 11 月 19 日，索引零项、排除两项。工厂观看页单独检查为“已发现，尚未编入索引”，Google 显示经两个地图入口发现，最后抓取仍为空。真实访客性能报告截至 11 月 20 日，手机和桌面仍都缺使用样本。实验室补测九类页面的结果另见[54 次官网 Chrome 测量](06-page-performance.zh-CN.md#11-月-22-日九类官网页面的手机和桌面复测)。
+
 ## 11 月 22 日，对比最近两周的网页搜索
 
 重新读取 Google Search Console 同一个网站属性的「网页搜索 → 日期」，以报表显示的最后一天 11 月 19 日为止，再往前比较两段各七天。11 月 6–12 日有 **36 次展示、1 次点击**。11 月 13–19 日有 **27 次展示、0 次点击**。最近一周少了 9 次展示和 1 次点击。三个月视图目前仍是 95 次展示、3 次点击。早期收录数与累计展示已有增加，最近两周样本仍小，两段的差异无法单独归因于某次网站改动。 [每日原始数值](evidence/google-web-sevens-2026-11-22.json) · [Google 网页搜索报告](https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)

@@ -1,5 +1,7 @@
 # SEO / Blog：当前进度与执行入口
 
+11 月 22 日，官网已单独更新小号商品 WebP 的读取方式，并为耳机分类首图准备同尺寸网页版本。两张实测小图的服务器处理时间约从 257 和 230 毫秒降为 43 毫秒；首图传输少约 72%，桌面整页首屏时间约为 2.39→2.42 秒。历史故障图、Blog、地图和三份关联网页完整读回一致。Google 仍待复查五张历史故障图，手机和桌面真实访客性能仍缺样本。 [API 发布](https://github.com/vibelingan/channel/actions/runs/44963085688) · [图片发布](https://github.com/vibelingan/channel/actions/runs/44964188625) · [实际测速](../seo/continuation/next-phase-design-2026-11-05/06-page-performance.zh-CN.md)
+
 11 月 22 日，70 个商品页的搜索和分享预览已使用自己公开图库里的首图，共 67 张。官网发布后逐页读回通过，528 件商品快照、Blog 和历史故障图均按发布前核对一致，商品自动更新已使用新程序，本次临时函数已清理。Google 五张历史 4xx 仍等平台复查。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44959546480) · [完整验收记录](../seo/continuation/next-phase-design-2026-11-05/evidence/catalog-social-preview-2026-11-22.json)
 
 11 月 22 日，官网更新了 337 个商品页的搜索与分享摘要。172 个摘要采用该商品已展示的规格，其余保留商品名和页面用途。正式包与线上抽查均通过，528 件商品的资料、报价和图片未发生回退，线上四个 Blog 页面和六张历史故障图读回一致。商品自动更新已切到新程序，本次临时函数已核对清理。Google 五张旧故障图的复查仍在等待，最新已核对的网页搜索为 95 次展示、3 次点击。 [官网发布](https://github.com/vibelingan/channel/actions/runs/44954895157) · [数据和前后样例](../seo/continuation/next-phase-design-2026-11-05/evidence/product-snippet-supplier-intro-2026-11-22.json)
