@@ -18,14 +18,11 @@ import {
 } from './src/lib/seo/route-policy.ts';
 import { withVideoSitemapMetadata } from './src/lib/seo/video-record.ts';
 
-// Keep commonly loaded storefront validation together without hoisting admin
-// collection definitions into the browser chunk.
+// Keep shared validation together. Leave detail transports and admin collection
+// definitions outside the chunk used by the header and account menu.
 const storefrontValidationFiles = new Set(
   [
     './src/lib/api-url.ts',
-    // The catalog can start a capped detail read without loading its view parser.
-    './src/catalog/infrastructure/catalog-detail-request.ts',
-    './src/catalog/detail-limits.ts',
     '../../packages/shared/src/catalog-product.ts',
     '../../packages/shared/src/catalog-taxonomy.ts',
     '../../packages/shared/src/media.ts',
