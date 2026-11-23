@@ -44,7 +44,7 @@ const identity = categoryPageIdentity(
 );
 const root = categoryPageIdentity(
   family,
-  { ...bootstrap, page: 1, path: family.href },
+  { page: 1, pageCount: bootstrap.pageCount, path: family.href },
   site.brand.name,
   Astro.site ?? Astro.url.origin,
 );

@@ -50,6 +50,34 @@ test('snapshot order does not change category contents, revision or public manif
   assert.equal(categoryPage(input, 'headphones', 2).items[0]?._id, 'item-012');
 });
 
+test('editing one card changes only its page revision and retains a shared manifest revision', () => {
+  const before = snapshot(25);
+  const after: ProductSnapshot = {
+    ...before,
+    products: before.products.map((entry, index) =>
+      index === 12 ? { ...entry, product: { ...entry.product, name: 'Updated card' } } : entry,
+    ),
+  };
+
+  const pages = (input: ProductSnapshot) =>
+    categoryPages(input).filter(({ family }) => family === 'headphones');
+  const previousPages = pages(before);
+  const changed = pages(after).filter(
+    (page, index) => page.revision !== previousPages[index]?.revision,
+  );
+  assert.deepEqual(
+    changed.map(({ path }) => path),
+    ['/headphones/page/2/'],
+  );
+
+  const groupRevisions = (input: ProductSnapshot) =>
+    categoryManifest(input)
+      .pages.filter(({ family }) => family === 'headphones')
+      .map(({ revision }) => revision);
+  assert.equal(new Set(groupRevisions(after)).size, 1);
+  assert.notDeepEqual(groupRevisions(after), groupRevisions(before));
+});
+
 test('move and withdrawal update both families and remove a no-longer-existing last page', () => {
   const before = snapshot(13);
   const moved: ProductSnapshot = {

@@ -23,7 +23,7 @@ export interface CategoryPageMetadata {
 
 export function categoryPageIdentity(
   family: CatalogFamilyContent,
-  data: { page: number; pageCount: number; path: string; revision: string },
+  data: { page: number; pageCount: number; path: string; revision?: string },
   brand: string,
   origin: string | URL,
 ): CategoryPageIdentity {
