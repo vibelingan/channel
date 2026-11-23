@@ -1,5 +1,13 @@
 # 08 搜索平台与实际业务效果
 
+## 11 月 24 日复查
+
+Google 网页索引汇总仍截至 11 月 16 日，529 个已收录、989 个排除。五张旧 4xx 图片仍待 Google 复查，失败 0。视频汇总仍截至 11 月 19 日，0 个收录、2 个排除，理由是视频不在观看页。安全问题和人工处置报告均显示无问题。网页搜索数据已覆盖至 11 月 21 日，累计仍为 98 次展示、3 次点击，平均位置 27.1。 [Google 索引报表](https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fsupplychainsai.com%2F) · [Google 搜索表现](https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fsupplychainsai.com%2F)
+
+从正式域名读取 robots.txt、地图索引和两个子地图。静态地图 580 个网址、Blog 地图 4 个。抽查首页、耳机目录及第二页、案例页、独立视频页和全部四个 Blog 地址，九页都直接返回 200，声明自身为正式网址，允许收录。观看页和地图使用同一首选视频地址，封面返回 200，视频分段请求返回 206。对照已验收的静态包，580 个可收录页面的完整标题和简介均无空值或完全重复。在静态包里无法解析的站内链接只有由独立服务提供的 Blog 入口，已在线上验证。 [官网地图](https://supplychainsai.com/sitemap-index.xml) · [独立观看页](https://supplychainsai.com/videos/factory-overview/)
+
+本次再次确认两项仍需处理。主域 HTTP 实际返回 200，两个 www 入口均 301 并保留路径和查询参数，独立试验域名仍无 DNS 记录。两款耳机官网仍展示来源数据里的矛盾规格，须由商品负责人核实正确值后再更新。搜到这些状态并无新的网站抓取故障，也未重新提交 Google 复查。 [域名处理](03-discovery-and-urls.zh-CN.md) · [两款商品的规格与来源](04-product-results.zh-CN.md#11-月-21-日核对商品标题和公开规格)
+
 ## 11 月 23 日复查 Google 与正式官网
 
 Search Console 的网页索引报表仍截至 11 月 16 日，529 个已收录、989 个排除。八类数量未变。五张历史 400 图片的复查仍是待处理 5、失败 0，Google 显示的最后抓取日期仍在 11 月 3–7 日。官网发布后完整读回五张旧 400 图和一张旧 404 图，均为 HTTP 200，与验收时的文件摘要相同。北京时间 11 月 22 日 16:29 至 23:23 的两段腾讯网关查询没有返回符合已知 Googlebot 条件的请求。Google 的复查仍以后台结论为准。 [Google 复查详情](https://search.google.com/search-console/index/validation?resource_id=https%3A%2F%2Fsupplychainsai.com%2F&item_key=CAMYNCAC)
