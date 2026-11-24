@@ -282,6 +282,8 @@ const afterCatalog = orderedMenuItems
           url.searchParams.set('category', child.id);
           url.searchParams.set('page', '1');
           link.href = `${url.pathname}${url.search}`;
+          // Keep the official catalog links crawlable and discourage filter URLs.
+          link.rel = 'nofollow';
           link.textContent = child.name;
           link.className = 'block min-h-11 break-words rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700';
           return link;

@@ -113,6 +113,15 @@ DNSPod 11 月 20 日的说明确认，添加 URL 转发会自动给这个名字�
 
 11 月 23 日用 `headphones/?page=2` 再查四种域名入口。两个 `www` 地址返回 301，保留了路径和查询参数，直接指向正式 HTTPS。裸域 HTTP 和 HTTPS 都返回 200。查询 `seo-https-check.supplychainsai.com` 时，DNS 返回该名称尚不存在。要验证腾讯的永久跳转、压缩和缓存是否同时符合要求，需由域名管理员代办或授权设置这一个测试子域的 DNS 和证书，并确认可用的边缘加速资源。待腾讯给出试点的记录值再填入 DNS。主域的后续切换以试点的实际结果为依据。 [腾讯配置和计费说明](https://docs.cloudbase.net/service/custom-domain)
 
+### 在腾讯云协作者账号上核对与设置
+
+11 月 24 日再次从公网核对四个入口，结果相同。Bing 的重复简介明细明确列出同一首页的 HTTP 与 HTTPS 两个地址。域名使用 DNSPod，公共 DNS 对测试子域仍返回名称不存在。浏览器能看到什么取决于登录的协作者权限。已有 CloudBase MCP 仍只连接一个上海环境，无法通过浏览器登录取得 DNSPod 或证书权限。 [腾讯协作者登录](https://cloud.tencent.com/document/product/598/36621) · [Bing 重复简介明细](https://www.bing.com/webmasters/seoreports?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F&ruleId=117)
+
+1. 用自己的腾讯云账号登录，选公司主账号的协作者身份。进云开发控制台，选上海的 `diversity-123-d9grnqfux221323bb`，打开 HTTP 网关的域名管理页。先核对 `supplychainsai.com` 当前接入方式及协议设置。这个检查只需读取权限。 [云开发控制台](https://tcb.cloud.tencent.com/dev)
+2. 在 SSL 证书控制台的「我的证书」申请仅覆盖 `seo-https-check.supplychainsai.com` 的证书。需要验证域名时，在 DNSPod 找到 `supplychainsai.com`，进入「记录管理 → 添加记录」，照证书页面填写记录类型、主机记录和记录值，线路选默认。 [SSL 证书](https://console.cloud.tencent.com/ssl) · [腾讯 DNS 验证](https://cloud.tencent.com/document/product/400/54500) · [DNSPod](https://console.cloud.tencent.com/cns)
+3. 回到云开发 HTTP 网关添加这个测试子域，选择测试证书及「云开发接入 → 开启边缘加速」。如果边缘加速另要求域名验证，按页面给出的 TXT 添加。腾讯显示接入目标后，在 DNSPod 加一条主机记录为 `seo-https-check` 的 CNAME，记录值复制网关给出的目标。测试只用该子域的记录。 [云开发自定义域名](https://docs.cloudbase.net/service/custom-domain)
+4. 在测试域名的协议设置选 HTTP 跳 HTTPS（301）。从公网核对带路径和参数的 GET，确认只有一跳、HTTPS 证书匹配且页面能打开。主域切换前另外核对后台登录、商品及 Blog、图片和视频、写入接口与回调，并确认边缘资源用量及切回的办法。 [腾讯边缘加速协议控制](https://docs.cloudbase.net/service/custom-domain)
+
 3A 分类首屏、3B 真实分页及自动变化、3C HTTP 入口与图标，分别验收。无脚本检查首屏和有限链接遍历；对比页 1/2 商品集合；覆盖新增、移类、撤回、最后一页缩减及迟到交付；浏览器保留全部业务操作。页面变化先给同视口截图。
 
 线上检查真实响应、标题、canonical、地图和当前 API；Google 实时可读与后续实际收录分开记录。程序恢复用当前商品内容重建相容产物，不恢复旧商品库。DNS 恢复不是瞬时操作，须在切换前留好源站与证书通路。

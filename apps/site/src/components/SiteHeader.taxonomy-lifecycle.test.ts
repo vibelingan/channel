@@ -25,6 +25,7 @@ class ListenerTarget extends EventTarget {
 
 class MenuLink {
   href = '';
+  rel = '';
   textContent = '';
   className = '';
 }
@@ -195,6 +196,7 @@ test('BFCache restore restarts aborted menus with fresh signals and rejects stal
       link.href,
       `/${group.dataset.taxonomyFamily}/?category=${group.dataset.taxonomyFamily}-child&page=1`,
     );
+    assert.equal(link.rel, 'nofollow');
   }
 });
 
