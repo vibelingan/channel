@@ -30,12 +30,14 @@
 | 网站地图、网址提交 | 总地图读取成功并发现 584 个网页，静态地图发现 580 个。手工网址提交面板有 2 条历史记录。 |
 | IndexNow、建议 | 建议页明确列出未接 IndexNow、外链不足、两条重复简介。重复明细中的网址是同一首页的 HTTP 和 HTTPS 版本。先修裸域转址，首页文案不会消除两版本并存。 |
 | 外链、关键词研究 | 外链没有可用数据。关键词研究是按关键词查需求的工具，此次打开了报表，未做业务词分组研究。 |
-| 站点扫描 | 选择了首页、耳机目录、案例、OEM、Blog、工厂观看页和一件商品，共 7 个正式网址。扫描上限 7 页，关闭邮件通知，只启动一次，Bing 已受理并开始处理。 |
+| 站点扫描 | 扫完首页、耳机目录、案例、OEM、Blog、工厂观看页和一件商品，共 7 个正式网址。0 个错误、1 条图片替代文字警告。警告只涉及儿童有线耳机商品页，见下方复核。 |
 | 抓取控制、屏蔽网址 | 抓取速度在默认设置。屏蔽列表为零条。 |
 | robots.txt 测试器、验证 Bingbot | 打开两个工具。规则测试器初次加载显示零项，尚未在该界面对具体网址复测。验证 Bingbot 需要输入爬虫 IP，用于追查日志里的请求身份。 |
 | 版权通知、用户管理、Clarity | 没有版权通知。当前账号可查看管理页。Clarity 尚未接入，是可选的访客行为记录工具。 |
 
 [重复简介的两个网址](https://www.bing.com/webmasters/seoreports?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F&ruleId=117) · [Bing Webmaster 指南](https://www.bing.com/webmasters/help/bing-webmaster-guidelines-30fba23a)
+
+Bing 的图片警告只给出商品页，没有列出对应图片。下载这七页的初始 HTML，172 个图片标签都有 `alt` 属性。用后台无头 Chromium 分别按手机和桌面打开被点名的商品页，两次都读取到 27 个图片标签，主商品图有说明，6 个缩略图由各自按钮的文字标签说明用途。点击缩略图后仍无缺少 `alt` 的图片。空 `alt` 让读屏跳过重复的图标或按钮内图片，保留这个行为。当前证据没有复现 Bing 所说的属性缺失，也不足以确认它的触发原因。 [Bing 警告明细](https://www.bing.com/webmasters/sitescan?siteUrl=https%3A%2F%2Fsupplychainsai.com%2F&scanName=Public%20SEO%20audit%202026-11-24&issueType=SEO013_ImgAltExists_Failed&id=8142605d-2f57-4d77-bea4-1561128284c0) · [W3C 装饰图说明](https://www.w3.org/WAI/tutorials/images/decorative/)
 
 ### 本次仓库改动与仍需完成的事
 
