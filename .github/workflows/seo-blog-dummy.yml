@@ -3,6 +3,14 @@ run-name: "Blog dummy ${{ inputs.task_id || 'offline' }}"
 on:
   push:
     branches: [feat/seo-foundation]
+    # Docs-only pushes skip this; the next code push (or the PR) still tests the whole tree.
+    paths-ignore:
+      - 'docs/**'
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'CLOUD_HANDOFF.md'
+      - 'CI-RELEASE.md'
+      - '.learnings/**'
   workflow_dispatch:
     inputs:
       task_id:
