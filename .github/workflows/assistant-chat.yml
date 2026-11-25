@@ -5,6 +5,7 @@ on:
     branches: [main, feat/sales-assistant]
     paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'apps/site/assistant-*.html', 'apps/site/assistant-preview.vite.ts', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'packages/sales-contracts/**', 'packages/db/**', 'apps/functions/sales-integration/**', 'tests/assistant-site/**', 'playwright.assistant-site.config.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: ['apps/ai-*/**', 'packages/ai-*/**', 'apps/site/src/islands/ai/**', 'scripts/*chat*.mjs', 'scripts/resend-secret-handoff*', 'scripts/assistant-chat-local.ts', 'scripts/assistant-sales-browser*', 'scripts/assistant-real*', 'scripts/assistant-ssh*', 'packages/sales-contracts/**', 'packages/db/**', 'apps/functions/sales-integration/**', 'tests/assistant-site/**', 'playwright.assistant-site.config.ts', 'tests/assistant-chat/**', 'playwright.assistant-chat.config.ts', 'tsconfig.assistant-chat.json', '.github/workflows/assistant-chat.yml']
 permissions:
   contents: read
@@ -13,6 +14,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   chat:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
