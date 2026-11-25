@@ -2,14 +2,6 @@ name: Blog server HTTP acceptance
 on:
   push:
     branches: [feat/seo-foundation]
-    paths:
-      - 'apps/site/**'
-      - 'packages/articles/**'
-      - 'packages/db/**'
-      - 'apps/functions/public-api/**'
-      - 'scripts/blog/server-http.integration.ts'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/seo-blog-server.yml'
   pull_request:
     paths:
       - 'apps/site/**'
@@ -21,9 +13,6 @@ on:
       - '.github/workflows/seo-blog-server.yml'
 permissions:
   contents: read
-concurrency:
-  group: seo-blog-server-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 jobs:
   server-http:
     runs-on: ubuntu-latest
