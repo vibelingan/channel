@@ -8,6 +8,8 @@
 
 本轮探测计划取美国东、西部各一个固定出口，分开记录 DNS、HTTPS 建连、首字节、下载、缓存状态和错误。以同区域同行为的手机页面作对照。Google 会结合多个信号识别目标市场，服务位置只是其中之一。选择 CDN 的直接目标是减少访客等待。 [腾讯 EdgeOne 缓存](https://intl.cloud.tencent.com/document/product/1145/54213) · [全球和海外区域限制](https://intl.cloud.tencent.com/document/product/1145/63620) · [Google 多地区网站指南](https://developers.google.com/search/docs/specialty/international/managing-multi-regional-sites)
 
+本轮已从洛杉矶和弗吉尼亚海滩各取一次公开耳机目录的 HTTPS 响应头。两地返回 200、相同 ETag，总用时分别 1.184 秒与 1.136 秒，其中 DNS、TCP 和 TLS 用时分别合计 0.669 秒与 0.580 秒。请求使用 HEAD，首屏加载和静态文件下载时长还需用实际浏览器和 GET 衡量。 [两地原始测量](https://api.globalping.io/v1/measurements/2mr1wE5xXzdjOda2Y00021ZlW)
+
 ## 目标与现状
 
 让海外访客就近取得公开静态资源，保留上海 API、数据库与 Blog 服务器。当前还没有部署这项 CDN，账号可见范围也未找到本站 EdgeOne 站点；不等于客户所有账号都没有。现有美国实测已经证明商品和图文慢，但不能先认定全部来自跨境。
