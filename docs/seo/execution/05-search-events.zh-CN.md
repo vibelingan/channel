@@ -1,5 +1,27 @@
 # 05 搜索事件
 
+## 2026-11-27 IndexNow 接入
+
+新增一个独立命令，复用站点现有的 Sitemap 检查、HTML 输出校验和有限时的 HTTP 读取。此前方案依赖发布器生成一份已验收的变更清单。商品静态页面和 Blog 实时页面由两套发布程序交付，目前可以共同核对的结果是官网实际返回的网站地图和网页。
+
+第一次读取记录已公开的基线，已有内容不批量重报。商品与文章新增、带可靠 `lastmod` 的更新、撤回会被记录，变化至少保持 30 分钟，届时重新读取两份网站地图。提交前再核对正式网址可访问、可抓取、网页中的更新时间和地图相符。撤回须确认原地址已经返回 404 或 410。旧商品如果仍无可信变更时间，只能发现它的新增或撤回。新日期由已有商品更新流程写入，命令不补造日期。
+
+命令在同一常驻运行环境使用同一个持久状态文件。
+
+```sh
+node --experimental-strip-types scripts/indexnow.mjs --preview /absolute/path/indexnow-state.json
+node --experimental-strip-types scripts/indexnow.mjs --observe /absolute/path/indexnow-state.json
+node --experimental-strip-types scripts/indexnow.mjs --apply /absolute/path/indexnow-state.json
+```
+
+`--preview` 只读取官网及已有状态。`--observe` 记录基线和待处理变化。`--apply` 使用同一状态文件，并要求运行环境提供 `INDEXNOW_KEY`。启用前将对应验证文件发布到正式 HTTPS 域名根目录，文件名为该 key 加 `.txt`，正文为同一个 key。命令验证文件后才会 POST。当次最多核对 20 个变化，发送一个批次。暂未公网生效的地址延后重验。遇到限流保留待发地址并遵从 `Retry-After`。平台返回 200 或 202 时记录已接收的地址，202 还表示平台正在核对归属，最终收录另在 Bing 查看。
+
+计划用每 15 分钟运行一次的常驻任务，沿用产品与文章原有发布流程和搜索地图。正式启用仍须完成官网验证文件、持久运行环境和一次真实业务变化的 Bing 回执验收。调度和 key 均在仓库之外配置。
+
+本地回归覆盖商品更新、文章新增、文章撤回、尚未生效的 HTML、暂时 503 的地图、发布恢复、限流及防重复。遇到进程异常退出遗留文件锁时，值班人先用锁文件中的 PID 核对旧任务已停止，再移除该锁。 [IndexNow 官方文档](https://www.indexnow.org/documentation)
+
+## 原发布事件设计
+
 状态 `planned`，MIU `SEO-REL-E1`。本模块先交实际内容差异、合并及预览；Google/Bing 的稳定 sitemap 地址继续使用，不要求本期新增外部推送服务。
 
 ## 输入、存储与调用合同
